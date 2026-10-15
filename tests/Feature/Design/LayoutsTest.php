@@ -48,7 +48,7 @@ function registerNamedPost(string $uri, string $name): void
  */
 function assertPalette(string $html, BrandPalette $palette): void
 {
-    [$light, $dark] = [Str::before($html, 'prefers-color-scheme: dark'), Str::after($html, 'prefers-color-scheme: dark')];
+    [$light, $dark] = [Str::before($html, '@media (prefers-color-scheme: dark)'), Str::after($html, '@media (prefers-color-scheme: dark)')];
 
     foreach ($palette->toCssVariables() as $variable => $color) {
         expect($light)->toContain("{$variable}: {$color};");
@@ -58,6 +58,32 @@ function assertPalette(string $html, BrandPalette $palette): void
         expect($dark)->toContain("{$variable}: {$color};");
     }
 }
+
+describe('brand icons', function () {
+    it('links the favicon and home-screen icon of the active company', function (?CompanyCode $company, string $brand) {
+        $this->app->instance(CurrentCompany::class, new FakeCurrentCompany($company));
+        $this->actingAs(User::factory()->make());
+
+        $html = Html::parse((string) $this->blade('<x-layouts.app>Contenido</x-layouts.app>'));
+
+        expect($html->one('//html')->getAttribute('data-brand'))->toBe($brand)
+            ->and($html->one('//link[@rel="icon"]')->getAttribute('href'))->toBe(asset("icons/{$brand}/favicon.svg"))
+            ->and($html->one('//link[@rel="apple-touch-icon"]')->getAttribute('href'))->toBe(asset("icons/{$brand}/apple-touch-icon.png"))
+            ->and(public_path("icons/{$brand}/favicon.svg"))->toBeFile()
+            ->and(public_path("icons/{$brand}/apple-touch-icon.png"))->toBeFile();
+    })->with([
+        'Segurex' => [CompanyCode::SGX, 'sgx'],
+        'Derivados' => [CompanyCode::SDC, 'sdc'],
+        'group view' => [null, 'neutral'],
+    ]);
+
+    it('gives guests the neutral icons', function () {
+        $html = Html::parse((string) $this->blade('<x-layouts.guest>Hola</x-layouts.guest>'));
+
+        expect($html->one('//html')->getAttribute('data-brand'))->toBe('neutral')
+            ->and($html->one('//link[@rel="icon"]')->getAttribute('href'))->toBe(asset('icons/neutral/favicon.svg'));
+    });
+});
 
 describe('<x-layouts.guest>', function () {
     it('renders a Spanish page with the neutral palette and no navigation', function () {
@@ -147,6 +173,32 @@ describe('<x-layouts.app>', function () {
             ->and($html->one('//meta[@name="csrf-token"]')->getAttribute('content'))
             ->not->toBeEmpty()
             ->toBe(session()->token());
+    });
+
+    it('opens the main navigation with a labelled menu button on small screens', function () {
+        registerLayoutPages();
+        app(NavRegistry::class)->add(new NavItem(key: 'cartera.tablero', label: 'Tablero', route: 'cartera.tablero'));
+
+        $html = Html::parse($this->actingAs(User::factory()->make())->get('/cartera/tablero')->assertOk()->getContent() ?: '');
+
+        $nav = $html->one('//nav[@aria-label="Navegación principal"]');
+        $button = $html->one('//header//button[@aria-controls]');
+
+        expect($button->getAttribute('aria-controls'))->toBe($nav->getAttribute('id'))
+            ->and($button->getAttribute('aria-expanded'))->toBe('false')
+            ->and(Html::clean($button->textContent))->toBe('Abrir el menú')
+            ->and(Html::clean($html->one('//nav[@aria-label="Navegación principal"]//button')->textContent))->toBe('Cerrar el menú');
+    });
+
+    it('shows the account of the signed-in user in its menu', function () {
+        $this->actingAs(User::factory()->make(['name' => 'Ana Gómez', 'email' => 'ana.gomez@segurex.example']));
+
+        $html = Html::parse((string) $this->blade('<x-layouts.app>Contenido</x-layouts.app>'));
+        $account = $html->one('//header//details[@data-part="account"]');
+
+        expect(Html::clean($account->textContent))->toContain('AG')
+            ->toContain('Tu cuenta')
+            ->toContain('ana.gomez@segurex.example');
     });
 
     it('checks each navigation permission once per page', function () {
