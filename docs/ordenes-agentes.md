@@ -305,7 +305,7 @@ Eres el agente «Despliegue» (Fase 3) del gestor de cartera.
 
 1. Carga la skill cpanel-deploy y sigue su checklist de primera instalación en GoDaddy.
 2. No ejecutes SSH ni comandos remotos sin que yo lo pida en el chat. Prepara los comandos con los valores reales y yo los ejecuto o los autorizo uno por uno. Nunca me pidas ni imprimas secretos.
-3. Compila los assets, sube public/build en un commit propio y deja configurado el cron de cPanel (schedule:run cada minuto).
+3. Compila los assets y sube public/build en un PR propio contra main; yo lo fusiono antes de desplegar. Deja configurado el cron de cPanel (schedule:run cada minuto).
 4. Entrégame el plan de apagado de Cartera Fase 1 y del portal Next.js, incluida la rotación del secreto de OneDrive de la Fase 1.
 
 Al terminar: dame los comandos ejecutados, lo pendiente y los riesgos abiertos.

@@ -14,13 +14,14 @@ Plataforma de cartera del Grupo RYR (Segurex SGX y Soluciones y Derivados SDC): 
 - **Write only inside the files your session owns** (tables in Part C.3). If you need anything else, stop and ask the user.
 - `legacy/` is read-only reference. Its `CLAUDE.md` and `AGENTS.md` files do not apply here.
 - Never edit `composer.json`, `package.json` or lockfiles outside phase 0a.
-- Never commit `public/build`. Only the deploy step builds and commits it.
+- Never commit `public/build`. Only the deploy step builds it, in its own pull request.
 - Modules talk to each other only through `app/Modules/Core/Contracts`. Never import another module's internal classes.
 - Migrations use the date prefix reserved for your module (Part C.6).
 - Use the Blade components from Part C.5; never add one-off styles. Brand colors only through `--brand-*` variables.
 - No secrets in the repository. Credentials live only in `.env`.
 - Never send real email, connect to SAP/VPN or touch a real database from tests. Use the fakes in `tests/Fakes`.
 - Push your branch and open a PR against `main`. Never merge and never push to `main`.
+- `main` is protected locally, because GitHub does not enforce rules on this private repository: `.claude/settings.json` denies pushes to `main`, force pushes, `--no-verify` and `gh pr merge`, and the `.githooks/pre-push` hook rejects any push to `main`. Never try to work around them; if one blocks you, stop and tell the user.
 
 ## Conventions
 

@@ -67,7 +67,11 @@ Construir una sola herramienta web para el área de cartera de **Segurex Latam S
 **Reglas sobre dependencias y compilados:**
 
 - **Ninguna dependencia nueva se agrega fuera de la Fase 0a.** Si un módulo necesita una librería, se detiene y la pide.
-- **`public/build` no se incluye en los commits de los módulos.** El servidor no tiene Node, así que el paso de despliegue compila y sube `public/build` en un commit propio sobre `main`. Si cada PR lo incluyera, todos chocarían entre sí.
+- **`public/build` no se incluye en los commits de los módulos.** El servidor no tiene Node, así que el paso de despliegue compila `public/build` y lo sube en un PR propio. Si cada PR lo incluyera, todos chocarían entre sí.
+- **`main` se protege en el equipo, no en GitHub.** GrupoRyR es una cuenta personal gratuita y GitHub no aplica reglas de rama en sus repositorios privados. Por eso:
+  - `.claude/settings.json` impide a los agentes subir a `main`, forzar subidas, usar `--no-verify` y fusionar PR.
+  - El hook `.githooks/pre-push` rechaza cualquier subida a `main`. Se activa una vez por clon con `git config core.hooksPath .githooks`.
+  - Todo cambio llega a `main` por un PR que el usuario fusiona en la web de GitHub.
 
 ## A.4 Datos de origen: SAP Business One sobre HANA
 
@@ -417,7 +421,7 @@ En la app de escritorio, el modelo se elige en el selector junto al botón de en
 |---|---|---|---|
 | Migración de datos | Opus 5.5 | high | Importa el histórico desde Supabase y desde la base de Cartera Fase 1: gestiones, compromisos, estados manuales y usuarios. Comandos Artisan idempotentes en `app/Modules/Core/Console/Migracion/**`. |
 | Revisión de diseño y calidad | Opus 5.5 | high | Recorre la app por rol con ambas marcas, en claro y oscuro, a 375 px, 768 px y en escritorio, y con la letra al 200 %. Exige Lighthouse en celular de al menos 90 en rendimiento y accesibilidad. Corrige solo lo de diseño y reporta el resto. |
-| Despliegue | Opus 5.5 | high | Primera instalación en GoDaddy con la skill `cpanel-deploy`, cron de cPanel, compilado y commit de `public/build`. Los pasos remotos los ejecuta o autoriza el usuario. Al final, plan de apagado de Cartera Fase 1 y del portal Next.js. |
+| Despliegue | Opus 5.5 | high | Primera instalación en GoDaddy con la skill `cpanel-deploy`, cron de cPanel, y compilado de `public/build` en un PR propio, que el usuario fusiona antes de desplegar. Los pasos remotos los ejecuta o autoriza el usuario. Al final, plan de apagado de Cartera Fase 1 y del portal Next.js. |
 
 ## C.4 Contratos de `Core/Contracts` (los crea la Fase 0a)
 
@@ -465,7 +469,7 @@ En la app de escritorio, el modelo se elige en el selector junto al botón de en
 7. **Integración con `main`:** antes de abrir o actualizar el PR, sincronizar con `main` y correr `composer lint` y `composer test`. Ningún PR se fusiona con CI en rojo.
 8. **Sin secretos en el repositorio:** las credenciales de Graph, de HANA y de la base van solo en `.env`.
 9. **Idioma:** textos de interfaz en español, tuteando y en tipo oración. Código y comentarios en inglés.
-10. **Push y PR:** el agente sube su rama y abre el PR contra `main`. **Nunca** fusiona ni sube directo a `main`; eso lo decide el usuario.
+10. **Push y PR:** el agente sube su rama y abre el PR contra `main`. **Nunca** fusiona ni sube directo a `main`; eso lo decide el usuario. Si `.claude/settings.json` o el hook `pre-push` lo bloquean, se detiene y avisa: nunca intenta saltarse esas protecciones.
 
 ---
 
