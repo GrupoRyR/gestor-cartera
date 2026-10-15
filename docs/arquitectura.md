@@ -197,6 +197,7 @@ final class CobroServiceProvider extends ModuleServiceProvider
 - **Core** sobrescribe `webPrefix()` con `''`: sirve `/`, `/login`, `/equipo`… Sus rutas no pueden empezar con la clave de otro módulo (`/cartera`, `/cobro`…).
 - **Bancos** sobrescribe `apiPrefix()` con `''` porque Tesorería consulta `GET /api/recaudo` (Módulo 5, punto 9): `Route::get('recaudo', …)->name('recaudo')` queda como `GET /api/recaudo`, nombre `bancos.api.recaudo`. Bancos no puede usar en su API rutas que empiecen con la clave de otro módulo.
 - El endpoint del robot, `POST /api/ingesta/{lote}`, cae solo en el prefijo de Ingesta.
+- Los errores de `/api/*` responden JSON aunque el cliente no envíe `Accept: application/json` (`bootstrap/app.php`): 422 con `errors` y 401 sin redirigir a `/login`.
 - Cada `routes/*.php` del esqueleto trae en un comentario cómo queda una ruta de ejemplo.
 
 ---
@@ -231,7 +232,7 @@ Diseño y Núcleo trabajan en paralelo. El layout `<x-layouts.app>` ya está esc
 | Qué | Detalle | Estado hoy |
 |---|---|---|
 | `core.login` | `GET /login`: página de ingreso con Microsoft, con `<x-layouts.guest>`. `bootstrap/app.php` ya manda a los invitados a `/login` (`redirectGuestsTo('/login')`). | No existe: un invitado que pide una ruta con `auth` termina en 404. |
-| Callback de Microsoft | `GET /auth/microsoft/callback` (nombre sugerido `core.auth.callback`); debe coincidir con `MICROSOFT_REDIRECT_URI`. El driver `microsoft` de Socialite ya está registrado en `AppServiceProvider` y configurado en `config/services.php` (`microsoft`). | No existe. |
+| Callback de Microsoft | `GET /auth/microsoft/callback` (nombre sugerido `core.auth.callback`); debe coincidir con `MICROSOFT_REDIRECT_URI`. El driver `microsoft` de Socialite ya está registrado en `AppServiceProvider` y configurado en `config/services.php` (`microsoft`); sin `MICROSOFT_TENANT_ID`, construirlo lanza `RuntimeException` (nunca cae en `common`). Además, el callback verifica que el claim `tid` del usuario que ingresó sea igual al tenant configurado y rechaza el ingreso si no lo es. | No existe. |
 | Inicio | `GET /` (nombre sugerido `core.inicio`): inicio según el rol. `bootstrap/app.php` manda ahí a los usuarios con sesión que abren una página solo para invitados (`redirectUsersTo('/')`); el logo del layout enlaza a `url('/')`. | No existe. |
 | `core.logout` | `POST /logout`. El layout muestra «Salir» solo si `Route::has('core.logout')`. | No existe: el botón no aparece. |
 | `core.empresa.cambiar` | `POST /empresa` con el campo `empresa` = `SGX`, `SDC` o `grupo`. `grupo` equivale a `switchTo(null)`. Ante `CompanyNotAvailable`, redirige atrás con el flash `error`. El layout muestra el selector solo si la ruta existe y `count(available()) > 1`. | No existe: el selector no aparece. |
@@ -514,7 +515,7 @@ Los contratos también lanzan `InvalidArgumentException`, `DomainException` e `I
 - **Montos:** `float` en pesos colombianos, para mostrar y sumar. Las filas de ingesta traen cadenas decimales exactas; Comisiones calcula con aritmética exacta sobre ellas, no con `float`.
 - **Fechas:** `CarbonImmutable`; las de solo fecha están al inicio del día en America/Bogota.
 - **DTO:** `final readonly`; para «cambiar» uno, crea otro.
-- **Listas:** `list<…>` en orden documentado; las páginas son `Illuminate\Contracts\Pagination\LengthAwarePaginator` que leen `?page=`. Llama `->withQueryString()` antes de pintar `<x-ui.pagination>` para conservar filtros y orden.
+- **Listas:** `list<…>` en orden documentado; las páginas son `Illuminate\Contracts\Pagination\LengthAwarePaginator` que leen `?page=`. `<x-ui.pagination>` conserva en sus enlaces la búsqueda, los filtros y el orden de la URL actual.
 - **Ids:** los de cliente, compromiso, factura y carga son ids de la plataforma, no de SAP (`ClientSummary::$code` es el código de SAP).
 
 ---
@@ -559,7 +560,7 @@ Enlaza los nueve fakes como instancias del contenedor y devuelve un `ContractFak
 
 | Fake | Preparar | Afirmar o inspeccionar |
 |---|---|---|
-| `FakeCurrentCompany` | `new FakeCurrentCompany(?CompanyCode $active = SGX, array $available = [SGX, SDC], array $graceDays = ['SGX' => 15, 'SDC' => 5])`, `::group()`, `::guest()`, `switchTo()` | Métodos del contrato |
+| `FakeCurrentCompany` | `new FakeCurrentCompany(?CompanyCode $active = SGX, array $available = [SGX, SDC], array $graceDays = ['SGX' => 15, 'SDC' => 5])`, `::group()`, `::guest()`, `switchTo()`. Como el contrato, lanza `CompanyNotAvailable` con una activa que no está disponible o con `$active = null` y una sola empresa (la vista de grupo exige dos; sin empresas es un invitado). | Métodos del contrato |
 | `FakeCarteraRepository` | `addClient(ClientDetail $client, Invoice ...$invoices)`, `addAdvisor(Advisor ...)`, `addHistory(PortfolioTotals ...)`, `restrictToAdvisor(?int $code)`, propiedad `cutoffDate` | Métodos del contrato |
 | `FakeCompromisoService` | `actingAs(UserRef)`, `knowClient(int $id, string $name, CompanyCode $company = SGX, ?int $advisorCode = null)`, `add(Commitment ...)`, `denyAuthorization(bool $deny = true)` | `all()`, `cancellationReason(int)`, `assertCreated(?callable $filter = null)`, `assertNothingCreated()` |
 | `FakeGestionLogger` | `actingAs(?UserRef)` (`null` = sistema), `knowClient(int, string)`, `add(Activity ...)` | `logged()`, `assertLogged(ActivityType $type, ?int $clientId = null)`, `assertNothingLogged()` |
@@ -673,7 +674,7 @@ En Blade, una prop `camelCase` se pasa en `kebab-case`: `:icon-only="true"`, `ca
 | `<x-ui.checkbox>` | `name` | `string` | obligatoria | Admite listas (`clientes[]`). |
 | | `label` | `string` | obligatoria | |
 | | `value` | `string\|int\|BackedEnum` | `'1'` | |
-| | `checked` | `?bool` | `null` | `null` lo toma de `old()`. |
+| | `checked` | `?bool` | `null` | Después de un envío fallido (hay old input) manda `old()`, aun sobre `checked`: una casilla ausente queda sin marcar. Sin old input, `checked` (`null` = sin marcar). |
 | | `hint` | `?string` | `null` | |
 | | `id` | `?string` | `null` | Por defecto, de `name` y `value`. Atributos extra van a `<input>`. |
 | `<x-ui.textarea>` | `name` | `string` | obligatoria | |
@@ -700,7 +701,7 @@ En Blade, una prop `camelCase` se pasa en `kebab-case`: `:icon-only="true"`, `ca
 | | `fallback` | `string` | `'—'` | Para `null` o texto vacío (sin `<time>`). |
 | `<x-ui.icon>` *(adición)* | `name` | `string` | obligatoria | Se pinta como `data-icon="<name>"`. |
 | | `label` | `?string` | `null` | Sin etiqueta es decorativo (`aria-hidden`); con ella, `role="img"`. |
-| `<x-ui.pagination>` *(adición)* | `paginator` | `Illuminate\Contracts\Pagination\Paginator` | obligatoria | No pinta nada si todo cabe en una página; con `LengthAwarePaginator` muestra «Página X de Y». |
+| `<x-ui.pagination>` *(adición)* | `paginator` | `Illuminate\Contracts\Pagination\Paginator` | obligatoria | No pinta nada si todo cabe en una página; con `LengthAwarePaginator` muestra «Página X de Y». Sus enlaces conservan la query de la URL actual (búsqueda, filtros, orden), salvo el parámetro de página. |
 | | `label` | `string` | `'Paginación'` | `aria-label` del `<nav>`. |
 
 ### 8.2 Reglas comunes
@@ -717,6 +718,27 @@ En Blade, una prop `camelCase` se pasa en `kebab-case`: `:icon-only="true"`, `ca
   <x-ui.modal id="nuevo-compromiso" title="Nuevo compromiso" :open="$errors->any()">…</x-ui.modal>
   ```
 
+- **Llamadas desde Alpine:** usa `window.apiFetch(url, options)` (`resources/js/app.js`), no `fetch()` suelto. Agrega `Accept: application/json`, `X-Requested-With: XMLHttpRequest` y `X-CSRF-TOKEN` (de `<meta name="csrf-token">`, que pintan los layouts), envía la cookie de sesión (`credentials: 'same-origin'`) y convierte a JSON un `body` que sea un objeto o un arreglo (con `Content-Type: application/json`); `FormData` y los textos van tal cual. Los encabezados que pases ganan. Devuelve el `Response` de `fetch()`: revisa `response.ok` (un 422 trae `errors`).
+
+  ```blade
+  <div x-data="{
+      guardando: false,
+      error: null,
+      async excluir() {
+          this.guardando = true;
+          const response = await apiFetch('{{ route('cobro.exclusiones.store') }}', {
+              method: 'POST',
+              body: { cliente_id: 12, motivo: 'Acuerdo de pago vigente' },
+          });
+          this.error = response.ok ? null : (await response.json()).message;
+          this.guardando = false;
+      },
+  }">
+      <x-ui.button x-on:click="excluir" x-bind:disabled="guardando">Excluir del cobro</x-ui.button>
+      <p x-show="error" x-text="error"></p>
+  </div>
+  ```
+
 - **Pestañas:** son enlaces; no hay paneles del lado del cliente. Cada pestaña es una URL.
 - **Orden de tablas:** el encabezado ordenable enlaza a la URL actual con `?sort=<key>&direction=asc|desc` y quita `?page`. Son los mismos nombres de `ClientQuery` y `CommitmentQuery`; usa como `key` un valor de su `SORTS`.
 - **Paginación:** siempre `<x-ui.pagination :paginator="$clientes" />`, nunca `->links()`.
@@ -724,7 +746,7 @@ En Blade, una prop `camelCase` se pasa en `kebab-case`: `:icon-only="true"`, `ca
 - **Formatos** (`App\Support\Formatting`):
   - `Money::format($value, $currency = 'COP', $decimals = null, $fallback = '—')`: `$ 1.234.567` (espacio sin corte U+00A0), `-$ 1.234.567`, `US$ 1.234,57`.
   - `DateFormat::date()` → `15/10/2026`, `DateFormat::dateTime()` → `15/10/2026 14:05`, `DateFormat::iso()` para `datetime`; todo convertido a America/Bogota.
-  - `FieldName::toKey('clientes[0][email]')` → `clientes.0.email`; `FieldName::toId()` → `clientes-0-email`.
+  - `FieldName::toKey('clientes[0][email]')` → `clientes.0.email`; `FieldName::toId()` → `clientes-0-email`. Con valor, `toId('clientes[]', 'C-001')` → `clientes-C-001`; si el valor trae caracteres que no sirven en un id, se limpia y se le agrega su `crc32b` para que `C900.123` y `C900-123` no compartan id.
   - Úsalos también en exportaciones, para que pantalla y archivo coincidan.
 - **Estilos en módulos:** Tailwind escanea las vistas de los módulos (`@source` en `resources/css/app.css`). Nada de `<style>`, CSS propio ni colores fijos; los colores salen de `--brand-*` a través de los componentes. Si falta un componente, se pide.
 - **Enums en formularios:** `<x-ui.select name="estado" label="Estado" :options="ClientStatus::options()" :value="$estado" />`.
@@ -758,6 +780,7 @@ Métodos: `url()`, `isActive(?Request $request = null)` y `badgeCount()`.
 - `has(string $key)`, `all()` (por `order` y luego `label`).
 - `visibleTo(?Authenticatable $user)`: los invitados no ven nada; se omiten las entradas cuya ruta no existe y las que el Gate niega.
 - `groupedFor($user)`: grupos en el orden de su primera entrada. `mobileFor($user)`: solo `mobile: true`.
+- `menuFor($user)`: `['groups' => groupedFor(), 'mobile' => mobileFor()]` con una sola pasada de `visibleTo()`; el layout lo usa para revisar cada ruta y cada permiso una vez por página.
 
 El layout ejecuta cada `badge` una vez por página: que sea una consulta barata y devuelva `null` cuando no hay nada que contar (un `0` sí se muestra).
 
@@ -781,7 +804,7 @@ protected function navigation(NavRegistry $navigation): void
 ## 10. Tareas programadas y colas
 
 - **Gancho:** cada módulo programa sus tareas en `schedule(Schedule $schedule)` de su proveedor. Nunca en `routes/console.php`.
-- **Base** (`routes/console.php`): `queue:work --stop-when-empty --tries=3 --max-time=50` cada minuto, `withoutOverlapping()` y `runInBackground()`; `queue:prune-failed --hours=720` diario.
+- **Base** (`routes/console.php`): `queue:work --stop-when-empty --tries=3 --max-time=50` cada minuto, `withoutOverlapping(5)` y `runInBackground()`; `queue:prune-failed --hours=720` diario. El candado vence a los 5 minutos (el worker sale a los 50 segundos), así que un worker que el hosting mate deja la cola parada minutos, no un día.
 - **Cron de cPanel** (una sola línea, la configura el despliegue):
 
   ```
@@ -789,7 +812,7 @@ protected function navigation(NavRegistry $navigation): void
   ```
 
 - **Zona horaria:** `America/Bogota` (`APP_TIMEZONE`), así que `dailyAt('07:00')` es hora de Colombia.
-- **Colas:** driver `database`. El hosting no tiene supervisor: la cola se vacía con la tarea de cada minuto. Mantén cada job corto (segundos) y parte el trabajo largo en varios jobs; usa `withoutOverlapping()` en tareas que no deben solaparse.
+- **Colas:** driver `database`. El hosting no tiene supervisor: la cola se vacía con la tarea de cada minuto. Mantén cada job corto (segundos) y parte el trabajo largo en varios jobs; usa `withoutOverlapping()` en tareas que no deben solaparse, con minutos de vencimiento acordes a lo que dura la tarea (`withoutOverlapping(10)`): por defecto el candado dura 24 horas si el proceso muere sin soltarlo.
 - En pruebas, `QUEUE_CONNECTION=sync`: los jobs corren en el momento.
 
 ---
@@ -850,7 +873,7 @@ Son los de la última columna de §3.4 (C.6): de `2026_10_01_*` (Core) a `2026_1
 |---|---|
 | `id` | id |
 | `name` | string |
-| `email` | string, único |
+| `email` | string, único (sin espacios y en minúsculas) |
 | `microsoft_id` | string, nullable, único (oid de Entra ID) |
 | `is_active` | boolean, por defecto `true` |
 | `email_verified_at` | timestamp nullable |
@@ -860,6 +883,15 @@ Son los de la última columna de §3.4 (C.6): de `2026_10_01_*` (Core) a `2026_1
 | `deleted_at` | borrado lógico |
 
 `App\Models\User` usa `HasFactory`, `HasRoles` (Spatie), `Notifiable` y `SoftDeletes`; `fillable`: `name`, `email`, `microsoft_id`, `is_active`. `UserFactory` crea usuarios sin contraseña y con `microsoft_id`; estados `inactive()` y `withoutMicrosoftId()`.
+
+**Crear usuarios.** `email` y `microsoft_id` son únicos aun con borrado lógico: una persona es una sola fila y la auditoría sigue apuntando a ella. El modelo guarda el correo sin espacios y en minúsculas (`User::normalizeEmail()`), así que `Ana@Segurex.com` y `ana@segurex.com` son la misma persona. Por eso, todo camino que crea usuarios (el primer ingreso con Microsoft, la pantalla de equipo, un seeder) usa `restoreOrCreate()` (o `createOrRestore()`) con el correo normalizado, nunca `create()`: si la persona fue borrada, la restaura en la misma fila en vez de fallar por el índice único.
+
+```php
+$user = User::withTrashed()->restoreOrCreate(
+    ['email' => User::normalizeEmail($email)],
+    ['name' => $name, 'microsoft_id' => $oid],
+);
+```
 
 ### 12.3 Quién toca qué tabla
 
@@ -950,6 +982,7 @@ Corre en cada PR y en cada push a `main`; ningún PR se fusiona en rojo.
 | Lint | PHP 8.3, `composer install`, `composer lint`. |
 | Tests | PHP 8.3 con MySQL 8.0 como servicio; copia `.env.example`, genera la llave y corre `composer test` con `DB_*` de MySQL. |
 | Assets | Node 22, `npm ci`, `npm run build`. Solo comprueba que compila; nunca se sube. |
+| Compilados (solo en PR) | Falla si el PR cambia algo en `public/build/` (`git diff` contra la rama destino) y su rama no empieza con `deploy/` (§16). |
 
 En tu equipo las pruebas corren en SQLite en memoria; CI las corre en MySQL 8. Evita SQL propio de un motor y prueba en CI lo que dependa de él.
 
@@ -967,12 +1000,13 @@ Los secretos viven solo en `.env` (en el servidor, con `chmod 600`). `.env.examp
 | `APP_FAKER_LOCALE` | Factories | `es_CO`. |
 | `LOG_CHANNEL`, `LOG_STACK`, `LOG_DAILY_DAYS`, `LOG_LEVEL` | Base | `LOG_STACK=daily` y `LOG_DAILY_DAYS=14`; son también los valores por defecto de `config/logging.php`. |
 | `DB_CONNECTION`, `DB_HOST`, `DB_PORT`, `DB_DATABASE`, `DB_USERNAME`, `DB_PASSWORD` | Base | `sqlite` en local (`database/database.sqlite`); `mysql` en producción. |
+| `DB_TIMEZONE` | Base | Opcional; no está en `.env.example` y vale `-05:00` por defecto. Zona de la sesión de MySQL y MariaDB (`config/database.php`): las conversiones de `TIMESTAMP` y `NOW()`/`useCurrent()` siguen la hora de Colombia (sin horario de verano), no la del servidor de GoDaddy. SQLite la ignora. |
 | `SESSION_DRIVER`, `SESSION_LIFETIME` | Base | `database`; 120 minutos. |
 | `SESSION_SECURE_COOKIE` | Base | `true` en producción (HTTPS). |
 | `QUEUE_CONNECTION` | Base | `database`. |
 | `CACHE_STORE` | Base | `database`. |
 | `MAIL_*` | Framework | Solo correo del framework (por defecto `log`). El correo de negocio va por Graph (`MailSender`). |
-| `MICROSOFT_TENANT_ID`, `MICROSOFT_CLIENT_ID`, `MICROSOFT_CLIENT_SECRET`, `MICROSOFT_REDIRECT_URI` | Core | `config('services.microsoft')`: `tenant`, `client_id`, `client_secret`, `redirect`. El tenant limita el ingreso al directorio de la empresa: nunca `common`. La URI apunta a `/auth/microsoft/callback`. |
+| `MICROSOFT_TENANT_ID`, `MICROSOFT_CLIENT_ID`, `MICROSOFT_CLIENT_SECRET`, `MICROSOFT_REDIRECT_URI` | Core | `config('services.microsoft')`: `tenant`, `client_id`, `client_secret`, `redirect`. El tenant limita el ingreso al directorio de la empresa: nunca `common`. Sin `MICROSOFT_TENANT_ID`, el driver no se construye (`RuntimeException`); la app arranca y `/up` responde igual. La URI apunta a `/auth/microsoft/callback`. |
 | `GRAPH_TENANT_ID`, `GRAPH_CLIENT_ID`, `GRAPH_CLIENT_SECRET` | Cobro | `config('cobro.graph.*')`. Registro aparte del de ingreso, solo de aplicación. `Mail.Send` y `Mail.ReadWrite` (crear el borrador permite guardar `internetMessageId` y `conversationId`) se conceden con [RBAC for Applications de Exchange Online](https://learn.microsoft.com/exchange/permissions-exo/application-rbac), limitados a los dos buzones; nunca como permiso de todo el tenant en Entra ID. La lista exacta la confirma la sesión de Cobro. |
 | `COBRO_MAILBOX_SGX`, `COBRO_MAILBOX_SDC` | Cobro | `config('cobro.mailboxes.SGX')` (por defecto `segurex.info@segurex.com`) y `config('cobro.mailboxes.SDC')` (por defecto `derivados.info@derivadoscol.com`). |
 | `INGESTA_HMAC_KEYS` | Ingesta | `config('ingesta.hmac_keys')`: pares `id-llave:secreto` separados por comas, en texto; Ingesta los interpreta. |
@@ -994,7 +1028,7 @@ Los secretos viven solo en `.env` (en el servidor, con `chmod 600`). `.env.examp
 
 Se despliega de GitHub a cPanel (GoDaddy) con la skill `cpanel-deploy`. La primera instalación, el cron y el PR de compilados son de la sesión de Despliegue (Fase 3); los pasos remotos los ejecuta o autoriza el usuario.
 
-**`public/build`.** Está en `.gitignore` y ningún módulo lo sube. El servidor no tiene Node, así que la sesión de despliegue compila (`npm ci && npm run build`) y lo agrega con `git add -f public/build` en un PR propio, que el usuario fusiona antes de desplegar. Como los módulos cambian vistas y clases de Tailwind, cada despliegue con cambios de interfaz necesita un compilado nuevo.
+**`public/build`.** Está en `.gitignore` y ningún módulo lo sube. El servidor no tiene Node, así que la sesión de despliegue compila (`npm ci && npm run build`) y lo agrega con `git add -f public/build` en un PR propio, desde una rama que empieza con `deploy/` (p. ej. `deploy/compilados-2026-10-15`), que el usuario fusiona antes de desplegar. CI rechaza cualquier otro PR que toque `public/build/` (§14.5). Como los módulos cambian vistas y clases de Tailwind, cada despliegue con cambios de interfaz necesita un compilado nuevo.
 
 **`deploy/deploy.sh`** corre en el servidor por SSH, nunca desde un equipo ni desde un agente:
 
@@ -1004,7 +1038,7 @@ cd ~/<carpeta-app> && bash deploy/deploy.sh
 
 1. `git fetch` y **se niega** a seguir si la rama upstream no tiene `public/build/manifest.json`.
 2. `php artisan down --retry=60` (si ya existe `vendor/`); un `trap` garantiza `php artisan up` aunque algo falle.
-3. `git pull --ff-only`.
+3. `git merge --ff-only '@{upstream}'`: avanza exactamente al commit revisado en el paso 1, sin volver a hacer `fetch` (un `git pull` podría traer uno más nuevo sin compilados).
 4. `composer install --no-dev --optimize-autoloader --no-interaction`.
 5. `php artisan migrate --force`.
 6. `php artisan db:seed --force`: sincroniza los permisos de cada módulo (§11).
