@@ -2,7 +2,7 @@
 
 namespace Database\Seeders;
 
-use App\Models\User;
+use App\Support\Modules\ModuleRegistry;
 use Illuminate\Database\Console\Seeds\WithoutModelEvents;
 use Illuminate\Database\Seeder;
 
@@ -11,15 +11,24 @@ class DatabaseSeeder extends Seeder
     use WithoutModelEvents;
 
     /**
-     * Seed the application's database.
+     * Seed the application's database from the modules: every
+     * <Module>PermissionSeeder, then, only in local, every <Module>DemoSeeder.
      */
-    public function run(): void
+    public function run(ModuleRegistry $modules): void
     {
-        // User::factory(10)->create();
+        $this->callModuleSeeders($modules, 'PermissionSeeder');
 
-        User::factory()->create([
-            'name' => 'Test User',
-            'email' => 'test@example.com',
-        ]);
+        if (app()->environment('local')) {
+            $this->callModuleSeeders($modules, 'DemoSeeder');
+        }
+    }
+
+    private function callModuleSeeders(ModuleRegistry $modules, string $suffix): void
+    {
+        foreach ($modules->all() as $module) {
+            if (class_exists($seeder = $module->seederClass($suffix))) {
+                $this->call($seeder);
+            }
+        }
     }
 }

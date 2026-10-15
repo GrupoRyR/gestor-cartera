@@ -2,6 +2,7 @@
 
 namespace App\Providers;
 
+use App\Support\Navigation\NavRegistry;
 use Carbon\CarbonImmutable;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\Date;
@@ -18,7 +19,8 @@ class AppServiceProvider extends ServiceProvider
      */
     public function register(): void
     {
-        //
+        // Shared navigation; modules fill it from their providers.
+        $this->app->singleton(NavRegistry::class);
     }
 
     /**
