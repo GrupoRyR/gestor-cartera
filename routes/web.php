@@ -1,5 +1,8 @@
 <?php
 
+use Illuminate\Contracts\View\View;
+use Illuminate\Support\Facades\Route;
+
 /*
 |--------------------------------------------------------------------------
 | Base web routes
@@ -11,3 +14,11 @@
 | belong to no module go here.
 |
 */
+
+// Only in local: component gallery for phase 0b (Módulo 0D). Any other
+// environment answers 404, as if the page did not exist.
+Route::get('/dev/componentes', function (): View {
+    abort_unless(app()->isLocal(), 404);
+
+    return view('design.gallery');
+})->name('dev.componentes');
