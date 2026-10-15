@@ -35,7 +35,9 @@ final class FakeCurrentCompany implements CurrentCompany
      * @param  list<CompanyCode>  $available
      * @param  array<string, int>  $graceDays  Grace days by company code; missing codes keep 15 (SGX) and 5 (SDC).
      *
-     * @throws CompanyNotAvailable When $active is not in $available.
+     * @throws CompanyNotAvailable When $active is not in $available, or $active is null (group
+     *                             view) with exactly one company: the group view needs two, and
+     *                             null with no company at all is a guest.
      */
     public function __construct(
         ?CompanyCode $active = CompanyCode::SGX,
@@ -50,6 +52,10 @@ final class FakeCurrentCompany implements CurrentCompany
 
         if ($active !== null && ! in_array($active, $this->available, true)) {
             throw CompanyNotAvailable::forCompany($active);
+        }
+
+        if ($active === null && count($this->available) === 1) {
+            throw CompanyNotAvailable::groupView();
         }
 
         $this->active = $active;

@@ -96,6 +96,16 @@ it('describes any company whatever the user may see', function () {
         ->and($current->of(CompanyCode::SDC)->palette)->toEqual(BrandPalette::official(CompanyCode::SDC));
 });
 
+it('rejects the group view for a user of a single company', function () {
+    expect(fn () => new FakeCurrentCompany(active: null, available: [CompanyCode::SGX]))
+        ->toThrow(CompanyNotAvailable::class, 'group view');
+});
+
+it('still builds a guest without companies and a group of two', function () {
+    expect((new FakeCurrentCompany(active: null, available: []))->isGroup())->toBeFalse()
+        ->and((new FakeCurrentCompany(active: null, available: [CompanyCode::SGX, CompanyCode::SDC]))->isGroup())->toBeTrue();
+});
+
 it('rejects an active company that is not available', function () {
     expect(fn () => new FakeCurrentCompany(active: CompanyCode::SDC, available: [CompanyCode::SGX]))
         ->toThrow(CompanyNotAvailable::class);
