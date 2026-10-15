@@ -12,3 +12,16 @@
 
 /* Module views (C.2): each module keeps its Blade views in app/Modules/<Modulo>/resources/views. */
 @source '../../app/Modules/**/resources/views/**/*.blade.php';
+
+/* Component contract: text that only screen readers announce (icon-only labels, sort hints, hidden captions). */
+[data-visually-hidden] {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
+}
