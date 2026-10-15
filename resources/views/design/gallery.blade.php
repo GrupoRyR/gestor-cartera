@@ -28,7 +28,7 @@
 --}}
 
 @php
-    $brandParam = (string) request()->query('empresa', 'SGX');
+    $brandParam = is_string(request()->query('empresa')) ? request()->query('empresa') : 'SGX';
     $activeCode = match ($brandParam) {
         'SDC' => CompanyCode::SDC,
         'grupo' => null,

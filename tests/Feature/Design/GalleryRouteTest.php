@@ -55,6 +55,14 @@ it('previews each company brand and switches it with the header selector', funct
     'group view' => ['grupo', BrandPalette::neutral()],
 ]);
 
+it('falls back to Segurex for an unexpected brand parameter', function () {
+    $this->app['env'] = 'local';
+
+    $rendered = $this->get('/dev/componentes?empresa[]=SDC')->assertOk()->getContent() ?: '';
+
+    expect($rendered)->toContain('--brand-button: '.BrandPalette::official(CompanyCode::SGX)->button.';');
+});
+
 it('previews the chrome without signing anyone in', function () {
     $this->app['env'] = 'local';
 
