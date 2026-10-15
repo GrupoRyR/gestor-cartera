@@ -7,6 +7,40 @@ import focus from '@alpinejs/focus';
 
 Alpine.plugin(focus);
 window.Alpine = Alpine;
+
+/*
+ * fetch() for same-origin calls from module views (Alpine components): asks
+ * for JSON, sends the CSRF token of <meta name="csrf-token"> and the session
+ * cookie, and JSON-encodes a plain-object (or array) body. FormData, strings
+ * and other bodies go as they are. Caller headers win. Returns the Response.
+ */
+window.apiFetch = (url, options = {}) => {
+    const token = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content');
+    const headers = new Headers(options.headers);
+    let { body } = options;
+
+    const setDefault = (name, value) => {
+        if (value && !headers.has(name)) {
+            headers.set(name, value);
+        }
+    };
+
+    setDefault('Accept', 'application/json');
+    setDefault('X-Requested-With', 'XMLHttpRequest');
+    setDefault('X-CSRF-TOKEN', token);
+
+    const isJson = Array.isArray(body) || (body !== null
+        && typeof body === 'object'
+        && [Object.prototype, null].includes(Object.getPrototypeOf(body)));
+
+    if (isJson) {
+        body = JSON.stringify(body);
+        setDefault('Content-Type', 'application/json');
+    }
+
+    return fetch(url, { credentials: 'same-origin', ...options, headers, body });
+};
+
 Alpine.start();
 
 // <x-ui.modal> contract: an element with data-modal-open="<id>" opens the

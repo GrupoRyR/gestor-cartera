@@ -28,9 +28,9 @@
     $companyOptions['grupo'] = 'Grupo RYR';
     $selectedCompany = $currentCompany?->active()?->code->value ?? 'grupo';
 
-    $navigation = app(NavRegistry::class);
-    $groups = $navigation->groupedFor($user);
-    $mobileItems = $navigation->mobileFor($user);
+    // One visibility pass for the sidebar and the bottom bar: each route and
+    // permission is checked once per page.
+    ['groups' => $groups, 'mobile' => $mobileItems] = app(NavRegistry::class)->menuFor($user);
 
     // Badge callbacks may query the database: run each one once.
     $badges = [];

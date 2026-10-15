@@ -86,13 +86,7 @@ final class NavRegistry
      */
     public function groupedFor(?Authenticatable $user): array
     {
-        $groups = [];
-
-        foreach ($this->visibleTo($user) as $item) {
-            $groups[$item->group][] = $item;
-        }
-
-        return $groups;
+        return self::group($this->visibleTo($user));
     }
 
     /**
@@ -102,6 +96,43 @@ final class NavRegistry
      */
     public function mobileFor(?Authenticatable $user): array
     {
-        return array_values(array_filter($this->visibleTo($user), fn (NavItem $item): bool => $item->mobile));
+        return self::mobileOnly($this->visibleTo($user));
+    }
+
+    /**
+     * groupedFor() and mobileFor() from a single visibility pass, so each
+     * route and permission is checked once per page.
+     *
+     * @return array{groups: array<string, list<NavItem>>, mobile: list<NavItem>}
+     */
+    public function menuFor(?Authenticatable $user): array
+    {
+        $visible = $this->visibleTo($user);
+
+        return ['groups' => self::group($visible), 'mobile' => self::mobileOnly($visible)];
+    }
+
+    /**
+     * @param  list<NavItem>  $items
+     * @return array<string, list<NavItem>>
+     */
+    private static function group(array $items): array
+    {
+        $groups = [];
+
+        foreach ($items as $item) {
+            $groups[$item->group][] = $item;
+        }
+
+        return $groups;
+    }
+
+    /**
+     * @param  list<NavItem>  $items
+     * @return list<NavItem>
+     */
+    private static function mobileOnly(array $items): array
+    {
+        return array_values(array_filter($items, fn (NavItem $item): bool => $item->mobile));
     }
 }

@@ -7,6 +7,7 @@ use App\Modules\Core\Contracts\Enums\CompanyCode;
 use App\Support\Navigation\NavItem;
 use App\Support\Navigation\NavRegistry;
 use Illuminate\Support\Facades\Blade;
+use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Str;
 use Tests\Fakes\ContractFakes;
@@ -135,6 +136,36 @@ describe('<x-layouts.app>', function () {
             ->and($html->count("{$bottomBar}//a[@aria-current]"))->toBe(0)
             ->and($html->text('//main'))->toBe('Contenido de Clientes')
             ->and($html->text('//title'))->toBe('Clientes · '.config('app.name'));
+    });
+
+    it('renders the CSRF token that window.apiFetch() sends', function () {
+        registerLayoutPages();
+
+        $html = Html::parse($this->actingAs(User::factory()->make())->get('/cartera/tablero')->assertOk()->getContent() ?: '');
+
+        expect($html->count('//meta[@name="csrf-token"]'))->toBe(1)
+            ->and($html->one('//meta[@name="csrf-token"]')->getAttribute('content'))
+            ->not->toBeEmpty()
+            ->toBe(session()->token());
+    });
+
+    it('checks each navigation permission once per page', function () {
+        registerLayoutPages();
+        $checks = 0;
+        Gate::define('cartera.view', function () use (&$checks): bool {
+            $checks++;
+
+            return true;
+        });
+        app(NavRegistry::class)->add(
+            new NavItem(key: 'cartera.tablero', label: 'Tablero', route: 'cartera.tablero', permission: 'cartera.view', mobile: true),
+        );
+
+        $html = Html::parse($this->actingAs(User::factory()->make())->get('/cartera/clientes')->assertOk()->getContent() ?: '');
+
+        expect($html->count('//nav[@aria-label="Navegación principal"]//a'))->toBe(1)
+            ->and($html->count('//nav[@aria-label="Accesos rápidos"]//a'))->toBe(1)
+            ->and($checks)->toBe(1);
     });
 
     it('shows no navigation to guests', function () {

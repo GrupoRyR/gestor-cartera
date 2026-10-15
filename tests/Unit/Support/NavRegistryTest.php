@@ -104,6 +104,30 @@ it('lists only the items meant for the phone bottom bar', function () {
     expect(array_map(fn (NavItem $item) => $item->key, $this->nav->mobileFor($this->user)))->toBe(['cartera.tablero']);
 });
 
+it('builds the sidebar groups and the bottom bar from one visibility pass', function () {
+    $checks = 0;
+    Gate::define('cartera.view', function () use (&$checks): bool {
+        $checks++;
+
+        return true;
+    });
+
+    $this->nav->add(
+        new NavItem(key: 'cobro.lotes', label: 'Lotes', route: 'cobro.lotes', permission: 'cartera.view', group: 'Cobro', order: 10, mobile: true),
+        new NavItem(key: 'cartera.tablero', label: 'Tablero', route: 'cartera.tablero', permission: 'cartera.view', group: 'Cartera', order: 20, mobile: true),
+        new NavItem(key: 'cartera.clientes', label: 'Clientes', route: 'cartera.clientes', permission: 'cartera.view', group: 'Cobro', order: 30),
+        new NavItem(key: 'bancos.movimientos', label: 'Movimientos', route: 'bancos.movimientos', group: 'Bancos', mobile: true),
+    );
+
+    $menu = $this->nav->menuFor($this->user);
+
+    expect($checks)->toBe(3)
+        ->and($menu['groups'])->toBe($this->nav->groupedFor($this->user))
+        ->and($menu['mobile'])->toBe($this->nav->mobileFor($this->user))
+        ->and(array_map(fn (NavItem $item) => $item->key, $menu['mobile']))->toBe(['cobro.lotes', 'cartera.tablero'])
+        ->and($this->nav->menuFor(null))->toBe(['groups' => [], 'mobile' => []]);
+});
+
 it('marks an item active on its own route or on its active pattern', function () {
     $tablero = new NavItem(key: 'cartera.tablero', label: 'Tablero', route: 'cartera.tablero');
     $cartera = new NavItem(key: 'cartera', label: 'Cartera', route: 'cartera.tablero', activePattern: 'cartera.*');
