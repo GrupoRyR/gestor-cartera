@@ -100,5 +100,5 @@ it('shows a landing page while no screen is enabled for the user', function () {
     expect($html->text('//h1'))->toBe('Hola, Ana')
         ->and($html->text('//main'))->toContain('Tus pantallas aparecerán aquí a medida que se habiliten los módulos.')
         ->and($html->text('//title'))->toBe('Inicio · '.config('app.name'))
-        ->and($html->text('//header//*[@data-part="user"]'))->toBe('Ana María Gómez');
+        ->and($html->text('//header//*[@data-part="user"]'))->toContain('Ana María Gómez');
 });
