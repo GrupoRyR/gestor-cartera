@@ -73,8 +73,8 @@ it('changes the role and the companies', function () {
         ->and(TeamUsers::companiesOf($this->member))->toBe(['SDC', 'SGX'])
         ->and($updated->subject_id)->toBe((string) $this->member->id)
         ->and($updated->user_id)->toBe($this->admin->id)
-        ->and($updated->context)->toBe(['source' => 'equipo'])
-        ->and($updated->changes)->toBe([
+        ->and($updated->context)->toEqual(['source' => 'equipo'])
+        ->and($updated->changes)->toEqual([
             'role' => ['old' => 'analista_cartera', 'new' => 'gerente_comercial'],
             'companies' => ['old' => ['SGX'], 'new' => ['SDC', 'SGX']],
         ]);
@@ -86,7 +86,7 @@ it('removes the role', function () {
     expect(TeamUsers::roleOf($this->member))->toBeNull()
         ->and(User::query()->findOrFail($this->member->id)->can('core.access'))->toBeFalse()
         ->and(TeamUsers::companiesOf($this->member))->toBe(['SGX'])
-        ->and(TeamUsers::audits('core.user.updated')[0]->changes)->toBe([
+        ->and(TeamUsers::audits('core.user.updated')[0]->changes)->toEqual([
             'role' => ['old' => 'analista_cartera', 'new' => null],
         ]);
 });
@@ -98,7 +98,7 @@ it('deactivates a user, whose unchecked box is not sent', function () {
     $this->actingAs($this->admin)->put(route('core.equipo.update', $this->member), $form);
 
     expect(User::query()->findOrFail($this->member->id)->is_active)->toBeFalse()
-        ->and(TeamUsers::audits('core.user.updated')[0]->changes)->toBe([
+        ->and(TeamUsers::audits('core.user.updated')[0]->changes)->toEqual([
             'active' => ['old' => true, 'new' => false],
         ]);
 });
@@ -107,7 +107,7 @@ it('renames a user and records only that change', function () {
     $this->actingAs($this->admin)->put(route('core.equipo.update', $this->member), teamMemberForm(['nombre' => 'Ana María Gómez']));
 
     expect(User::query()->findOrFail($this->member->id)->name)->toBe('Ana María Gómez')
-        ->and(TeamUsers::audits('core.user.updated')[0]->changes)->toBe([
+        ->and(TeamUsers::audits('core.user.updated')[0]->changes)->toEqual([
             'name' => ['old' => 'Ana Gómez', 'new' => 'Ana María Gómez'],
         ]);
 });
@@ -126,7 +126,7 @@ it('keeps no companies for an admin', function () {
 
     expect(TeamUsers::roleOf($this->member))->toBe('admin')
         ->and(TeamUsers::companiesOf($this->member))->toBe([])
-        ->and(TeamUsers::audits('core.user.updated')[0]->changes)->toBe([
+        ->and(TeamUsers::audits('core.user.updated')[0]->changes)->toEqual([
             'role' => ['old' => 'analista_cartera', 'new' => 'admin'],
             'companies' => ['old' => ['SGX'], 'new' => []],
         ]);

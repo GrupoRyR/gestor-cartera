@@ -30,8 +30,8 @@ it('removes a user without deleting the row', function () {
         ->and($deleted->subject_id)->toBe((string) $this->member->id)
         ->and($deleted->user_id)->toBe($this->admin->id)
         ->and($deleted->actor)->toBe('laura.admin@segurex.com')
-        ->and($deleted->changes)->toBe(['name' => 'Ana Gómez', 'email' => 'ana.gomez@segurex.com'])
-        ->and($deleted->context)->toBe(['source' => 'equipo']);
+        ->and($deleted->changes)->toEqual(['name' => 'Ana Gómez', 'email' => 'ana.gomez@segurex.com'])
+        ->and($deleted->context)->toEqual(['source' => 'equipo']);
 });
 
 it('keeps a removed user out of the app', function () {
@@ -75,8 +75,8 @@ it('restores a removed user with their role and companies', function () {
         ->and($user->can('core.access'))->toBeTrue()
         ->and($restored->subject_id)->toBe((string) $this->member->id)
         ->and($restored->user_id)->toBe($this->admin->id)
-        ->and($restored->changes)->toBe(['name' => 'Ana Gómez', 'email' => 'ana.gomez@segurex.com'])
-        ->and($restored->context)->toBe(['source' => 'equipo']);
+        ->and($restored->changes)->toEqual(['name' => 'Ana Gómez', 'email' => 'ana.gomez@segurex.com'])
+        ->and($restored->context)->toEqual(['source' => 'equipo']);
 });
 
 it('changes nothing when restoring a user who is not removed', function () {

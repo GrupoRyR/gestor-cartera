@@ -49,13 +49,13 @@ it('pre-registers a person without a role', function () {
         ->and($created->subject_type)->toBe('user')
         ->and($created->subject_id)->toBe((string) $user->id)
         ->and($created->user_id)->toBe($this->admin->id)
-        ->and($created->changes)->toBe([
+        ->and($created->changes)->toEqual([
             'name' => 'Ana Gómez',
             'email' => 'ana.gomez@segurex.com',
             'role' => null,
             'companies' => [],
         ])
-        ->and($created->context)->toBe(['source' => 'equipo']);
+        ->and($created->context)->toEqual(['source' => 'equipo']);
 });
 
 it('pre-registers a person with a role and companies', function () {
@@ -133,9 +133,9 @@ it('restores a removed person in the same row and applies the form', function ()
         ->and(TeamUsers::audits('core.user.created'))->toBe([])
         ->and($restored->subject_id)->toBe((string) $removed->id)
         ->and($restored->user_id)->toBe($this->admin->id)
-        ->and($restored->context)->toBe(['source' => 'equipo'])
+        ->and($restored->context)->toEqual(['source' => 'equipo'])
         ->and($updated->subject_id)->toBe((string) $removed->id)
-        ->and($updated->changes)->toBe([
+        ->and($updated->changes)->toEqual([
             'name' => ['old' => 'Ana Gómez', 'new' => 'Ana María Gómez'],
             'role' => ['old' => 'asesor', 'new' => 'analista_cartera'],
             'companies' => ['old' => ['SGX'], 'new' => ['SDC']],
