@@ -6,6 +6,8 @@
     favicon and the home-screen icon of the active company.
 
     The --brand-* variables are the only source of company colors (A.6).
+    The app has one manifest for every company and role (A.6); its icon is
+    the neutral one.
 --}}
 @php
     $brand = in_array($brand ?? null, ['sgx', 'sdc'], true) ? $brand : 'neutral';
@@ -16,6 +18,7 @@
 <meta name="color-scheme" content="light dark">
 <title>{{ filled($title) ? $title.' · '.config('app.name') : config('app.name') }}</title>
 
+<link rel="manifest" href="{{ asset('manifest.webmanifest') }}">
 <link rel="icon" href="{{ asset("icons/{$brand}/favicon.svg") }}" type="image/svg+xml">
 <link rel="apple-touch-icon" href="{{ asset("icons/{$brand}/apple-touch-icon.png") }}">
 <meta name="apple-mobile-web-app-title" content="Cartera">

@@ -68,3 +68,12 @@ document.addEventListener('click', (event) => {
 // <x-ui.modal :open="true"> renders data-modal-autoopen (e.g. after a validation error).
 document.querySelectorAll('dialog[data-modal-autoopen]').forEach((dialog) => dialog.showModal());
 
+// PWA (A.6): the service worker caches static files and the offline page
+// only, never portfolio data. Browsers allow it on HTTPS and localhost.
+if ('serviceWorker' in navigator && window.isSecureContext) {
+    window.addEventListener('load', () => {
+        navigator.serviceWorker.register('/sw.js', { scope: '/' }).catch(() => {
+            // Without a service worker the app works the same, only without the offline page.
+        });
+    });
+}
