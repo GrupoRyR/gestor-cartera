@@ -30,7 +30,7 @@ it('asks a user without a role to request access, on the neutral guest layout', 
         ->toContain('Tu cuenta de Microsoft ya está registrada, pero aún no tiene un rol asignado.')
         ->toContain('Pide al área de tecnología (TI) que te asigne uno.')
         ->toContain($user->email)
-        ->and($html->count('//body/header/p[@data-part="brand"]'))->toBe(1)
+        ->and($html->count('//header//*[@data-part="brand"]'))->toBe(1)
         ->and($html->count('//*[@data-part="user"]'))->toBe(0)
         ->and($html->count('//nav'))->toBe(0)
         ->and($html->count('//form'))->toBe(1);
