@@ -110,3 +110,9 @@ describe('<x-ui.icon>', function () {
         expect(fn () => $this->blade('<x-ui.icon />'))->toThrow(ViewException::class, '$name');
     });
 });
+
+it('leaves no space between an inline component and the punctuation after it', function () {
+    $rendered = (string) $this->blade('<p>Pagó <x-ui.money :value="1500000" />.</p>');
+
+    expect(Html::parse($rendered)->text('//p'))->toBe("Pagó \$\u{00A0}1.500.000.");
+});

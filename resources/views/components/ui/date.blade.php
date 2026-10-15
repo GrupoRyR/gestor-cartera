@@ -9,5 +9,5 @@
 @if ($value === null || (is_string($value) && trim($value) === ''))
     <span {{ $attributes }}>{{ $fallback }}</span>
 @else
-    <time {{ $attributes->merge(['datetime' => DateFormat::iso($value, (bool) $time)]) }}>{{ $time ? DateFormat::dateTime($value) : DateFormat::date($value) }}</time>
+    <time {{ $attributes->merge(['datetime' => DateFormat::iso($value, (bool) $time)])->class('whitespace-nowrap') }}>{{ $time ? DateFormat::dateTime($value) : DateFormat::date($value) }}</time>
 @endif
