@@ -9,7 +9,7 @@ Core es la base de la plataforma: los contratos que usan los demás módulos (`C
 | `Contracts/` | Interfaces, objetos de datos, enums y excepciones públicos (ver `docs/arquitectura.md` §6). No cambian sin acordarlo. |
 | `Domain/` | Reglas puras en PHP: sin Laravel, sin base de datos y sin reloj. Reciben fechas, saldos y parámetros ya resueltos. |
 | `Application/` | Casos de uso (tareas siguientes). |
-| `Infrastructure/` | Eloquent (`Persistence\*Record`) y el catálogo de empresas (`Companies\CompanyCatalog`). |
+| `Infrastructure/` | Eloquent (`Persistence\*Record`), el acceso por empresa (`Access\CompanyAccess`), el catálogo de empresas y la empresa activa (`Companies\`). |
 | `config/core.php` | Valores por defecto para sembrar los parámetros de cada empresa. |
 
 ## Estados del cliente
@@ -71,6 +71,28 @@ La tabla `companies` (llave `code`: `SGX` o `SDC`) guarda el nombre y los parám
 Si falta la fila de una empresa, usa los valores de `config('core.companies')` y la etiqueta del enum.
 
 La tabla `company_user` asigna empresas a los usuarios (`user_id`, `company`). Core la expone como `$user->companies()` con `User::resolveRelationUsing()`, sin editar `App\Models\User`.
+
+## Empresa activa
+
+`Infrastructure\Companies\SessionCurrentCompany` implementa `CurrentCompany` y Core la registra en el contenedor (una instancia por petición).
+
+**Qué empresas ve cada usuario** (`Infrastructure\Access\CompanyAccess`):
+
+| Usuario | Empresas |
+|---|---|
+| Invitado, sin guardar, inactivo o borrado | Ninguna. |
+| Sin rol de Spatie | Ninguna, aunque tenga filas en `company_user`: ve la paleta neutra y la pantalla para solicitar acceso. |
+| `admin` (TI) | Las dos, sin filas en `company_user` (A.5). |
+| Cualquier otro rol | Las de sus filas en `company_user`. |
+
+**Reglas de la empresa activa:**
+
+- La elección vive en la sesión, en la llave `core.company`, con `SGX`, `SDC` o `group` (vista de grupo).
+- Sin elección guardada, o si la guardada ya no está disponible (le quitaron el acceso), el usuario trabaja en la primera empresa que puede ver.
+- La vista de grupo exige dos empresas. Si el usuario la tenía guardada y le queda una sola, vuelve a esa.
+- `switchTo()` lanza `CompanyNotAvailable` si la empresa, o la vista de grupo, no está disponible. Sin sesión (consola, colas), la elección dura solo lo que dura el proceso.
+- `palette()` es la de la empresa activa; la vista de grupo, los invitados y los usuarios sin rol ven la paleta neutra.
+- `of($code)` devuelve cualquier empresa, sin importar el usuario (jobs, colas y plantillas de correo).
 
 ## Pendientes
 
