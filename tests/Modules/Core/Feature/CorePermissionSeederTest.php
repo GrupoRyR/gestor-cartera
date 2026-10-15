@@ -16,10 +16,19 @@ it('creates the six roles, each allowed to use the platform', function () {
     }
 });
 
+it('lets only admins manage the team', function () {
+    $this->seed(CorePermissionSeeder::class);
+
+    foreach (Role::cases() as $role) {
+        expect(SpatieRole::findByName($role, 'web')->hasPermissionTo('core.team.manage'))->toBe($role === Role::Admin);
+    }
+});
+
 it('can run again without duplicating permissions or roles', function () {
     $this->seed(CorePermissionSeeder::class);
     $this->seed(CorePermissionSeeder::class);
 
     expect(Permission::query()->where('name', 'core.access')->count())->toBe(1)
+        ->and(Permission::query()->where('name', 'core.team.manage')->count())->toBe(1)
         ->and(SpatieRole::query()->count())->toBe(count(Role::cases()));
 });

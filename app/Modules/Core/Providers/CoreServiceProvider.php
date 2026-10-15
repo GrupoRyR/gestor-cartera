@@ -14,6 +14,8 @@ use App\Modules\Core\Infrastructure\Companies\SessionCurrentCompany;
 use App\Modules\Core\Infrastructure\Persistence\AdvisorRecord;
 use App\Modules\Core\Infrastructure\Persistence\CompanyRecord;
 use App\Support\Modules\ModuleServiceProvider;
+use App\Support\Navigation\NavItem;
+use App\Support\Navigation\NavRegistry;
 use Illuminate\Contracts\Http\Kernel as HttpKernel;
 use Illuminate\Foundation\Http\Kernel as FoundationHttpKernel;
 
@@ -68,5 +70,26 @@ final class CoreServiceProvider extends ModuleServiceProvider
                 $kernel->appendMiddlewareToGroup('web', EnsureUserIsActive::class);
             }
         });
+    }
+
+    /**
+     * Equipo is the only entry admins see, so it is also their home (see
+     * HomeController). Order 900 keeps administration after the screens of
+     * the other modules for anyone who sees both.
+     */
+    protected function navigation(NavRegistry $navigation): void
+    {
+        $navigation->add(
+            new NavItem(
+                key: 'core.equipo',
+                label: 'Equipo',
+                route: 'core.equipo.index',
+                icon: 'users',
+                permission: 'core.team.manage',
+                group: 'Administración',
+                order: 900,
+                activePattern: 'core.equipo.*',
+            ),
+        );
     }
 }
