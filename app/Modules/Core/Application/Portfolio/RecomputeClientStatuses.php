@@ -41,12 +41,16 @@ final class RecomputeClientStatuses
      *
      * A client missing from the snapshot owes nothing. Only clients whose
      * values change are written; each status change sets status_changed_at
-     * and is audited as core.client.status_changed. Does nothing while the
-     * company has no snapshot.
+     * and is audited as core.client.status_changed, except for the clients
+     * in $newClientIds: an import just created them, so their first status
+     * is their initial state, not a change. Does nothing while the company
+     * has no snapshot.
+     *
+     * @param  list<int>  $newClientIds  Clients created by the import being recomputed.
      *
      * @throws ModelNotFoundException When $portfolioLoadId is not a snapshot of $company.
      */
-    public function forCompany(CompanyCode $company, ?int $portfolioLoadId = null): void
+    public function forCompany(CompanyCode $company, ?int $portfolioLoadId = null, array $newClientIds = []): void
     {
         $snapshot = $this->snapshot($company, $portfolioLoadId);
 
@@ -56,6 +60,7 @@ final class RecomputeClientStatuses
 
         $parameters = $this->companies->parameters($company);
         $positions = $this->positions($snapshot);
+        $newClients = array_flip($newClientIds);
         $now = now();
         $rows = [];
         $statusChanges = [];
@@ -91,7 +96,7 @@ final class RecomputeClientStatuses
                 'max_days_overdue' => $position->maxDaysOverdue(),
             ];
 
-            if ($statusChanged) {
+            if ($statusChanged && ! isset($newClients[$client->id])) {
                 $statusChanges[$client->id] = ['old' => $client->status->value, 'new' => $status->value];
             }
         }

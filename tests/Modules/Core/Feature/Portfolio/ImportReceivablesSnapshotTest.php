@@ -252,32 +252,50 @@ it('reads the grace days from the companies table', function () {
         ->and(importedClient('C-VENCIDO')->status)->toBe(ClientStatus::Overdue);
 });
 
-it('audits every status change', function () {
-    $this->freezeTime();
+it('sets the first status of new clients without auditing it as a change', function () {
+    $this->travelTo(CarbonImmutable::parse('2026-10-15 07:00:00'));
 
-    $load = $this->robot->receivables(CompanyCode::SGX, '2026-10-15', [
+    $this->robot->receivables(CompanyCode::SGX, '2026-10-15', [
+        RobotBatches::receivable(['codigo_sn' => 'C-VENCIDO', 'fecha_vencimiento' => '2026-09-01']),
+        RobotBatches::receivable(['codigo_sn' => 'C-POR-VENCER', 'fecha_vencimiento' => '2026-10-14']),
+        RobotBatches::receivable(['codigo_sn' => 'C-AL-DIA', 'fecha_vencimiento' => '2026-12-31']),
+    ]);
+
+    expect(AuditLogRecord::query()->where('action', 'core.client.status_changed')->count())->toBe(0)
+        ->and(importedClient('C-VENCIDO')->status)->toBe(ClientStatus::Overdue)
+        ->and(importedClient('C-VENCIDO')->status_changed_at?->toDateTimeString())->toBe('2026-10-15 07:00:00')
+        ->and(importedClient('C-POR-VENCER')->status)->toBe(ClientStatus::DueSoon)
+        ->and(importedClient('C-POR-VENCER')->status_changed_at?->toDateTimeString())->toBe('2026-10-15 07:00:00')
+        ->and(importedClient('C-AL-DIA')->status)->toBe(ClientStatus::Current)
+        ->and(importedClient('C-AL-DIA')->status_changed_at)->toBeNull();
+});
+
+it('audits the status changes of clients that already existed', function () {
+    $this->travelTo(CarbonImmutable::parse('2026-10-15 07:00:00'));
+
+    $this->robot->receivables(CompanyCode::SGX, '2026-10-15', [
         RobotBatches::receivable(['codigo_sn' => 'C-VENCIDO', 'fecha_vencimiento' => '2026-09-01']),
         RobotBatches::receivable(['codigo_sn' => 'C-AL-DIA', 'fecha_vencimiento' => '2026-12-31']),
     ]);
 
-    $overdue = importedClient('C-VENCIDO');
+    $this->travelTo(CarbonImmutable::parse('2026-10-16 07:00:00'));
+
+    // C-VENCIDO owes the same; C-AL-DIA now has an invoice 45 days past due.
+    $load = $this->robot->receivables(CompanyCode::SGX, '2026-10-16', [
+        RobotBatches::receivable(['codigo_sn' => 'C-VENCIDO', 'fecha_vencimiento' => '2026-09-01']),
+        RobotBatches::receivable(['codigo_sn' => 'C-AL-DIA', 'fecha_vencimiento' => '2026-09-01']),
+    ]);
+
+    $changed = importedClient('C-AL-DIA');
     $entry = AuditLogRecord::query()->where('action', 'core.client.status_changed')->sole();
 
     expect($entry->subject_type)->toBe('client')
-        ->and($entry->subject_id)->toBe((string) $overdue->id)
+        ->and($entry->subject_id)->toBe((string) $changed->id)
         ->and($entry->changes)->toEqual(['status' => ['old' => 'al_dia', 'new' => 'vencida']])
-        ->and($entry->context)->toEqual(['load_id' => $load->id, 'cutoff_date' => '2026-10-15'])
+        ->and($entry->context)->toEqual(['load_id' => $load->id, 'cutoff_date' => '2026-10-16'])
         ->and($entry->user_id)->toBeNull()
-        ->and($overdue->status_changed_at?->toDateTimeString())->toBe(now()->toDateTimeString())
-        ->and(importedClient('C-AL-DIA')->status_changed_at)->toBeNull();
-
-    // The same debt the next day changes no status: nothing new is audited.
-    $this->robot->receivables(CompanyCode::SGX, '2026-10-16', [
-        RobotBatches::receivable(['codigo_sn' => 'C-VENCIDO', 'fecha_vencimiento' => '2026-09-01']),
-        RobotBatches::receivable(['codigo_sn' => 'C-AL-DIA', 'fecha_vencimiento' => '2026-12-31']),
-    ]);
-
-    expect(AuditLogRecord::query()->where('action', 'core.client.status_changed')->count())->toBe(1);
+        ->and($changed->status_changed_at?->toDateTimeString())->toBe('2026-10-16 07:00:00')
+        ->and(importedClient('C-VENCIDO')->status_changed_at?->toDateTimeString())->toBe('2026-10-15 07:00:00');
 });
 
 it('refreshes a soft-deleted client and gives it its invoices without restoring it', function () {

@@ -24,7 +24,8 @@ use Illuminate\Database\ConnectionInterface;
  *    snapshot) refreshed, soft-deleted ones included and never restored;
  * 3. the invoices, in chunks;
  * 4. the cached balance and status of every client of the company
- *    (RecomputeClientStatuses).
+ *    (RecomputeClientStatuses); a client this import created gets its
+ *    initial status without an audit entry.
  *
  * Idempotent: a load that already has its snapshot is skipped. The rows are
  * read twice (clients and totals, then invoices), so memory stays flat.
@@ -71,9 +72,13 @@ final class ImportReceivablesSnapshot implements ShouldQueue
             }
 
             [$snapshot, $clients] = $this->createSnapshot($load);
-            $clientIds = $this->saveClients($load->company, $clients, refresh: $this->isLatest($snapshot));
+            $existingIds = $this->clientIds($load->company);
+            $clientIds = $this->saveClients($load->company, $clients, $existingIds, refresh: $this->isLatest($snapshot));
             $this->insertInvoices($load, $snapshot, $clientIds);
-            $this->statuses->forCompany($load->company);
+
+            // The clients this import created get their initial status, which is not audited as a change.
+            $newClientIds = array_values(array_diff($clientIds, $existingIds));
+            $this->statuses->forCompany($load->company, newClientIds: $newClientIds);
         });
     }
 
@@ -131,13 +136,13 @@ final class ImportReceivablesSnapshot implements ShouldQueue
      * too: an import never restores a client a user removed.
      *
      * @param  list<array<string, scalar|null>>  $clients
+     * @param  array<int|string, int>  $existingIds  Ids of the company's clients before this import, by SAP code.
      * @return array<int|string, int> Client ids by SAP code.
      */
-    private function saveClients(CompanyCode $company, array $clients, bool $refresh): array
+    private function saveClients(CompanyCode $company, array $clients, array $existingIds, bool $refresh): array
     {
         if (! $refresh) {
-            $existing = $this->clientIds($company);
-            $clients = array_values(array_filter($clients, fn (array $client): bool => ! isset($existing[(string) $client['code']])));
+            $clients = array_values(array_filter($clients, fn (array $client): bool => ! isset($existingIds[(string) $client['code']])));
         }
 
         foreach (array_chunk($clients, self::CHUNK) as $chunk) {
