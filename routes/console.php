@@ -14,9 +14,12 @@ use Illuminate\Support\Facades\Schedule;
 |
 */
 
+// The worker exits within 50 seconds (--max-time), so its lock expires after
+// 5 minutes instead of the default 24 hours: a worker killed by the host
+// (memory, timeout) stops the queue for minutes, not a whole day.
 Schedule::command('queue:work --stop-when-empty --tries=3 --max-time=50')
     ->everyMinute()
-    ->withoutOverlapping()
+    ->withoutOverlapping(5)
     ->runInBackground();
 
 Schedule::command('queue:prune-failed --hours=720')->daily();
