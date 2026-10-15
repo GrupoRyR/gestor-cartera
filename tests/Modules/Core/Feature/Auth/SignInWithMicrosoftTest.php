@@ -52,8 +52,8 @@ describe('advisor matching', function () {
             ->and($stranger->refresh()->user_id)->toBeNull()
             ->and($linked->subject_type)->toBe('advisor')
             ->and($linked->subject_id)->toBe((string) $advisor->id)
-            ->and($linked->changes)->toBe(['user_id' => ['old' => null, 'new' => $user->id]])
-            ->and($linked->context)->toBe(['company' => 'SGX', 'code' => 12]);
+            ->and($linked->changes)->toEqual(['user_id' => ['old' => null, 'new' => $user->id]])
+            ->and($linked->context)->toEqual(['company' => 'SGX', 'code' => 12]);
     });
 
     it('gives no role without an active advisor', function () {
@@ -80,8 +80,8 @@ describe('role matching', function () {
             ->and(assignedCompanies($user))->toBe(['SDC', 'SGX'])
             ->and($assigned->subject_type)->toBe('user')
             ->and($assigned->subject_id)->toBe((string) $user->id)
-            ->and($assigned->changes)->toBe(['role' => 'asesor', 'companies' => ['SGX', 'SDC']])
-            ->and($assigned->context)->toBe(['source' => 'microsoft']);
+            ->and($assigned->changes)->toEqual(['role' => 'asesor', 'companies' => ['SGX', 'SDC']])
+            ->and($assigned->context)->toEqual(['source' => 'microsoft']);
     });
 
     it('assigns the role from an advisor linked before, without duplicating companies', function () {
