@@ -69,9 +69,9 @@ Construir una sola herramienta web para el área de cartera de **Segurex Latam S
 - **Ninguna dependencia nueva se agrega fuera de la Fase 0a.** Si un módulo necesita una librería, se detiene y la pide.
 - **`public/build` no se incluye en los commits de los módulos.** El servidor no tiene Node, así que el paso de despliegue compila `public/build` y lo sube en un PR propio. Si cada PR lo incluyera, todos chocarían entre sí.
 - **`main` se protege en el equipo, no en GitHub.** GrupoRyR es una cuenta personal gratuita y GitHub no aplica reglas de rama en sus repositorios privados. Por eso:
-  - `.claude/settings.json` impide a los agentes subir a `main`, forzar subidas, usar `--no-verify` y fusionar PR.
+  - `.claude/settings.json` impide a los agentes subir a `main`, forzar subidas, usar `--no-verify` y fusionar por `gh api`. Cada `gh pr merge` le pide aprobación al usuario.
   - El hook `.githooks/pre-push` rechaza cualquier subida a `main`. Se activa una vez por clon con `git config core.hooksPath .githooks`.
-  - Todo cambio llega a `main` por un PR que el usuario fusiona en la web de GitHub.
+  - Todo cambio llega a `main` por un PR: lo fusiona el agente con la aprobación del usuario, o el usuario en la web de GitHub.
 
 ## A.4 Datos de origen: SAP Business One sobre HANA
 
@@ -469,7 +469,14 @@ En la app de escritorio, el modelo se elige en el selector junto al botón de en
 7. **Integración con `main`:** antes de abrir o actualizar el PR, sincronizar con `main` y correr `composer lint` y `composer test`. Ningún PR se fusiona con CI en rojo.
 8. **Sin secretos en el repositorio:** las credenciales de Graph, de HANA y de la base van solo en `.env`.
 9. **Idioma:** textos de interfaz en español, tuteando y en tipo oración. Código y comentarios en inglés.
-10. **Push y PR:** el agente sube su rama y abre el PR contra `main`. **Nunca** fusiona ni sube directo a `main`; eso lo decide el usuario. Si `.claude/settings.json` o el hook `pre-push` lo bloquean, se detiene y avisa: nunca intenta saltarse esas protecciones.
+10. **Push, PR y fusión:** el agente sube su rama y abre el PR contra `main`; **nunca** sube directo a `main`.
+    - **Puede fusionar su propio PR** con `gh pr merge <número> --merge --delete-branch`, solo cuando:
+      - pasó la skill `code-review` y corrigió lo que encontró
+      - se sincronizó con `main` y `composer format`, `composer lint` y `composer test` pasan después de esa sincronización
+      - el CI está en verde
+      - el PR no tiene conflictos
+    - La app le pide aprobación al usuario en cada fusión. Si el usuario no aprueba, el agente se detiene y espera.
+    - Si `.claude/settings.json` o el hook `pre-push` lo bloquean, se detiene y avisa: nunca intenta saltarse esas protecciones.
 
 ---
 

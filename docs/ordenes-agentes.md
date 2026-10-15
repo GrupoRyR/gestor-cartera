@@ -10,7 +10,14 @@ Cada bloque se pega tal cual en una **sesión nueva con worktree** de la app de 
 **Reglas para ti:**
 
 - **No abras una fase hasta que la anterior esté fusionada en `main` en GitHub.** Los worktrees nuevos parten de `main` remoto; si no está ahí, el agente no lo ve.
-- Antes de fusionar un PR, dile al agente **«sincroniza con main y vuelve a correr las pruebas»**, y revisa el PR con `/code-review`.
+- **Cuando el agente abra su PR, dile «fusiona tu PR».** Siguiendo `CLAUDE.md`, el agente:
+  1. corre `code-review` y corrige lo que encuentre
+  2. se sincroniza con `main` y vuelve a correr las pruebas
+  3. espera el CI en verde
+  4. ejecuta `gh pr merge`
+
+  La app te pide aprobar la fusión con un clic. Si algo no está bien, no apruebes y díselo.
+- **Después de cada fusión, actualiza tu `main` local** con `git -C <carpeta> pull --ff-only origin main` antes de abrir sesiones nuevas.
 - Las reglas comunes (idioma, commits, secretos, archivos permitidos) están en `CLAUDE.md`, que cada sesión lee sola. Las órdenes solo dicen lo propio de cada agente.
 
 ---
