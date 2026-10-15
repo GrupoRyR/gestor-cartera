@@ -17,6 +17,12 @@ beforeEach(function () {
 
 dataset('team routes', [
     'list' => ['get', 'core.equipo.index'],
+    'new form' => ['get', 'core.equipo.create'],
+    'create' => ['post', 'core.equipo.store'],
+    'edit form' => ['get', 'core.equipo.edit'],
+    'update' => ['put', 'core.equipo.update'],
+    'delete' => ['delete', 'core.equipo.destroy'],
+    'restore' => ['post', 'core.equipo.restore'],
 ]);
 
 /**
@@ -30,7 +36,11 @@ function teamRouteUrl(string $name, User $target): string
 }
 
 it('serves the Equipo screen under /equipo', function () {
-    expect(route('core.equipo.index', absolute: false))->toBe('/equipo');
+    expect(route('core.equipo.index', absolute: false))->toBe('/equipo')
+        ->and(route('core.equipo.create', absolute: false))->toBe('/equipo/nuevo')
+        ->and(route('core.equipo.edit', 7, absolute: false))->toBe('/equipo/7/editar')
+        ->and(route('core.equipo.update', 7, absolute: false))->toBe('/equipo/7')
+        ->and(route('core.equipo.restore', 7, absolute: false))->toBe('/equipo/7/restaurar');
 });
 
 it('sends guests to the sign-in page', function (string $method, string $name) {

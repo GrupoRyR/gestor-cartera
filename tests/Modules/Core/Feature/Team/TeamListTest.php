@@ -143,3 +143,28 @@ it('explains an empty tab', function () {
     expect($html->count('//table'))->toBe(0)
         ->and($html->text('//main//*[@data-part="title"]'))->toBe('No hay usuarios eliminados');
 });
+
+it('links to the form for a new user', function () {
+    $html = TeamUsers::html($this->actingAs($this->admin)->get(route('core.equipo.index')));
+
+    expect($html->one('//main//a[normalize-space(.)="Nuevo usuario"]')->getAttribute('href'))->toBe(route('core.equipo.create'));
+});
+
+it('links each user to their edit page', function () {
+    $html = TeamUsers::html($this->actingAs($this->admin)->get(route('core.equipo.index')));
+    $link = $html->one("//table/tbody/tr[td[1][normalize-space(.)='Ana Activa']]//a");
+
+    expect($link->getAttribute('href'))->toBe(route('core.equipo.edit', User::query()->where('email', 'ana.activa@segurex.com')->sole()))
+        ->and(Html::clean($link->textContent))->toBe('Editar a Ana Activa');
+});
+
+it('offers to restore removed users', function () {
+    $removed = User::onlyTrashed()->where('email', 'elena.eliminada@segurex.com')->sole();
+    $html = TeamUsers::html($this->actingAs($this->admin)->get(route('core.equipo.index', ['estado' => 'eliminados'])));
+
+    $form = $html->one('//table/tbody/tr/td//form');
+
+    expect($form->getAttribute('action'))->toBe(route('core.equipo.restore', $removed))
+        ->and(strtolower($form->getAttribute('method')))->toBe('post')
+        ->and(Html::clean($form->textContent))->toBe('Restaurar a Elena Eliminada');
+});
