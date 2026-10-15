@@ -21,7 +21,7 @@ function assertSignInRejected(string $reason, string $message, string $email = '
     $entry = AuditLogRecord::query()->sole();
 
     expect($entry->action)->toBe('core.auth.rejected')
-        ->and($entry->context)->toBe(['reason' => $reason, 'email' => $email])
+        ->and($entry->context)->toEqual(['reason' => $reason, 'email' => $email])
         ->and($entry->user_id)->toBeNull();
 }
 
@@ -48,7 +48,7 @@ describe('a successful sign-in', function () {
             ->and(AuditLogRecord::query()->orderBy('id')->pluck('action')->all())->toBe(['core.user.created', 'core.auth.signed_in'])
             ->and($created->subject_type)->toBe('user')
             ->and($created->subject_id)->toBe((string) $user->id)
-            ->and($created->context)->toBe(['source' => 'microsoft'])
+            ->and($created->context)->toEqual(['source' => 'microsoft'])
             ->and(AuditLogRecord::query()->where('action', 'core.auth.signed_in')->sole()->user_id)->toBe($user->id);
 
         $this->assertAuthenticatedAs($user);
@@ -89,11 +89,11 @@ describe('a successful sign-in', function () {
             ->and($user->microsoft_id)->toBe('oid-ana')
             ->and($user->name)->toBe('Ana María Gómez')
             ->and($updated->subject_id)->toBe((string) $user->id)
-            ->and($updated->changes)->toBe([
+            ->and($updated->changes)->toEqual([
                 'microsoft_id' => ['old' => null, 'new' => 'oid-ana'],
                 'name' => ['old' => 'Ana', 'new' => 'Ana María Gómez'],
             ])
-            ->and($updated->context)->toBe(['source' => 'microsoft'])
+            ->and($updated->context)->toEqual(['source' => 'microsoft'])
             ->and(AuditLogRecord::query()->where('action', 'core.user.created')->exists())->toBeFalse();
 
         $this->assertAuthenticatedAs($user);
