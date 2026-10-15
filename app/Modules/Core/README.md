@@ -9,7 +9,7 @@ Core es la base de la plataforma: los contratos que usan los demás módulos (`C
 | `Contracts/` | Interfaces, objetos de datos, enums y excepciones públicos (ver `docs/arquitectura.md` §6). No cambian sin acordarlo. |
 | `Domain/` | Reglas puras en PHP: sin Laravel, sin base de datos y sin reloj. Reciben fechas, saldos y parámetros ya resueltos. |
 | `Application/` | Casos de uso (tareas siguientes). |
-| `Infrastructure/` | Eloquent (`Persistence\*Record`), el acceso por empresa (`Access\CompanyAccess`), el catálogo de empresas y la empresa activa (`Companies\`). |
+| `Infrastructure/` | Eloquent (`Persistence\*Record`), el acceso por empresa (`Access\CompanyAccess`), el catálogo de empresas y la empresa activa (`Companies\`) y la bitácora de auditoría (`Audit\`). |
 | `Http/` | Controladores y FormRequests de las rutas de `routes/web.php`. |
 | `config/core.php` | Valores por defecto para sembrar los parámetros de cada empresa. |
 
@@ -106,6 +106,23 @@ Los roles son los de `Contracts\Enums\Role` (Spatie, guard `web`, sin equipos). 
 | `core.access` | Los seis | Usar la plataforma. Un usuario sin rol no lo tiene. |
 
 Sembrar `core.access` también garantiza que existan los seis roles, para que la pantalla de equipo pueda asignarlos. Correr el seeder otra vez no duplica nada.
+
+## Bitácora de auditoría
+
+`Infrastructure\Audit\DatabaseAuditLogger` implementa `AuditLogger` y Core la registra en el contenedor (una instancia por petición o por job). Cada llamada a `record()` agrega una fila a `audit_logs`:
+
+| Columna | Contenido |
+|---|---|
+| `action` | La acción, con el formato `<módulo>.<entidad>.<verbo>`: tres segmentos o más en minúsculas y `snake_case`, p. ej. `cobro.exclusion.created`. Otro formato lanza `InvalidArgumentException` y no guarda nada. |
+| `subject_type`, `subject_id` | El registro afectado, p. ej. `client` y `C-0042`. El id se guarda como texto, sea número o cadena. |
+| `changes`, `context` | Los cambios (`campo => ['old' => …, 'new' => …]`) y los datos extra, en JSON. Si vienen vacíos, quedan en `null`. Los valores deben poder convertirse a JSON. |
+| `user_id`, `actor` | El usuario con sesión iniciada y su correo en ese momento. Las acciones del sistema (jobs, tareas programadas, consola) no tienen usuario: ambos quedan en `null`. |
+| `ip_address`, `user_agent` | La IP y el navegador de la petición HTTP, si la hay; el navegador se corta a 255 caracteres. Fuera de una petición quedan en `null`. |
+| `created_at` | La hora de la acción. No hay `updated_at`. |
+
+**Inmutable.** `AuditLogRecord` lanza `LogicException` si intentas guardar cambios en una fila existente o borrarla, también con `saveQuietly()` y `deleteQuietly()`. Las escrituras del constructor de consultas no pasan por el modelo: nunca uses `update()` ni `delete()` masivos sobre `AuditLogRecord::query()` o `DB::table('audit_logs')`, ni `increment()` o `decrement()`.
+
+**Red de seguridad.** El contrato prohíbe guardar secretos. Aun así, en `changes` y `context`, a cualquier profundidad, el valor de toda llave que contenga `password`, `secret` o `token` (sin importar mayúsculas) se guarda como `[redacted]`.
 
 ## Pendientes
 

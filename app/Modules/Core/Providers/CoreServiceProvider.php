@@ -3,7 +3,9 @@
 namespace App\Modules\Core\Providers;
 
 use App\Models\User;
+use App\Modules\Core\Contracts\AuditLogger;
 use App\Modules\Core\Contracts\CurrentCompany;
+use App\Modules\Core\Infrastructure\Audit\DatabaseAuditLogger;
 use App\Modules\Core\Infrastructure\Companies\CompanyCatalog;
 use App\Modules\Core\Infrastructure\Companies\SessionCurrentCompany;
 use App\Modules\Core\Infrastructure\Persistence\CompanyRecord;
@@ -35,6 +37,9 @@ final class CoreServiceProvider extends ModuleServiceProvider
         // caller; refresh() forgets it after an admin edits a company.
         $this->app->scoped(CompanyCatalog::class);
         $this->app->scoped(CurrentCompany::class, SessionCurrentCompany::class);
+
+        // Reads the signed-in user and the request, so one per request (or job).
+        $this->app->scoped(AuditLogger::class, DatabaseAuditLogger::class);
     }
 
     protected function bootModule(): void
