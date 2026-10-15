@@ -8,8 +8,10 @@
  *
  * - Pages (navigations) always go to the network; without a connection the
  *   cached offline page answers instead.
- * - Files under STATIC_PREFIXES are served from the cache first. Vite gives
- *   compiled files a hash in their name, so a cached copy never goes stale.
+ * - Compiled files under /build/ are served from the cache first: Vite puts
+ *   a hash in their names, so a cached copy never goes stale.
+ * - Icons and fonts keep fixed names: the cached copy answers at once and
+ *   the network refreshes it in the background (stale-while-revalidate).
  * - Everything else (API calls, forms, exports...) is left to the browser.
  *
  * Bump VERSION when PRECACHE changes; the old cache is dropped on activate.
@@ -20,13 +22,15 @@ const CACHE = `${CACHE_PREFIX}${VERSION}`;
 const OFFLINE_URL = '/offline.html';
 const PRECACHE = [OFFLINE_URL, '/icons/neutral/favicon.svg'];
 const STATIC_PREFIXES = ['/build/', '/fonts/', '/icons/'];
+const HASHED_PREFIX = '/build/';
 const MAX_ENTRIES = 120;
 
 self.addEventListener('install', (event) => {
     event.waitUntil(
         caches
             .open(CACHE)
-            .then((cache) => cache.addAll(PRECACHE))
+            // cache: 'reload' skips the browser HTTP cache, so a new VERSION stores fresh copies.
+            .then((cache) => cache.addAll(PRECACHE.map((url) => new Request(url, { cache: 'reload' }))))
             .then(() => self.skipWaiting()),
     );
 });
@@ -62,8 +66,10 @@ self.addEventListener('fetch', (event) => {
         return;
     }
 
-    if (STATIC_PREFIXES.some((prefix) => url.pathname.startsWith(prefix))) {
+    if (url.pathname.startsWith(HASHED_PREFIX)) {
         event.respondWith(cacheFirst(request));
+    } else if (STATIC_PREFIXES.some((prefix) => url.pathname.startsWith(prefix))) {
+        event.respondWith(staleWhileRevalidate(request, event));
     }
 });
 
@@ -75,9 +81,25 @@ async function cacheFirst(request) {
         return cached;
     }
 
-    const response = await fetch(request);
+    return store(cache, request, await fetch(request));
+}
 
-    // Only complete same-origin answers: never an error page or a partial response.
+async function staleWhileRevalidate(request, event) {
+    const cache = await caches.open(CACHE);
+    const cached = await cache.match(request);
+    const refresh = fetch(request).then((response) => store(cache, request, response));
+
+    if (cached) {
+        event.waitUntil(refresh.catch(() => undefined));
+
+        return cached;
+    }
+
+    return refresh;
+}
+
+// Only complete same-origin answers are stored: never an error page or a partial response.
+async function store(cache, request, response) {
     if (response.ok && response.status === 200 && response.type === 'basic') {
         await cache.put(request, response.clone());
         await trim(cache);

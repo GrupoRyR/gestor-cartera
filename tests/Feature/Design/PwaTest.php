@@ -88,6 +88,15 @@ describe('service worker', function () {
             ->toContain('fetch(request).catch(() => caches.match(OFFLINE_URL))')
             ->and(substr_count($source, 'cache.put('))->toBe(1);
     });
+
+    it('refreshes files without a hash and precaches past the HTTP cache', function () {
+        $source = (string) file_get_contents(public_path('sw.js'));
+
+        // Only hashed /build files are trusted forever; icons and fonts revalidate in the background.
+        expect($source)->toContain("const HASHED_PREFIX = '/build/';")
+            ->toContain('staleWhileRevalidate(request, event)')
+            ->toContain("new Request(url, { cache: 'reload' })");
+    });
 });
 
 describe('offline page', function () {
