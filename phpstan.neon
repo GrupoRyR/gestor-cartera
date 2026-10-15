@@ -1,0 +1,23 @@
+includes:
+    - vendor/larastan/larastan/extension.neon
+
+parameters:
+    # Level 6 asks for typed arrays and iterables: contract shapes stay explicit
+    # for every agent that consumes them.
+    level: 6
+
+    paths:
+        - app/
+        - bootstrap/app.php
+        - config/
+        - database/
+        - routes/
+        - tests/Fakes/
+
+    # Module config files are merged by their provider and cached with the rest
+    # of the configuration, so env() is as safe there as in config/.
+    configDirectories:
+        - %currentWorkingDirectory%/config
+        - %currentWorkingDirectory%/app/Modules/*/config
+
+    tmpDir: storage/framework/cache/phpstan

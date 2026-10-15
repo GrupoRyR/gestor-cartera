@@ -1,8 +1,11 @@
 # Secrets - never commit
 .env
 .env.local
+.env.backup
+.env.production
 *.env
 !*.env.example
+/auth.json
 .cpanel-deploy.conf
 
 # Legacy credentials (never copied, ignored just in case)
@@ -20,17 +23,34 @@ etl/logs/
 etl/out/
 etl/state/
 
-# PHP / Laravel (phase 0a merges Laravel's own .gitignore here)
+# PHP / Laravel
 /vendor/
 /storage/*.key
+/storage/pail
+/.phpunit.cache
 .phpunit.result.cache
+/.phpactor.json
+*.log
+
+# Compiled assets: only the deploy step builds and force-adds public/build (see docs/arquitectura.md)
+/public/build
+/public/hot
+/public/storage
 
 # Node
 node_modules/
 legacy/portal-asesores/web/.next/
 
+# Agent working notes (ODD feature documents stay local; Engram keeps the recovery copy)
+/odd/
+
 # Editors and OS
 .idea/
 .vscode/
+/.fleet
+/.nova
+/.zed
+Homestead.json
+Homestead.yaml
 Thumbs.db
 .DS_Store

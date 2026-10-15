@@ -1,0 +1,127 @@
+# No pull request is merged into main with this workflow in red (A.3).
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  lint:
+    name: Lint (Pint and Larastan)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          extensions: mbstring, intl, bcmath, pdo_sqlite, zip, gd
+          coverage: none
+
+      - name: Install PHP dependencies
+        run: composer install --no-interaction --prefer-dist --no-progress
+
+      - name: Lint
+        run: composer lint
+
+  test:
+    name: Tests (PHP 8.3, MySQL 8)
+    runs-on: ubuntu-latest
+    services:
+      mysql:
+        image: mysql:8.0
+        env:
+          # Throwaway database that only lives during the job.
+          MYSQL_ROOT_PASSWORD: root
+          MYSQL_DATABASE: gestor_cartera_test
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping -h 127.0.0.1 -proot"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=10
+    env:
+      # Overrides the SQLite defaults of phpunit.xml (they are not forced).
+      DB_CONNECTION: mysql
+      DB_HOST: 127.0.0.1
+      DB_PORT: 3306
+      DB_DATABASE: gestor_cartera_test
+      DB_USERNAME: root
+      DB_PASSWORD: root
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          extensions: mbstring, intl, bcmath, pdo_mysql, pdo_sqlite, zip, gd
+          coverage: none
+
+      - name: Install PHP dependencies
+        run: composer install --no-interaction --prefer-dist --no-progress
+
+      - name: Prepare environment
+        run: |
+          cp .env.example .env
+          php artisan key:generate --ansi
+
+      - name: Test
+        run: composer test
+
+  assets:
+    name: Assets build (never committed)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install Node dependencies
+        run: npm ci
+
+      - name: Build
+        run: npm run build
+
+  compiled-assets:
+    name: public/build only in deploy/* pull requests
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # Full history, so the merge base with the target branch exists.
+          fetch-depth: 0
+
+      - name: Reject compiled assets outside the deploy branch
+        env:
+          # Through env, never interpolated into the script: branch names come from the PR author.
+          BASE_REF: ${{ github.base_ref }}
+          HEAD_REF: ${{ github.head_ref }}
+        run: |
+          changed="$(git diff --name-only --no-renames "origin/${BASE_REF}...HEAD" -- public/build/)"
+
+          if [ -z "$changed" ]; then
+            echo "This pull request does not touch public/build."
+            exit 0
+          fi
+
+          if [[ "$HEAD_REF" == deploy/* ]]; then
+            echo "Branch ${HEAD_REF} is a deploy branch: it may commit public/build."
+            exit 0
+          fi
+
+          echo "::error::This pull request changes public/build, but only the deploy session commits compiled assets, from a branch named deploy/* (docs/arquitectura.md, section 16). Remove these files from the pull request:"
+          echo "$changed"
+          exit 1
