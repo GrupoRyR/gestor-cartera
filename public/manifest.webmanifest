@@ -1,0 +1,40 @@
+{
+    "id": "/",
+    "name": "Gestor de cartera",
+    "short_name": "Cartera",
+    "description": "Cartera de Segurex Latam y Soluciones y Derivados: clientes, compromisos de pago y cobro.",
+    "lang": "es-CO",
+    "dir": "ltr",
+    "start_url": "/",
+    "scope": "/",
+    "display": "standalone",
+    "background_color": "#f5f5f2",
+    "theme_color": "#ffffff",
+    "categories": ["business", "finance", "productivity"],
+    "icons": [
+        {
+            "src": "/icons/neutral/icon-192.png",
+            "sizes": "192x192",
+            "type": "image/png",
+            "purpose": "any"
+        },
+        {
+            "src": "/icons/neutral/icon-512.png",
+            "sizes": "512x512",
+            "type": "image/png",
+            "purpose": "any"
+        },
+        {
+            "src": "/icons/neutral/icon-maskable-512.png",
+            "sizes": "512x512",
+            "type": "image/png",
+            "purpose": "maskable"
+        },
+        {
+            "src": "/icons/neutral/favicon.svg",
+            "sizes": "any",
+            "type": "image/svg+xml",
+            "purpose": "any"
+        }
+    ]
+}

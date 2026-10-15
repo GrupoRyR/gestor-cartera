@@ -7,6 +7,11 @@
     CommitmentQuery use) and drop ?page. Default slot: body rows (<tr>);
     without rows, one row shows emptyMessage. Slot "footer": <tfoot> rows.
     Extra attributes go to <table>.
+
+    Modules write the cells, so their look (padding, borders, data-align,
+    tabular figures) lives in resources/css/app.css under
+    [data-part="table-scroll"]. On narrow screens the region scrolls
+    sideways and takes keyboard focus.
 --}}
 @props([
     'caption',
@@ -53,7 +58,7 @@
     }
 @endphp
 
-<div role="region" aria-label="{{ $caption }}" tabindex="0" data-part="table-scroll">
+<div role="region" aria-label="{{ $caption }}" tabindex="0" data-part="table-scroll" class="relative max-w-full overflow-x-auto overscroll-x-contain rounded-card border border-line bg-surface">
     <table {{ $attributes }}>
         <caption @if ($captionHidden) data-visually-hidden @endif>{{ $caption }}</caption>
 

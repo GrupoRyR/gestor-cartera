@@ -1,6 +1,9 @@
+@use('App\View\Components\Support\ButtonStyle')
+
 {{--
     Link that looks like a button (C.5). Same variants as <x-ui.button>. An
-    external link opens in a new tab and says so to screen readers.
+    external link opens in a new tab, shows an arrow and says so to screen
+    readers.
 --}}
 @props(['href', 'variant' => 'primary', 'icon' => null, 'iconOnly' => false, 'external' => false])
 
@@ -24,12 +27,15 @@
     'data-icon-only' => $iconOnly ? 'true' : null,
     'target' => $external ? '_blank' : null,
     'rel' => $external ? 'noopener noreferrer' : null,
-]) }}>
+])->class(ButtonStyle::classes($variant, (bool) $iconOnly)) }}>
     @if (filled($icon))
         <x-ui.icon :name="$icon" />
     @endif
     <span @if ($iconOnly) data-visually-hidden @endif>{{ $slot }}</span>
     @if ($external)
+        @unless ($iconOnly)
+            <x-ui.icon name="external" class="size-4 opacity-70" />
+        @endunless
         <span data-visually-hidden> (se abre en otra pestaña)</span>
     @endif
 </a>
