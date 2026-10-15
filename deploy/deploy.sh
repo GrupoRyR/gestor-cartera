@@ -56,8 +56,10 @@ fi
 # Whatever happens from here on, the site must not stay in maintenance mode.
 trap bring_up EXIT
 
-log "Pulling latest code"
-git pull --ff-only
+# Merge exactly the commit checked above: a second fetch (git pull) could
+# bring a newer commit without public/build.
+log "Updating to the checked commit"
+git merge --ff-only '@{upstream}'
 
 log "Installing PHP dependencies"
 # shellcheck disable=SC2086 # COMPOSER_BIN may be "php composer.phar" on purpose.
