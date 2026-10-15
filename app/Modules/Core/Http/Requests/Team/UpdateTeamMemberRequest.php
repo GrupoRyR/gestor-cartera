@@ -23,6 +23,13 @@ final class UpdateTeamMemberRequest extends TeamMemberRequest
 
     public function details(): TeamMemberDetails
     {
-        return new TeamMemberDetails($this->memberName(), $this->role(), $this->companies(), $this->boolean('activo'));
+        return new TeamMemberDetails(
+            $this->memberName(),
+            $this->role(),
+            $this->companies(),
+            $this->boolean('activo'),
+            $this->advisorIds(),
+            $this->teamIds(),
+        );
     }
 }

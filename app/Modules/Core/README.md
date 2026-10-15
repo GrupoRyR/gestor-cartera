@@ -120,7 +120,27 @@ La tabla `advisors` guarda los vendedores de SAP de cada empresa (`OSLP`) y el u
 | `active` | Si el vendedor está activo en SAP. Solo los activos se vinculan y dan rol al ingresar. |
 | `user_id` | El usuario vinculado, o `null`. Si el usuario se borra del todo (no el borrado lógico), el asesor queda sin vincular. |
 
-Core la expone como `$user->advisors()` con `User::resolveRelationUsing()`. La carga desde SAP llega con Ingesta y la pantalla de equipo vinculará asesores a mano; hoy solo el ingreso los vincula. `AdvisorRecordFactory` crea vendedores ficticios (estados `inactive()` y `linkedTo($user)`).
+Core la expone como `$user->advisors()` con `User::resolveRelationUsing()`. La carga desde SAP llega con Ingesta. El ingreso con Microsoft vincula por correo (ver «Ingreso con Microsoft») y la pantalla Equipo vincula a mano. `AdvisorRecordFactory` crea vendedores ficticios (estados `inactive()` y `linkedTo($user)`).
+
+**Vínculo a mano** (pantalla Equipo, campo «Asesor de SAP vinculado»):
+
+- Un asesor tiene un solo usuario (`advisors.user_id`); un usuario puede tener varios asesores, por ejemplo uno en cada empresa.
+- Un asesor vinculado a otra persona aparece deshabilitado, con «Vinculado a <nombre>». Para pasarlo, desvincúlalo primero en la página de esa persona: Equipo nunca se lo quita a nadie.
+- Si llega igual (una petición alterada o dos administradores a la vez), `TeamMembers` bloquea las filas, lo rechaza con el error «Ese asesor ya está vinculado a otra persona.» en el campo y no guarda nada del formulario.
+- Se pueden vincular asesores inactivos en SAP (aparecen con «(inactivo)»). El ingreso con Microsoft, en cambio, solo vincula activos.
+
+**Equipo del gerente comercial.** La tabla `advisor_team` guarda los asesores de SAP cuya cartera ve cada gerente comercial (A.5: «Ve la cartera de los asesores de su equipo»).
+
+| Columna | Contenido |
+|---|---|
+| `user_id` | El gerente comercial. Si el usuario se borra del todo, sus filas se borran en cascada; con el borrado lógico el equipo se conserva y vuelve con la restauración. |
+| `advisor_id` | El asesor. Si el asesor se borra, sus filas se borran en cascada. |
+
+La llave es (`user_id`, `advisor_id`): un asesor puede estar en el equipo de varios gerentes. Core la expone como `$user->teamAdvisors()`. Solo el rol `gerente_comercial` tiene equipo: con cualquier otro rol, Equipo lo guarda vacío, también cuando a un gerente le cambian el rol.
+
+> **En código de `app/`** usa `AdvisorRecord::linkedTo($user)` y `AdvisorRecord::teamOf($user)`, no `$user->advisors()` ni `$user->teamAdvisors()`: Larastan no ve las relaciones registradas con `resolveRelationUsing()`.
+
+**Alcance de la cartera** (`docs/arquitectura.md` §6.2). La implementación de `CarteraRepository` leerá estas dos tablas: un `asesor` ve los clientes de los asesores vinculados a él (`advisors.user_id`) y un `gerente_comercial`, los de los asesores de su equipo (`advisor_team`). Hoy ningún módulo filtra todavía con ellas.
 
 ## Ingreso con Microsoft
 
@@ -227,7 +247,7 @@ Solo para administradores: el permiso `core.team.manage`, que `CorePermissionSee
 |---|---|---|
 | `GET /equipo` | `core.equipo.index` | La lista, por pestañas, con búsqueda, orden y paginación. |
 | `GET /equipo/nuevo`, `POST /equipo` | `core.equipo.create`, `core.equipo.store` | Registra a una persona antes de su primer ingreso. |
-| `GET /equipo/{user}/editar`, `PUT /equipo/{user}` | `core.equipo.edit`, `core.equipo.update` | Edita el nombre, el rol, las empresas y si la cuenta está activa. |
+| `GET /equipo/{user}/editar`, `PUT /equipo/{user}` | `core.equipo.edit`, `core.equipo.update` | Edita el nombre, el rol, las empresas, los asesores de SAP, el equipo y si la cuenta está activa. |
 | `DELETE /equipo/{user}` | `core.equipo.destroy` | Borrado lógico, confirmado en un modal de la página de edición. |
 | `POST /equipo/{user}/restaurar` | `core.equipo.restore` | Restaura a un usuario eliminado. |
 
@@ -245,15 +265,17 @@ Solo para administradores: el permiso `core.team.manage`, que `CorePermissionSee
 - Cada pestaña muestra cuántos usuarios tiene con la búsqueda actual.
 - `?buscar=` busca por parte del nombre o del correo dentro de la pestaña.
 - La tabla se ordena por nombre o por correo (`?sort=name|email&direction=asc|desc`); un valor desconocido vuelve al nombre ascendente. Muestra 25 por página, y los enlaces de pestañas y páginas conservan la búsqueda y el orden.
-- Columnas: nombre, correo, rol («Sin rol» si no tiene), empresas (chips; «Todas» para un administrador), estado (Activo, Inactivo o Eliminado) y la acción.
+- Columnas: nombre, correo, rol («Sin rol» si no tiene), empresas (chips; «Todas» para un administrador), asesor SAP (un chip por asesor vinculado, p. ej. «SGX 12 · Carlos Pérez», por empresa y luego por nombre, leídos en una sola consulta para toda la página), estado (Activo, Inactivo o Eliminado) y la acción.
 
-**Qué se edita.** El nombre, un solo rol o ninguno (`syncRoles()` de Spatie), las empresas (`company_user`) y «Cuenta activa». El correo no se edita: es la identidad con la que la persona ingresa con Microsoft.
+**Qué se edita.** El nombre, un solo rol o ninguno (`syncRoles()` de Spatie), las empresas (`company_user`), los asesores de SAP vinculados (`advisors.user_id`), el equipo del gerente comercial (`advisor_team`) y «Cuenta activa». El correo no se edita: es la identidad con la que la persona ingresa con Microsoft.
 
 - Todo rol salvo `admin` exige al menos una empresa («Elige al menos una empresa para este rol.»).
 - Las empresas de un administrador se ignoran y se guardan vacías: ve las dos (`CompanyAccess`).
 - Una cuenta desactivada sale de la plataforma en su siguiente página (ver «Cuentas desactivadas»).
+- «Asesor de SAP vinculado» (`asesores[]`) y «Equipo del gerente comercial» (`equipo[]`) listan todos los asesores, agrupados por empresa (en el orden de `CompanyCode`) y por nombre: «<código> · <nombre>», con el correo de SAP como ayuda si lo tiene y «(inactivo)» si está inactivo en SAP. Las reglas del vínculo y del equipo están en «Asesores de SAP».
+- Un id de asesor que no existe falla la validación («El valor elegido en asesor no es válido.»).
 
-**Registro previo y restauración.** «Nuevo usuario» pide nombre, correo, rol y empresas. Crea la cuenta activa y sin `microsoft_id`; el primer ingreso con Microsoft la vincula por el correo, que se guarda sin espacios y en minúsculas.
+**Registro previo y restauración.** «Nuevo usuario» pide nombre, correo, rol, empresas, asesores de SAP y equipo; los asesores vinculados a otra persona también aparecen deshabilitados. Crea la cuenta activa y sin `microsoft_id`; el primer ingreso con Microsoft la vincula por el correo, que se guarda sin espacios y en minúsculas.
 
 - Si el correo es de un usuario no eliminado, el formulario falla en «correo»: «Ya existe un usuario con ese correo.».
 - Si es de un usuario eliminado, restaura esa misma fila (`restoreOrCreate()`, ver `docs/arquitectura.md` §12.2) y le aplica el formulario, incluida la activación.
@@ -266,12 +288,11 @@ Solo para administradores: el permiso `core.team.manage`, que `CorePermissionSee
 
 | Acción | Cuándo | `changes` |
 |---|---|---|
-| `core.user.created` | Registro de una persona nueva. | `name`, `email`, `role` (valor o `null`) y `companies` (códigos ordenados). |
-| `core.user.updated` | Edición, o restauración desde «Nuevo usuario». | Solo los campos que cambian (`name`, `role`, `companies`, `active`), como `campo => ['old' => …, 'new' => …]`. Sin cambios, no hay entrada. |
+| `core.user.created` | Registro de una persona nueva. | `name`, `email`, `role` (valor o `null`), `companies` (códigos ordenados) y `team` (asesores del equipo como `<EMPRESA>-<código>`, ordenados; vacío salvo para un gerente comercial). |
+| `core.user.updated` | Edición, o restauración desde «Nuevo usuario». | Solo los campos que cambian (`name`, `role`, `companies`, `active`, `team`), como `campo => ['old' => …, 'new' => …]`, en una sola entrada por guardado. Sin cambios, no hay entrada. |
 | `core.user.deleted` | Borrado lógico. | `name` y `email`. |
 | `core.user.restored` | Restauración, con el botón o desde «Nuevo usuario». | `name` y `email`. |
-
-**Siguiente PR.** Vincular a mano asesores de SAP a un usuario y el equipo del gerente comercial llegan después.
+| `core.advisor.linked`, `core.advisor.unlinked` | Por cada asesor que el formulario vincula o desvincula (sujeto `advisor`). | `user_id` con `old` y `new`; el `context` agrega `company` y `code`. |
 
 ## Pendientes
 

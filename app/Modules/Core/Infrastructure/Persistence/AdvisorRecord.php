@@ -12,11 +12,14 @@ use Illuminate\Database\Eloquent\Attributes\UseFactory;
 use Illuminate\Database\Eloquent\Casts\Attribute;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\Pivot;
 
 /**
  * A row of "advisors": a SAP sales employee of one company (OSLP), with the
- * user it is linked to. The e-mail is stored trimmed and in lowercase
+ * user it is linked to and, through advisor_team, the sales managers whose
+ * team it is in. The e-mail is stored trimmed and in lowercase
  * (User::normalizeEmail()), so it matches users.email.
  *
  * @property int $id
@@ -46,6 +49,19 @@ final class AdvisorRecord extends Model
     public static function linkedTo(User $user): HasMany
     {
         return $user->hasMany(self::class, 'user_id');
+    }
+
+    /**
+     * The advisors in the team of $manager, a sales manager, through
+     * advisor_team. Core registers it as the "teamAdvisors" relation of
+     * App\Models\User.
+     *
+     * @return BelongsToMany<self, User, Pivot>
+     */
+    public static function teamOf(User $manager): BelongsToMany
+    {
+        return $manager->belongsToMany(self::class, 'advisor_team', 'user_id', 'advisor_id', 'id', 'id', 'teamAdvisors')
+            ->withTimestamps();
     }
 
     /**

@@ -61,6 +61,9 @@ final class CoreServiceProvider extends ModuleServiceProvider
         // $user->advisors(): the SAP sales employees linked to a user.
         User::resolveRelationUsing('advisors', AdvisorRecord::linkedTo(...));
 
+        // $user->teamAdvisors(): the advisors in a sales manager's team.
+        User::resolveRelationUsing('teamAdvisors', AdvisorRecord::teamOf(...));
+
         // Every web page signs out a deactivated user, with or without auth.
         // Appended through the HTTP kernel, not only the router: resolving the
         // kernel after boot (as tests do) syncs its groups into the router and

@@ -7,7 +7,8 @@
     One tab per state (links that keep the search and the order), a search
     by name or e-mail, a table sortable by name and e-mail, 25 per page.
     $members comes with roles loaded; $companies holds their companies by
-    user id, in CompanyCode order.
+    user id, in CompanyCode order; $advisors, their linked SAP advisors by
+    user id, in CompanyCode order and then by name.
 --}}
 @php
     $tabs = array_map(fn (TeamTab $tab): array => [
@@ -22,6 +23,7 @@
         ['key' => 'email', 'label' => __('core::equipo.columnas.correo'), 'sortable' => true],
         ['key' => 'role', 'label' => __('core::equipo.columnas.rol')],
         ['key' => 'companies', 'label' => __('core::equipo.columnas.empresas')],
+        ['key' => 'advisors', 'label' => __('core::equipo.columnas.asesores')],
         ['key' => 'status', 'label' => __('core::equipo.columnas.estado')],
         ['key' => 'actions', 'label' => __('core::equipo.columnas.acciones'), 'align' => 'end'],
     ];
@@ -82,6 +84,11 @@
                                 <x-ui.chip :dot="false">{{ $company->value }}</x-ui.chip>
                             @endforeach
                         @endif
+                    </td>
+                    <td>
+                        @foreach ($advisors[$member->id] ?? [] as $advisor)
+                            <x-ui.chip :dot="false">{{ __('core::equipo.asesor_empresa', ['empresa' => $advisor->company->value, 'codigo' => $advisor->code, 'nombre' => $advisor->name]) }}</x-ui.chip>
+                        @endforeach
                     </td>
                     <td>
                         @if ($member->trashed())

@@ -20,6 +20,9 @@ enum TeamRefusal: string
     /** The e-mail already belongs to a user who is not deleted. */
     case EmailTaken = 'email_taken';
 
+    /** One of the advisors to link is already linked to someone else. */
+    case AdvisorTaken = 'advisor_taken';
+
     /**
      * The key of the Spanish message for the admin.
      */

@@ -29,7 +29,7 @@ it('shows the form to pre-register a person', function () {
         ->and($roles)->toBe(['Sin rol', ...array_values(Role::options())])
         ->and($html->labelledControl('Segurex Latam (SGX)')->getAttribute('value'))->toBe('SGX')
         ->and($html->labelledControl('Soluciones y Derivados (SDC)')->getAttribute('name'))->toBe('empresas[]')
-        ->and($html->text('//fieldset/legend'))->toBe('Empresas');
+        ->and($html->text('//fieldset[@aria-describedby="empresas-ayuda"]/legend'))->toBe('Empresas');
 });
 
 it('pre-registers a person without a role', function () {
@@ -54,6 +54,7 @@ it('pre-registers a person without a role', function () {
             'email' => 'ana.gomez@segurex.com',
             'role' => null,
             'companies' => [],
+            'team' => [],
         ])
         ->and($created->context)->toEqual(['source' => 'equipo']);
 });

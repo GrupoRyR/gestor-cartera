@@ -53,8 +53,8 @@ it('shows the role, the companies and the state of each user', function () {
         $html->all("//table/tbody/tr[td[1][normalize-space(.)='{$name}']]/td"),
     );
 
-    expect(array_slice($row('Ana Activa'), 0, 5))->toBe(['Ana Activa', 'ana.activa@segurex.com', 'Analista de cartera', 'SGX SDC', 'Activo'])
-        ->and(array_slice($row('Laura Admin'), 2, 3))->toBe(['Administrador', 'Todas', 'Activo']);
+    expect(array_slice($row('Ana Activa'), 0, 6))->toBe(['Ana Activa', 'ana.activa@segurex.com', 'Analista de cartera', 'SGX SDC', '', 'Activo'])
+        ->and(array_slice($row('Laura Admin'), 2, 4))->toBe(['Administrador', 'Todas', '', 'Activo']);
 });
 
 it('labels users without a role, inactive users and deleted users', function () {
@@ -63,8 +63,8 @@ it('labels users without a role, inactive users and deleted users', function () 
     $deleted = TeamUsers::html($this->actingAs($this->admin)->get(route('core.equipo.index', ['estado' => 'eliminados'])));
 
     expect($pending->text('//table/tbody/tr/td[3]'))->toBe('Sin rol')
-        ->and($inactive->text("//table/tbody/tr[td[1][normalize-space(.)='Carla Inactiva']]/td[5]"))->toBe('Inactivo')
-        ->and($deleted->text('//table/tbody/tr/td[5]'))->toBe('Eliminado');
+        ->and($inactive->text("//table/tbody/tr[td[1][normalize-space(.)='Carla Inactiva']]/td[6]"))->toBe('Inactivo')
+        ->and($deleted->text('//table/tbody/tr/td[6]'))->toBe('Eliminado');
 });
 
 it('searches by name or e-mail within the tab', function (string $tab, string $search, array $names) {

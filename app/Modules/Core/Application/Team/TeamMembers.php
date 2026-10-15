@@ -6,18 +6,22 @@ use App\Models\User;
 use App\Modules\Core\Contracts\AuditLogger;
 use App\Modules\Core\Contracts\Enums\CompanyCode;
 use App\Modules\Core\Contracts\Enums\Role;
+use App\Modules\Core\Infrastructure\Persistence\AdvisorRecord;
 use App\Modules\Core\Infrastructure\Persistence\CompanyRecord;
 use Illuminate\Database\ConnectionInterface;
+use Illuminate\Database\Eloquent\Builder;
 use Spatie\Permission\Models\Role as SpatieRole;
 
 /**
  * The writes of the Equipo screen (Part B, Módulo 0N, points 2 and 6):
- * pre-register, edit, soft-delete and restore users.
+ * pre-register, edit, soft-delete and restore users, link SAP advisors to
+ * them and set the team of a sales manager.
  *
  * Every change goes to the audit trail with the context source "equipo"
  * (the audit logger adds the admin as the actor); a refused change writes
  * nothing. Lock-out guards: an admin may not deactivate, delete or take the
- * admin role away from themselves.
+ * admin role away from themselves. An advisor belongs to one user at most:
+ * one linked to someone else is never taken over from here.
  */
 final class TeamMembers
 {
@@ -34,7 +38,7 @@ final class TeamMembers
      * even among deleted users) and applies $details to it; the returned
      * user's wasRecentlyCreated tells both cases apart.
      *
-     * @throws TeamChangeRefused When the e-mail belongs to a user who is not deleted.
+     * @throws TeamChangeRefused When the e-mail belongs to a user who is not deleted, or an advisor to link belongs to someone else.
      */
     public function create(string $email, TeamMemberDetails $details): User
     {
@@ -60,23 +64,28 @@ final class TeamMembers
 
             $this->saveRole($user, $details->role);
             CompanyRecord::assignedTo($user)->sync($details->companyCodes());
+            AdvisorRecord::teamOf($user)->sync($details->teamIds());
 
             $this->audit->record('core.user.created', 'user', $user->id, [
                 'name' => $user->name,
                 'email' => $user->email,
                 'role' => $details->role?->value,
                 'companies' => $details->companyCodes(),
+                'team' => $this->teamLabels(AdvisorRecord::query()->whereKey($details->teamIds())->get()),
             ], self::CONTEXT);
+
+            $this->linkAdvisors($user, $details->advisorIds());
 
             return $user;
         });
     }
 
     /**
-     * Saves the name, role, companies and activation of $member. Only the
-     * fields that change are written and audited; no change, no entry.
+     * Saves the name, role, companies, activation, team and linked advisors
+     * of $member. Only what changes is written and audited; no change, no
+     * entry.
      *
-     * @throws TeamChangeRefused When $actor would deactivate themselves or drop their admin role.
+     * @throws TeamChangeRefused When $actor would deactivate themselves or drop their admin role, or an advisor to link belongs to someone else.
      */
     public function update(User $actor, User $member, TeamMemberDetails $details): void
     {
@@ -140,6 +149,7 @@ final class TeamMembers
             'role' => $details->role?->value,
             'companies' => $details->companyCodes(),
             'active' => $details->active,
+            'team' => $this->teamLabels(AdvisorRecord::query()->whereKey($details->teamIds())->get()),
         ];
 
         $changes = [];
@@ -150,28 +160,79 @@ final class TeamMembers
             }
         }
 
-        if ($changes === []) {
-            return;
+        if ($changes !== []) {
+            $member->fill(['name' => $details->name, 'is_active' => $details->active])->save();
+
+            if (array_key_exists('role', $changes)) {
+                $this->saveRole($member, $details->role);
+            }
+
+            if (array_key_exists('companies', $changes)) {
+                CompanyRecord::assignedTo($member)->sync($after['companies']);
+            }
+
+            if (array_key_exists('team', $changes)) {
+                AdvisorRecord::teamOf($member)->sync($details->teamIds());
+            }
+
+            $this->audit->record('core.user.updated', 'user', $member->id, $changes, self::CONTEXT);
         }
 
-        $member->fill(['name' => $details->name, 'is_active' => $details->active])->save();
+        $this->linkAdvisors($member, $details->advisorIds());
+    }
 
-        if (array_key_exists('role', $changes)) {
-            $this->saveRole($member, $details->role);
+    /**
+     * Links the advisors of $advisorIds to $member and unlinks the other
+     * advisors linked to them, with one audit entry per advisor that
+     * changes. The rows are locked first, so an advisor linked to someone
+     * else in the meantime is refused, not taken over.
+     *
+     * @param  list<int>  $advisorIds
+     *
+     * @throws TeamChangeRefused When one of $advisorIds is linked to someone else.
+     */
+    private function linkAdvisors(User $member, array $advisorIds): void
+    {
+        $advisors = AdvisorRecord::query()
+            ->where(fn (Builder $query) => $query->whereKey($advisorIds)->orWhere('user_id', $member->id))
+            ->orderBy('company')
+            ->orderBy('code')
+            ->lockForUpdate()
+            ->get();
+
+        foreach ($advisors as $advisor) {
+            if ($advisor->user_id !== null && $advisor->user_id !== $member->id) {
+                throw new TeamChangeRefused(TeamRefusal::AdvisorTaken);
+            }
         }
 
-        if (array_key_exists('companies', $changes)) {
-            CompanyRecord::assignedTo($member)->sync($after['companies']);
-        }
+        foreach ($advisors as $advisor) {
+            $linked = in_array($advisor->id, $advisorIds, true);
+            $old = $advisor->user_id;
+            $new = $linked ? $member->id : null;
 
-        $this->audit->record('core.user.updated', 'user', $member->id, $changes, self::CONTEXT);
+            if ($old === $new) {
+                continue;
+            }
+
+            $advisor->user_id = $new;
+            $advisor->save();
+
+            $this->audit->record(
+                $linked ? 'core.advisor.linked' : 'core.advisor.unlinked',
+                'advisor',
+                $advisor->id,
+                ['user_id' => ['old' => $old, 'new' => $new]],
+                ['company' => $advisor->company->value, 'code' => $advisor->code, ...self::CONTEXT],
+            );
+        }
     }
 
     /**
      * The audited fields of $member as stored: role as its value, companies
-     * as sorted codes.
+     * as sorted codes, team as sorted advisor labels.
      *
-     * @return array{name: string, role: string|null, companies: list<string>, active: bool}
+     * @return array{name: string, role: string|null, companies: list<string>, active: bool, team: list<string>}
      */
     private function snapshot(User $member): array
     {
@@ -186,7 +247,27 @@ final class TeamMembers
             'role' => $member->getRoleNames()->first(),
             'companies' => $companies,
             'active' => (bool) $member->is_active,
+            'team' => $this->teamLabels(AdvisorRecord::teamOf($member)->get()),
         ];
+    }
+
+    /**
+     * A team as the audit trail shows it: «<COMPANY>-<code>» labels, sorted.
+     *
+     * @param  iterable<AdvisorRecord>  $advisors
+     * @return list<string>
+     */
+    private function teamLabels(iterable $advisors): array
+    {
+        $labels = [];
+
+        foreach ($advisors as $advisor) {
+            $labels[] = "{$advisor->company->value}-{$advisor->code}";
+        }
+
+        sort($labels, SORT_NATURAL);
+
+        return $labels;
     }
 
     /**

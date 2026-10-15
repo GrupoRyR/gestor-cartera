@@ -5,6 +5,7 @@ namespace Tests\Modules\Core\Support;
 use App\Models\User;
 use App\Modules\Core\Contracts\Enums\CompanyCode;
 use App\Modules\Core\Contracts\Enums\Role;
+use App\Modules\Core\Infrastructure\Persistence\AdvisorRecord;
 use App\Modules\Core\Infrastructure\Persistence\AuditLogRecord;
 use App\Modules\Core\Infrastructure\Persistence\CompanyRecord;
 use Illuminate\Testing\TestResponse;
@@ -70,6 +71,70 @@ final class TeamUsers
     }
 
     /**
+     * A SAP advisor with a fixed company, code and name, linked to $user
+     * when given.
+     */
+    public static function advisor(
+        CompanyCode $company,
+        int $code,
+        string $name,
+        ?User $user = null,
+        ?string $email = null,
+        bool $active = true,
+    ): AdvisorRecord {
+        return AdvisorRecord::factory()->create([
+            'company' => $company,
+            'code' => $code,
+            'name' => $name,
+            'email' => $email,
+            'active' => $active,
+            'user_id' => $user?->getKey(),
+        ]);
+    }
+
+    /**
+     * The advisors linked to the user, as sorted «<COMPANY>-<code>» labels.
+     *
+     * @return list<string>
+     */
+    public static function advisorsOf(User $user): array
+    {
+        return self::advisorLabels(AdvisorRecord::linkedTo($user)->get());
+    }
+
+    /**
+     * The advisors in the team of the user, as sorted «<COMPANY>-<code>»
+     * labels.
+     *
+     * @return list<string>
+     */
+    public static function teamOf(User $user): array
+    {
+        return self::advisorLabels(AdvisorRecord::teamOf($user)->get());
+    }
+
+    /**
+     * The boxes of the advisor fieldset whose legend is $legend: the label
+     * of each box by the legend of its company group, in page order.
+     *
+     * @return array<string, list<string>>
+     */
+    public static function advisorOptions(Html $html, string $legend): array
+    {
+        $groups = [];
+
+        foreach ($html->all("//fieldset[normalize-space(legend)='{$legend}']/fieldset") as $group) {
+            $company = Html::clean($group->getElementsByTagName('legend')->item(0)?->textContent ?? '');
+
+            foreach ($group->getElementsByTagName('label') as $label) {
+                $groups[$company][] = Html::clean($label->textContent);
+            }
+        }
+
+        return $groups;
+    }
+
+    /**
      * The audit entries of $action, oldest first.
      *
      * @return list<AuditLogRecord>
@@ -112,5 +177,22 @@ final class TeamUsers
         }
 
         return $counts;
+    }
+
+    /**
+     * @param  iterable<AdvisorRecord>  $advisors
+     * @return list<string>
+     */
+    private static function advisorLabels(iterable $advisors): array
+    {
+        $labels = [];
+
+        foreach ($advisors as $advisor) {
+            $labels[] = "{$advisor->company->value}-{$advisor->code}";
+        }
+
+        sort($labels, SORT_NATURAL);
+
+        return $labels;
     }
 }
