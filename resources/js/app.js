@@ -45,6 +45,12 @@ Alpine.start();
 
 // <x-ui.modal> contract: an element with data-modal-open="<id>" opens the
 // dialog with that id; an element with data-modal-close closes its dialog.
+let pressedOnDialog = null;
+
+document.addEventListener('pointerdown', (event) => {
+    pressedOnDialog = event.target instanceof HTMLDialogElement ? event.target : null;
+});
+
 document.addEventListener('click', (event) => {
     const opener = event.target.closest('[data-modal-open]');
     if (opener) {
@@ -55,8 +61,26 @@ document.addEventListener('click', (event) => {
     const closer = event.target.closest('[data-modal-close]');
     if (closer) {
         closer.closest('dialog')?.close();
+        return;
+    }
+
+    // A click on the backdrop lands on the <dialog> itself (its content fills
+    // the box), so it closes the modal, like Escape does. The press must start
+    // there too: selecting text in a field and releasing outside keeps it open.
+    if (event.target instanceof HTMLDialogElement && event.target.open && pressedOnDialog === event.target) {
+        event.target.close();
     }
 });
 
 // <x-ui.modal :open="true"> renders data-modal-autoopen (e.g. after a validation error).
 document.querySelectorAll('dialog[data-modal-autoopen]').forEach((dialog) => dialog.showModal());
+
+// PWA (A.6): the service worker caches static files and the offline page
+// only, never portfolio data. Browsers allow it on HTTPS and localhost.
+if ('serviceWorker' in navigator && window.isSecureContext) {
+    window.addEventListener('load', () => {
+        navigator.serviceWorker.register('/sw.js', { scope: '/' }).catch(() => {
+            // Without a service worker the app works the same, only without the offline page.
+        });
+    });
+}
