@@ -168,6 +168,34 @@ describe('<x-ui.pagination>', function () {
             ->and($lastHtml->text('//nav'))->toEndWith('Siguiente');
     });
 
+    it('keeps the search, filters and sort of the current page in its links', function () {
+        onPage('/cartera/clientes?search=ferre&estados[]=vencida&estados[]=juridico&sort=overdue&direction=desc&page=2');
+        $paginator = new LengthAwarePaginator(range(1, 25), total: 70, perPage: 25, currentPage: 2, options: ['path' => '/cartera/clientes']);
+
+        $html = Html::parse((string) $this->blade('<x-ui.pagination :paginator="$paginator" />', ['paginator' => $paginator]));
+
+        $previous = $html->one('//nav//a[@rel="prev"]')->getAttribute('href');
+        $next = $html->one('//nav//a[@rel="next"]')->getAttribute('href');
+        $kept = ['search' => 'ferre', 'estados' => ['vencida', 'juridico'], 'sort' => 'overdue', 'direction' => 'desc'];
+
+        expect(queryOf($next))->toBe([...$kept, 'page' => '3'])
+            ->and(queryOf($previous))->toBe([...$kept, 'page' => '1'])
+            ->and(substr_count($next, 'page='))->toBe(1)
+            ->and(parse_url($next, PHP_URL_PATH))->toBe('/cartera/clientes');
+    });
+
+    it('keeps the query under a custom page name', function () {
+        onPage('/cartera/clientes?search=ferre&clientes_page=1');
+        $paginator = new LengthAwarePaginator(range(1, 25), total: 70, perPage: 25, currentPage: 1, options: ['path' => '/cartera/clientes', 'pageName' => 'clientes_page']);
+
+        $next = Html::parse((string) $this->blade('<x-ui.pagination :paginator="$paginator" />', ['paginator' => $paginator]))
+            ->one('//nav//a[@rel="next"]')
+            ->getAttribute('href');
+
+        expect(queryOf($next))->toBe(['search' => 'ferre', 'clientes_page' => '2'])
+            ->and(substr_count($next, 'page='))->toBe(1);
+    });
+
     it('works with a simple paginator, without the page count', function () {
         $paginator = new Paginator(range(1, 26), perPage: 25, currentPage: 1);
 
