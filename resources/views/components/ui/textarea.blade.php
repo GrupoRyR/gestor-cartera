@@ -26,23 +26,25 @@
     $describedBy = implode(' ', array_filter([$attributes->get('aria-describedby'), $hintId, $errorId]));
 @endphp
 
-<div data-part="field" @if ($errorId) data-invalid @endif>
-    <label for="{{ $id }}" @if ($labelHidden) data-visually-hidden @endif>{{ $label }}</label>
+<div data-part="field" class="flex min-w-0 flex-col gap-1.5" @if ($errorId) data-invalid @endif>
+    <label for="{{ $id }}" @if ($labelHidden) data-visually-hidden @endif class="text-[0.8125rem] leading-snug font-semibold text-fg">{{ $label }}</label>
 
-    <textarea {{ $attributes->except('aria-describedby')->merge([
-        'id' => $id,
-        'name' => $name,
-        'rows' => (int) $rows,
-        'required' => (bool) $required,
-        'aria-invalid' => $errorId ? 'true' : null,
-        'aria-describedby' => $describedBy !== '' ? $describedBy : null,
-    ]) }}>{{ $value }}</textarea>
+    <div data-part="control" class="flex rounded-[10px] border border-line-strong bg-surface transition-[border-color,box-shadow] has-disabled:bg-subtle has-disabled:opacity-70">
+        <textarea {{ $attributes->except('aria-describedby')->merge([
+            'id' => $id,
+            'name' => $name,
+            'rows' => (int) $rows,
+            'required' => (bool) $required,
+            'aria-invalid' => $errorId ? 'true' : null,
+            'aria-describedby' => $describedBy !== '' ? $describedBy : null,
+        ])->class('block w-full min-w-0 resize-y rounded-[10px] bg-transparent px-3 py-2.5 text-base leading-normal text-fg placeholder:text-fg-muted disabled:cursor-not-allowed md:text-[0.9375rem]') }}>{{ $value }}</textarea>
+    </div>
 
     @if ($hintId)
-        <p id="{{ $hintId }}" data-part="hint">{{ $hint }}</p>
+        <p id="{{ $hintId }}" data-part="hint" class="text-[0.8125rem] leading-snug text-fg-muted">{{ $hint }}</p>
     @endif
 
     @if ($errorId)
-        <p id="{{ $errorId }}" data-part="error">{{ $error }}</p>
+        <p id="{{ $errorId }}" data-part="error" class="text-[0.8125rem] leading-snug font-semibold text-status-failure">{{ $error }}</p>
     @endif
 </div>

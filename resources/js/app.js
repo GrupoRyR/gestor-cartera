@@ -55,8 +55,16 @@ document.addEventListener('click', (event) => {
     const closer = event.target.closest('[data-modal-close]');
     if (closer) {
         closer.closest('dialog')?.close();
+        return;
+    }
+
+    // A click on the backdrop lands on the <dialog> itself (its content fills
+    // the box), so it closes the modal, like Escape does.
+    if (event.target instanceof HTMLDialogElement && event.target.open) {
+        event.target.close();
     }
 });
 
 // <x-ui.modal :open="true"> renders data-modal-autoopen (e.g. after a validation error).
 document.querySelectorAll('dialog[data-modal-autoopen]').forEach((dialog) => dialog.showModal());
+

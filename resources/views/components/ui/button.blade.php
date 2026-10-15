@@ -1,3 +1,5 @@
+@use('App\View\Components\Support\ButtonStyle')
+
 {{--
     <button> (C.5). The slot text is mandatory: with icon-only it is visually
     hidden but still names the button for screen readers. Other attributes
@@ -27,7 +29,8 @@
     'type' => $type,
     'data-variant' => $variant,
     'data-icon-only' => $iconOnly ? 'true' : null,
-]) }}>
+    'data-brand-surface' => ButtonStyle::isBrandSurface($variant) ? true : null,
+])->class(ButtonStyle::classes($variant, (bool) $iconOnly)) }}>
     @if (filled($icon))
         <x-ui.icon :name="$icon" />
     @endif

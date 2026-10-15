@@ -15,7 +15,7 @@
 @source '../**/*.blade.php';
 @source '../**/*.js';
 
-/* Shared class lists live in PHP (AppViewComponentsSupportButtonStyle). */
+/* Shared class lists live in PHP (app/View/Components/Support/ButtonStyle.php). */
 @source '../../app/View/**/*.php';
 
 /* Module views (C.2): each module keeps its Blade views in app/Modules/<Modulo>/resources/views. */
