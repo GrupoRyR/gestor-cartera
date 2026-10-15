@@ -29,7 +29,6 @@
     'type' => $type,
     'data-variant' => $variant,
     'data-icon-only' => $iconOnly ? 'true' : null,
-    'data-brand-surface' => ButtonStyle::isBrandSurface($variant) ? true : null,
 ])->class(ButtonStyle::classes($variant, (bool) $iconOnly)) }}>
     @if (filled($icon))
         <x-ui.icon :name="$icon" />

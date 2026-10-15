@@ -1,4 +1,5 @@
 @use('App\Support\Formatting\FieldName')
+@use('App\View\Components\Support\FieldStyle')
 
 {{--
     Labelled checkbox (C.5). The id comes from name and value, so every
@@ -45,10 +46,10 @@
     <label for="{{ $id }}" class="flex min-h-touch cursor-pointer items-center py-2 text-[0.9375rem] leading-snug font-medium text-fg">{{ $label }}</label>
 
     @if ($hintId)
-        <p id="{{ $hintId }}" data-part="hint" class="col-start-2 text-[0.8125rem] leading-snug text-fg-muted">{{ $hint }}</p>
+        <p id="{{ $hintId }}" data-part="hint" class="col-start-2 {{ FieldStyle::HINT }}">{{ $hint }}</p>
     @endif
 
     @if ($errorId)
-        <p id="{{ $errorId }}" data-part="error" class="col-start-2 mt-0.5 text-[0.8125rem] leading-snug font-semibold text-status-failure">{{ $error }}</p>
+        <p id="{{ $errorId }}" data-part="error" class="col-start-2 mt-0.5 {{ FieldStyle::ERROR }}">{{ $error }}</p>
     @endif
 </div>

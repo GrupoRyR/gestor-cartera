@@ -91,7 +91,7 @@
                 @endif
 
                 <a href="{{ url('/') }}" data-part="brand" class="me-auto flex min-h-touch min-w-0 items-center gap-2.5 rounded-control pe-2 text-fg no-underline">
-                    <span data-brand-surface class="grid size-9 shrink-0 place-items-center rounded-[10px] bg-brand-button text-brand-on-button">
+                    <span class="grid size-9 shrink-0 place-items-center rounded-[10px] bg-brand-button text-brand-on-button">
                         <x-ui.icon name="wallet" />
                     </span>
                     <span class="truncate font-display text-lg leading-tight font-bold tracking-[-0.02em]">
@@ -110,7 +110,7 @@
                         <summary class="flex min-h-touch cursor-pointer items-center gap-2 rounded-full bg-brand-tint ps-3 pe-2.5 text-sm font-semibold text-brand-ink select-none hover:brightness-[0.97] dark:hover:brightness-110">
                             <span aria-hidden="true" class="size-2.5 shrink-0 rounded-full bg-brand-primary dark:bg-brand-ink"></span>
                             <span data-visually-hidden>Empresa activa: </span>
-                            <span class="max-sm:hidden">{{ $companyName }}</span>
+                            <span class="max-sm:sr-only">{{ $companyName }}</span>
                             <span class="sm:hidden" aria-hidden="true">{{ $companyShort }}</span>
                             <x-ui.icon name="chevron-down" class="size-4 transition-transform group-open/company:rotate-180" />
                         </summary>
@@ -131,8 +131,8 @@
                 @elseif ($companyName !== null)
                     <p class="flex min-h-touch shrink-0 items-center gap-2 rounded-full bg-brand-tint px-3 text-sm font-semibold text-brand-ink">
                         <span aria-hidden="true" class="size-2.5 shrink-0 rounded-full bg-brand-primary dark:bg-brand-ink"></span>
-                        <span class="max-sm:hidden">{{ $companyName }}</span>
-                        <span class="sm:hidden"><abbr title="{{ $companyName }}" class="no-underline">{{ $companyShort }}</abbr></span>
+                        <span class="max-sm:sr-only">{{ $companyName }}</span>
+                        <span class="sm:hidden" aria-hidden="true">{{ $companyShort }}</span>
                     </p>
                 @endif
 
@@ -212,7 +212,7 @@
                                         @endif
                                         <span class="min-w-0 flex-1">{{ $item->label }}</span>
                                         @if ($badges[$item->key] !== null)
-                                            <span data-part="badge" data-brand-surface class="min-w-6 rounded-full bg-brand-button px-1.5 py-0.5 text-center text-xs font-bold text-brand-on-button tabular-nums">{{ $badges[$item->key] }}</span>
+                                            <span data-part="badge" class="min-w-6 rounded-full bg-brand-button px-1.5 py-0.5 text-center text-xs font-bold text-brand-on-button tabular-nums">{{ $badges[$item->key] }}</span>
                                         @endif
                                     </a>
                                 </li>
@@ -258,7 +258,7 @@
                                 <span>{{ $item->label }}</span>
                                 @if ($badges[$item->key] !== null)
                                     {{-- After the label in reading order ("Respuestas 4"); drawn on the icon's corner. --}}
-                                    <span data-part="badge" data-brand-surface class="absolute top-1 start-[calc(50%+0.5rem)] min-w-5 rounded-full bg-brand-button px-1 text-center text-[0.6875rem] leading-[1.125rem] font-bold text-brand-on-button tabular-nums">{{ $badges[$item->key] }}</span>
+                                    <span data-part="badge" class="absolute top-1 start-[calc(50%+0.5rem)] min-w-5 rounded-full bg-brand-button px-1 text-center text-[0.6875rem] leading-[1.125rem] font-bold text-brand-on-button tabular-nums">{{ $badges[$item->key] }}</span>
                                 @endif
                             </a>
                         </li>

@@ -25,7 +25,6 @@
     'href' => $href,
     'data-variant' => $variant,
     'data-icon-only' => $iconOnly ? 'true' : null,
-    'data-brand-surface' => ButtonStyle::isBrandSurface($variant) ? true : null,
     'target' => $external ? '_blank' : null,
     'rel' => $external ? 'noopener noreferrer' : null,
 ])->class(ButtonStyle::classes($variant, (bool) $iconOnly)) }}>

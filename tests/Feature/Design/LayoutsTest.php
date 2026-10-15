@@ -268,6 +268,20 @@ describe('<x-layouts.app>', function () {
             ->and($html->text('//form//button[@type="submit"]'))->toBe('Cambiar');
     });
 
+    it('keeps the active company name for screen readers on every screen size', function () {
+        registerNamedPost('/empresa', 'core.empresa.cambiar');
+        ContractFakes::install($this->app);
+        $this->actingAs(User::factory()->make());
+
+        $html = Html::parse((string) $this->blade('<x-layouts.app>Contenido</x-layouts.app>'));
+        $name = $html->one('//summary//span[normalize-space(.)="Segurex Latam"]');
+        $classes = preg_split('/\s+/', $name->getAttribute('class')) ?: [];
+
+        // Hidden from sight on phones (sr-only) but never removed (display: none) or aria-hidden.
+        expect(array_filter($classes, fn (string $class): bool => str_ends_with($class, 'hidden')))->toBe([])
+            ->and($html->count('//summary//span[normalize-space(.)="Segurex Latam"]/ancestor-or-self::*[@aria-hidden="true"]'))->toBe(0);
+    });
+
     it('preselects the group view', function () {
         registerNamedPost('/empresa', 'core.empresa.cambiar');
         $this->app->instance(CurrentCompany::class, FakeCurrentCompany::group());

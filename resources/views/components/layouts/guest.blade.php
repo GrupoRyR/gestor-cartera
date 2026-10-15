@@ -21,7 +21,7 @@
 
         <header data-part="header" class="px-4 pt-6 md:px-8 md:pt-8">
             <p data-part="brand" class="mx-auto flex max-w-lg items-center gap-2.5">
-                <span data-brand-surface class="grid size-9 shrink-0 place-items-center rounded-[10px] bg-brand-button text-brand-on-button">
+                <span class="grid size-9 shrink-0 place-items-center rounded-[10px] bg-brand-button text-brand-on-button">
                     <x-ui.icon name="wallet" />
                 </span>
                 <span class="font-display text-lg leading-tight font-bold tracking-[-0.02em]">{{ config('app.name') }}</span>

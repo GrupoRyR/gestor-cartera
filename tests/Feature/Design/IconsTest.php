@@ -40,3 +40,9 @@ it('lets a size class replace the default size', function () {
     expect(explode(' ', $default->getAttribute('class')))->toContain('size-5')
         ->and(explode(' ', $custom->getAttribute('class')))->toContain('size-8')->not->toContain('size-5');
 });
+
+it('keeps the default size below a responsive-only size', function () {
+    $icon = Html::parse((string) $this->blade('<x-ui.icon name="search" class="md:size-6" />'))->one('//*[@data-icon]');
+
+    expect(explode(' ', $icon->getAttribute('class')))->toContain('size-5', 'md:size-6');
+});

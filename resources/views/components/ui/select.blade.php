@@ -1,4 +1,5 @@
 @use('App\Support\Formatting\FieldName')
+@use('App\View\Components\Support\FieldStyle')
 
 {{--
     Labelled <select> (C.5). Options are value => label, e.g.
@@ -36,10 +37,10 @@
     $describedBy = implode(' ', array_filter([$attributes->get('aria-describedby'), $hintId, $errorId]));
 @endphp
 
-<div data-part="field" class="flex min-w-0 flex-col gap-1.5" @if ($errorId) data-invalid @endif>
-    <label for="{{ $id }}" @if ($labelHidden) data-visually-hidden @endif class="text-[0.8125rem] leading-snug font-semibold text-fg">{{ $label }}</label>
+<div data-part="field" class="{{ FieldStyle::FIELD }}" @if ($errorId) data-invalid @endif>
+    <label for="{{ $id }}" @if ($labelHidden) data-visually-hidden @endif class="{{ FieldStyle::LABEL }}">{{ $label }}</label>
 
-    <div data-part="control" class="relative flex rounded-[10px] border border-line-strong bg-surface transition-[border-color,box-shadow] has-disabled:bg-subtle has-disabled:opacity-70">
+    <div data-part="control" class="relative flex {{ FieldStyle::CONTROL }}">
         <select {{ $attributes->except('aria-describedby')->merge([
             'id' => $id,
             'name' => $name,
@@ -47,7 +48,7 @@
             'aria-invalid' => $errorId ? 'true' : null,
             'aria-describedby' => $describedBy !== '' ? $describedBy : null,
         ])->class([
-            'w-full min-w-0 appearance-none rounded-[10px] bg-transparent text-base text-fg disabled:cursor-not-allowed md:text-[0.9375rem]',
+            'w-full min-w-0 appearance-none rounded-[10px] '.FieldStyle::TEXT,
             'min-h-11 py-2 ps-3 pe-10' => ! $multiple,
             'p-1.5 [&>option]:rounded-md [&>option]:px-2 [&>option]:py-1.5 [&>option:checked]:bg-brand-tint [&>option:checked]:font-semibold [&>option:checked]:text-brand-ink' => $multiple,
         ]) }}>
@@ -66,10 +67,10 @@
     </div>
 
     @if ($hintId)
-        <p id="{{ $hintId }}" data-part="hint" class="text-[0.8125rem] leading-snug text-fg-muted">{{ $hint }}</p>
+        <p id="{{ $hintId }}" data-part="hint" class="{{ FieldStyle::HINT }}">{{ $hint }}</p>
     @endif
 
     @if ($errorId)
-        <p id="{{ $errorId }}" data-part="error" class="text-[0.8125rem] leading-snug font-semibold text-status-failure">{{ $error }}</p>
+        <p id="{{ $errorId }}" data-part="error" class="{{ FieldStyle::ERROR }}">{{ $error }}</p>
     @endif
 </div>

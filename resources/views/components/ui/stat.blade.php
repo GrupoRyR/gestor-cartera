@@ -1,3 +1,5 @@
+@use('App\View\Components\Support\ToneStyle')
+
 {{--
     KPI tile (C.5). The value is already formatted; a non-empty default slot
     replaces it (e.g. <x-ui.money>). The trend is an icon plus text for
@@ -39,22 +41,10 @@
     // Fit the figure to the tile: the longer the text, the smaller the share
     // of the tile width per character (container units). "$ 1.250.000.000"
     // fits a quarter-width tile on desktop and a half-width tile on a phone.
-    $shown = $slot->hasActualContent() ? trim(strip_tags((string) $slot)) : (filled($value) ? (string) $value : '—');
+    $shown = $slot->hasActualContent() ? trim(html_entity_decode(strip_tags((string) $slot), ENT_QUOTES | ENT_HTML5)) : (filled($value) ? (string) $value : '—');
     $fit = round(100 / (0.56 * max(mb_strlen($shown), 4)), 1);
 
-    $dot = match ($tone) {
-        'success' => 'before:bg-status-active-dot',
-        'warning' => 'before:bg-status-maintenance',
-        'danger' => 'before:bg-status-failure',
-        default => null,
-    };
-
-    $badge = match ($tone) {
-        'success' => 'bg-status-active-bg text-status-active',
-        'warning' => 'bg-status-maintenance-bg text-status-maintenance',
-        'danger' => 'bg-status-failure-bg text-status-failure',
-        default => 'bg-subtle text-fg-soft',
-    };
+    $badge = ToneStyle::soft($tone);
 @endphp
 
 <{{ $tag }} {{ $attributes->merge([
@@ -62,12 +52,12 @@
     'data-tone' => $tone,
     'data-trend' => $trend,
 ])->class([
-    '@container grid min-w-0 grid-cols-[minmax(0,1fr)_auto] content-start items-center gap-x-3 gap-y-1.5 rounded-card border border-line bg-surface p-4 text-fg no-underline md:p-5',
+    '@container grid min-w-[min(100%,11rem)] grid-cols-[minmax(0,1fr)_auto] content-start items-center gap-x-3 gap-y-1.5 rounded-card border border-line bg-surface p-4 text-fg no-underline md:p-5',
     'transition-[border-color,box-shadow] hover:border-line-strong hover:shadow-card' => filled($href),
 ]) }}>
     <span data-part="label" @class([
         'col-start-1 row-start-1 flex min-h-7 min-w-0 items-center gap-2 text-[0.8125rem] leading-snug font-semibold text-fg-soft hyphens-auto [overflow-wrap:anywhere] @max-[11rem]:col-span-2',
-        "before:size-2 before:shrink-0 before:rounded-full {$dot}" => $dot !== null,
+        'before:size-2 before:shrink-0 before:rounded-full '.ToneStyle::labelDot($tone) => $tone !== 'neutral',
         'col-span-2' => $trend === null,
     ])>{{ $label }}</span>
 

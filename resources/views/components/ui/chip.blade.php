@@ -1,3 +1,5 @@
+@use('App\View\Components\Support\ToneStyle')
+
 {{--
     Short label with an optional colored dot (C.5). The text is mandatory:
     color alone never carries meaning.
@@ -13,13 +15,7 @@
         throw new InvalidArgumentException('A chip needs text: color alone never carries meaning.');
     }
 
-    $colors = match ($tone) {
-        'success' => 'bg-status-active-bg text-status-active',
-        'warning' => 'bg-status-maintenance-bg text-status-maintenance',
-        'danger' => 'bg-status-failure-bg text-status-failure',
-        'info' => 'bg-status-scheduled-bg text-status-scheduled',
-        default => 'bg-status-neutral-bg text-status-neutral',
-    };
+    $colors = ToneStyle::soft($tone);
 @endphp
 
 <span {{ $attributes->merge(['data-tone' => $tone])->class("inline-flex max-w-full items-center gap-1.5 rounded-lg px-2.5 py-1 align-middle text-[0.8125rem] leading-tight font-semibold {$colors}") }}>

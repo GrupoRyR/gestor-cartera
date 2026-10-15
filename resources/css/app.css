@@ -239,8 +239,12 @@
     border: 0;
 }
 
-@layer components {
-    /* Fields: the box around an input (and its prefix and suffix) carries the border and the focus ring. */
+/*
+ * Fields: the box around an input (and its prefix and suffix) carries the
+ * border and the focus ring. In the utilities layer so these states win over
+ * the box's own border-line-strong class.
+ */
+@layer utilities {
     [data-part='control'] {
         &:has(:focus-visible) {
             border-color: var(--color-brand-control);
@@ -255,7 +259,9 @@
             box-shadow: 0 0 0 1px var(--color-status-failure);
         }
     }
+}
 
+@layer components {
     /* A required field marks its label; the required attribute already tells screen readers. */
     [data-part='field']:has(:required) > label::after {
         content: ' *' / '';
@@ -375,13 +381,6 @@
         &::backdrop {
             background: rgb(10 11 13 / 0.55);
             animation: var(--animate-fade-in);
-        }
-    }
-
-    /* Primary surfaces in the brand color keep an edge in dark mode, where the neutral button color meets the surface. */
-    @media (prefers-color-scheme: dark) {
-        [data-brand-surface] {
-            box-shadow: inset 0 0 0 1px rgb(255 255 255 / 0.14);
         }
     }
 
