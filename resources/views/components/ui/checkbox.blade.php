@@ -2,8 +2,12 @@
 
 {{--
     Labelled checkbox (C.5). The id comes from name and value, so every
-    checkbox of a list (name="clientes[]") gets its own. With checked null,
-    the state comes from old input. Extra attributes go to <input>.
+    checkbox of a list (name="clientes[]") gets its own. After a failed
+    submit (the session has old input) the state comes from old input, as in
+    the other fields, even over an explicit checked: a key missing from old
+    input means unchecked, because browsers do not send unchecked boxes.
+    Otherwise the explicit checked applies (null means unchecked). Extra
+    attributes go to <input>.
 --}}
 @props(['name', 'label', 'value' => '1', 'checked' => null, 'hint' => null, 'id' => null])
 
@@ -12,7 +16,7 @@
     $value = (string) ($value instanceof BackedEnum ? $value->value : $value);
     $id ??= FieldName::toId($name, $value);
 
-    if ($checked === null) {
+    if (request()->hasSession() && request()->session()->hasOldInput()) {
         $old = old($key);
         $checked = is_array($old)
             ? in_array($value, array_map(fn ($item): string => (string) $item, $old), true)

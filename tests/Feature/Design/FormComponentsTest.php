@@ -197,6 +197,31 @@ describe('<x-ui.checkbox>', function () {
             ->and($html->labelledControl('Distribuciones Andina')->hasAttribute('checked'))->toBeTrue();
     });
 
+    it('prefers old input over an explicit checked state after a failed submit', function () {
+        // The user unchecked "Activo" and checked C-002 before the form came back with errors.
+        withOldInput(['nombre' => 'Ferretería', 'clientes' => ['C-002']]);
+
+        $html = Html::parse((string) $this->blade(
+            '<x-ui.checkbox name="activo" label="Activo" :checked="true" />'
+            .'<x-ui.checkbox name="clientes[]" value="C-001" label="Ferretería El Tornillo" :checked="true" />'
+            .'<x-ui.checkbox name="clientes[]" value="C-002" label="Distribuciones Andina" :checked="false" />',
+        ));
+
+        expect($html->labelledControl('Activo')->hasAttribute('checked'))->toBeFalse()
+            ->and($html->labelledControl('Ferretería El Tornillo')->hasAttribute('checked'))->toBeFalse()
+            ->and($html->labelledControl('Distribuciones Andina')->hasAttribute('checked'))->toBeTrue();
+    });
+
+    it('follows the explicit checked state when there is no old input', function () {
+        $html = Html::parse((string) $this->blade(
+            '<x-ui.checkbox name="activo" label="Activo" :checked="true" />'
+            .'<x-ui.checkbox name="clientes[]" value="C-001" label="Ferretería El Tornillo" :checked="false" />',
+        ));
+
+        expect($html->labelledControl('Activo')->hasAttribute('checked'))->toBeTrue()
+            ->and($html->labelledControl('Ferretería El Tornillo')->hasAttribute('checked'))->toBeFalse();
+    });
+
     it('marks validation errors of the list and describes the checkbox', function () {
         $this->withViewErrors(['clientes' => 'Elige al menos un cliente.']);
 
