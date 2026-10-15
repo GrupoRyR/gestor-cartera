@@ -9,6 +9,7 @@ use App\Modules\Core\Http\Middleware\EnsureUserIsActive;
 use App\Modules\Core\Infrastructure\Audit\DatabaseAuditLogger;
 use App\Modules\Core\Infrastructure\Companies\CompanyCatalog;
 use App\Modules\Core\Infrastructure\Companies\SessionCurrentCompany;
+use App\Modules\Core\Infrastructure\Persistence\AdvisorRecord;
 use App\Modules\Core\Infrastructure\Persistence\CompanyRecord;
 use App\Support\Modules\ModuleServiceProvider;
 use Illuminate\Contracts\Http\Kernel as HttpKernel;
@@ -49,6 +50,9 @@ final class CoreServiceProvider extends ModuleServiceProvider
     {
         // $user->companies(): the companies a user is assigned to.
         User::resolveRelationUsing('companies', CompanyRecord::assignedTo(...));
+
+        // $user->advisors(): the SAP sales employees linked to a user.
+        User::resolveRelationUsing('advisors', AdvisorRecord::linkedTo(...));
 
         // Every web page signs out a deactivated user, with or without auth.
         // Appended through the HTTP kernel, not only the router: resolving the

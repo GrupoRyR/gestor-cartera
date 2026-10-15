@@ -107,6 +107,20 @@ Los roles son los de `Contracts\Enums\Role` (Spatie, guard `web`, sin equipos). 
 
 Sembrar `core.access` también garantiza que existan los seis roles, para que la pantalla de equipo pueda asignarlos. Correr el seeder otra vez no duplica nada.
 
+## Asesores de SAP
+
+La tabla `advisors` guarda los vendedores de SAP de cada empresa (`OSLP`) y el usuario al que están vinculados. `Infrastructure\Persistence\AdvisorRecord` la representa.
+
+| Columna | Contenido |
+|---|---|
+| `company`, `code` | La empresa (`SGX` o `SDC`) y el `OSLP.SlpCode`. El código es único dentro de cada empresa. |
+| `name` | El nombre del vendedor en SAP. |
+| `email` | `OSLP.Email`, sin espacios y en minúsculas, igual que `users.email`. Uno vacío se guarda como `null`. |
+| `active` | Si el vendedor está activo en SAP. Solo los activos se vinculan y dan rol al ingresar. |
+| `user_id` | El usuario vinculado, o `null`. Si el usuario se borra del todo (no el borrado lógico), el asesor queda sin vincular. |
+
+Core la expone como `$user->advisors()` con `User::resolveRelationUsing()`. La carga desde SAP llega con Ingesta y la pantalla de equipo vinculará asesores a mano; hoy solo el ingreso los vincula. `AdvisorRecordFactory` crea vendedores ficticios (estados `inactive()` y `linkedTo($user)`).
+
 ## Inicio y acceso
 
 **Inicio según el rol.** `GET /` (`core.inicio`, solo con sesión iniciada) no tiene pantalla propia: Core no conoce las rutas de los demás módulos.
