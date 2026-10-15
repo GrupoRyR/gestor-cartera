@@ -45,6 +45,12 @@ Alpine.start();
 
 // <x-ui.modal> contract: an element with data-modal-open="<id>" opens the
 // dialog with that id; an element with data-modal-close closes its dialog.
+let pressedOnDialog = null;
+
+document.addEventListener('pointerdown', (event) => {
+    pressedOnDialog = event.target instanceof HTMLDialogElement ? event.target : null;
+});
+
 document.addEventListener('click', (event) => {
     const opener = event.target.closest('[data-modal-open]');
     if (opener) {
@@ -59,8 +65,9 @@ document.addEventListener('click', (event) => {
     }
 
     // A click on the backdrop lands on the <dialog> itself (its content fills
-    // the box), so it closes the modal, like Escape does.
-    if (event.target instanceof HTMLDialogElement && event.target.open) {
+    // the box), so it closes the modal, like Escape does. The press must start
+    // there too: selecting text in a field and releasing outside keeps it open.
+    if (event.target instanceof HTMLDialogElement && event.target.open && pressedOnDialog === event.target) {
         event.target.close();
     }
 });
