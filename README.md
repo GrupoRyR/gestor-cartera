@@ -29,9 +29,9 @@ git config core.hooksPath .githooks
 GitHub no aplica reglas de rama en repositorios privados de cuentas gratuitas, así que `main` se protege en el equipo:
 
 - **El hook `.githooks/pre-push`** rechaza cualquier subida a `main`.
-- **`.claude/settings.json`** impide que los agentes suban a `main`, fuercen una subida o fusionen PR.
+- **`.claude/settings.json`** impide que los agentes suban a `main` o fuercen una subida, y te pide aprobación cada vez que uno quiere fusionar un PR.
 
-Los cambios llegan a `main` solo por PR fusionados en la web de GitHub.
+Los cambios llegan a `main` solo por PR: los fusiona un agente con tu aprobación, o tú en la web de GitHub.
 
 ## Desarrollo local
 

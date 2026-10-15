@@ -20,8 +20,14 @@ Plataforma de cartera del Grupo RYR (Segurex SGX y Soluciones y Derivados SDC): 
 - Use the Blade components from Part C.5; never add one-off styles. Brand colors only through `--brand-*` variables.
 - No secrets in the repository. Credentials live only in `.env`.
 - Never send real email, connect to SAP/VPN or touch a real database from tests. Use the fakes in `tests/Fakes`.
-- Push your branch and open a PR against `main`. Never merge and never push to `main`.
-- `main` is protected locally, because GitHub does not enforce rules on this private repository: `.claude/settings.json` denies pushes to `main`, force pushes, `--no-verify` and `gh pr merge`, and the `.githooks/pre-push` hook rejects any push to `main`. Never try to work around them; if one blocks you, stop and tell the user.
+- Push your branch and open a PR against `main`. Never push to `main`.
+- You may merge **your own** PR, only with `gh pr merge <number> --merge --delete-branch`, and only when all of these hold:
+  1. You ran the `code-review` skill on the PR and fixed what it found.
+  2. Your branch is synced with the latest `main` and `composer format`, `composer lint` and `composer test` pass after that sync.
+  3. CI is green on the latest commit (`gh pr checks <number> --watch`).
+  4. The PR has no conflicts and touches only the files your session owns.
+  The app asks the user to approve every merge. If they decline, stop and wait for instructions; never retry on your own.
+- `main` is protected locally, because GitHub does not enforce rules on this private repository: `.claude/settings.json` denies pushes to `main`, force pushes, `--no-verify` and merges through `gh api`, and asks the user before any `gh pr merge`; the `.githooks/pre-push` hook rejects any push to `main`. Never try to work around them; if one blocks you, stop and tell the user.
 
 ## Conventions
 
