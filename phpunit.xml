@@ -11,6 +11,12 @@
         <testsuite name="Feature">
             <directory>tests/Feature</directory>
         </testsuite>
+        <testsuite name="Modules">
+            <directory>tests/Modules</directory>
+        </testsuite>
+        <testsuite name="Architecture">
+            <directory>tests/Architecture</directory>
+        </testsuite>
     </testsuites>
     <source>
         <include>
@@ -18,7 +24,11 @@
         </include>
     </source>
     <php>
+        <!-- Local runs use SQLite in memory; CI overrides DB_* with MySQL 8 (these values are not forced). -->
         <env name="APP_ENV" value="testing"/>
+        <env name="APP_LOCALE" value="es"/>
+        <env name="APP_FALLBACK_LOCALE" value="es"/>
+        <env name="APP_TIMEZONE" value="America/Bogota"/>
         <env name="APP_MAINTENANCE_DRIVER" value="file"/>
         <env name="BCRYPT_ROUNDS" value="4"/>
         <env name="BROADCAST_CONNECTION" value="null"/>
@@ -32,5 +42,8 @@
         <env name="PULSE_ENABLED" value="false"/>
         <env name="TELESCOPE_ENABLED" value="false"/>
         <env name="NIGHTWATCH_ENABLED" value="false"/>
+        <!-- Never reach real Microsoft services from tests, even if .env has credentials (see tests/Fakes). -->
+        <env name="MICROSOFT_CLIENT_SECRET" value="" force="true"/>
+        <env name="GRAPH_CLIENT_SECRET" value="" force="true"/>
     </php>
 </phpunit>

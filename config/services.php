@@ -35,4 +35,15 @@ return [
         ],
     ],
 
+    /*
+    | Sign-in with Microsoft Entra ID (Socialite "microsoft" driver, used by Core).
+    | The tenant restricts sign-in to the company directory: never leave it on "common".
+    */
+    'microsoft' => [
+        'client_id' => env('MICROSOFT_CLIENT_ID'),
+        'client_secret' => env('MICROSOFT_CLIENT_SECRET'),
+        'redirect' => env('MICROSOFT_REDIRECT_URI'),
+        'tenant' => env('MICROSOFT_TENANT_ID'),
+    ],
+
 ];

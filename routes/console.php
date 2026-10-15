@@ -1,8 +1,22 @@
 <?php
 
-use Illuminate\Foundation\Inspiring;
-use Illuminate\Support\Facades\Artisan;
+use Illuminate\Support\Facades\Schedule;
 
-Artisan::command('inspire', function () {
-    $this->comment(Inspiring::quote());
-})->purpose('Display an inspiring quote');
+/*
+|--------------------------------------------------------------------------
+| Base schedule
+|--------------------------------------------------------------------------
+|
+| cPanel runs "php artisan schedule:run" every minute (shared hosting has no
+| supervisor), so the queue is drained here. Module tasks are registered by
+| each module's service provider through its schedule() hook, never in this
+| file. Timezone: America/Bogota (config/app.php).
+|
+*/
+
+Schedule::command('queue:work --stop-when-empty --tries=3 --max-time=50')
+    ->everyMinute()
+    ->withoutOverlapping()
+    ->runInBackground();
+
+Schedule::command('queue:prune-failed --hours=720')->daily();

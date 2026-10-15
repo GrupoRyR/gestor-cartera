@@ -11,14 +11,19 @@ return new class extends Migration
      */
     public function up(): void
     {
+        // Shared identity table (base). Users sign in with Microsoft Entra ID only,
+        // so there is no own password; Core may add columns in its 2026_10_01 migrations.
         Schema::create('users', function (Blueprint $table) {
             $table->id();
             $table->string('name');
             $table->string('email')->unique();
+            $table->string('microsoft_id')->nullable()->unique()->comment('Entra ID object id (oid)');
+            $table->boolean('is_active')->default(true);
             $table->timestamp('email_verified_at')->nullable();
-            $table->string('password');
+            $table->string('password')->nullable();
             $table->rememberToken();
             $table->timestamps();
+            $table->softDeletes();
         });
 
         Schema::create('password_reset_tokens', function (Blueprint $table) {
