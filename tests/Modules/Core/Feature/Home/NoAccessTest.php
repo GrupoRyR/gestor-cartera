@@ -4,7 +4,6 @@ use App\Modules\Core\Contracts\Data\BrandPalette;
 use App\Modules\Core\Contracts\Enums\CompanyCode;
 use App\Modules\Core\Contracts\Enums\Role;
 use App\Modules\Core\Database\Seeders\CorePermissionSeeder;
-use Illuminate\Support\Facades\Route;
 use Tests\Feature\Design\Support\Html;
 use Tests\Modules\Core\Support\CoreUsers;
 
@@ -34,22 +33,20 @@ it('asks a user without a role to request access, on the neutral guest layout', 
         ->and($html->count('//body/header/p[@data-part="brand"]'))->toBe(1)
         ->and($html->count('//*[@data-part="user"]'))->toBe(0)
         ->and($html->count('//nav'))->toBe(0)
-        ->and($html->count('//form'))->toBe(0);
+        ->and($html->count('//form'))->toBe(1);
 
     foreach (BrandPalette::neutral()->toCssVariables() as $variable => $color) {
         expect($rendered)->toContain("{$variable}: {$color};");
     }
 });
 
-it('offers to sign out once core.logout exists', function () {
-    Route::middleware('web')->post('/logout', fn () => null)->name('core.logout');
-    Route::getRoutes()->refreshNameLookups();
-
+it('offers to sign out', function () {
     $html = Html::parse($this->actingAs(CoreUsers::create(null))->get('/sin-acceso')->assertOk()->getContent() ?: '');
     $form = $html->one('//form');
 
     expect(strtoupper($form->getAttribute('method')))->toBe('POST')
         ->and($form->getAttribute('action'))->toBe(route('core.logout'))
+        ->and($form->getAttribute('action'))->toEndWith('/logout')
         ->and($html->count('//form//input[@name="_token"]'))->toBe(1)
         ->and($html->text('//form//button[@type="submit"]'))->toBe('Salir');
 });
