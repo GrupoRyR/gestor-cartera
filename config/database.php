@@ -55,6 +55,9 @@ return [
             'unix_socket' => env('DB_SOCKET', ''),
             'charset' => env('DB_CHARSET', 'utf8mb4'),
             'collation' => env('DB_COLLATION', 'utf8mb4_unicode_ci'),
+            // Session time zone: TIMESTAMP conversions and NOW()/useCurrent()
+            // follow Colombia (UTC-5, no daylight saving), not the host's zone.
+            'timezone' => env('DB_TIMEZONE', '-05:00'),
             'prefix' => '',
             'prefix_indexes' => true,
             'strict' => true,
@@ -75,6 +78,9 @@ return [
             'unix_socket' => env('DB_SOCKET', ''),
             'charset' => env('DB_CHARSET', 'utf8mb4'),
             'collation' => env('DB_COLLATION', 'utf8mb4_unicode_ci'),
+            // Session time zone: TIMESTAMP conversions and NOW()/useCurrent()
+            // follow Colombia (UTC-5, no daylight saving), not the host's zone.
+            'timezone' => env('DB_TIMEZONE', '-05:00'),
             'prefix' => '',
             'prefix_indexes' => true,
             'strict' => true,
