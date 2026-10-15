@@ -5,7 +5,7 @@ Plataforma de cartera del Grupo RYR (Segurex SGX y Soluciones y Derivados SDC): 
 ## Read first
 
 - `docs/prompt-gestor-cartera.md`: scope, modules and the parallel work plan (Part C). It is the source of truth.
-- `docs/arquitectura.md`: module loader, contracts and component props (created in phase 0a).
+- `docs/arquitectura.md`: module anatomy and provider hooks, Core contracts and their fakes, component props, tests, environment variables and deploy. Its rules are as binding as this file.
 - `docs/especificaciones/liquidacion-comisiones.md`: commission rules (source of truth for the Comisiones module).
 - `docs/ordenes-agentes.md`: the instructions each agent session receives.
 
@@ -29,7 +29,9 @@ Plataforma de cartera del Grupo RYR (Segurex SGX y Soluciones y Derivados SDC): 
 - Commits: Conventional Commits, one work unit per commit, tests and docs with the code, no co-author or AI attribution lines.
 - PRs: about 400 changed lines; use chained PRs for larger work.
 - Tests first when a runnable test with a clear expected result exists.
-- Before opening or updating a PR: sync with `main`, then run `composer lint` and `composer test`.
+- Module code registers everything through its provider hooks (`registerModule`, `bootModule`, `schedule`, `navigation`); never edit `bootstrap/providers.php`, `routes/*.php` or `routes/console.php` for a module.
+- Tests of other modules' behaviour use `Tests\Fakes\ContractFakes::install($this->app)`; tests never make real HTTP calls (`Http::preventStrayRequests()` is on).
+- Before opening or updating a PR: sync with `main`, then run `composer format`, `composer lint` and `composer test`.
 
 ## Skills
 
