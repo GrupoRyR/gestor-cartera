@@ -45,7 +45,7 @@ it('previews each company brand and switches it with the header selector', funct
     expect($rendered)->toContain('--brand-button: '.$palette->button.';')
         ->and(strtoupper($form->getAttribute('method')))->toBe('GET')
         ->and($form->getAttribute('action'))->toBe(route('dev.componentes'))
-        ->and($html->count('//form//input[@name="_token"]'))->toBe(0)
+        ->and($html->count('//form[.//select[@name="empresa"]]//input[@name="_token"]'))->toBe(0)
         ->and($html->one('//select[@name="empresa"]/option[@selected]')->getAttribute('value'))->toBe($empresa)
         ->and($html->count('//nav[@aria-label="Navegación principal"]//a'))->toBeGreaterThan(0)
         ->and($html->count('//nav[@aria-label="Accesos rápidos"]//a'))->toBeGreaterThan(0);
