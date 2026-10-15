@@ -10,7 +10,7 @@ Core es la base de la plataforma: los contratos que usan los demás módulos (`C
 | `Domain/` | Reglas puras en PHP: sin Laravel, sin base de datos y sin reloj. Reciben fechas, saldos y parámetros ya resueltos. |
 | `Application/` | Casos de uso (tareas siguientes). |
 | `Infrastructure/` | Eloquent (`Persistence\*Record`), el acceso por empresa (`Access\CompanyAccess`), el catálogo de empresas y la empresa activa (`Companies\`) y la bitácora de auditoría (`Audit\`). |
-| `Http/` | Controladores y FormRequests de las rutas de `routes/web.php`. |
+| `Http/` | Controladores, FormRequests y middleware de las rutas web (ver «Inicio y acceso»). |
 | `config/core.php` | Valores por defecto para sembrar los parámetros de cada empresa. |
 
 ## Estados del cliente
@@ -106,6 +106,27 @@ Los roles son los de `Contracts\Enums\Role` (Spatie, guard `web`, sin equipos). 
 | `core.access` | Los seis | Usar la plataforma. Un usuario sin rol no lo tiene. |
 
 Sembrar `core.access` también garantiza que existan los seis roles, para que la pantalla de equipo pueda asignarlos. Correr el seeder otra vez no duplica nada.
+
+## Inicio y acceso
+
+**Inicio según el rol.** `GET /` (`core.inicio`, solo con sesión iniciada) no tiene pantalla propia: Core no conoce las rutas de los demás módulos.
+
+| Usuario | Llega a |
+|---|---|
+| Sin `core.access` (sin rol) | `/sin-acceso`. |
+| Con acceso | La URL de la primera entrada del menú que puede ver: `NavRegistry::visibleTo()`, por `order` y luego etiqueta, sin las entradas cuya ruta no existe o cuyo permiso le niega el Gate. Se salta una entrada que apunte a `core.inicio`, para no dar vueltas. |
+| Con acceso, sin ninguna entrada visible | Una página de bienvenida (`core::inicio`) que lo saluda por su nombre y le explica que sus pantallas aparecerán a medida que se habiliten los módulos. |
+
+> **Para los módulos:** ordena tu pantalla principal primero (`order`) para los roles que la usan. Por ejemplo, el tablero gerencial con `order: 10` y el permiso que solo tiene la gerencia, y el tablero de cartera con `order: 20`: la gerencia llega al primero y los asesores, al segundo.
+
+**Sin acceso.** `GET /sin-acceso` (`core.sin-acceso`, solo con sesión iniciada) es una pantalla neutra (`<x-layouts.guest>`, sin marca ni menú): «Todavía no tienes acceso». Le dice al usuario que su cuenta de Microsoft ya está registrada pero no tiene rol, que le pida uno a TI y con qué correo ingresó. Cuando exista `core.logout`, muestra el botón «Salir». Un usuario que sí tiene acceso y abre `/sin-acceso` vuelve a `/`.
+
+**Cuentas desactivadas.** `Http\Middleware\EnsureUserIsActive` corre en todas las páginas del grupo `web`, tengan o no el middleware `auth` (Core lo agrega al grupo desde `bootModule()`, a través del kernel HTTP). Si el usuario con sesión tiene `is_active` en falso:
+
+1. Cierra su sesión, la invalida y genera un token CSRF nuevo.
+2. Lo manda a `/login` con el flash `error` «Tu cuenta está desactivada. Habla con TI si crees que es un error.». Si la petición espera JSON, responde 401 con ese mensaje en `message`.
+
+Los invitados y los usuarios activos pasan sin cambios. Un usuario cargado sin la columna `is_active` cuenta como activo (el valor por defecto de la columna), en vez de fallar con los modelos estrictos. Un usuario borrado (borrado lógico) ni siquiera llega al middleware: la sesión no lo encuentra y queda como invitado.
 
 ## Bitácora de auditoría
 

@@ -5,11 +5,14 @@ namespace App\Modules\Core\Providers;
 use App\Models\User;
 use App\Modules\Core\Contracts\AuditLogger;
 use App\Modules\Core\Contracts\CurrentCompany;
+use App\Modules\Core\Http\Middleware\EnsureUserIsActive;
 use App\Modules\Core\Infrastructure\Audit\DatabaseAuditLogger;
 use App\Modules\Core\Infrastructure\Companies\CompanyCatalog;
 use App\Modules\Core\Infrastructure\Companies\SessionCurrentCompany;
 use App\Modules\Core\Infrastructure\Persistence\CompanyRecord;
 use App\Support\Modules\ModuleServiceProvider;
+use Illuminate\Contracts\Http\Kernel as HttpKernel;
+use Illuminate\Foundation\Http\Kernel as FoundationHttpKernel;
 
 /**
  * Core: shared kernel: Microsoft sign-in, roles and permissions, active
@@ -46,5 +49,15 @@ final class CoreServiceProvider extends ModuleServiceProvider
     {
         // $user->companies(): the companies a user is assigned to.
         User::resolveRelationUsing('companies', CompanyRecord::assignedTo(...));
+
+        // Every web page signs out a deactivated user, with or without auth.
+        // Appended through the HTTP kernel, not only the router: resolving the
+        // kernel after boot (as tests do) syncs its groups into the router and
+        // would drop a router-only push.
+        $this->callAfterResolving(HttpKernel::class, function (HttpKernel $kernel): void {
+            if ($kernel instanceof FoundationHttpKernel) {
+                $kernel->appendMiddlewareToGroup('web', EnsureUserIsActive::class);
+            }
+        });
     }
 }
