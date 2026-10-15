@@ -1,0 +1,36 @@
+# Secrets - never commit
+.env
+.env.local
+*.env
+!*.env.example
+.cpanel-deploy.conf
+
+# Legacy credentials (never copied, ignored just in case)
+legacy/cartera-fase1/config.php
+legacy/cartera-fase1/onedrive-config.php
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+
+# ETL outputs and logs
+etl/logs/
+etl/out/
+etl/state/
+
+# PHP / Laravel (phase 0a merges Laravel's own .gitignore here)
+/vendor/
+/storage/*.key
+.phpunit.result.cache
+
+# Node
+node_modules/
+legacy/portal-asesores/web/.next/
+
+# Editors and OS
+.idea/
+.vscode/
+Thumbs.db
+.DS_Store

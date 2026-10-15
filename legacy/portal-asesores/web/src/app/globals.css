@@ -1,0 +1,111 @@
+@import "tailwindcss";
+
+/* ==========================================================================
+   Identidad SEGUREX
+   Naranja #FF671F (RGB 255,103,31) y gris #666666, sobre blanco y negro.
+
+   El naranja mide 2,91:1 sobre blanco, apenas por debajo de 3:1. Por eso
+   nunca carga el significado solo: en el grafico cada barra lleva su valor
+   escrito, y existe vista de tabla. Para texto pequeno se usa --marca-texto,
+   un naranja mas oscuro que si cumple contraste de lectura.
+   ========================================================================== */
+
+@theme {
+  --color-marca: #ff671f;
+  --color-marca-fuerte: #e04d05;
+  --color-marca-texto: #b83c00;
+  --color-marca-suave: #fff1e9;
+  --color-marca-borde: #ffd4bd;
+
+  --color-gris: #666666;
+  --color-gris-claro: #f4f4f4;
+  --color-gris-borde: #e3e3e3;
+
+  --color-bien: #0ca30c;
+  --color-atencion: #b8860b;
+  --color-critico: #d03b3b;
+
+  --font-sans: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+}
+
+:root {
+  --superficie: #ffffff;
+  --plano: #f7f7f6;
+  --tinta: #111111;
+  --tinta-2: #666666;
+  --tinta-3: #8a8a8a;
+  --borde: #e3e3e3;
+  --borde-suave: #f0f0ef;
+  --serie: #ff671f;
+  --rejilla: #ededec;
+  --sombra: 0 1px 2px rgba(0, 0, 0, 0.05), 0 1px 3px rgba(0, 0, 0, 0.04);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --superficie: #1a1a19;
+    --plano: #0f0f0e;
+    --tinta: #f5f5f4;
+    --tinta-2: #b5b4ae;
+    --tinta-3: #8a8a85;
+    --borde: #2e2e2c;
+    --borde-suave: #232322;
+    --serie: #ff7c3d;
+    --rejilla: #2a2a28;
+    --sombra: 0 1px 2px rgba(0, 0, 0, 0.4);
+  }
+}
+
+:root[data-theme="dark"] {
+  --superficie: #1a1a19;
+  --plano: #0f0f0e;
+  --tinta: #f5f5f4;
+  --tinta-2: #b5b4ae;
+  --tinta-3: #8a8a85;
+  --borde: #2e2e2c;
+  --borde-suave: #232322;
+  --serie: #ff7c3d;
+  --rejilla: #2a2a28;
+  --sombra: 0 1px 2px rgba(0, 0, 0, 0.4);
+}
+
+html {
+  color-scheme: light dark;
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  background: var(--plano);
+  color: var(--tinta);
+  font-family: var(--font-sans);
+  /* Respeta la barra inferior del navegador movil. */
+  min-height: 100dvh;
+}
+
+/* Las cifras de las tablas deben alinearse verticalmente. */
+.tabular {
+  font-variant-numeric: tabular-nums;
+}
+
+/* Foco visible y consistente: mucha gente navega con teclado. */
+:where(a, button, input, select, [tabindex]):focus-visible {
+  outline: 2px solid var(--color-marca);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+/* Barra de desplazamiento discreta en las tablas anchas. */
+.scroll-x {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: thin;
+}
+
+@media print {
+  .no-imprimir {
+    display: none !important;
+  }
+  body {
+    background: #fff;
+  }
+}
