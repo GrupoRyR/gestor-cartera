@@ -8,8 +8,8 @@ Core es la base de la plataforma: los contratos que usan los demás módulos (`C
 |---|---|
 | `Contracts/` | Interfaces, objetos de datos, enums y excepciones públicos (ver `docs/arquitectura.md` §6). No cambian sin acordarlo. |
 | `Domain/` | Reglas puras en PHP: sin Laravel, sin base de datos y sin reloj. Reciben fechas, saldos y parámetros ya resueltos. |
-| `Application/` | Casos de uso: el ingreso con Microsoft (`Auth\`, ver «Ingreso con Microsoft»). |
-| `Infrastructure/` | Eloquent (`Persistence\*Record`), el acceso por empresa (`Access\CompanyAccess`), el catálogo de empresas y la empresa activa (`Companies\`), la bitácora de auditoría (`Audit\`) y el adaptador de Microsoft sobre Socialite (`Auth\`). |
+| `Application/` | Casos de uso: el ingreso con Microsoft (`Auth\`, ver «Ingreso con Microsoft»), la pantalla Equipo (`Team\`) y el recálculo de saldos y estados de los clientes (`Portfolio\`, ver «Importación del robot»). |
+| `Infrastructure/` | Eloquent (`Persistence\*Record`), el acceso por empresa (`Access\CompanyAccess`), el catálogo de empresas y la empresa activa (`Companies\`), la bitácora de auditoría (`Audit\`), el adaptador de Microsoft sobre Socialite (`Auth\`) y la importación de los lotes del robot (`Ingest\`). |
 | `Http/` | Controladores, FormRequests y middleware de las rutas web (ver «Ingreso con Microsoft» e «Inicio y acceso»). |
 | `config/core.php` | Valores por defecto para sembrar los parámetros de cada empresa. |
 
@@ -120,7 +120,7 @@ La tabla `advisors` guarda los vendedores de SAP de cada empresa (`OSLP`) y el u
 | `active` | Si el vendedor está activo en SAP. Solo los activos se vinculan y dan rol al ingresar. |
 | `user_id` | El usuario vinculado, o `null`. Si el usuario se borra del todo (no el borrado lógico), el asesor queda sin vincular. |
 
-Core la expone como `$user->advisors()` con `User::resolveRelationUsing()`. La carga desde SAP llega con Ingesta. El ingreso con Microsoft vincula por correo (ver «Ingreso con Microsoft») y la pantalla Equipo vincula a mano. `AdvisorRecordFactory` crea vendedores ficticios (estados `inactive()` y `linkedTo($user)`).
+Core la expone como `$user->advisors()` con `User::resolveRelationUsing()`. La carga desde SAP la hace cada lote `asesores` del robot (ver «Importación del robot»). El ingreso con Microsoft vincula por correo (ver «Ingreso con Microsoft») y la pantalla Equipo vincula a mano. `AdvisorRecordFactory` crea vendedores ficticios (estados `inactive()` y `linkedTo($user)`).
 
 **Vínculo a mano** (pantalla Equipo, campo «Asesor de SAP vinculado»):
 
@@ -162,6 +162,47 @@ Core es dueño de las entidades compartidas, así que sus tablas no llevan prefi
 - Los días de vencida van del vencimiento al corte, igual que `Invoice::$daysOverdue`: positivo = vencida, 0 = vence en el corte, negativo = aún no vence.
 
 **Factories.** `ClientRecordFactory` crea clientes ficticios de Segurex, al día y sin saldo, con un NIT válido (dígito de verificación de la DIAN, `ClientRecordFactory::checkDigit()`) y el código `C<NIT>`. `InvoiceRecordFactory` crea una partida que vence hoy, con su propia instantánea y su cliente salvo que la prueba los pase con `for()`. `PortfolioLoadRecordFactory` y `ContactRecordFactory` (estado `primary()`) completan el juego.
+
+## Importación del robot
+
+Ingesta guarda cada lote del robot (o de una carga manual) y despacha `BatchAccepted` una vez por lote aceptado (`docs/arquitectura.md` §6.9). Core lo escucha con dos listeners, registrados en `bootModule()`. Los dos van a la cola y solo se encolan para su lote (`shouldQueue()`): los demás lotes no crean trabajos.
+
+| Lote | Listener (`Infrastructure\Ingest\`) | Qué hace |
+|---|---|---|
+| `cartera` | `ImportReceivablesSnapshot` | Guarda la instantánea con sus partidas, crea o actualiza los clientes y recalcula el saldo y el estado de todos los clientes de la empresa. |
+| `asesores` | `ImportAdvisors` | Actualiza los asesores de SAP de la empresa y desactiva los que no llegan. |
+| `contactos` | — | Pendiente: llega cuando Ingesta defina las columnas del lote. |
+
+**Cartera, paso a paso.** Todo va en una sola transacción: si algo falla, no queda nada a medias.
+
+1. **Instantánea.** Una fila en `portfolio_loads` con la empresa, el corte, el `load_id` de Ingesta, el origen, el número de partidas, `total` (suma de `saldo`) y `overdue` (suma de `saldo` de las partidas vencidas al corte).
+2. **Clientes**, por empresa y `codigo_sn`: `name` = `nombre_sn`, `tax_id` = `nit`, `group` = `grupo`, `city` = `municipio`, `payment_terms` = `condicion_pago`, `credit_limit` = `limite_credito` y `advisor_code` = `slp_code`. El texto vacío se guarda como `null` y el `slp_code` -1 de SAP («ningún empleado de ventas») como cliente sin asesor.
+   - Los clientes eliminados (borrado lógico) también se actualizan y reciben sus partidas, pero siguen eliminados: borrarlos fue decisión de un usuario.
+   - Una instantánea con un corte anterior al de la última (p. ej. una carga manual atrasada) queda en el histórico y solo crea los clientes nuevos: no cambia los datos de los demás ni su estado.
+3. **Partidas**, de a 500 por consulta: `document_number` = `documento`, `document_type` = `tipo_doc`, `installment` = `no_plazo`, `issued_at` = `fecha_documento` (o `fecha_contabilizacion`, o el vencimiento), `due_at` = `fecha_vencimiento` (sin ella, el corte menos `dias`), `amount` = `importe_original`, `balance` = `saldo`, `days_overdue` = días del vencimiento al corte (`OpenItem::fromDates()`) y `advisor_code` = `slp_code`. Los montos se guardan exactos: se suman en centavos enteros (`Application\Portfolio\Cents`), nunca con `float`.
+4. **Recálculo** de todos los clientes de la empresa (ver abajo).
+
+**Idempotencia.** Si ya existe una instantánea con ese `load_id`, el listener no hace nada: un `BatchAccepted` repetido o un reintento no duplican partidas. Las instantáneas anteriores nunca se modifican.
+
+**Recálculo de saldos y estados.** `Application\Portfolio\RecomputeClientStatuses::forCompany($company, $portfolioLoadId = null)` usa la instantánea indicada o, sin ella, la última de la empresa (corte más reciente; en empate, la última importada). Sin instantáneas no hace nada. Recalcula cada cliente de la empresa, también los eliminados:
+
+| Campo | Valor |
+|---|---|
+| `balance` | Suma del saldo de sus partidas, notas crédito incluidas. Un cliente que no está en la instantánea queda en 0. |
+| `overdue` | Suma del saldo de sus partidas con saldo positivo y días de vencida mayores que 0. |
+| `max_days_overdue` | Días de vencida de la partida más atrasada entre las que deben más de la tolerancia (0,01); 0 si ninguna debe. Es negativo si ninguna está vencida todavía. |
+| `status` | `ClientStatusRules::resolve()` con el estado actual y los parámetros vigentes de la empresa (`CompanyCatalog::parameters()`, tabla `companies`). Ver «Estados del cliente»: un cliente que ya no debe pasa a «Pago recibido» (o sigue «Al día») y un estado manual se conserva mientras deba. |
+
+Solo se escriben los clientes cuyos valores cambian. Cuando cambia el estado, se guarda `status_changed_at` y se audita `core.client.status_changed`: sujeto `client`, `changes.status` con `old` y `new`, y `context` con `load_id` y `cutoff_date` de la instantánea. No tiene usuario porque lo hace el sistema. La entrada en la bitácora de gestiones (`GestionLogger`) llega en un PR posterior. La tarea diaria de compromisos y la pantalla de parámetros reutilizarán este servicio.
+
+**Asesores.** Por cada fila, por empresa y `slp_code`:
+
+- `name` = `nombre`, `email` = `email` sin espacios y en minúsculas (vacío = `null`) y `active` = `activo` es `Y` (sin importar mayúsculas ni espacios).
+- Los asesores de esa empresa que no llegan en el lote quedan inactivos; los de la otra empresa no cambian.
+- Nunca toca `user_id`: el vínculo lo hacen el ingreso con Microsoft y la pantalla Equipo. Si alguien ingresó antes de que llegara su asesor, queda vinculado en su siguiente ingreso.
+- Repetir el lote deja lo mismo.
+
+**Cola en el hosting compartido.** Los listeners van a la cola `database`, que vacía la tarea de cada minuto (`docs/arquitectura.md` §10). La cartera se escribe por lotes (clientes y partidas de a 500, y el recálculo lee las partidas en una sola consulta), así que una instantánea de miles de filas tarda segundos. `ImportReceivablesSnapshot` tiene `$timeout = 300` y un solo intento (`$tries = 1`): si falla, la transacción se deshace y el trabajo queda en `failed_jobs`; `php artisan queue:retry` lo vuelve a correr sin duplicar nada. En pruebas la cola es `sync`: los listeners corren en el momento.
 
 ## Ingreso con Microsoft
 
