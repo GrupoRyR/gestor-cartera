@@ -2,6 +2,9 @@
 
 namespace App\Modules\Core\Providers;
 
+use App\Models\User;
+use App\Modules\Core\Infrastructure\Companies\CompanyCatalog;
+use App\Modules\Core\Infrastructure\Persistence\CompanyRecord;
 use App\Support\Modules\ModuleServiceProvider;
 
 /**
@@ -22,5 +25,18 @@ final class CoreServiceProvider extends ModuleServiceProvider
     protected function webPrefix(): string
     {
         return '';
+    }
+
+    protected function registerModule(): void
+    {
+        // One read of the companies per request (or job), shared by every
+        // caller; refresh() forgets it after an admin edits a company.
+        $this->app->scoped(CompanyCatalog::class);
+    }
+
+    protected function bootModule(): void
+    {
+        // $user->companies(): the companies a user is assigned to.
+        User::resolveRelationUsing('companies', CompanyRecord::assignedTo(...));
     }
 }

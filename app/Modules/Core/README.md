@@ -8,7 +8,8 @@ Core es la base de la plataforma: los contratos que usan los demás módulos (`C
 |---|---|
 | `Contracts/` | Interfaces, objetos de datos, enums y excepciones públicos (ver `docs/arquitectura.md` §6). No cambian sin acordarlo. |
 | `Domain/` | Reglas puras en PHP: sin Laravel, sin base de datos y sin reloj. Reciben fechas, saldos y parámetros ya resueltos. |
-| `Application/`, `Infrastructure/`, `Http/` | Casos de uso, persistencia y pantallas (tareas siguientes). |
+| `Application/` | Casos de uso (tareas siguientes). |
+| `Infrastructure/` | Eloquent (`Persistence\*Record`) y el catálogo de empresas (`Companies\CompanyCatalog`). |
 | `config/core.php` | Valores por defecto para sembrar los parámetros de cada empresa. |
 
 ## Estados del cliente
@@ -40,7 +41,7 @@ Solo cuentan para los pasos 3 y 4 las partidas con saldo mayor a la tolerancia: 
 
 Los días de vencida van del vencimiento a la fecha de corte, solo por fecha de calendario (sin horas): positivo = vencida, 0 = vence en el corte, negativo = aún no vence. `OpenItem::fromDates()` los calcula.
 
-Los valores de la tabla son los de siembra (`config('core.companies')`). Los vigentes son parámetros de cada empresa que edita un administrador. Las edades de la deuda (`AgingBuckets`) ignoran los días de gracia.
+Los valores de la tabla son los de siembra (`config('core.companies')`). Los vigentes viven en la tabla `companies` (ver «Empresas y parámetros»). Las edades de la deuda (`AgingBuckets`) ignoran los días de gracia.
 
 ## Compromisos de pago
 
@@ -53,6 +54,23 @@ Los valores de la tabla son los de siembra (`config('core.companies')`). Los vig
 | Se cumple o se anula | Si estaba en «Compromiso» o «Incumplido» y no tiene otro compromiso pendiente, se recalcula su estado automático con la última instantánea, ignorando el estado manual. Si no, conserva su estado. |
 
 **Incumplimiento diario.** Una tarea diaria marca «Incumplido» todo compromiso «Pendiente» cuya fecha de pago sea anterior a hoy (`CommitmentRules::isBroken()`). Un compromiso que vence hoy no se incumple hasta mañana. Solo cuenta la fecha, no la hora.
+
+## Empresas y parámetros
+
+La tabla `companies` (llave `code`: `SGX` o `SDC`) guarda el nombre y los parámetros de cada empresa: `grace_days` y `due_soon_days`. La migración `2026_10_01_000001` crea las dos filas con el nombre de `CompanyCode::label()` y los valores de `config('core.companies')`; desde ahí, los vigentes son los de la tabla.
+
+`Infrastructure\Companies\CompanyCatalog` lee la tabla una vez por petición (o por job) y entrega:
+
+| Método | Devuelve |
+|---|---|
+| `all()` | Las empresas (`Contracts\Data\Company`) en el orden de `CompanyCode`. |
+| `get($code)` | Una empresa con su nombre, días de gracia y paleta oficial. |
+| `parameters($code)` | Los `StatusParameters` de la empresa para `ClientStatusRules`. |
+| `refresh()` | Olvida lo leído; úsalo después de que un administrador edite una empresa. |
+
+Si falta la fila de una empresa, usa los valores de `config('core.companies')` y la etiqueta del enum.
+
+La tabla `company_user` asigna empresas a los usuarios (`user_id`, `company`). Core la expone como `$user->companies()` con `User::resolveRelationUsing()`, sin editar `App\Models\User`.
 
 ## Pendientes
 
