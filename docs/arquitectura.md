@@ -401,7 +401,7 @@ final class ImportReceivablesSnapshot implements ShouldQueue
 
 ### 6.10 `MailSender`
 
-Envía correo por Microsoft Graph (`sendMail`) desde el buzón de cada empresa: `segurex.info@…` para SGX y `derivados.info@derivadoscol.com` para SDC. La app solo tiene permisos de Graph sobre esos dos buzones.
+Envía correo por Microsoft Graph (`sendMail`) desde el buzón de cada empresa: `segurex.info@segurex.com` para SGX y `derivados.info@derivadoscol.com` para SDC. La app solo tiene permisos de Graph sobre esos dos buzones.
 
 | Método | Qué hace | Lanza |
 |---|---|---|
@@ -973,8 +973,8 @@ Los secretos viven solo en `.env` (en el servidor, con `chmod 600`). `.env.examp
 | `CACHE_STORE` | Base | `database`. |
 | `MAIL_*` | Framework | Solo correo del framework (por defecto `log`). El correo de negocio va por Graph (`MailSender`). |
 | `MICROSOFT_TENANT_ID`, `MICROSOFT_CLIENT_ID`, `MICROSOFT_CLIENT_SECRET`, `MICROSOFT_REDIRECT_URI` | Core | `config('services.microsoft')`: `tenant`, `client_id`, `client_secret`, `redirect`. El tenant limita el ingreso al directorio de la empresa: nunca `common`. La URI apunta a `/auth/microsoft/callback`. |
-| `GRAPH_TENANT_ID`, `GRAPH_CLIENT_ID`, `GRAPH_CLIENT_SECRET` | Cobro | `config('cobro.graph.*')`. Permisos de aplicación limitados a los dos buzones. |
-| `COBRO_MAILBOX_SGX`, `COBRO_MAILBOX_SDC` | Cobro | `config('cobro.mailboxes.SGX')` (sin valor por defecto; pendiente D.6) y `config('cobro.mailboxes.SDC')` (por defecto `derivados.info@derivadoscol.com`). |
+| `GRAPH_TENANT_ID`, `GRAPH_CLIENT_ID`, `GRAPH_CLIENT_SECRET` | Cobro | `config('cobro.graph.*')`. Registro aparte del de ingreso, solo de aplicación. `Mail.Send` y `Mail.ReadWrite` (crear el borrador permite guardar `internetMessageId` y `conversationId`) se conceden con [RBAC for Applications de Exchange Online](https://learn.microsoft.com/exchange/permissions-exo/application-rbac), limitados a los dos buzones; nunca como permiso de todo el tenant en Entra ID. La lista exacta la confirma la sesión de Cobro. |
+| `COBRO_MAILBOX_SGX`, `COBRO_MAILBOX_SDC` | Cobro | `config('cobro.mailboxes.SGX')` (por defecto `segurex.info@segurex.com`) y `config('cobro.mailboxes.SDC')` (por defecto `derivados.info@derivadoscol.com`). |
 | `INGESTA_HMAC_KEYS` | Ingesta | `config('ingesta.hmac_keys')`: pares `id-llave:secreto` separados por comas, en texto; Ingesta los interpreta. |
 | `INGESTA_HMAC_MAX_SKEW` | Ingesta | Segundos de diferencia de reloj aceptados; por defecto `300` (entero). |
 | `INGESTA_ALERT_DEADLINE` | Ingesta | Hora límite de la carga diaria; por defecto `07:00`. |

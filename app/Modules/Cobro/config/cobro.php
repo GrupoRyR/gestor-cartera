@@ -12,10 +12,11 @@ return [
         'client_secret' => env('GRAPH_CLIENT_SECRET'),
     ],
 
-    // Mailbox each company sends from and reads replies in.
+    // Mailbox each company sends from and reads replies in. An empty variable
+    // falls back to the official mailbox too.
     'mailboxes' => [
-        'SGX' => env('COBRO_MAILBOX_SGX'),
-        'SDC' => env('COBRO_MAILBOX_SDC', 'derivados.info@derivadoscol.com'),
+        'SGX' => env('COBRO_MAILBOX_SGX') ?: 'segurex.info@segurex.com',
+        'SDC' => env('COBRO_MAILBOX_SDC') ?: 'derivados.info@derivadoscol.com',
     ],
 
 ];
