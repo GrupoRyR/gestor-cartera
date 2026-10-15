@@ -66,6 +66,12 @@ $COMPOSER_BIN install --no-dev --optimize-autoloader --no-interaction
 log "Running database migrations"
 "$PHP" artisan migrate --force
 
+# DatabaseSeeder only runs each module's <Module>PermissionSeeder outside
+# local (idempotent: it creates missing permissions and roles), so new
+# permissions reach production with the code that checks them.
+log "Syncing module permissions"
+"$PHP" artisan db:seed --force
+
 log "Caching config, routes, views and events"
 "$PHP" artisan optimize
 
