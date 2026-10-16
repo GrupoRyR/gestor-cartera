@@ -169,6 +169,9 @@ def main() -> int:
 
     try:
         # ---------------------------------------------- FASE 1: extraccion
+        # El corte es el dia de la extraccion: una corrida que extrae antes de
+        # medianoche y publica despues sigue siendo del dia en que se extrajo.
+        corte = hoy_colombia()
         etapa = "VPN"
         if args.sin_vpn:
             log.info("Se omite la gestion de la VPN (--sin-vpn).")
@@ -224,7 +227,7 @@ def main() -> int:
 
         if cfg.ingesta.habilitada:
             etapa = "LARAVEL"
-            _publicar_laravel(cfg, listos, corrida, log)
+            _publicar_laravel(cfg, listos, corte, corrida, log)
         else:
             log.info("INGESTA_URL vacio: no se publica en Laravel.")
 
@@ -325,9 +328,12 @@ def _serializar(
     return listos
 
 
-def _publicar_laravel(cfg, listos, corrida: Corrida, log: logging.Logger) -> None:
-    """Todos los lotes, aunque uno falle: cada uno es independiente en Laravel."""
-    corte = hoy_colombia()
+def _publicar_laravel(cfg, listos, corte: date, corrida: Corrida,
+                      log: logging.Logger) -> None:
+    """Todos los lotes, aunque uno falle: cada uno es independiente en Laravel.
+
+    corte es la fecha tomada al iniciar la extraccion (FASE 1), no la de ahora.
+    """
     log.info("Publicando en Laravel %s (empresa %s, corte %s).",
              cfg.ingesta.url, cfg.ingesta.empresa, corte.isoformat())
     for nombre, (columnas, filas) in listos.items():
