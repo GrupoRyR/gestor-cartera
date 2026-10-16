@@ -141,7 +141,7 @@ Un usuario con sesión que abre una ruta de invitados vuelve a `/`.
 1. **Tenant.** El claim `tid` debe ser igual a `MICROSOFT_TENANT_ID` (sin distinguir mayúsculas, porque es un GUID). Si falta el claim o no hay tenant configurado, nadie entra.
 2. **Usuario por correo.** Se busca en `users`, también entre los borrados. Si no existe, se crea sin rol con `User::withTrashed()->restoreOrCreate()`, con el nombre y el object id de Microsoft. Si existe, se le guarda el object id la primera vez y se actualiza el nombre si cambió en Microsoft.
 3. **Asesor por correo.** Se vinculan los asesores activos, sin usuario, cuyo `email` es el del usuario. Un asesor inactivo o ya vinculado a otra persona no cambia.
-4. **Rol por asesor.** Si el usuario no tiene rol y tiene al menos un asesor activo vinculado (de este ingreso o de antes), recibe el rol `asesor` y las empresas de esos asesores en `company_user`, sin duplicar. Un usuario que ya tiene rol nunca cambia de rol ni de empresas. Los demás roles los asigna TI desde la pantalla de equipo.
+4. **Rol por asesor.** Si el usuario no tiene rol y **este ingreso** le vinculó al menos un asesor, recibe el rol `asesor` y las empresas de esos asesores en `company_user`, sin duplicar. Los asesores vinculados antes no devuelven un rol: si TI le quitó todos los roles para revocar el acceso, sigue sin rol. Un usuario que ya tiene rol nunca cambia de rol ni de empresas. Los demás roles los asigna TI desde la pantalla de equipo.
 
 Un usuario sin rol termina en `/sin-acceso`. El que tiene rol llega a la página que pidió antes de ingresar o a `/`.
 
