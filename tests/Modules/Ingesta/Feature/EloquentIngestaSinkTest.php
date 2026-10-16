@@ -157,6 +157,36 @@ it('sums the cartera exactly and leaves the totals of other datasets empty', fun
         ->and($advisors->overdue)->toBeNull();
 });
 
+it('rejects a cartera whose totals leave the decimal(18,2) range or overflow', function (int $count) {
+    // Every saldo is valid on its own; only their sum does not fit.
+    $rows = array_map(
+        fn (int $i): array => IngestaRows::cartera(['documento' => "FV-{$i}", 'saldo' => '9999999999999999.99', 'dias' => 5]),
+        range(1, $count),
+    );
+    $message = 'Los totales de la cartera (saldo y saldo vencido) superan el máximo que se puede guardar, 9999999999999999.99.';
+
+    try {
+        $this->sink->receive(IngestaRows::batch('cartera-grande', $rows, Dataset::Receivables));
+        $this->fail('The batch was accepted.');
+    } catch (InvalidBatch $e) {
+        expect($e->getMessage())->toBe($message)
+            ->and($e->errors())->toBe(['rows' => [$message]]);
+    }
+
+    $rejected = IngestaLoad::query()->sole();
+
+    expect($rejected->status)->toBe(LoadStatus::Rejected)
+        ->and($rejected->accepted_batch_id)->toBeNull()
+        ->and($rejected->error)->toBe($message)
+        ->and($rejected->total)->toBeNull()
+        ->and($rejected->row_count)->toBe($count)
+        ->and(IngestaLoadChunk::query()->count())->toBe(0);
+    Event::assertNotDispatched(BatchAccepted::class);
+})->with([
+    'past decimal(18,2)' => 2,
+    'past a 64-bit integer of cents' => 10,
+]);
+
 it('splits large loads into chunks and reads them back in order, one chunk at a time', function () {
     $rows = array_map(fn (int $code): array => IngestaRows::advisor($code), range(1, 1201));
 
