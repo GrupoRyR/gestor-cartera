@@ -50,11 +50,18 @@ final readonly class CommitmentClientStatus
     /**
      * A fulfilled or cancelled commitment hands the client back to its
      * automatic status from the latest snapshot, unless another commitment
-     * is still pending or someone chose another status meanwhile.
+     * is still pending, another one is broken (the client stays, or goes
+     * back to, Defaulted) or someone chose another status meanwhile.
      */
     public function afterClose(ClientRecord $client, CommitmentRecord $commitment): void
     {
-        $this->apply($client, CommitmentRules::afterClose($client->status, $this->hasOtherPending($commitment)), $commitment);
+        $decision = CommitmentRules::afterClose(
+            $client->status,
+            $this->hasOtherPending($commitment),
+            $this->hasOther($commitment, CommitmentStatus::Broken),
+        );
+
+        $this->apply($client, $decision, $commitment);
     }
 
     private function apply(ClientRecord $client, StatusDecision $decision, CommitmentRecord $commitment): void
@@ -88,9 +95,17 @@ final readonly class CommitmentClientStatus
      */
     private function hasOtherPending(CommitmentRecord $commitment): bool
     {
+        return $this->hasOther($commitment, CommitmentStatus::Pending);
+    }
+
+    /**
+     * Whether the client has a commitment in $status other than $commitment.
+     */
+    private function hasOther(CommitmentRecord $commitment, CommitmentStatus $status): bool
+    {
         return CommitmentRecord::query()
             ->where('client_id', $commitment->client_id)
-            ->where('status', CommitmentStatus::Pending)
+            ->where('status', $status)
             ->whereKeyNot($commitment->id)
             ->exists();
     }
