@@ -11,8 +11,8 @@ use Illuminate\Contracts\View\View;
 use Illuminate\Http\RedirectResponse;
 
 /**
- * The Parámetros screen (core.empresas.*), for admins only
- * (core.companies.manage): the grace days and the due-soon window of each
+ * The Parámetros screen (core.empresas.*), for admins and the portfolio
+ * manager (core.companies.manage): the grace days and the due-soon window of each
  * company. {empresa} is a CompanyCode value (SGX or SDC); any other value is
  * a 404. UpdateCompanyParameters saves, audits and queues the recompute of
  * the client statuses.
