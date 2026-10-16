@@ -4,8 +4,11 @@ from __future__ import annotations
 import os
 from dataclasses import dataclass, field
 from pathlib import Path
+from urllib.parse import urlsplit
 
 from dotenv import load_dotenv
+
+from esquema import LOTES
 
 BASE_DIR = Path(__file__).resolve().parent
 ENV_PATH = BASE_DIR / ".env"
@@ -13,6 +16,11 @@ QUERIES_DIR = BASE_DIR / "queries"
 LOGS_DIR = BASE_DIR / "logs"
 OUT_DIR = BASE_DIR / "out"
 STATE_DIR = BASE_DIR / "state"
+
+LOTES_POR_DEFECTO = "cartera,asesores"
+EMPRESAS = ("SGX", "SDC")
+# http:// solo se acepta contra un Laravel local de desarrollo.
+HOSTS_LOCALES = ("localhost", "127.0.0.1", "::1")
 
 
 class ConfigError(RuntimeError):
@@ -66,16 +74,38 @@ class AlertaConfig:
 
 
 @dataclass(frozen=True)
+class IngestaConfig:
+    """Destino principal: el modulo Ingesta de Laravel (gestor de cartera)."""
+
+    url: str          # raiz del sitio, sin /api (ej: https://cartera.segurex.com)
+    key_id: str       # id de la llave HMAC (ej: k2026a)
+    secreto: str      # secreto del par id:secreto de INGESTA_HMAC_KEYS en Laravel
+    empresa: str = "SGX"
+    timeout: int = 120
+    gzip: bool = True
+
+    @property
+    def habilitada(self) -> bool:
+        return bool(self.url and self.key_id and self.secreto)
+
+
+@dataclass(frozen=True)
 class Config:
     vpn: VpnConfig
     hana: HanaConfig
     supabase_url: str
     alertas: AlertaConfig
+    ingesta: IngestaConfig
+    lotes: tuple[str, ...]
 
     def validar(
-        self, *, requiere_supabase: bool = True, requiere_esquema: bool = True
+        self, *, requiere_destino: bool = True, requiere_esquema: bool = True
     ) -> None:
-        """Lanza ConfigError con un mensaje accionable si falta algo."""
+        """Lanza ConfigError con un mensaje accionable si falta algo.
+
+        Fuera del modo diagnostico (requiere_destino) exige al menos un destino:
+        Laravel (principal) o Supabase (respaldo).
+        """
         faltantes: list[str] = []
         if not self.vpn.usuario:
             faltantes.append("SOPHOS_USER (usuario de la VPN Sophos)")
@@ -89,8 +119,13 @@ class Config:
             faltantes.append("HANA_PASSWORD")
         if requiere_esquema and not self.hana.esquema:
             faltantes.append("HANA_SCHEMA (esquema de SAP B1, ej: SBO_SEGUREX)")
-        if requiere_supabase and not self.supabase_url:
-            faltantes.append("SUPABASE_DB_URL (cadena de conexion de Supabase)")
+        if self.ingesta.empresa not in EMPRESAS:
+            faltantes.append(
+                f"INGESTA_EMPRESA debe ser {' o '.join(EMPRESAS)} "
+                f"(valor actual: {self.ingesta.empresa})"
+            )
+        if requiere_destino:
+            faltantes.extend(self._faltantes_destino())
 
         if not self.vpn.cli.exists():
             faltantes.append(
@@ -100,12 +135,77 @@ class Config:
         if faltantes:
             detalle = "\n  - ".join(faltantes)
             raise ConfigError(
-                f"Faltan datos obligatorios en {ENV_PATH}:\n  - {detalle}\n\n"
+                "Faltan datos obligatorios o hay valores invalidos en "
+                f"{ENV_PATH}:\n  - {detalle}\n\n"
                 "Edita ese archivo y vuelve a ejecutar."
             )
 
+    def _faltantes_destino(self) -> list[str]:
+        ingesta = self.ingesta
+        partes = {
+            "INGESTA_URL": ingesta.url,
+            "INGESTA_KEY_ID": ingesta.key_id,
+            "INGESTA_SECRET": ingesta.secreto,
+        }
+        definidas = [nombre for nombre, valor in partes.items() if valor]
+        faltantes: list[str] = []
+        if definidas and len(definidas) < len(partes):
+            # A medio configurar: mejor fallar que publicar solo en el
+            # respaldo creyendo que Laravel esta recibiendo los datos.
+            faltantes.extend(
+                f"{nombre} (el destino Laravel esta a medio configurar)"
+                for nombre, valor in partes.items()
+                if not valor
+            )
+        elif not definidas and not self.supabase_url:
+            faltantes.append(
+                "Un destino: INGESTA_URL + INGESTA_KEY_ID + INGESTA_SECRET "
+                "(Laravel, principal) o SUPABASE_DB_URL (Supabase, respaldo)"
+            )
+        if ingesta.url and not _url_segura(ingesta.url):
+            faltantes.append(
+                "INGESTA_URL debe empezar por https:// (http:// solo se acepta "
+                f"para un Laravel local). Valor actual: {ingesta.url}"
+            )
+        return faltantes
+
+
+def _url_segura(url: str) -> bool:
+    """https siempre; http solo contra el propio equipo o un dominio .test."""
+    partes = urlsplit(url)
+    if not partes.hostname:
+        return False
+    if partes.scheme == "https":
+        return True
+    host = partes.hostname.lower()
+    return partes.scheme == "http" and (
+        host in HOSTS_LOCALES
+        or host.endswith(".localhost")
+        or host.endswith(".test")
+    )
+
+
+def parsear_lotes(texto: str | None) -> tuple[str, ...]:
+    """Convierte "cartera, ventas" en ("cartera", "ventas") y valida los nombres."""
+    nombres: list[str] = []
+    for parte in (texto or "").split(","):
+        nombre = parte.strip().lower()
+        if nombre and nombre not in nombres:
+            nombres.append(nombre)
+    validos = ", ".join(LOTES)
+    if not nombres:
+        raise ConfigError(f"No se indico ningun lote. Los validos son: {validos}.")
+    desconocidos = [n for n in nombres if n not in LOTES]
+    if desconocidos:
+        raise ConfigError(
+            "Lote(s) desconocido(s) en ETL_LOTES o --lotes: "
+            f"{', '.join(desconocidos)}. Los validos son: {validos}."
+        )
+    return tuple(nombres)
+
 
 def cargar_config() -> Config:
+    """Lee etl/.env. Lanza ConfigError si ETL_LOTES trae un lote desconocido."""
     load_dotenv(ENV_PATH, override=True)
     for carpeta in (LOGS_DIR, OUT_DIR, STATE_DIR):
         carpeta.mkdir(parents=True, exist_ok=True)
@@ -115,6 +215,12 @@ def cargar_config() -> Config:
         for c in os.getenv("ALERTA_DESTINATARIOS", "").split(",")
         if c.strip()
     ]
+
+    secreto_ingesta = os.getenv("INGESTA_SECRET", "").strip()
+    # Import diferido: registro importa este modulo (LOGS_DIR) y un import
+    # arriba seria circular. Desde aqui el secreto nunca sale en los logs.
+    from registro import registrar_secreto
+    registrar_secreto(secreto_ingesta)
 
     return Config(
         vpn=VpnConfig(
@@ -147,6 +253,17 @@ def cargar_config() -> Config:
             smtp_user=os.getenv("ALERTA_SMTP_USER", "").strip(),
             smtp_password=os.getenv("ALERTA_SMTP_PASSWORD", ""),
             destinatarios=destinatarios,
+        ),
+        ingesta=IngestaConfig(
+            url=os.getenv("INGESTA_URL", "").strip(),
+            key_id=os.getenv("INGESTA_KEY_ID", "").strip(),
+            secreto=secreto_ingesta,
+            empresa=os.getenv("INGESTA_EMPRESA", "").strip().upper() or "SGX",
+            timeout=_int(os.getenv("INGESTA_TIMEOUT"), 120),
+            gzip=_bool(os.getenv("INGESTA_GZIP"), True),
+        ),
+        lotes=parsear_lotes(
+            os.getenv("ETL_LOTES", "").strip() or LOTES_POR_DEFECTO
         ),
     )
 

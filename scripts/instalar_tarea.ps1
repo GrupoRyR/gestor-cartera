@@ -1,9 +1,17 @@
 <#
 .SYNOPSIS
-    Registra el robot de cartera en el Programador de tareas de Windows.
+    Registra el robot del gestor de cartera en el Programador de tareas de Windows.
 
 .DESCRIPTION
-    Crea la tarea "CarteraWeb-ETL" con dos disparadores diarios: 00:00 y 12:00.
+    Crea la tarea "CarteraWeb-ETL" (se conserva el nombre para reemplazar la
+    tarea existente en vez de dejarla registrada al lado) con tres
+    disparadores diarios: 00:00, 05:00 y 12:00.
+
+    La corrida de las 05:00 es un reintento antes de la alerta de las 07:00 de
+    Laravel: repetir una extraccion identica no duplica nada, porque el
+    batch_id sale del contenido. Las horas evitan las 06:00 y las 12:30 del
+    robot de cuentas por pagar, que comparte la VPN.
+
     Si el equipo estaba apagado a esa hora, la tarea se ejecuta en cuanto
     arranca (StartWhenAvailable).
 
@@ -11,7 +19,7 @@
     Elimina la tarea en lugar de crearla.
 
 .PARAMETER Horas
-    Horas de ejecucion en formato HH:mm. Por defecto 00:00 y 12:00.
+    Horas de ejecucion en formato HH:mm. Por defecto 00:00, 05:00 y 12:00.
 
 .EXAMPLE
     powershell -ExecutionPolicy Bypass -File scripts\instalar_tarea.ps1
@@ -20,10 +28,11 @@
 [CmdletBinding()]
 param(
     [switch]$Desinstalar,
-    [string[]]$Horas = @("00:00", "12:00")
+    [string[]]$Horas = @("00:00", "05:00", "12:00")
 )
 
 $ErrorActionPreference = "Stop"
+# Nombre historico: cambiarlo dejaria registrada la tarea anterior.
 $NombreTarea = "CarteraWeb-ETL"
 
 $Raiz    = Split-Path -Parent $PSScriptRoot
@@ -87,13 +96,13 @@ Register-ScheduledTask `
     -Trigger     $Disparadores `
     -Settings    $Ajustes `
     -Principal   $Principal `
-    -Description "Extrae la cartera de SAP HANA a traves de la VPN Sophos y la publica en Supabase para la web de asesores." | Out-Null
+    -Description "Extrae de SAP HANA (por la VPN Sophos) la cartera y los demas lotes de ETL_LOTES y los publica en el gestor de cartera por HTTPS firmado; Supabase queda como respaldo." | Out-Null
 
 Write-Host ""
 Write-Host "Tarea '$NombreTarea' registrada." -ForegroundColor Green
 Write-Host "  Ejecuta      : $PythonW"
 Write-Host "  Script       : $Script"
-Write-Host "  Horarios     : $($Horas -join ' y ')"
+Write-Host "  Horarios     : $($Horas -join ', ')"
 Write-Host ""
 Write-Host "Para lanzarla ahora mismo y ver el resultado:" -ForegroundColor Cyan
 Write-Host "  Start-ScheduledTask -TaskName $NombreTarea"
