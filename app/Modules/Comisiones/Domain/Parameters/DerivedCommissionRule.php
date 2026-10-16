@@ -16,10 +16,12 @@ use InvalidArgumentException;
 final readonly class DerivedCommissionRule
 {
     /**
-     * @param  string  $key  Row key shown in reports, e.g. "81.1".
+     * @param  string  $key  Row key shown in reports, e.g. "81.1". Never a plain number: it is
+     *                       the reference of the row's alerts and person role, next to the
+     *                       seller codes ("81"), so it must not read as one.
      * @param  string  $label  Row label, e.g. "Sergio Caballero (venta)".
      *
-     * @throws InvalidArgumentException when the key or the label is blank.
+     * @throws InvalidArgumentException when the key is blank or a plain number, or the label is blank.
      */
     public function __construct(
         public Validity $validity,
@@ -32,6 +34,10 @@ final readonly class DerivedCommissionRule
     ) {
         if (trim($key) === '') {
             throw new InvalidArgumentException('A derived commission needs a key.');
+        }
+
+        if (ctype_digit(trim($key))) {
+            throw new InvalidArgumentException("Derived commission key {$key} is a plain number; it would read as a seller code.");
         }
 
         if (trim($label) === '') {

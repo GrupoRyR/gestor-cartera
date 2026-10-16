@@ -485,7 +485,7 @@ describe('negative commissions', function () {
 
         expect(Settle::code($result, 34)->saleCommission->amount())->toBe('-7500')
             ->and(Settle::code($result, 34)->total->amount())->toBe('-7500')
-            ->and($alerts)->toHaveCount(1)
+            ->and(Settle::references($result, AlertKind::NegativeCommission))->toBe(['34', 'distribucion'])
             ->and($alerts[0]->reference)->toBe('34')
             ->and($alerts[0]->isBlocking())->toBeTrue();
     });
@@ -499,7 +499,7 @@ describe('negative commissions', function () {
         expect(Settle::code($result, 14)->sales->amount())->toBe('-1000000')
             ->and(Settle::code($result, 14)->compliance->percent())->toBe('0')
             ->and(Settle::code($result, 14)->saleCommission->amount())->toBe('0')
-            ->and($result->alertsOf(AlertKind::NegativeCommission))->toBe([]);
+            ->and(Settle::references($result, AlertKind::NegativeCommission))->toBe(['distribucion']);
     });
 });
 

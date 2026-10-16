@@ -17,7 +17,13 @@ enum AlertKind: string
     /** A code with a minimum compliance, sales and no budget (§5.2). */
     case MissingBudget = 'sin_presupuesto';
 
-    /** A code whose sale, collection or total commission is negative (§9.6). */
+    /**
+     * A negative commission (§9.6): a code's sale, collection or total
+     * commission (reference "14"), a derived commission (its key, "81.1") or
+     * a director team's sales part, collection part or total (its key,
+     * "distribucion"). Derived and team keys are never plain numbers, so the
+     * three references never collide.
+     */
     case NegativeCommission = 'comision_negativa';
 
     /** The same natural key twice in one load (§9.5). */

@@ -10,9 +10,11 @@ use InvalidArgumentException;
  * Every version of the commission parameters (§4: rates, tranches, teams and
  * derived commissions are editable with validity; §14 options too).
  *
- * Versions of the same key never share a day. A period takes, for each key,
- * the version with the latest start among those in force on at least one of
- * its days, so a change from the 16th applies to that whole month.
+ * Versions of the same key never share a day, and a director team and a
+ * derived commission never share a key: both are referenced by it in alerts
+ * and person roles. A period takes, for each key, the version with the
+ * latest start among those in force on at least one of its days, so a
+ * change from the 16th applies to that whole month.
  */
 final readonly class ParameterBook
 {
@@ -23,7 +25,8 @@ final readonly class ParameterBook
      * @param  list<DerivedCommissionRule>  $derived  Keyed by derived key ("81.1").
      * @param  list<OptionsVersion>  $options  A single key; none in force means the defaults.
      *
-     * @throws InvalidArgumentException when two versions of the same key overlap.
+     * @throws InvalidArgumentException when two versions of the same key overlap, or a team and a
+     *                                  derived commission share a key.
      */
     public function __construct(
         public array $codes,
@@ -37,6 +40,7 @@ final readonly class ParameterBook
         self::assertNoOverlap($teams, self::teamKey(...));
         self::assertNoOverlap($derived, self::derivedKey(...));
         self::assertNoOverlap($options, self::optionsKey(...));
+        self::assertTeamAndDerivedKeysDiffer($teams, $derived);
     }
 
     /**
@@ -121,6 +125,23 @@ final readonly class ParameterBook
             }
 
             $seen[$versionKey][] = $version;
+        }
+    }
+
+    /**
+     * @param  list<DirectorTeam>  $teams
+     * @param  list<DerivedCommissionRule>  $derived
+     *
+     * @throws InvalidArgumentException when a key names both a team and a derived commission.
+     */
+    private static function assertTeamAndDerivedKeysDiffer(array $teams, array $derived): void
+    {
+        $teamKeys = array_map(fn (DirectorTeam $team) => $team->key, $teams);
+
+        foreach ($derived as $rule) {
+            if (in_array($rule->key, $teamKeys, true)) {
+                throw new InvalidArgumentException("The key {$rule->key} names both a director team and a derived commission.");
+            }
         }
     }
 

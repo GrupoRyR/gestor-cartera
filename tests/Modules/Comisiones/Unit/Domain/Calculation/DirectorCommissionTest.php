@@ -5,6 +5,7 @@ use App\Modules\Comisiones\Domain\Calculation\DirectorTeamRow;
 use App\Modules\Comisiones\Domain\Calculation\PersonRole;
 use App\Modules\Comisiones\Domain\Calculation\PersonSettlement;
 use App\Modules\Comisiones\Domain\Calculation\RoleKind;
+use App\Modules\Comisiones\Domain\Input\DocumentType;
 use App\Modules\Comisiones\Domain\Input\SettlementInput;
 use App\Modules\Comisiones\Domain\Parameters\Options\DirectorPlacement;
 use App\Modules\Comisiones\Domain\Parameters\SettlementOptions;
@@ -159,4 +160,53 @@ describe('director placement (§14.4)', function () {
         'a code without parameters' => [99],
         'no associated code' => [null],
     ]);
+});
+
+describe('negative director commissions (§9.6)', function () {
+    it('blocks the settlement when a team nets negative sales, keyed by the team', function () {
+        $result = Settle::sales(
+            [Lines::sale(14, -10_000_000, type: DocumentType::CreditNote)],
+            [Lines::budget(14, 50_000_000)],
+        );
+        $alerts = $result->alertsOf(AlertKind::NegativeCommission);
+
+        expect(Settle::director($result, 'distribucion')->total->amount())->toBe('-20000')
+            ->and(Settle::code($result, 14)->saleCommission->amount())->toBe('0')
+            ->and(Settle::references($result, AlertKind::NegativeCommission))->toBe(['distribucion'])
+            ->and($alerts[0]->key())->toBe('comision_negativa:distribucion')
+            ->and($alerts[0]->isBlocking())->toBeTrue()
+            ->and($alerts[0]->sellerCode)->toBeNull()
+            ->and($alerts[0]->message)
+            ->toBe('La comisión de director de Distribución (Jessika Quintero) quedó negativa; revísala antes de aprobar.');
+    });
+
+    it('flags a negative part even when the team total stays positive, as it does for a code', function () {
+        $result = Settle::run(new SettlementInput(
+            Period::of(2026, 7),
+            sales: [Lines::sale(14, -1_000_000, type: DocumentType::CreditNote)],
+            payments: [Lines::payment(14, 10_000_000, paymentDate: '2026-07-20', days: 30)],
+            budgets: [Lines::budget(14, 50_000_000)],
+        ));
+        $director = Settle::director($result, 'distribucion');
+
+        expect($director->salesCommission->amount())->toBe('-2000')
+            ->and($director->collectionCommission->amount())->toBe('20000')
+            ->and($director->total->amount())->toBe('18000')
+            ->and(Settle::references($result, AlertKind::NegativeCommission))->toBe(['distribucion']);
+    });
+
+    it('flags both the team and the associated code that carries it (§14.4)', function () {
+        $result = Settle::sales(
+            [Lines::sale(14, -10_000_000, type: DocumentType::CreditNote)],
+            [Lines::budget(14, 50_000_000)],
+            new SettlementOptions(directorPlacement: DirectorPlacement::AssociatedCode),
+        );
+
+        expect(Settle::code($result, 53)->total->amount())->toBe('-20000')
+            ->and(Settle::references($result, AlertKind::NegativeCommission))->toBe(['53', 'distribucion']);
+    });
+
+    it('does not flag the Annex 2 teams', function () {
+        expect(Settle::run(Annex::directorsInput())->alertsOf(AlertKind::NegativeCommission))->toBe([]);
+    });
 });

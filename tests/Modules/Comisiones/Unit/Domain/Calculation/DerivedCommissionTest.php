@@ -4,6 +4,7 @@ use App\Modules\Comisiones\Domain\Calculation\AlertKind;
 use App\Modules\Comisiones\Domain\Calculation\CollectionDetail;
 use App\Modules\Comisiones\Domain\Calculation\CollectionSource;
 use App\Modules\Comisiones\Domain\Calculation\DerivedSettlement;
+use App\Modules\Comisiones\Domain\Input\DocumentType;
 use App\Modules\Comisiones\Domain\Input\SettlementInput;
 use App\Modules\Comisiones\Domain\Parameters\CodeScope;
 use App\Modules\Comisiones\Domain\Parameters\SettlementOptions;
@@ -126,5 +127,36 @@ describe('derived commissions without a base', function () {
         expect(Settle::derived($result, '99.1')->base->amount())->toBe('0')
             ->and(Settle::derived($result, '99.1')->commission->amount())->toBe('0')
             ->and(Settle::references($result, AlertKind::UnknownSellerCode))->toBe(['99']);
+    });
+});
+
+describe('negative derived commissions (§9.6)', function () {
+    it('blocks the settlement when 81.1 turns negative on net negative sales of code 81', function () {
+        $result = Settle::sales([Lines::sale(81, -1_000_000, type: DocumentType::CreditNote)]);
+        $alerts = $result->alertsOf(AlertKind::NegativeCommission);
+
+        expect(Settle::derived($result, '81.1')->commission->amount())->toBe('-1000')
+            ->and(Settle::references($result, AlertKind::NegativeCommission))->toBe(['81', '81.1'])
+            ->and($alerts[1]->key())->toBe('comision_negativa:81.1')
+            ->and($alerts[1]->isBlocking())->toBeTrue()
+            ->and($alerts[1]->sellerCode)->toBeNull()
+            ->and($alerts[1]->message)
+            ->toBe('La comisión especial 81.1 – Sergio Caballero (venta) quedó negativa; revísala antes de aprobar.');
+    });
+
+    it('blocks the settlement when 85.1 turns negative on a reversed payment of code 85', function () {
+        $result = Settle::collections('2026-08', [Lines::payment(85, -1_000_000, paymentDate: '2026-08-10', days: 10)]);
+
+        expect(Settle::derived($result, '85.1')->commission->amount())->toBe('-10000')
+            ->and(Settle::references($result, AlertKind::NegativeCommission))
+            ->toBe(['85', '85.1', 'construccion-institucional']);
+    });
+
+    it('does not flag a derived commission at zero or above', function () {
+        $result = Settle::sales([Lines::sale(81, 1_000_000)]);
+
+        expect(Settle::derived($result, '81.1')->commission->amount())->toBe('1000')
+            ->and(Settle::derived($result, '85.1')->commission->amount())->toBe('0')
+            ->and($result->alertsOf(AlertKind::NegativeCommission))->toBe([]);
     });
 });

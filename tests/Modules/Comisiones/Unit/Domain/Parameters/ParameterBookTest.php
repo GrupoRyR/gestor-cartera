@@ -190,6 +190,17 @@ describe('overlapping validities', function () {
     });
 });
 
+describe('keys across kinds', function () {
+    it('rejects a key shared by a director team and a derived commission, so their alerts never merge', function () {
+        expect(fn () => new ParameterBook(
+            codes: [],
+            trancheTables: [Params::trancheTable()],
+            teams: [Params::team('especial')],
+            derived: [Params::derived('especial', from: '2027-01-01')],
+        ))->toThrow(InvalidArgumentException::class, 'especial');
+    });
+});
+
 describe('PeriodParameters', function () {
     it('keys the codes by number and rejects duplicates', function () {
         new PeriodParameters(

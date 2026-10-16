@@ -77,6 +77,8 @@ final class SettlementCalculator
             $codes[$code] = $settlement;
         }
 
+        self::flagNegativeRows($alerts, $derived, $directors);
+
         return new SettlementResult(
             period: $input->period,
             parameters: $parameters,
@@ -94,6 +96,39 @@ final class SettlementCalculator
                 unassignedCollections: $collections->unassigned,
             ),
         );
+    }
+
+    /**
+     * Raises NegativeCommission (§9.6) for a derived commission below zero
+     * (81.1 on net negative sales of code 81) and for a director team whose
+     * sales part, collection part or total is below zero. The reference is
+     * the derived key or the team key, which are never plain numbers, so they
+     * never collide with the code references.
+     *
+     * @param  list<DerivedSettlement>  $derived
+     * @param  list<DirectorSettlement>  $directors
+     */
+    private static function flagNegativeRows(AlertCollector $alerts, array $derived, array $directors): void
+    {
+        foreach ($derived as $settlement) {
+            if ($settlement->commission->isNegative()) {
+                $alerts->add(new Alert(
+                    AlertKind::NegativeCommission,
+                    $settlement->rule->key,
+                    "La comisión especial {$settlement->rule->key} – {$settlement->rule->label} quedó negativa; revísala antes de aprobar.",
+                ));
+            }
+        }
+
+        foreach ($directors as $settlement) {
+            if ($settlement->hasNegativeCommission()) {
+                $alerts->add(new Alert(
+                    AlertKind::NegativeCommission,
+                    $settlement->team->key,
+                    "La comisión de director de {$settlement->team->channel} ({$settlement->team->director->name}) quedó negativa; revísala antes de aprobar.",
+                ));
+            }
+        }
     }
 
     /**

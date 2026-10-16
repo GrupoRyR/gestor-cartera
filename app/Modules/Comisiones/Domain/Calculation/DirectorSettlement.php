@@ -30,4 +30,12 @@ final readonly class DirectorSettlement
         public Money $total,
         public ?int $paidWithCode = null,
     ) {}
+
+    /** Whether the sales part, the collection part or the total is below zero (§9.6), as for a code. */
+    public function hasNegativeCommission(): bool
+    {
+        return $this->salesCommission->isNegative()
+            || $this->collectionCommission->isNegative()
+            || $this->total->isNegative();
+    }
 }

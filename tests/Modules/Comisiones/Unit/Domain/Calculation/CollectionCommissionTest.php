@@ -319,6 +319,6 @@ describe('negative collections', function () {
 
         expect(Settle::code($result, 34)->collectionCommission->amount())->toBe('-7500')
             ->and(Settle::code($result, 34)->total->amount())->toBe('-7500')
-            ->and(Settle::references($result, AlertKind::NegativeCommission))->toBe(['34']);
+            ->and(Settle::references($result, AlertKind::NegativeCommission))->toBe(['34', 'distribucion']);
     });
 });

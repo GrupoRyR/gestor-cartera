@@ -83,6 +83,13 @@ describe('DirectorTeam', function () {
         'blank key' => ['', 'Distribución'],
         'blank channel' => ['distribucion', '  '],
     ]);
+
+    it('rejects a key that would read as a seller code in alerts and roles', function (string $key) {
+        expect(fn () => Params::team($key))->toThrow(InvalidArgumentException::class, 'plain number');
+    })->with([
+        'a code' => ['53'],
+        'a padded code' => [' 14 '],
+    ]);
 });
 
 describe('DerivedCommissionRule', function () {
@@ -109,6 +116,10 @@ describe('DerivedCommissionRule', function () {
         'blank key' => [' ', 'Sergio Caballero (venta)'],
         'blank label' => ['81.1', ''],
     ]);
+
+    it('rejects a key that would read as a seller code in alerts and roles', function () {
+        expect(fn () => Params::derived('81'))->toThrow(InvalidArgumentException::class, 'plain number');
+    });
 
     it('labels its base in Spanish', function () {
         expect(DerivedBase::Sales->label())->toBe('Venta')
