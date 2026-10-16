@@ -162,7 +162,7 @@
                         @forelse ($dashboard->weekCommitments as $commitment)
                             <div class="flex items-start justify-between gap-4 border-b border-line py-3 first:pt-0 last:border-b-0 last:pb-0">
                                 <div class="min-w-0">
-                                    <p class="font-semibold [overflow-wrap:anywhere]">{{ $commitment->clientName }}</p>
+                                    <p><x-cartera::client-link :id="$commitment->clientId" :name="$commitment->clientName" /></p>
                                     <p class="text-sm text-fg-muted">
                                         {{ __('cartera::tablero.semana.vence') }}
                                         @if ($commitment->dueDate->isSameDay($dashboard->today))
@@ -189,7 +189,7 @@
                         <x-ui.table :caption="__('cartera::tablero.principales.tabla')" :caption-hidden="true" :columns="$topColumns">
                             @foreach ($dashboard->topDebtors as $client)
                                 <tr>
-                                    <td>{{ $client->name }}</td>
+                                    <td><x-cartera::client-link :id="$client->id" :name="$client->name" /></td>
                                     @if ($dashboard->isGroup)
                                         <td><x-ui.chip :dot="false">{{ $client->company->value }}</x-ui.chip></td>
                                     @endif
@@ -210,7 +210,7 @@
                     @forelse ($dashboard->recentActivity as $activity)
                         <div class="flex items-start gap-3 border-b border-line py-3 first:pt-0 last:border-b-0 last:pb-0">
                             <div class="min-w-0 flex-1">
-                                <p class="font-semibold [overflow-wrap:anywhere]">{{ $activity->clientName }}</p>
+                                <p><x-cartera::client-link :id="$activity->clientId" :name="$activity->clientName" /></p>
                                 <p class="text-sm text-fg-soft [overflow-wrap:anywhere]">
                                     <x-ui.chip :dot="false">{{ $activity->type->label() }}</x-ui.chip>
                                     {{ $activity->result ?? $activity->summary }}

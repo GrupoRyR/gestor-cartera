@@ -85,7 +85,7 @@
         >
             @foreach ($clients as $client)
                 <tr>
-                    <td>{{ $client->name }}</td>
+                    <td><x-cartera::client-link :id="$client->id" :name="$client->name" /></td>
                     @if ($isGroup)
                         <td><x-ui.chip :dot="false" :data-company="$client->company->value">{{ $client->company->value }}</x-ui.chip></td>
                     @endif

@@ -4,6 +4,7 @@
 // the /cartera URL prefix and the "cartera." route-name prefix:
 // Route::get('/', ...)->name('tablero') is GET /cartera named cartera.tablero.
 
+use App\Modules\Cartera\Http\Controllers\ClientFileController;
 use App\Modules\Cartera\Http\Controllers\ClientListController;
 use App\Modules\Cartera\Http\Controllers\DashboardController;
 use App\Modules\Cartera\Http\Controllers\KanbanController;
@@ -15,6 +16,7 @@ use Illuminate\Support\Facades\Route;
 Route::middleware(['auth', 'can:cartera.view'])->group(function () {
     Route::get('/', DashboardController::class)->name('tablero');
     Route::get('clientes', ClientListController::class)->name('clientes.index');
+    Route::get('clientes/{client}', ClientFileController::class)->whereNumber('client')->name('clientes.show');
     Route::get('kanban', KanbanController::class)->name('kanban');
 
     // Changing a status is for those with core.clients.change_status (Core's

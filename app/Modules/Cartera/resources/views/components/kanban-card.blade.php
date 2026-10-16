@@ -21,7 +21,7 @@
     @endif
 >
     <div class="flex items-start justify-between gap-2">
-        <p class="font-semibold [overflow-wrap:anywhere]">{{ $client->name }}</p>
+        <p><x-cartera::client-link :id="$client->id" :name="$client->name" /></p>
         @if ($showCompany)
             <x-ui.chip :dot="false">{{ $client->company->value }}</x-ui.chip>
         @endif
