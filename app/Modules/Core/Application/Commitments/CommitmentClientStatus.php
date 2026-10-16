@@ -50,7 +50,8 @@ final readonly class CommitmentClientStatus
     /**
      * A fulfilled or cancelled commitment hands the client back to its
      * automatic status from the latest snapshot, unless another commitment
-     * is still pending or someone chose another status meanwhile.
+     * is still pending, another one is broken (the client stays, or goes
+     * back to, Defaulted) or someone chose another status meanwhile.
      */
     public function afterClose(ClientRecord $client, CommitmentRecord $commitment): void
     {
