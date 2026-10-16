@@ -7,6 +7,7 @@ use App\Modules\Core\Application\Auth\IdentityProvider;
 use App\Modules\Core\Contracts\AuditLogger;
 use App\Modules\Core\Contracts\CarteraRepository;
 use App\Modules\Core\Contracts\ClientStatusService;
+use App\Modules\Core\Contracts\CompromisoService;
 use App\Modules\Core\Contracts\CurrentCompany;
 use App\Modules\Core\Contracts\Events\BatchAccepted;
 use App\Modules\Core\Contracts\GestionLogger;
@@ -14,6 +15,7 @@ use App\Modules\Core\Http\Middleware\EnsureUserIsActive;
 use App\Modules\Core\Infrastructure\Activity\DatabaseGestionLogger;
 use App\Modules\Core\Infrastructure\Audit\DatabaseAuditLogger;
 use App\Modules\Core\Infrastructure\Auth\SocialiteMicrosoftIdentityProvider;
+use App\Modules\Core\Infrastructure\Commitments\EloquentCompromisoService;
 use App\Modules\Core\Infrastructure\Companies\CompanyCatalog;
 use App\Modules\Core\Infrastructure\Companies\SessionCurrentCompany;
 use App\Modules\Core\Infrastructure\Ingest\ImportAdvisors;
@@ -63,6 +65,7 @@ final class CoreServiceProvider extends ModuleServiceProvider
         $this->app->scoped(CarteraRepository::class, EloquentCarteraRepository::class);
         $this->app->scoped(GestionLogger::class, DatabaseGestionLogger::class);
         $this->app->scoped(ClientStatusService::class, EloquentClientStatusService::class);
+        $this->app->scoped(CompromisoService::class, EloquentCompromisoService::class);
 
         // Microsoft Entra ID sign-in; tests bind a fake instead.
         $this->app->bind(IdentityProvider::class, SocialiteMicrosoftIdentityProvider::class);

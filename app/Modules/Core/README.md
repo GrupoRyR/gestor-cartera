@@ -8,8 +8,8 @@ Core es la base de la plataforma: los contratos que usan los demás módulos (`C
 |---|---|
 | `Contracts/` | Interfaces, objetos de datos, enums y excepciones públicos (ver `docs/arquitectura.md` §6). No cambian sin acordarlo. |
 | `Domain/` | Reglas puras en PHP: sin Laravel, sin base de datos y sin reloj. Reciben fechas, saldos y parámetros ya resueltos. |
-| `Application/` | Casos de uso: el ingreso con Microsoft (`Auth\`, ver «Ingreso con Microsoft»), la pantalla Equipo (`Team\`), el borrado de gestiones (`Activity\`, ver «Bitácora de gestiones») y el recálculo de saldos y estados de los clientes (`Portfolio\`, ver «Importación del robot»). |
-| `Infrastructure/` | Eloquent (`Persistence\*Record`), el acceso por empresa y el alcance de la cartera (`Access\`), el catálogo de empresas y la empresa activa (`Companies\`), la bitácora de auditoría (`Audit\`), la bitácora de gestiones (`Activity\`), el adaptador de Microsoft sobre Socialite (`Auth\`), la importación de los lotes del robot (`Ingest\`) y la lectura de la cartera (`Portfolio\`, ver «CarteraRepository»). |
+| `Application/` | Casos de uso: el ingreso con Microsoft (`Auth\`, ver «Ingreso con Microsoft»), la pantalla Equipo (`Team\`), el borrado de gestiones (`Activity\`, ver «Bitácora de gestiones»), el recálculo de saldos y estados de los clientes (`Portfolio\`, ver «Importación del robot») y la regla de escritura y los efectos de los compromisos (`Commitments\`, ver «Compromisos de pago»). |
+| `Infrastructure/` | Eloquent (`Persistence\*Record`), el acceso por empresa y el alcance de la cartera (`Access\`), el catálogo de empresas y la empresa activa (`Companies\`), la bitácora de auditoría (`Audit\`), la bitácora de gestiones (`Activity\`), el adaptador de Microsoft sobre Socialite (`Auth\`), la importación de los lotes del robot (`Ingest\`), la lectura de la cartera (`Portfolio\`, ver «CarteraRepository») y los compromisos de pago (`Commitments\`, ver «Compromisos de pago»). |
 | `Http/` | Controladores, FormRequests y middleware de las rutas web (ver «Ingreso con Microsoft», «Inicio y acceso» y «Bitácora de gestiones»). |
 | `config/core.php` | Valores por defecto para sembrar los parámetros de cada empresa. |
 
@@ -55,6 +55,52 @@ Los valores de la tabla son los de siembra (`config('core.companies')`). Los vig
 | Se cumple o se anula | Si estaba en «Compromiso» o «Incumplido» y no tiene otro compromiso pendiente ni incumplido, se recalcula su estado automático con la última instantánea, ignorando el estado manual. Si no tiene pendientes pero sí otro incumplido, queda (o vuelve) en «Incumplido». En cualquier otro caso conserva su estado. |
 
 **Incumplimiento diario.** Una tarea diaria marca «Incumplido» todo compromiso «Pendiente» cuya fecha de pago sea anterior a hoy (`CommitmentRules::isBroken()`). Un compromiso que vence hoy no se incumple hasta mañana. Solo cuenta la fecha, no la hora.
+
+### CompromisoService
+
+`Infrastructure\Commitments\EloquentCompromisoService` implementa `CompromisoService` (`docs/arquitectura.md` §6.5) y Core la registra en el contenedor (una instancia por petición o por job). Guarda los compromisos en la tabla `commitments` (`Persistence\CommitmentRecord`, con `CommitmentRecordFactory` y sus estados `fulfilled()`, `broken()` y `cancelled()`). Los compromisos nunca se borran.
+
+| Columna | Contenido |
+|---|---|
+| `company`, `client_id` | La empresa (copiada del cliente) y el cliente. Un cliente con compromisos nunca se borra del todo. |
+| `advisor_code` | El asesor de SAP (`SlpCode`) que tenía el cliente al crear el compromiso. |
+| `amount`, `due_date` | El valor prometido en pesos (`decimal(18,2)`) y la fecha de pago (solo la fecha, en America/Bogota). |
+| `status` | El valor de `CommitmentStatus`: `pendiente`, `cumplido`, `incumplido` o `anulado`. |
+| `notes` | Texto libre que acompaña el compromiso. |
+| `created_by` | Quién lo registró. Un usuario con compromisos no se borra del todo; con el borrado lógico se sigue mostrando como autor. |
+| `fulfilled_at`, `broken_at`, `cancelled_at`, `cancellation_reason` | Cuándo se cumplió, se incumplió o se anuló, y el motivo de la anulación. |
+
+**Quién escribe** (crear, editar, cumplir y anular; `Application\Commitments\CommitmentWriteRule`):
+
+| Empresa del cliente | Escribe |
+|---|---|
+| SGX | El asesor del cliente: un usuario con el rol `asesor` vinculado (`advisors.user_id`) al asesor de SAP que el cliente tiene hoy (`clients.advisor_code`, en SGX). |
+| SDC | La analista de cartera (`analista_cartera`). |
+
+- Cualquier otro usuario que ve al cliente recibe `AuthorizationException`: `gerente_cartera`, `admin`, `gerente_comercial`, la analista en SGX y el asesor en SDC leen, pero no escriben.
+- Antes de la regla se revisa el alcance: un cliente (o el cliente de un compromiso) que no existe, está eliminado o está fuera del alcance del usuario en sus empresas (`Portfolio\ClientReach`, como en la bitácora) lanza `RecordNotFound`. Por eso un asesor que intenta escribir en un cliente de otro asesor recibe `RecordNotFound` y no `AuthorizationException`: para él ese cliente no existe (§6.2) y la respuesta no revela que el id existe. Sin sesión iniciada pasa lo mismo.
+- El orden de las revisiones es: alcance (`RecordNotFound`), regla de la empresa (`AuthorizationException`), datos (`InvalidArgumentException`) y ciclo de vida (`DomainException`).
+
+**Leer.**
+
+- `find()` busca entre los clientes del alcance del usuario en todas sus empresas, igual que las escrituras: un compromiso de SDC se encuentra aunque el usuario trabaje en SGX.
+- `paginate()` sigue la empresa activa o la vista de grupo, o las empresas de `CommitmentQuery::$companies` recortadas a las disponibles, como `CarteraRepository`. Los filtros se suman: `clientId`, `advisorCode` (el que guardó el compromiso), `statuses`, `dueFrom` y `dueTo` (las dos fechas incluidas, sin importar la hora). El orden es `due_date`, `amount` o `created_at`, ascendente o descendente, y los empates van por id ascendente. Lee la página de `?page=` y lanza `InvalidArgumentException` si `$perPage` es menor que 1.
+- El cliente (con su nombre actual) y el autor de toda una página se leen con una consulta cada uno.
+- Los compromisos de clientes eliminados no aparecen. Sin sesión iniciada, `find()` da `null` y `paginate()` una página vacía.
+
+**Escribir.** Cada escritura va en una sola transacción, con el compromiso y el cliente bloqueados. Deja una gestión «Compromiso de pago» en la bitácora del cliente, escrita por el usuario (mueve su última actividad), y una entrada de auditoría con sujeto `commitment`:
+
+| Método | Hace | Bitácora | Auditoría |
+|---|---|---|---|
+| `create()` | Crea el compromiso «Pendiente» con el asesor que el cliente tiene hoy. El valor se redondea a centavos; las notas se guardan sin espacios sobrantes (en blanco, ninguna). | «Compromiso de pago por $ 2.500.000 para el 22/10/2026», con las notas como detalle. | `core.commitment.created`, con `changes` `advisor_code`, `amount`, `due_date` y `notes`. |
+| `update()` | Solo un «Pendiente»; si no, `DomainException`. Cambia los campos que no vienen en `null`. Unas notas en blanco tampoco cambian: no se pueden borrar. Si nada cambia, no escribe nada. | «Compromiso actualizado: $ 3.000.000 para el 25/10/2026», con las notas como detalle. | `core.commitment.updated`, solo con los campos que cambian (`old` y `new`). |
+| `markFulfilled()` | Un «Pendiente» o un «Incumplido» (un pago tardío también cumple) pasa a «Cumplido» y guarda `fulfilled_at`. Un compromiso cumplido o anulado lanza `DomainException`. | «Compromiso cumplido: $ 2.500.000 para el 22/10/2026», con la nota como detalle. | `core.commitment.fulfilled`, con `changes.status` y `context.note` si hay nota. |
+| `cancel()` | Un «Pendiente» o un «Incumplido» pasa a «Anulado» con su motivo y `cancelled_at`. Un motivo en blanco lanza `InvalidArgumentException`; un compromiso cumplido o anulado, `DomainException`. | «Compromiso anulado: <motivo>», cortado a 255 caracteres (el motivo completo queda en el compromiso y en la auditoría). | `core.commitment.cancelled`, con `changes.status` y `context.reason`. |
+
+- El valor debe ser mayor que cero después de redondearlo a centavos, y caber en la columna; si no, `InvalidArgumentException`.
+- Las gestiones de compromiso llevan `metadata` `commitment_id`, `amount` (en pesos) y `due_date` (`Y-m-d`). La auditoría lleva `context.client_id`.
+- **Estado del cliente** (`Application\Commitments\CommitmentClientStatus`, con la tabla de arriba): al crear aplica `afterCreate()`, y al cumplir o anular, `afterClose()` según si el cliente tiene otro compromiso pendiente. Recalcular es tomar el estado automático de la última instantánea de la empresa (`RecomputeClientStatuses::automaticStatus()`) sin mirar el estado manual: «Vencida», «Por vencer» o «Al día» si el cliente debe, y «Pago recibido» si ya no debe (o no aparece en la instantánea). Editar un compromiso no cambia el estado.
+- Cada cambio de estado guarda `status` y `status_changed_at`, deja una gestión «Cambio de estado» («Por el compromiso de pago: de «Vencida» a «Compromiso»», con `metadata` `from`, `to` y `commitment_id`) y audita `core.client.status_changed` con `changes.status` y `context` `{"source": "commitment", "commitment_id": …}`.
 
 ## Empresas y parámetros
 
@@ -196,7 +242,7 @@ Ingesta guarda cada lote del robot (o de una carga manual) y despacha `BatchAcce
 | `max_days_overdue` | Días de vencida de la partida más atrasada entre las que deben más de la tolerancia (0,01); 0 si ninguna debe. Es negativo si ninguna está vencida todavía. |
 | `status` | `ClientStatusRules::resolve()` con el estado actual y los parámetros vigentes de la empresa (`CompanyCatalog::parameters()`, tabla `companies`). Ver «Estados del cliente»: un cliente que ya no debe pasa a «Pago recibido» (o sigue «Al día») y un estado manual se conserva mientras deba. |
 
-Solo se escriben los clientes cuyos valores cambian. Cuando cambia el estado de un cliente que ya existía, se guarda `status_changed_at` y se audita `core.client.status_changed`: sujeto `client`, `changes.status` con `old` y `new`, y `context` con `load_id` y `cutoff_date` de la instantánea. No tiene usuario porque lo hace el sistema. Cada cambio deja también una gestión del sistema en la bitácora del cliente (ver «Bitácora de gestiones»). Un cliente que crea la importación recibe su primer estado (y `status_changed_at` si no queda «Al día») sin entrada de auditoría ni de bitácora: es su estado inicial, no un cambio; así la primera carga del robot no escribe una entrada por cliente (`forCompany()` recibe esos clientes en `$newClientIds`). La tarea diaria de compromisos y la pantalla de parámetros reutilizarán este servicio.
+Solo se escriben los clientes cuyos valores cambian. Cuando cambia el estado de un cliente que ya existía, se guarda `status_changed_at` y se audita `core.client.status_changed`: sujeto `client`, `changes.status` con `old` y `new`, y `context` con `load_id` y `cutoff_date` de la instantánea. No tiene usuario porque lo hace el sistema. Cada cambio deja también una gestión del sistema en la bitácora del cliente (ver «Bitácora de gestiones»). Un cliente que crea la importación recibe su primer estado (y `status_changed_at` si no queda «Al día») sin entrada de auditoría ni de bitácora: es su estado inicial, no un cambio; así la primera carga del robot no escribe una entrada por cliente (`forCompany()` recibe esos clientes en `$newClientIds`). La pantalla de parámetros reutilizará este servicio; el flujo de compromisos lee el estado automático de un solo cliente con `automaticStatus()` (ver «Compromisos de pago»).
 
 **Asesores.** Por cada fila, por empresa y `slp_code`:
 
