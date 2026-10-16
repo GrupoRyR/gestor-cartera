@@ -4,6 +4,8 @@ namespace App\Modules\Core\Providers;
 
 use App\Models\User;
 use App\Modules\Core\Application\Auth\IdentityProvider;
+use App\Modules\Core\Application\Commitments\BreakOverdueCommitments;
+use App\Modules\Core\Console\BreakOverdueCommitmentsCommand;
 use App\Modules\Core\Contracts\AuditLogger;
 use App\Modules\Core\Contracts\CarteraRepository;
 use App\Modules\Core\Contracts\ClientStatusService;
@@ -27,6 +29,7 @@ use App\Modules\Core\Infrastructure\Portfolio\EloquentClientStatusService;
 use App\Support\Modules\ModuleServiceProvider;
 use App\Support\Navigation\NavItem;
 use App\Support\Navigation\NavRegistry;
+use Illuminate\Console\Scheduling\Schedule;
 use Illuminate\Contracts\Http\Kernel as HttpKernel;
 use Illuminate\Foundation\Http\Kernel as FoundationHttpKernel;
 use Illuminate\Support\Facades\Event;
@@ -87,6 +90,8 @@ final class CoreServiceProvider extends ModuleServiceProvider
         Event::listen(BatchAccepted::class, ImportReceivablesSnapshot::class);
         Event::listen(BatchAccepted::class, ImportAdvisors::class);
 
+        $this->commands([BreakOverdueCommitmentsCommand::class]);
+
         // Every web page signs out a deactivated user, with or without auth.
         // Appended through the HTTP kernel, not only the router: resolving the
         // kernel after boot (as tests do) syncs its groups into the router and
@@ -96,6 +101,19 @@ final class CoreServiceProvider extends ModuleServiceProvider
                 $kernel->appendMiddlewareToGroup('web', EnsureUserIsActive::class);
             }
         });
+    }
+
+    /**
+     * Pending commitments due before today become broken shortly after
+     * midnight in Bogotá. The run takes seconds, so a lock left by a killed
+     * process expires after 10 minutes instead of the default day.
+     */
+    protected function schedule(Schedule $schedule): void
+    {
+        $schedule->command(BreakOverdueCommitmentsCommand::class)
+            ->dailyAt('00:15')
+            ->timezone(BreakOverdueCommitments::TIMEZONE)
+            ->withoutOverlapping(10);
     }
 
     /**

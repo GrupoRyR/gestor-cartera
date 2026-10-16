@@ -18,7 +18,7 @@ use App\Modules\Core\Infrastructure\Persistence\CommitmentRecord;
  *
  * Every change saves status and status_changed_at, leaves an
  * ActivityType::StatusChange entry in the client's log (written by the
- * signed-in user) and is audited as
+ * signed-in user, or by the system in the daily task) and is audited as
  * core.client.status_changed with the context source = commitment.
  */
 final readonly class CommitmentClientStatus
@@ -38,9 +38,20 @@ final readonly class CommitmentClientStatus
     }
 
     /**
+     * A broken commitment moves the client to Defaulted, unless another
+     * commitment is still pending or the client is in Legal or
+     * PaymentReceived.
+     */
+    public function afterBreak(ClientRecord $client, CommitmentRecord $commitment): void
+    {
+        $this->apply($client, CommitmentRules::afterBreak($client->status, $this->hasOtherPending($commitment)), $commitment);
+    }
+
+    /**
      * A fulfilled or cancelled commitment hands the client back to its
      * automatic status from the latest snapshot, unless another commitment
-     * is still pending or someone chose another status meanwhile.
+     * is still pending, another one is broken (the client stays, or goes
+     * back to, Defaulted) or someone chose another status meanwhile.
      */
     public function afterClose(ClientRecord $client, CommitmentRecord $commitment): void
     {
