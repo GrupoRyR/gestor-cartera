@@ -10,8 +10,8 @@ final class SellerCode
 {
     /**
      * The leading integer of the SAP seller text: "14 MONICA RIVERA AREVALO" →
-     * 14, " 085 LILIAM" → 85, "SIN ASESOR" → null. Numbers longer than nine
-     * digits are not seller codes and also give null.
+     * 14, " 085 LILIAM" → 85, "SIN ASESOR" → null. Zero ("000 OFICINA") and
+     * numbers longer than nine digits are not seller codes and also give null.
      */
     public static function fromSapText(string $text): ?int
     {
@@ -21,7 +21,7 @@ final class SellerCode
 
         $digits = ltrim($matches[1], '0');
 
-        if (strlen($digits) > 9) {
+        if ($digits === '' || strlen($digits) > 9) {
             return null;
         }
 

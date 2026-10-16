@@ -47,6 +47,7 @@ describe('creation', function () {
         'empty' => [''],
         'decimal comma' => ['0,75'],
         'percent sign' => ['0.75 %'],
+        'trailing newline' => ["0.75\n"],
     ]);
 });
 

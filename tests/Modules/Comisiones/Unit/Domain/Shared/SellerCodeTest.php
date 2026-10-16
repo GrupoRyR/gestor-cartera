@@ -15,6 +15,8 @@ describe('fromSapText', function () {
         'empty' => ['', null],
         'number after the name' => ['ASESOR 14', null],
         'absurdly long number' => ['12345678901234567890 X', null],
+        'all-zero number' => ['000 OFICINA', null],
+        'single zero' => ['0', null],
     ]);
 });
 

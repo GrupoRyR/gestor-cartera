@@ -10,11 +10,12 @@ use InvalidArgumentException;
  * factors). Only plain decimals are accepted: an optional minus sign, digits
  * and an optional fractional part ("-1234.56"). Thousand separators, decimal
  * commas, exponents and fractions are rejected so a badly mapped SAP value
- * never turns silently into a different amount.
+ * never turns silently into a different amount. The pattern ends in \z, not
+ * $, so a trailing newline is rejected too.
  */
 final class Decimals
 {
-    private const PLAIN = '/^-?\d+(\.\d+)?$/';
+    private const PLAIN = '/^-?\d+(\.\d+)?\z/';
 
     /**
      * @throws InvalidArgumentException when a string is not a plain decimal.

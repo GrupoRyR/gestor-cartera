@@ -29,6 +29,7 @@ describe('parsing', function () {
         'fraction' => ['1/3'],
         'leading point' => ['.5'],
         'trailing point' => ['5.'],
+        'trailing newline' => ["123\n"],
     ]);
 
     it('starts at zero', function () {
