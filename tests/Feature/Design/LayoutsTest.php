@@ -21,6 +21,9 @@ use Tests\Feature\Design\Support\Html;
  */
 function registerLayoutPages(): void
 {
+    // An empty menu registry: the real entries of the modules would add links and permission checks to every page.
+    app()->instance(NavRegistry::class, new NavRegistry);
+
     $page = fn (string $title) => fn () => Blade::render(
         '<x-layouts.app :title="$title"><p>Contenido de {{ $title }}</p></x-layouts.app>',
         ['title' => $title],
