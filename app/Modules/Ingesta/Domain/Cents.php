@@ -18,6 +18,11 @@ final class Cents
     private const string DECIMAL = '/^(-?)(\d{1,16})(?:\.(\d{1,2}))?$/';
 
     /**
+     * The largest amount a decimal(18, 2) column holds, 9999999999999999.99.
+     */
+    public const int MAX = 999_999_999_999_999_999;
+
+    /**
      * Cents of a decimal string with a dot, no sign other than "-", no
      * thousands separator and at most two decimals.
      *
@@ -61,6 +66,14 @@ final class Cents
         }
 
         return $a + $b;
+    }
+
+    /**
+     * Whether a decimal(18, 2) column can hold the amount.
+     */
+    public static function fitsDecimal(int $cents): bool
+    {
+        return $cents >= -self::MAX && $cents <= self::MAX;
     }
 
     /**

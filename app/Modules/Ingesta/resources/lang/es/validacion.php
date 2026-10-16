@@ -27,6 +27,8 @@ return [
     'decimal6' => 'La columna :columna debe ser un número con punto decimal y hasta 6 decimales, como 4123.456789.',
     'fecha' => 'La columna :columna debe ser una fecha real con formato AAAA-MM-DD.',
 
+    'totales_fuera_de_rango' => 'Los totales de la cartera (saldo y saldo vencido) superan el máximo que se puede guardar, :max.',
+
     'llave_repetida' => 'La fila repite la llave (:llave) de la fila :fila.',
     'vacio' => 'vacío',
 
