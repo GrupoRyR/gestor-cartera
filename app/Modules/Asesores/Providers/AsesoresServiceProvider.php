@@ -91,6 +91,17 @@ final class AsesoresServiceProvider extends ModuleServiceProvider
                 group: $group,
                 order: 40,
             ),
+            new NavItem(
+                key: 'asesores.equipo',
+                label: __('asesores::comun.nav.equipo'),
+                route: 'asesores.equipo.index',
+                icon: 'company',
+                permission: 'asesores.team',
+                group: $group,
+                order: 50,
+                mobile: true,
+                activePattern: 'asesores.equipo.*',
+            ),
         );
     }
 }

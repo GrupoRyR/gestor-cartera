@@ -15,6 +15,7 @@ use App\Modules\Asesores\Http\Controllers\CommitmentController;
 use App\Modules\Asesores\Http\Controllers\DashboardController;
 use App\Modules\Asesores\Http\Controllers\HistoryController;
 use App\Modules\Asesores\Http\Controllers\NoteController;
+use App\Modules\Asesores\Http\Controllers\TeamController;
 use Illuminate\Support\Facades\Route;
 
 Route::middleware(['auth', 'can:asesores.view'])->group(function () {
@@ -26,6 +27,9 @@ Route::middleware(['auth', 'can:asesores.view'])->group(function () {
     Route::get('agenda', AgendaController::class)->name('agenda');
 
     Route::get('historico', HistoryController::class)->name('historico');
+
+    // Sales managers only: the advisors of their team.
+    Route::get('equipo', TeamController::class)->middleware('can:asesores.team')->name('equipo.index');
 
     // Anyone who views can read a commitment; only advisors write them.
     Route::get('compromisos/{commitment}', [CommitmentController::class, 'show'])->whereNumber('commitment')->name('compromisos.show');
