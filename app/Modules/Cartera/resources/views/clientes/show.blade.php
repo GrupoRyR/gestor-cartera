@@ -19,6 +19,9 @@
     >
         <x-slot:actions>
             <x-ui.link-button :href="route('cartera.clientes.index')" variant="ghost" icon="chevron-left">{{ __('cartera::ficha.volver') }}</x-ui.link-button>
+            @can('cartera.export')
+                <x-ui.link-button :href="route('cartera.clientes.exportar-ficha', $client->id)" variant="secondary" icon="download">{{ __('cartera::exportar.boton') }}</x-ui.link-button>
+            @endcan
         </x-slot:actions>
     </x-ui.page-header>
 

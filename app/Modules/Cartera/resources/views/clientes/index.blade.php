@@ -23,7 +23,13 @@
 @endphp
 
 <x-layouts.app :title="__('cartera::clientes.titulo')">
-    <x-ui.page-header :title="__('cartera::clientes.titulo')" :description="__('cartera::clientes.descripcion')" />
+    <x-ui.page-header :title="__('cartera::clientes.titulo')" :description="__('cartera::clientes.descripcion')">
+        @can('cartera.export')
+            <x-slot:actions>
+                <x-ui.link-button :href="route('cartera.clientes.exportar', $filter->query())" variant="secondary" icon="download">{{ __('cartera::exportar.boton') }}</x-ui.link-button>
+            </x-slot:actions>
+        @endcan
+    </x-ui.page-header>
 
     <form method="GET" action="{{ route('cartera.clientes.index') }}" role="search" aria-label="{{ __('cartera::clientes.filtros.etiqueta') }}" class="mb-6 grid gap-4 rounded-card border border-line bg-surface p-4 md:grid-cols-2 md:p-5 lg:grid-cols-4">
         @if ($filter->sort !== ClientListFilter::DEFAULT_SORT || $filter->direction !== ClientListFilter::DEFAULT_DIRECTION)

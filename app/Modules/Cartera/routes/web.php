@@ -5,7 +5,9 @@
 // Route::get('/', ...)->name('tablero') is GET /cartera named cartera.tablero.
 
 use App\Modules\Cartera\Http\Controllers\ClientFileController;
+use App\Modules\Cartera\Http\Controllers\ClientFileExportController;
 use App\Modules\Cartera\Http\Controllers\ClientListController;
+use App\Modules\Cartera\Http\Controllers\ClientListExportController;
 use App\Modules\Cartera\Http\Controllers\CommitmentController;
 use App\Modules\Cartera\Http\Controllers\CommitmentInboxController;
 use App\Modules\Cartera\Http\Controllers\DashboardController;
@@ -34,6 +36,12 @@ Route::middleware(['auth', 'can:cartera.view'])->group(function () {
         ->whereNumber('client')
         ->middleware('can:cartera.manage')
         ->name('gestiones.store');
+
+    // Excel exports of the client list and of one client file: cartera.export.
+    Route::middleware('can:cartera.export')->group(function () {
+        Route::get('clientes/exportar', ClientListExportController::class)->name('clientes.exportar');
+        Route::get('clientes/{client}/exportar', ClientFileExportController::class)->whereNumber('client')->name('clientes.exportar-ficha');
+    });
 
     Route::get('compromisos', CommitmentInboxController::class)->name('compromisos.index');
 
