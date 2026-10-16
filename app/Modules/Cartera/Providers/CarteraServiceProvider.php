@@ -26,7 +26,7 @@ final class CarteraServiceProvider extends ModuleServiceProvider
     {
         $navigation->add(
             new NavItem(
-                key: 'cartera.menu.tablero',
+                key: 'cartera.tablero',
                 label: 'Tablero',
                 route: 'cartera.tablero',
                 icon: 'dashboard',
@@ -36,7 +36,7 @@ final class CarteraServiceProvider extends ModuleServiceProvider
                 mobile: true,
             ),
             new NavItem(
-                key: 'cartera.menu.kanban',
+                key: 'cartera.kanban',
                 label: 'Kanban',
                 route: 'cartera.kanban',
                 icon: 'board',
@@ -46,7 +46,7 @@ final class CarteraServiceProvider extends ModuleServiceProvider
                 mobile: true,
             ),
             new NavItem(
-                key: 'cartera.menu.clientes',
+                key: 'cartera.clientes',
                 label: 'Clientes',
                 route: 'cartera.clientes.index',
                 icon: 'users',
@@ -57,7 +57,7 @@ final class CarteraServiceProvider extends ModuleServiceProvider
                 activePattern: 'cartera.clientes.*',
             ),
             new NavItem(
-                key: 'cartera.menu.compromisos',
+                key: 'cartera.compromisos',
                 label: 'Compromisos',
                 route: 'cartera.compromisos.index',
                 icon: 'calendar-check',

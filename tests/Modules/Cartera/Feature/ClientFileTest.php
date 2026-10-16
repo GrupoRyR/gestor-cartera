@@ -186,6 +186,19 @@ describe('mail replies', function () {
             ->assertDontSeeText('Correo de otro cliente');
     });
 
+    it('links to the message only when its address is https', function () {
+        $client = CarteraWorld::client($this->fakes, overdue: 1_000_000);
+        $this->fakes->mailbox->add(
+            Make::inboundMail(clientId: $client->id, subject: 'Correo seguro', url: 'https://outlook.office.com/mail/id/1'),
+            Make::inboundMail(clientId: $client->id, subject: 'Correo raro', url: 'javascript:alert(1)'),
+        );
+
+        $this->actingAs(CarteraUsers::analyst())
+            ->get("/cartera/clientes/{$client->id}")
+            ->assertSee('href="https://outlook.office.com/mail/id/1"', false)
+            ->assertDontSee('javascript:alert', false);
+    });
+
     it('says so when the client has not answered', function () {
         $client = CarteraWorld::client($this->fakes, overdue: 1_000_000);
 
