@@ -22,6 +22,10 @@ return [
     // thousand installments; this only stops a runaway extraction.
     'max_rows' => 200000,
 
+    // Days a manual cartera upload may wait on the local disk for confirm or
+    // discard; ingesta:limpiar-cargas-manuales deletes older ones every day.
+    'manual_upload_ttl_days' => 7,
+
     // Time (America/Bogota) by which the robot must have published the day's load.
     'alert_deadline' => env('INGESTA_ALERT_DEADLINE', '07:00'),
 

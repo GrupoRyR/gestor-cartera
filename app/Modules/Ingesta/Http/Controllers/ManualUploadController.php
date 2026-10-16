@@ -35,7 +35,10 @@ final class ManualUploadController
 {
     private const string SESSION = 'ingesta_manual';
 
-    private const string DIRECTORY = 'ingesta/manual';
+    /** Disk and directory of the uploads waiting for confirm or discard; ingesta:limpiar-cargas-manuales prunes them too. */
+    public const string DISK = 'local';
+
+    public const string DIRECTORY = 'ingesta/manual';
 
     public function __construct(
         private readonly ManualCarteraUpload $upload,
@@ -171,6 +174,6 @@ final class ManualUploadController
 
     private function disk(): FilesystemAdapter
     {
-        return Storage::disk('local');
+        return Storage::disk(self::DISK);
     }
 }
