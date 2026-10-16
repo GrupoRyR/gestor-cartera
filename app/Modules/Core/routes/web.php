@@ -12,6 +12,7 @@ use App\Modules\Core\Http\Controllers\Auth\MicrosoftRedirectController;
 use App\Modules\Core\Http\Controllers\HomeController;
 use App\Modules\Core\Http\Controllers\NoAccessController;
 use App\Modules\Core\Http\Controllers\Portfolio\ActivityController;
+use App\Modules\Core\Http\Controllers\Portfolio\ClientController;
 use App\Modules\Core\Http\Controllers\SwitchCompanyController;
 use App\Modules\Core\Http\Controllers\Team\TeamMemberController;
 use Illuminate\Support\Facades\Route;
@@ -52,3 +53,14 @@ Route::middleware(['auth', 'can:core.activities.delete'])
     ->delete('gestiones/{activity}', [ActivityController::class, 'destroy'])
     ->whereNumber('activity')
     ->name('gestiones.destroy');
+
+// Clients: portfolio managers soft-delete and restore a client within their
+// reach. {client} finds only clients not deleted, except on restore.
+Route::middleware(['auth', 'can:core.clients.delete'])
+    ->prefix('clientes')
+    ->name('clientes.')
+    ->controller(ClientController::class)
+    ->group(function () {
+        Route::delete('{client}', 'destroy')->whereNumber('client')->name('destroy');
+        Route::post('{client}/restaurar', 'restore')->whereNumber('client')->withTrashed()->name('restore');
+    });
