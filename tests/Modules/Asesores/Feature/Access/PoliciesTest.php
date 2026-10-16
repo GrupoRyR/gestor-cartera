@@ -25,7 +25,7 @@ beforeEach(function () {
 /**
  * A client of $company whose SAP advisor is linked to $user.
  */
-function clientOf(User $user, CompanyCode $company = CompanyCode::SGX): ClientDetail
+function asesoresClientOf(User $user, CompanyCode $company = CompanyCode::SGX): ClientDetail
 {
     return Make::clientDetail(Make::client(
         company: $company,
@@ -36,45 +36,45 @@ function clientOf(User $user, CompanyCode $company = CompanyCode::SGX): ClientDe
 it('lets an advisor, and a sales manager, view a client of their companies', function (Role $role) {
     $user = CoreUsers::create($role, CompanyCode::SGX);
 
-    expect(Gate::forUser($user)->allows('view', clientOf($user)))->toBeTrue();
+    expect(Gate::forUser($user)->allows('view', asesoresClientOf($user)))->toBeTrue();
 })->with([Role::SalesAdvisor, Role::SalesManager]);
 
 it('does not let other roles view a client through the advisor viewer', function (Role $role) {
     $user = CoreUsers::create($role, CompanyCode::SGX);
 
-    expect(Gate::forUser($user)->allows('view', clientOf($user)))->toBeFalse();
+    expect(Gate::forUser($user)->allows('view', asesoresClientOf($user)))->toBeFalse();
 })->with([Role::Admin, Role::PortfolioManager, Role::PortfolioAnalyst, Role::Treasury]);
 
 it('does not let a user view a client of a company they cannot work in', function () {
     $user = CoreUsers::create(Role::SalesAdvisor, CompanyCode::SGX);
     $this->app->instance(CurrentCompany::class, new FakeCurrentCompany(CompanyCode::SGX, [CompanyCode::SGX]));
 
-    expect(Gate::forUser($user)->allows('view', clientOf($user, CompanyCode::SDC)))->toBeFalse();
+    expect(Gate::forUser($user)->allows('view', asesoresClientOf($user, CompanyCode::SDC)))->toBeFalse();
 });
 
 it('lets the advisor of a SGX client manage its commitments', function () {
     $user = CoreUsers::create(Role::SalesAdvisor, CompanyCode::SGX);
 
-    expect(Gate::forUser($user)->allows('manage', clientOf($user)))->toBeTrue();
+    expect(Gate::forUser($user)->allows('manage', asesoresClientOf($user)))->toBeTrue();
 });
 
 it('does not let an advisor manage the commitments of a client of another advisor', function () {
     $user = CoreUsers::create(Role::SalesAdvisor, CompanyCode::SGX);
     $other = CoreUsers::create(Role::SalesAdvisor, CompanyCode::SGX);
 
-    expect(Gate::forUser($user)->allows('manage', clientOf($other)))->toBeFalse();
+    expect(Gate::forUser($user)->allows('manage', asesoresClientOf($other)))->toBeFalse();
 });
 
 it('does not let an advisor manage commitments in SDC, where the analyst writes them', function () {
     $user = CoreUsers::create(Role::SalesAdvisor, CompanyCode::SGX, CompanyCode::SDC);
 
-    expect(Gate::forUser($user)->allows('manage', clientOf($user, CompanyCode::SDC)))->toBeFalse();
+    expect(Gate::forUser($user)->allows('manage', asesoresClientOf($user, CompanyCode::SDC)))->toBeFalse();
 });
 
 it('does not let a sales manager manage commitments', function () {
     $user = CoreUsers::create(Role::SalesManager, CompanyCode::SGX);
 
-    expect(Gate::forUser($user)->allows('manage', clientOf($user)))->toBeFalse();
+    expect(Gate::forUser($user)->allows('manage', asesoresClientOf($user)))->toBeFalse();
 });
 
 it('lets an advisor edit only a pending commitment', function (CommitmentStatus $status, bool $allowed) {
