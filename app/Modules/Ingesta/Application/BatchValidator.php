@@ -27,7 +27,9 @@ final class BatchValidator
 
     private const string BATCH_ID = '/^[A-Za-z0-9._:-]+$/';
 
-    private const string DECIMAL2 = '/^-?\d{1,17}(\.\d{1,2})?$/';
+    // At most 16 integer digits: the range of decimal(18,2), which is what
+    // Cents adds up exactly for the totals of a cartera load.
+    private const string DECIMAL2 = '/^-?\d{1,16}(\.\d{1,2})?$/';
 
     private const string DECIMAL6 = '/^-?\d{1,13}(\.\d{1,6})?$/';
 

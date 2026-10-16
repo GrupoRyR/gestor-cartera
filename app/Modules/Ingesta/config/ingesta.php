@@ -11,6 +11,13 @@ return [
     // Maximum clock difference, in seconds, accepted on a signed request.
     'hmac_max_skew' => (int) env('INGESTA_HMAC_MAX_SKEW', 300),
 
+    // Largest robot request body, in bytes, as sent (gzipped or not); a
+    // bigger one answers 413. PHP's post_max_size must be at least this.
+    'max_request_bytes' => 20 * 1024 * 1024,
+
+    // Largest body once gunzipped, in bytes; a bigger one answers 422.
+    'max_payload_bytes' => 60 * 1024 * 1024,
+
     // Most rows one batch may carry. A cartera of a company has a few
     // thousand installments; this only stops a runaway extraction.
     'max_rows' => 200000,
