@@ -45,7 +45,28 @@ it('sends guests to the sign-in page', function (string $method, string $name) {
     expect(CompanyRecord::query()->findOrFail('SGX')->grace_days)->toBe(15);
 })->with('company parameter routes');
 
-it('forbids every role but admin', function (?Role $role, string $method, string $name) {
+it('lets admins and portfolio managers open the screen and save', function (Role $role) {
+    $user = CoreUsers::create($role, CompanyCode::SGX, CompanyCode::SDC);
+
+    $this->actingAs($user)->get(route('core.empresas.index'))->assertOk();
+    $this->actingAs($user)->get(route('core.empresas.edit', 'SGX'))->assertOk();
+    $this->actingAs($user)
+        ->put(route('core.empresas.update', 'SGX'), ['grace_days' => '20', 'due_soon_days' => '5'])
+        ->assertRedirect(route('core.empresas.index'));
+
+    $entries = TeamUsers::audits('core.company.updated');
+
+    expect(CompanyRecord::query()->findOrFail('SGX')->grace_days)->toBe(20)
+        ->and($entries)->toHaveCount(1)
+        ->and($entries[0]->user_id)->toBe($user->id)
+        ->and($entries[0]->subject_id)->toBe('SGX')
+        ->and($entries[0]->changes)->toEqual(['grace_days' => ['old' => 15, 'new' => 20]]);
+})->with([
+    'admin' => [Role::Admin],
+    'gerente de cartera' => [Role::PortfolioManager],
+]);
+
+it('forbids every role but admin and gerente de cartera', function (?Role $role, string $method, string $name) {
     $this->actingAs(CoreUsers::create($role, CompanyCode::SGX, CompanyCode::SDC))
         ->{$method}(companyParametersUrl($name), ['grace_days' => '20', 'due_soon_days' => '5'])
         ->assertForbidden();
@@ -53,7 +74,6 @@ it('forbids every role but admin', function (?Role $role, string $method, string
     expect(CompanyRecord::query()->findOrFail('SGX')->grace_days)->toBe(15)
         ->and(AuditLogRecord::query()->where('action', 'core.company.updated')->count())->toBe(0);
 })->with([
-    'gerente de cartera' => [Role::PortfolioManager],
     'analista de cartera' => [Role::PortfolioAnalyst],
     'asesor' => [Role::SalesAdvisor],
     'gerente comercial' => [Role::SalesManager],
@@ -91,13 +111,28 @@ it('shows Parámetros in the admin menu, after Equipo', function () {
     $this->actingAs($admin)->get('/')->assertRedirect(route('core.equipo.index'));
 });
 
-it('keeps Parámetros out of the menu of the other roles', function () {
+it('shows Parámetros in the portfolio manager menu, without Equipo', function () {
+    $manager = CoreUsers::create(Role::PortfolioManager, CompanyCode::SGX, CompanyCode::SDC);
+
+    $html = TeamUsers::html($this->actingAs($manager)->get('/empresas')->assertOk());
+    $link = $html->one('//nav[@id="menu-principal"]//a[@aria-current="page"]');
+
+    expect(Html::clean($link->textContent))->toBe('Parámetros')
+        ->and($link->getAttribute('href'))->toBe(route('core.empresas.index'))
+        ->and($html->count('//nav[@id="menu-principal"]//a[@href="'.route('core.equipo.index').'"]'))->toBe(0)
+        ->and($html->text('//h1'))->toBe('Parámetros');
+});
+
+it('shows Parámetros only to admins and portfolio managers', function () {
     $visibleKeys = fn (User $user): array => array_map(
         fn (NavItem $item): string => $item->key,
         app(NavRegistry::class)->visibleTo($user),
     );
 
     expect($visibleKeys(TeamUsers::admin()))->toContain('core.empresas')
-        ->and($visibleKeys(CoreUsers::create(Role::PortfolioManager, CompanyCode::SGX)))->not->toContain('core.empresas')
-        ->and($visibleKeys(CoreUsers::create(null)))->not->toContain('core.empresas');
+        ->and($visibleKeys(CoreUsers::create(Role::PortfolioManager, CompanyCode::SGX)))->toContain('core.empresas');
+
+    foreach ([Role::PortfolioAnalyst, Role::SalesAdvisor, Role::SalesManager, Role::Treasury, null] as $role) {
+        expect($visibleKeys(CoreUsers::create($role, CompanyCode::SGX)))->not->toContain('core.empresas');
+    }
 });

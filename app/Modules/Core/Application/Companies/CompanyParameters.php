@@ -7,7 +7,7 @@ use App\Modules\Core\Infrastructure\Companies\CompanyCatalog;
 
 /**
  * One company as the Parámetros screen shows it: its name and the
- * parameters of the client statuses that admins edit, read from
+ * parameters of the client statuses edited there, read from
  * CompanyCatalog.
  */
 final readonly class CompanyParameters

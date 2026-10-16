@@ -21,8 +21,9 @@ final class CorePermissionSeeder extends PermissionSeeder
      * activation and soft delete). Only admins (IT, Part A.5).
      *
      * core.companies.manage: the Parámetros screen (grace days and due-soon
-     * window of each company). Only admins (IT: "usuarios, parámetros y
-     * buzones", Part A.5).
+     * window of each company). Admins (IT: "usuarios, parámetros y buzones",
+     * Part A.5) and the portfolio manager, who tunes the status rules of the
+     * portfolio.
      *
      * core.activities.delete: soft-delete an entry of a client's log
      * (gestión). The portfolio manager and the analyst, who run the log.
@@ -41,7 +42,7 @@ final class CorePermissionSeeder extends PermissionSeeder
         return [
             'core.access' => Role::cases(),
             'core.team.manage' => [Role::Admin],
-            'core.companies.manage' => [Role::Admin],
+            'core.companies.manage' => [Role::Admin, Role::PortfolioManager],
             'core.activities.delete' => [Role::PortfolioManager, Role::PortfolioAnalyst],
             'core.clients.change_status' => [Role::PortfolioManager, Role::PortfolioAnalyst],
             'core.clients.delete' => [Role::PortfolioManager],
