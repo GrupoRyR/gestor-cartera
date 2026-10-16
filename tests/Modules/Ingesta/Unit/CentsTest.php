@@ -32,3 +32,11 @@ it('sums without float drift and writes the decimal back', function () {
 it('refuses a sum that leaves the 64-bit range', function () {
     Cents::sum([PHP_INT_MAX, 1]);
 })->throws(OverflowException::class);
+
+it('tells whether a decimal(18,2) column holds an amount', function () {
+    expect(Cents::fitsDecimal(Cents::fromDecimal('9999999999999999.99')))->toBeTrue()
+        ->and(Cents::fitsDecimal(Cents::fromDecimal('-9999999999999999.99')))->toBeTrue()
+        ->and(Cents::fitsDecimal(Cents::MAX + 1))->toBeFalse()
+        ->and(Cents::fitsDecimal(-Cents::MAX - 1))->toBeFalse()
+        ->and(Cents::toDecimal(Cents::MAX))->toBe('9999999999999999.99');
+});

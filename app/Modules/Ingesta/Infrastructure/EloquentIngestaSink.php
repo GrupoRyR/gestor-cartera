@@ -24,6 +24,7 @@ use Illuminate\Database\DatabaseManager;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\UniqueConstraintViolationException;
 use InvalidArgumentException;
+use OverflowException;
 use UnexpectedValueException;
 
 /**
@@ -31,6 +32,9 @@ use UnexpectedValueException;
  * ingesta_loads; an accepted one keeps its rows as a dated snapshot in
  * ingesta_load_chunks (ChunkCodec), in the dataset's column order, and is
  * never overwritten.
+ *
+ * A cartera whose totals do not fit a decimal(18, 2) column is rejected
+ * like any other invalid batch, even when every row is valid on its own.
  *
  * Idempotency rests on the unique accepted_batch_id: a repeated batch id,
  * also from a concurrent request, returns the accepted load without
@@ -54,15 +58,26 @@ final class EloquentIngestaSink implements IngestaSink
         }
 
         $errors = $this->validator->errors($batch);
+        $totals = [null, null];
 
-        if ($errors !== []) {
+        if ($errors === [] && $batch->dataset === Dataset::Receivables) {
+            $totals = $this->carteraTotals($batch->rows);
+
+            if ($totals === null) {
+                $errors = ['rows' => [__('ingesta::validacion.totales_fuera_de_rango', ['max' => Cents::toDecimal(Cents::MAX)])]];
+            }
+        }
+
+        if ($errors !== [] || $totals === null) {
             $this->storeRejected($batch, $errors);
 
             throw new InvalidBatch(BatchValidator::summarize($errors), $errors);
         }
 
+        [$total, $overdue] = $totals;
+
         try {
-            $load = $this->db->connection()->transaction(fn (): IngestaLoad => $this->storeAccepted($batch));
+            $load = $this->db->connection()->transaction(fn (): IngestaLoad => $this->storeAccepted($batch, $total, $overdue));
         } catch (UniqueConstraintViolationException $e) {
             // A concurrent copy of the batch was accepted first: it wins.
             return $this->findAccepted($batch->batchId) ?? throw $e;
@@ -149,11 +164,13 @@ final class EloquentIngestaSink implements IngestaSink
 
     /**
      * The accepted load and its chunks; the caller wraps it in a transaction.
+     *
+     * @param  int|null  $total  Cents of the cartera saldo; null for other datasets.
+     * @param  int|null  $overdue  Cents of the overdue saldo; null for other datasets.
      */
-    private function storeAccepted(IncomingBatch $batch): IngestaLoad
+    private function storeAccepted(IncomingBatch $batch, ?int $total, ?int $overdue): IngestaLoad
     {
         $columns = DatasetSchemas::for($batch->dataset)->columnNames();
-        [$total, $overdue] = $batch->dataset === Dataset::Receivables ? $this->carteraTotals($batch->rows) : [null, null];
 
         $load = IngestaLoad::query()->create($this->attributes($batch) + [
             'batch_id' => $batch->batchId,
@@ -202,20 +219,24 @@ final class EloquentIngestaSink implements IngestaSink
      * validator already checked both are present and well formed.
      *
      * @param  list<array<string, scalar|null>>  $rows
-     * @return array{int, int}
+     * @return array{int, int}|null Null when a total leaves the decimal(18, 2) range or overflows.
      */
-    private function carteraTotals(array $rows): array
+    private function carteraTotals(array $rows): ?array
     {
         $total = 0;
         $overdue = 0;
 
-        foreach ($rows as $row) {
-            $balance = Cents::fromDecimal((string) $row['saldo']);
-            $total = Cents::add($total, $balance);
-            $overdue = (int) $row['dias'] > 0 ? Cents::add($overdue, $balance) : $overdue;
+        try {
+            foreach ($rows as $row) {
+                $balance = Cents::fromDecimal((string) $row['saldo']);
+                $total = Cents::add($total, $balance);
+                $overdue = (int) $row['dias'] > 0 ? Cents::add($overdue, $balance) : $overdue;
+            }
+        } catch (InvalidArgumentException|OverflowException) {
+            return null;
         }
 
-        return [$total, $overdue];
+        return Cents::fitsDecimal($total) && Cents::fitsDecimal($overdue) ? [$total, $overdue] : null;
     }
 
     /**
