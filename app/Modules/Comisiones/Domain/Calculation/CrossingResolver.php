@@ -64,7 +64,7 @@ final class CrossingResolver
         if ($seller === null) {
             $this->alerts->add(new Alert(
                 AlertKind::ClientWithoutSeller,
-                $line->key,
+                LineFilter::reference($line),
                 "El cruce {$line->key} es del cliente {$line->clientCode} ({$line->clientName}), que no tenía vendedor asignado el {$date->format('d/m/Y')}; asígnale uno o corrige el cruce.",
             ));
         }
@@ -99,7 +99,7 @@ final class CrossingResolver
 
         $this->alerts->add(new Alert(
             AlertKind::CrossingWithoutBase,
-            $line->key,
+            LineFilter::reference($line),
             "El cruce {$line->key} no trae la base sin IVA de la factura {$line->invoiceNumber} ni el valor cruzado sin IVA; no se puede liquidar.",
             $sellerCode,
         ));

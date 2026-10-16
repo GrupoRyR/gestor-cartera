@@ -37,7 +37,7 @@ final class SettlementCalculator
             ->calculate($input->payments, $input->crossings, $input->assignments);
         $captures = new ManualCaptures($parameters, $alerts, $input->obrSales, $input->adjustments);
         $directors = (new DirectorCommission($parameters))->calculate($sales, $collections);
-        $derived = (new DerivedCommission($parameters))->calculate($sales, $collections);
+        $derived = (new DerivedCommission($parameters, $alerts))->calculate($sales, $collections);
 
         $codes = [];
 

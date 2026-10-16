@@ -52,7 +52,7 @@ describe('lines', function () {
             ->and($line->annulled)->toBeFalse();
     });
 
-    it('detects a foreign currency or an exchange rate other than one', function (string $currency, string $rate, bool $foreign) {
+    it('detects a currency other than pesos, whatever the exchange rate', function (string $currency, string $rate, bool $foreign) {
         expect(Lines::sale(14, 1_000, currency: $currency, exchangeRate: $rate)->isForeignCurrency())->toBe($foreign)
             ->and(Lines::payment(14, 1_000, currency: $currency, exchangeRate: $rate)->isForeignCurrency())->toBe($foreign)
             ->and(Lines::crossing(1_000, currency: $currency, exchangeRate: $rate)->isForeignCurrency())->toBe($foreign);
@@ -62,7 +62,7 @@ describe('lines', function () {
         'pesos in lower case' => ['cop', '1', false],
         'dollars' => ['USD', '4000', true],
         'dollars at one' => ['USD', '1', true],
-        'pesos with a rate' => ['COP', '3950.5', true],
+        'pesos with a rate, which never makes them foreign' => ['COP', '3950.5', false],
     ]);
 
     it('rejects a line without key', function (Closure $build) {

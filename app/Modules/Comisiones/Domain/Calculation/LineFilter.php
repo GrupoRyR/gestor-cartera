@@ -65,37 +65,35 @@ final class LineFilter
     }
 
     /**
-     * An amount of the line in pesos (§14.7). Lines in pesos at rate 1 keep
-     * it. Otherwise AsReported keeps it and raises ForeignCurrency; Convert
-     * multiplies it by the exchange rate, to cents, and still raises
-     * ForeignCurrency when another currency comes at rate 1 (SAP sends TRM 1
-     * today, so that rate is likely missing, not real).
+     * An amount of the line in pesos (§14.7). An amount in pesos (COP) is
+     * never multiplied: at rate 1 it is kept silently; with another rate it
+     * is kept too and raises ForeignCurrency, because that TRM was ignored.
+     * An amount in another currency: AsReported keeps it and raises
+     * ForeignCurrency; Convert multiplies it by the exchange rate, to cents,
+     * and still raises ForeignCurrency at rate 1 (SAP sends TRM 1 today, so
+     * that rate is likely missing, not real).
      */
     public function pesos(Money $amount, SaleLine|PaymentLine|CrossingLine $line): Money
     {
+        $unitRate = Decimals::parse($line->exchangeRate)->isEqualTo(1);
+
         if (! $line->isForeignCurrency()) {
+            if (! $unitRate) {
+                $this->warnCurrency($line, "La línea {$line->key} viene en {$line->currency} con TRM {$line->exchangeRate}; se ignoró la TRM porque la línea está en pesos.");
+            }
+
             return $amount;
         }
 
         if ($this->parameters->options()->currency === CurrencyTreatment::Convert) {
-            if (Decimals::parse($line->exchangeRate)->isEqualTo(1)) {
-                $this->alerts->add(new Alert(
-                    AlertKind::ForeignCurrency,
-                    self::reference($line),
-                    "La línea {$line->key} viene en {$line->currency} con TRM 1; revisa la TRM, se tomó el valor reportado.",
-                    $line instanceof CrossingLine ? $line->sellerOverride : $line->sellerCode,
-                ));
+            if ($unitRate) {
+                $this->warnCurrency($line, "La línea {$line->key} viene en {$line->currency} con TRM 1; revisa la TRM, se tomó el valor reportado.");
             }
 
             return $amount->multipliedBy($line->exchangeRate)->toCents();
         }
 
-        $this->alerts->add(new Alert(
-            AlertKind::ForeignCurrency,
-            self::reference($line),
-            "La línea {$line->key} viene en {$line->currency} con TRM {$line->exchangeRate}; se tomó el valor reportado.",
-            $line instanceof CrossingLine ? $line->sellerOverride : $line->sellerCode,
-        ));
+        $this->warnCurrency($line, "La línea {$line->key} viene en {$line->currency} con TRM {$line->exchangeRate}; se tomó el valor reportado.");
 
         return $amount;
     }
@@ -139,6 +137,17 @@ final class LineFilter
         };
 
         return "{$kind}:{$line->key}";
+    }
+
+    /** Raises the ForeignCurrency warning of the line (§14.7). */
+    private function warnCurrency(SaleLine|PaymentLine|CrossingLine $line, string $message): void
+    {
+        $this->alerts->add(new Alert(
+            AlertKind::ForeignCurrency,
+            self::reference($line),
+            $message,
+            $line instanceof CrossingLine ? $line->sellerOverride : $line->sellerCode,
+        ));
     }
 
     private static function duplicate(SaleLine|PaymentLine|CrossingLine $line): Alert

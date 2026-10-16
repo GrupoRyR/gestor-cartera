@@ -119,7 +119,8 @@ describe('crossing seller (§5.4, §14.5)', function () {
         $controls = $result->controls();
 
         expect($alerts)->toHaveCount(1)
-            ->and($alerts[0]->reference)->toBe('CR-9')
+            ->and($alerts[0]->reference)->toBe('cruce:CR-9')
+            ->and($alerts[0]->key())->toBe('cliente_sin_vendedor:cruce:CR-9')
             ->and($alerts[0]->sellerCode)->toBeNull()
             ->and($alerts[0]->isBlocking())->toBeTrue()
             ->and($alerts[0]->message)->toBe('El cruce CR-9 es del cliente C-9 (Cliente C-9), que no tenía vendedor asignado el 16/09/2026; asígnale uno o corrige el cruce.')
@@ -167,7 +168,8 @@ describe('crossing base without VAT (§5.4)', function () {
 
         expect(Settle::code($result, 34)->transactions())->toBe(0)
             ->and($alerts)->toHaveCount(1)
-            ->and($alerts[0]->reference)->toBe('CR-7')
+            ->and($alerts[0]->reference)->toBe('cruce:CR-7')
+            ->and($alerts[0]->key())->toBe('cruce_sin_base:cruce:CR-7')
             ->and($alerts[0]->sellerCode)->toBe(34)
             ->and($alerts[0]->isBlocking())->toBeTrue()
             ->and($alerts[0]->message)->toBe('El cruce CR-7 no trae la base sin IVA de la factura 7007 ni el valor cruzado sin IVA; no se puede liquidar.')
@@ -177,8 +179,8 @@ describe('crossing base without VAT (§5.4)', function () {
     it('raises both alerts for a crossing without seller and without base', function () {
         $result = Settle::collections('2026-09', crossings: [Lines::crossing(500_000, key: 'CR-8')]);
 
-        expect(Settle::references($result, AlertKind::ClientWithoutSeller))->toBe(['CR-8'])
-            ->and(Settle::references($result, AlertKind::CrossingWithoutBase))->toBe(['CR-8']);
+        expect(Settle::references($result, AlertKind::ClientWithoutSeller))->toBe(['cruce:CR-8'])
+            ->and(Settle::references($result, AlertKind::CrossingWithoutBase))->toBe(['cruce:CR-8']);
     });
 });
 
@@ -256,5 +258,22 @@ describe('crossing line filtering (§5.1)', function () {
             ->and($detail->invoiceAmount->amount())->toBe('4760000')
             ->and($detail->commission->amount())->toBe('30000')
             ->and($result->alerts())->toBe([]);
+    });
+
+    it('never converts a crossing in pesos, whatever its TRM, and warns that the TRM was ignored', function () {
+        $result = Settle::collections(
+            '2026-09',
+            crossings: [Lines::crossing(1_190_000, key: 'CR-11', invoiceAmount: 1_190_000, taxBase: 1_000_000, exchangeRate: '4000')],
+            assignments: $this->assignments,
+            options: new SettlementOptions(currency: CurrencyTreatment::Convert),
+        );
+        $detail = Settle::code($result, 34)->collectionDetails[0];
+
+        expect($detail->paidBase->amount())->toBe('1000000')
+            ->and($detail->invoiceAmount->amount())->toBe('1190000')
+            ->and($detail->commission->amount())->toBe('7500')
+            ->and(Settle::references($result, AlertKind::ForeignCurrency))->toBe(['cruce:CR-11'])
+            ->and($result->alertsOf(AlertKind::ForeignCurrency)[0]->message)
+            ->toBe('La línea CR-11 viene en COP con TRM 4000; se ignoró la TRM porque la línea está en pesos.');
     });
 });

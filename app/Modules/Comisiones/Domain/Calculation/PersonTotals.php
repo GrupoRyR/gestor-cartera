@@ -11,13 +11,16 @@ use App\Modules\Comisiones\Domain\Shared\PersonRef;
  * What each person is paid (§5.7): the sum of every role, the "valor pago
  * nómina". The roles are, in this order:
  *
- *   - every regular or separate code ("Código 14 – Mónica Rivera"); a
- *     control code (80, 100) only when it has something to pay;
+ *   - every regular or separate code with activity in the period ("Código
+ *     14 – Mónica Rivera"), even when it pays zero; a code without activity
+ *     and nothing to pay is left out, and a control code (80, 100) is listed
+ *     only when it has something to pay;
  *   - every derived commission ("Sergio Caballero (venta)");
  *   - every director team paid as a role of its own ("Director Distribución").
  *     A team paid with its associated code is already in that code's total.
  *
- * A code without person is paid as its own person ("codigo-17").
+ * A code without person is paid as its own person ("codigo-17"). A person
+ * left without roles is not listed.
  */
 final class PersonTotals
 {
@@ -67,7 +70,9 @@ final class PersonTotals
         $roles = [];
 
         foreach ($codes as $code => $settlement) {
-            if ($settlement->rule->scope === CodeScope::Control && $settlement->total->isZero()) {
+            $idle = $settlement->rule->scope === CodeScope::Control || ! $settlement->hasActivity();
+
+            if ($idle && $settlement->total->isZero()) {
                 continue;
             }
 

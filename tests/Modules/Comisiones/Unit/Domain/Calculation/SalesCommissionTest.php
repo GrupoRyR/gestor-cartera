@@ -1,5 +1,6 @@
 <?php
 
+use App\Modules\Comisiones\Application\DefaultParameters;
 use App\Modules\Comisiones\Domain\Calculation\Alert;
 use App\Modules\Comisiones\Domain\Calculation\AlertCollector;
 use App\Modules\Comisiones\Domain\Calculation\AlertKind;
@@ -12,9 +13,15 @@ use App\Modules\Comisiones\Domain\Parameters\Options\ComplianceScope;
 use App\Modules\Comisiones\Domain\Parameters\Options\CreditNoteTreatment;
 use App\Modules\Comisiones\Domain\Parameters\Options\CurrencyTreatment;
 use App\Modules\Comisiones\Domain\Parameters\Options\SalesBasis;
+use App\Modules\Comisiones\Domain\Parameters\OptionsVersion;
+use App\Modules\Comisiones\Domain\Parameters\ParameterBook;
+use App\Modules\Comisiones\Domain\Parameters\SellerCodeRule;
 use App\Modules\Comisiones\Domain\Parameters\SettlementOptions;
 use App\Modules\Comisiones\Domain\Shared\Period;
+use App\Modules\Comisiones\Domain\Shared\PersonRef;
+use App\Modules\Comisiones\Domain\Shared\Validity;
 use Tests\Modules\Comisiones\Support\Lines;
+use Tests\Modules\Comisiones\Support\Params;
 use Tests\Modules\Comisiones\Support\Settle;
 
 describe('Annex 2 sales (July 2026)', function () {
@@ -217,20 +224,41 @@ describe('compliance scope (§14.6)', function () {
             ->and(Settle::code($result, 17)->saleCommission->amount())->toBe('712500');
     });
 
-    it('leaves the codes of a person without budget out of the aggregate', function () {
+    it('adds the sales of a person\'s code without budget to the person\'s sales, and nothing to the budget', function () {
+        // Harold Marín: 32 has the only budget, 34 sells without one; 200M over 100M.
         $result = Settle::sales(
             [Lines::sale(32, 80_000_000), Lines::sale(34, 120_000_000)],
             [Lines::budget(32, 100_000_000)],
             new SettlementOptions(complianceScope: ComplianceScope::Person),
         );
 
-        expect(Settle::code($result, 32)->compliance->percent())->toBe('80')
-            ->and(Settle::code($result, 32)->saleCommission->amount())->toBe('0')
-            ->and(Settle::code($result, 34)->compliance->percent())->toBe('80');
+        expect(Settle::code($result, 32)->compliance->percent())->toBe('200')
+            ->and(Settle::code($result, 32)->meetsMinimum)->toBeTrue()
+            ->and(Settle::code($result, 32)->saleCommission->amount())->toBe('600000')
+            ->and(Settle::code($result, 34)->compliance->percent())->toBe('200');
     });
 
-    it('measures a code without its own budget on the budget of its person', function (int $sales34, bool $meets, string $commission) {
-        // Harold Marín: 32 has a 90 % minimum, 34 none; only 34 has a budget.
+    it('judges a code without its own budget with its own sales in the person\'s compliance', function () {
+        // Harold Marín: 32 (90 % minimum) sells 20M without budget; 34 sells 80M on a 100M budget.
+        // The person sells 100M on 100M: 100 %, so 32 is paid 0.75 % of its 20M.
+        $result = Settle::sales(
+            [Lines::sale(32, 20_000_000), Lines::sale(34, 80_000_000)],
+            [Lines::budget(34, 100_000_000)],
+            new SettlementOptions(complianceScope: ComplianceScope::Person),
+        );
+        $settlement = Settle::code($result, 32);
+
+        expect($settlement->hasBudget())->toBeFalse()
+            ->and($settlement->compliance->percent())->toBe('100')
+            ->and($settlement->meetsMinimum)->toBeTrue()
+            ->and($settlement->saleCommission->amount())->toBe('150000')
+            ->and(Settle::code($result, 34)->compliance->percent())->toBe('100')
+            ->and(Settle::code($result, 34)->saleCommission->amount())->toBe('600000')
+            ->and($result->alertsOf(AlertKind::MissingBudget))->toBe([]);
+    });
+
+    it('measures a code without its own budget on the sales and budget of its whole person', function (int $sales34, bool $meets, string $commission) {
+        // Harold Marín: 32 has a 90 % minimum, 34 none; only 34 has a budget; 32 adds its 10M.
         $result = Settle::sales(
             [Lines::sale(32, 10_000_000), Lines::sale(34, $sales34)],
             [Lines::budget(34, 100_000_000)],
@@ -243,9 +271,32 @@ describe('compliance scope (§14.6)', function () {
             ->and($settlement->saleCommission->amount())->toBe($commission)
             ->and($result->alertsOf(AlertKind::MissingBudget))->toBe([]);
     })->with([
-        'the person reaches 95 %' => [95_000_000, true, '75000'],
-        'the person stays at 85 %' => [85_000_000, false, '0'],
+        'the person reaches 90 % with the sales of 32' => [80_000_000, true, '75000'],
+        'the person stays at 85 %' => [75_000_000, false, '0'],
     ]);
+
+    it('leaves a control code of the person out of the person\'s compliance', function () {
+        // Code 80 (control) assigned to Harold Marín: its 50M of sales never count toward his compliance.
+        $book = DefaultParameters::book();
+        $harold = new PersonRef('harold-marin', 'Harold Marín');
+        $result = Settle::using(new ParameterBook(
+            codes: [
+                ...array_values(array_filter($book->codes, fn (SellerCodeRule $rule) => $rule->code !== 80)),
+                Params::rule(80, saleRate: '0', collectionRate: '0', minimum: '0', scope: CodeScope::Control, person: $harold),
+            ],
+            trancheTables: $book->trancheTables,
+            teams: $book->teams,
+            derived: $book->derived,
+            options: [new OptionsVersion(Validity::from('2026-01-01'), new SettlementOptions(complianceScope: ComplianceScope::Person))],
+        ), new SettlementInput(
+            Period::of(2026, 7),
+            sales: [Lines::sale(32, 20_000_000), Lines::sale(34, 60_000_000), Lines::sale(80, 50_000_000)],
+            budgets: [Lines::budget(34, 100_000_000)],
+        ));
+
+        expect(Settle::code($result, 32)->compliance->percent())->toBe('80')
+            ->and(Settle::code($result, 32)->saleCommission->amount())->toBe('0');
+    });
 
     it('asks for a budget when no code of the person has one', function () {
         $result = Settle::sales(
@@ -425,6 +476,24 @@ describe('line filtering (§5.1)', function () {
             ->and(Settle::code($result, 34)->saleDetails[0]->total->amount())->toBe('1000.333')
             ->and($result->alerts())->toBe([]);
     });
+
+    it('never converts a sale in pesos, whatever its TRM, and warns that the TRM was ignored', function (CurrencyTreatment $treatment) {
+        $result = Settle::sales(
+            [Lines::sale(34, 1_000_000, key: 'F9-1', exchangeRate: '3950.5')],
+            options: new SettlementOptions(currency: $treatment),
+        );
+        $alerts = $result->alertsOf(AlertKind::ForeignCurrency);
+
+        expect(Settle::code($result, 34)->sales->amount())->toBe('1000000')
+            ->and(Settle::code($result, 34)->saleCommission->amount())->toBe('7500')
+            ->and(Settle::references($result, AlertKind::ForeignCurrency))->toBe(['venta:F9-1'])
+            ->and($alerts[0]->isBlocking())->toBeFalse()
+            ->and($alerts[0]->sellerCode)->toBe(34)
+            ->and($alerts[0]->message)->toBe('La línea F9-1 viene en COP con TRM 3950.5; se ignoró la TRM porque la línea está en pesos.');
+    })->with([
+        'as reported' => [CurrencyTreatment::AsReported],
+        'converting' => [CurrencyTreatment::Convert],
+    ]);
 });
 
 describe('credit notes and VAT (§14.2)', function () {

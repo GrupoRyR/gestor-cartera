@@ -80,8 +80,13 @@ Lines dated outside the period may be sent (the robot adds 7 days of the previou
 
 A crossing's base without VAT is `crossedAmount × taxBase / invoiceAmount` when the tax base is given
 (or invoice amount − VAT) and the invoice amount is not zero; otherwise `crossedAmountWithoutVat`;
-otherwise the crossing is left out with `cruce_sin_base`. Reports 2 and 4 carry no currency column, so
-their `currency` stays `COP`.
+otherwise the crossing is left out with `cruce_sin_base`.
+
+Reports 2 and 4 have no currency column: set `currency` from the invoice's currency whenever the
+infrastructure knows it (Report 1 has it for the same invoice). A line left as `COP` is never converted,
+whatever its TRM: a TRM other than 1 on it is ignored with a `moneda_extranjera` warning.
+
+Seller codes are 1 or more: `SellerCodeRule` rejects code 0, which `SellerCode::fromSapText` never returns.
 
 ## Open points 14.2–14.7
 
@@ -95,8 +100,8 @@ Answered by `SettlementOptions`, versioned through `OptionsVersion`. The default
 | 14.3 Crossings in the director base | `crossingsInDirectorCollections` | `false`, **an assumption to confirm**: the Excel is taken to add only the SAP collections | `true` |
 | 14.4 Director commission of 50 and 53 | `directorPlacement` | `Separate`: its own "Director {channel}" role | `AssociatedCode`: added to the total of code 50 or 53 |
 | 14.5 Seller of a crossing | `crossingSeller` | `CrossingDate`: seller in force on the crossing date | `InvoiceDate` |
-| 14.6 Compliance scope | `complianceScope` | `Code` | `Person`: a person's codes share one compliance |
-| 14.7 Foreign currency | `currency` | `AsReported`: amount kept, `moneda_extranjera` warning | `Convert`: amount × TRM, to cents |
+| 14.6 Compliance scope | `complianceScope` | `Code` | `Person`: a person's codes share one compliance: Σ sales / Σ budgets of all the person's non-control codes; a code without budget adds its sales and no budget |
+| 14.7 Foreign currency | `currency` | `AsReported`: amount kept, `moneda_extranjera` warning | `Convert`: amount × TRM, to cents, only for a currency other than `COP` |
 
 **AssociatedCode fallback.** When a team has no associated code, or that code has no parameters in the
 period, the team is still paid as its own director role (`DirectorSettlement::$paidWithCode` is null), so
@@ -112,6 +117,14 @@ the director never loses it.
 - The minimum compliance is checked exactly (`sales ≥ budget × minimum`); the compliance shown is
   sales / budget at 6 decimals, half up.
 
+## Totals per person
+
+`SettlementResult::persons()` is the payroll summary (§5.7, §8.1 annex), sorted by name. Each person adds
+up their roles: a regular or separate code with activity in the period (lines, budget, captures or a
+director commission placed on it), even when it pays zero; a control code only when it pays something;
+every derived commission (81.1, 85.1) and every director team paid apart, even at zero. A code without
+activity and nothing to pay is not a role, and a person without roles is not listed.
+
 ## Alerts
 
 `Alert::key()` is `"{kind}:{reference}"`. It is stable between recalculations and unique within a
@@ -119,15 +132,15 @@ result, so justifications are keyed by it. Blocking alerts stop the approval unt
 
 | Kind | Severity | Reference | Raised when |
 |---|---|---|---|
-| `codigo_desconocido` | blocking | the code (`99`), the SAP seller text, or `sin vendedor` | A line or capture whose code has no parameters, or a line without code |
-| `cliente_sin_vendedor` | blocking | the crossing key | A crossing whose client had no seller on the date |
+| `codigo_desconocido` | blocking | the code (`99`), the SAP seller text, or `sin vendedor` | A line or capture whose code has no parameters, a line without code, or a derived commission (81.1, 85.1) whose source code has no parameters, which settles at zero |
+| `cliente_sin_vendedor` | blocking | `cruce:{key}` | A crossing whose client had no seller on the date |
 | `sin_presupuesto` | blocking | the code | A code with a minimum, sales and no budget |
 | `comision_negativa` | blocking | the code (`34`), the derived key (`81.1`) or the team key (`distribucion`) | A negative sale, collection or total commission of a code; a negative derived commission; a negative sales part, collection part or total of a director team |
 | `linea_duplicada` | blocking | `venta:{key}`, `pago:{key}` or `cruce:{key}` | The same natural key twice in one list |
-| `cruce_sin_base` | blocking | the crossing key | A crossing without any base without VAT |
+| `cruce_sin_base` | blocking | `cruce:{key}` | A crossing without any base without VAT |
 | `pago_antes_de_factura` | warning | `pago:{key}` or `cruce:{key}` | Paid before the invoice date; counted as 0 days |
 | `recaudo_anulado` | warning | `pago:{key}` or `cruce:{key}` | An annulled payment or crossing, left out |
-| `moneda_extranjera` | warning | `venta:{key}`, `pago:{key}` or `cruce:{key}` | Another currency or a TRM other than 1; with `Convert`, only another currency at TRM 1 |
+| `moneda_extranjera` | warning | `venta:{key}`, `pago:{key}` or `cruce:{key}` | Another currency (with `Convert`, only at TRM 1), or a `COP` line with a TRM other than 1, which is ignored |
 
 Derived and team keys are never plain numbers, and a team and a derived commission never share a key,
 so the three kinds of `comision_negativa` references never collide.

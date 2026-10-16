@@ -30,8 +30,8 @@ describe('SellerCodeRule', function () {
         expect(Params::rule(14)->usesTranches)->toBeTrue();
     });
 
-    it('rejects a negative code or a blank name', function (int $code, string $name) {
-        new SellerCodeRule(
+    it('rejects a code below 1 or a blank name', function (int $code, string $name, string $message) {
+        expect(fn () => new SellerCodeRule(
             Validity::from('2026-01-01'),
             $code,
             $name,
@@ -40,11 +40,16 @@ describe('SellerCodeRule', function () {
             Percentage::of('0.75'),
             Percentage::of(90),
             CodeScope::Regular,
-        );
-    })->throws(InvalidArgumentException::class)->with([
-        'negative code' => [-1, 'Código'],
-        'blank name' => [14, ' '],
+        ))->toThrow(InvalidArgumentException::class, $message);
+    })->with([
+        'code 0, which SAP never reports as a seller' => [0, 'Código', 'SAP seller codes start at 1, got 0.'],
+        'negative code' => [-1, 'Código', 'SAP seller codes start at 1, got -1.'],
+        'blank name' => [14, ' ', 'Seller code 14 needs a name.'],
     ]);
+
+    it('accepts code 1, the first SAP seller code', function () {
+        expect(Params::rule(1)->code)->toBe(1);
+    });
 });
 
 describe('CodeScope', function () {

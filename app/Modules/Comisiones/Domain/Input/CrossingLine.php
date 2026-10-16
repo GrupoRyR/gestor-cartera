@@ -63,8 +63,9 @@ final readonly class CrossingLine
         return $this->crossingDate;
     }
 
+    /** Whether the line is in another currency than pesos; its TRM never makes a peso line foreign (§14.7). */
     public function isForeignCurrency(): bool
     {
-        return LineFields::isForeign($this->currency, $this->exchangeRate);
+        return LineFields::isForeign($this->currency);
     }
 }

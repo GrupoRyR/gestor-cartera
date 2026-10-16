@@ -84,32 +84,14 @@ describe('totals per person (§5.7, July 2026)', function () {
             ->and($settlement->total->amount())->toBe('7500');
     });
 
-    it('lists the people by name', function () {
+    it('lists by name the people with something in the period', function () {
         expect(array_map(fn (PersonSettlement $person) => $person->person->name, $this->result->persons()))->toBe([
-            'Adriana Russi',
-            'Anderson Avendaño',
             'Andrea Hincapié',
-            'Carolina Ramírez',
             'Código 17',
-            'Código 18',
             'Código 21',
-            'Código 23',
-            'Código 33',
-            'Código 36',
-            'Código 43',
-            'Código 51',
-            'Código 52',
-            'Código 61',
-            'Código 66',
-            'Código 67',
-            'Código 69',
-            'Código 86',
             'Harold Marín',
-            'Jenny Rocío Buitrago',
             'Jessika Quintero',
             'Liliam Herrera',
-            'Mónica Rivera',
-            'Paola Vargas',
             'Sergio Caballero',
         ]);
     });
@@ -123,6 +105,36 @@ describe('totals per person (§5.7, July 2026)', function () {
 
         expect($persons->amount())->toBe($codes->plus($derived)->plus($directors)->amount())
             ->and($persons->amount())->toBe('15550236');
+    });
+});
+
+describe('codes without activity in the totals per person (§5.7, §8.1 annex)', function () {
+    it('leaves out a code without activity, and a person left without roles', function () {
+        // Only code 34 of Harold Marín sells: 32 has nothing, Mónica Rivera (14) and code 17 neither.
+        $result = Settle::sales([Lines::sale(34, 1_000_000)]);
+
+        expect(Settle::roles(Settle::person($result, 'harold-marin')))->toBe([[RoleKind::Code, '34', 'Código 34 – Harold Marín', '7500']])
+            ->and($result->person('monica-rivera'))->toBeNull()
+            ->and($result->person('codigo-17'))->toBeNull();
+    });
+
+    it('keeps a code with activity even when it pays nothing', function () {
+        // Code 14 sells 1 % of its budget: below the minimum, so it pays zero, but it had activity.
+        $result = Settle::sales([Lines::sale(14, 1_000_000)], [Lines::budget(14, 100_000_000), Lines::budget(15, 50_000_000)]);
+
+        expect(Settle::roles(Settle::person($result, 'monica-rivera')))->toBe([[RoleKind::Code, '14', 'Código 14 – Mónica Rivera', '0']])
+            ->and(Settle::roles(Settle::person($result, 'paola-vargas')))->toBe([[RoleKind::Code, '15', 'Código 15 – Paola Vargas', '0']]);
+    });
+
+    it('keeps the derived and director roles even at zero', function () {
+        $result = Settle::sales([]);
+
+        expect(array_map(fn (PersonSettlement $person) => $person->person->name, $result->persons()))
+            ->toBe(['Andrea Hincapié', 'Jessika Quintero', 'Sergio Caballero'])
+            ->and(Settle::roles(Settle::person($result, 'jessika-quintero')))
+            ->toBe([[RoleKind::Director, 'distribucion', 'Director Distribución', '0']])
+            ->and(array_map(fn (PersonRole $role) => $role->reference, Settle::person($result, 'sergio-caballero')->roles))
+            ->toBe(['81.1', '85.1']);
     });
 });
 

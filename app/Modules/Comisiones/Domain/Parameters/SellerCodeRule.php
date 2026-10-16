@@ -14,7 +14,7 @@ use InvalidArgumentException;
 final readonly class SellerCodeRule
 {
     /**
-     * @param  int  $code  SAP seller code (§4).
+     * @param  int  $code  SAP seller code (§4), 1 or more: SAP never reports code 0 as a seller.
      * @param  string  $name  Name shown in reports ("Mónica Rivera", "Oficina – Varios").
      * @param  PersonRef|null  $person  Who gets paid; null settles the code as its own person.
      * @param  Percentage  $saleRate  Rate on the code's total sales when it meets the minimum (§5.2).
@@ -23,7 +23,7 @@ final readonly class SellerCodeRule
      *                                         zero pays from the first peso (§5.2).
      * @param  bool  $usesTranches  False pays the full collection rate whatever the days (code 85, §5.3).
      *
-     * @throws InvalidArgumentException when the code is negative or the name is blank.
+     * @throws InvalidArgumentException when the code is below 1 or the name is blank.
      */
     public function __construct(
         public Validity $validity,
@@ -36,8 +36,8 @@ final readonly class SellerCodeRule
         public CodeScope $scope,
         public bool $usesTranches = true,
     ) {
-        if ($code < 0) {
-            throw new InvalidArgumentException("A seller code cannot be negative, got {$code}.");
+        if ($code < 1) {
+            throw new InvalidArgumentException("SAP seller codes start at 1, got {$code}.");
         }
 
         if (trim($name) === '') {

@@ -17,12 +17,14 @@ use App\Modules\Comisiones\Domain\Shared\Percentage;
  *
  * The collections are the source code's payments; its crossings count only
  * when the options say so (§14.3; the current Excel leaves them out). A
- * source code without parameters in the period gives a zero base.
+ * source code without parameters in the period gives a zero base and raises
+ * UnknownSellerCode for that code, so the zero is justified before approval.
  */
 final class DerivedCommission
 {
     public function __construct(
         private readonly PeriodParameters $parameters,
+        private readonly AlertCollector $alerts,
     ) {}
 
     /**
@@ -34,6 +36,13 @@ final class DerivedCommission
 
         foreach ($this->parameters->derived() as $rule) {
             if ($this->parameters->code($rule->sourceCode) === null) {
+                // Same reference as the alert of the code's lines, so both raise one alert.
+                $this->alerts->add(new Alert(
+                    AlertKind::UnknownSellerCode,
+                    (string) $rule->sourceCode,
+                    "El código {$rule->sourceCode} no tiene parámetros en el período; la comisión especial {$rule->key} queda en cero.",
+                    $rule->sourceCode,
+                ));
                 $settlements[] = new DerivedSettlement($rule, Money::zero(), Money::zero());
 
                 continue;

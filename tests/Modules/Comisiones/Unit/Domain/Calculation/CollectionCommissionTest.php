@@ -311,6 +311,25 @@ describe('collection line filtering (§5.1)', function () {
         'USD at 1' => ['USD', '1', ['pago:P8-1']],
         'COP at 1' => ['COP', '1', []],
     ]);
+
+    it('never converts a payment in pesos, whatever its TRM, and warns that the TRM was ignored', function (CurrencyTreatment $treatment) {
+        $result = Settle::collections(
+            '2026-08',
+            [Lines::payment(34, 1_000_000, paymentDate: '2026-08-10', days: 10, key: 'P9-1', exchangeRate: '3950.5')],
+            options: new SettlementOptions(currency: $treatment),
+        );
+        $detail = Settle::code($result, 34)->collectionDetails[0];
+
+        expect($detail->paidBase->amount())->toBe('1000000')
+            ->and($detail->invoiceAmount->amount())->toBe('1000000')
+            ->and(Settle::code($result, 34)->collectionCommission->amount())->toBe('7500')
+            ->and(Settle::references($result, AlertKind::ForeignCurrency))->toBe(['pago:P9-1'])
+            ->and($result->alertsOf(AlertKind::ForeignCurrency)[0]->message)
+            ->toBe('La línea P9-1 viene en COP con TRM 3950.5; se ignoró la TRM porque la línea está en pesos.');
+    })->with([
+        'as reported' => [CurrencyTreatment::AsReported],
+        'converting' => [CurrencyTreatment::Convert],
+    ]);
 });
 
 describe('negative collections', function () {

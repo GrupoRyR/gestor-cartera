@@ -1,5 +1,6 @@
 <?php
 
+use App\Modules\Comisiones\Application\DefaultParameters;
 use App\Modules\Comisiones\Domain\Calculation\AlertKind;
 use App\Modules\Comisiones\Domain\Calculation\CollectionDetail;
 use App\Modules\Comisiones\Domain\Calculation\CollectionSource;
@@ -7,6 +8,8 @@ use App\Modules\Comisiones\Domain\Calculation\DerivedSettlement;
 use App\Modules\Comisiones\Domain\Input\DocumentType;
 use App\Modules\Comisiones\Domain\Input\SettlementInput;
 use App\Modules\Comisiones\Domain\Parameters\CodeScope;
+use App\Modules\Comisiones\Domain\Parameters\ParameterBook;
+use App\Modules\Comisiones\Domain\Parameters\SellerCodeRule;
 use App\Modules\Comisiones\Domain\Parameters\SettlementOptions;
 use App\Modules\Comisiones\Domain\Shared\Money;
 use App\Modules\Comisiones\Domain\Shared\Period;
@@ -127,6 +130,40 @@ describe('derived commissions without a base', function () {
         expect(Settle::derived($result, '99.1')->base->amount())->toBe('0')
             ->and(Settle::derived($result, '99.1')->commission->amount())->toBe('0')
             ->and(Settle::references($result, AlertKind::UnknownSellerCode))->toBe(['99']);
+    });
+
+    it('blocks the settlement when the source code has no parameters, even without lines', function () {
+        // Code 85 is not in force in July: 85.1 settles at zero and asks for a justification.
+        $book = DefaultParameters::book();
+        $result = Settle::using(new ParameterBook(
+            codes: array_values(array_filter($book->codes, fn (SellerCodeRule $rule) => $rule->code !== 85)),
+            trancheTables: $book->trancheTables,
+            teams: $book->teams,
+            derived: $book->derived,
+        ), new SettlementInput(Period::of(2026, 7)));
+        $alerts = $result->alertsOf(AlertKind::UnknownSellerCode);
+
+        expect(Settle::derived($result, '85.1')->commission->amount())->toBe('0')
+            ->and($alerts)->toHaveCount(1)
+            ->and($alerts[0]->key())->toBe('codigo_desconocido:85')
+            ->and($alerts[0]->sellerCode)->toBe(85)
+            ->and($alerts[0]->isBlocking())->toBeTrue()
+            ->and($alerts[0]->message)->toBe('El código 85 no tiene parámetros en el período; la comisión especial 85.1 queda en cero.');
+    });
+
+    it('raises one alert for the source code when its lines already raised it', function () {
+        $book = DefaultParameters::book();
+        $result = Settle::using(new ParameterBook(
+            codes: array_values(array_filter($book->codes, fn (SellerCodeRule $rule) => $rule->code !== 85)),
+            trancheTables: $book->trancheTables,
+            teams: $book->teams,
+            derived: $book->derived,
+        ), new SettlementInput(Period::of(2026, 8), payments: Annex::code85Payments('2026-08')));
+        $alerts = $result->alertsOf(AlertKind::UnknownSellerCode);
+
+        expect($alerts)->toHaveCount(1)
+            ->and($alerts[0]->reference)->toBe('85')
+            ->and($alerts[0]->message)->toBe('El código 85 no existe en los parámetros del período; sus líneas quedan sin asignar.');
     });
 });
 

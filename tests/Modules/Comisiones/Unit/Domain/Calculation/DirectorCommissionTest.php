@@ -125,13 +125,14 @@ describe('director placement (§14.4)', function () {
     });
 
     it('does not pay the teams again as roles of the director', function () {
+        // Codes 84 and 81 have no activity in this input, so they are not roles of anyone.
         $references = fn (PersonSettlement $person) => array_map(fn (PersonRole $role) => $role->reference, $person->roles);
 
-        expect($references(Settle::person($this->associated, 'jessika-quintero')))->toBe(['53', '84'])
-            ->and($references(Settle::person($this->associated, 'andrea-hincapie')))->toBe(['50', '81'])
-            ->and($references(Settle::person($this->separate, 'jessika-quintero')))->toBe(['53', '84', 'distribucion'])
+        expect($references(Settle::person($this->associated, 'jessika-quintero')))->toBe(['53'])
+            ->and($references(Settle::person($this->associated, 'andrea-hincapie')))->toBe(['50'])
+            ->and($references(Settle::person($this->separate, 'jessika-quintero')))->toBe(['53', 'distribucion'])
             ->and($references(Settle::person($this->separate, 'andrea-hincapie')))
-            ->toBe(['50', '81', 'construccion-residencial', 'construccion-institucional']);
+            ->toBe(['50', 'construccion-residencial', 'construccion-institucional']);
     });
 
     it('pays every person the same total under both placements', function () {
@@ -150,11 +151,11 @@ describe('director placement (§14.4)', function () {
             teams: [Params::team('prueba', [14], channel: 'Prueba', associatedCode: $associatedCode)],
         );
         $result = Settle::using($book, new SettlementInput(Period::of(2026, 7), sales: [Lines::sale(14, 1_000_000)]));
-        $roles = Settle::person($result, 'jessika-quintero')->roles;
+        $directorRoles = array_filter(Settle::person($result, 'jessika-quintero')->roles, fn (PersonRole $role) => $role->kind === RoleKind::Director);
 
         expect(Settle::director($result, 'prueba')->paidWithCode)->toBeNull()
             ->and(Settle::director($result, 'prueba')->total->amount())->toBe('2000')
-            ->and(array_map(fn (PersonRole $role) => [$role->kind, $role->reference, $role->label, $role->amount->amount()], array_slice($roles, 2)))
+            ->and(array_map(fn (PersonRole $role) => [$role->kind, $role->reference, $role->label, $role->amount->amount()], array_values($directorRoles)))
             ->toBe([[RoleKind::Director, 'prueba', 'Director Prueba', '2000']]);
     })->with([
         'a code without parameters' => [99],

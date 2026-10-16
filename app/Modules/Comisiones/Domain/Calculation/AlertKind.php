@@ -38,7 +38,7 @@ enum AlertKind: string
     /** An annulled payment or crossing in the period, left out (§9.6). */
     case AnnulledCollection = 'recaudo_anulado';
 
-    /** A line in another currency or with an exchange rate other than 1 (§14.7). */
+    /** A line in another currency, or a line in pesos whose exchange rate other than 1 was ignored (§14.7). */
     case ForeignCurrency = 'moneda_extranjera';
 
     public function label(): string

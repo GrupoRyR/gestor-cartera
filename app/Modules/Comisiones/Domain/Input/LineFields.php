@@ -31,9 +31,13 @@ final class LineFields
         }
     }
 
-    /** Whether the amounts are not plain pesos: another currency, or an exchange rate other than 1. */
-    public static function isForeign(string $currency, string $exchangeRate): bool
+    /**
+     * Whether the amounts are in another currency than pesos (COP, any case).
+     * The exchange rate never makes a peso line foreign: a peso amount is
+     * never multiplied by a TRM (§14.7).
+     */
+    public static function isForeign(string $currency): bool
     {
-        return strtoupper(trim($currency)) !== 'COP' || ! Decimals::parse($exchangeRate)->isEqualTo(1);
+        return strtoupper(trim($currency)) !== 'COP';
     }
 }

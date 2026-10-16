@@ -98,7 +98,7 @@ final class SalesCommission
      * The minimum and the MissingBudget alert look at the basis budget: the
      * code's own, or the person's when compliance is measured per person
      * (§14.6), so a code without its own budget can still meet the minimum
-     * on the budget of the person's other codes.
+     * on the person's sales over the budget of the person's other codes.
      *
      * @param  array<int, Money>  $sales  Sales of every code with a rule.
      * @param  array<int, Money>  $budgets  Budget of every code that has rows.
@@ -139,7 +139,9 @@ final class SalesCommission
 
     /**
      * The sales and budget the compliance is measured on: the code's own, or,
-     * per person (§14.6), the sum over the person's codes that have a budget.
+     * per person (§14.6), the sales and the budgets of all the person's codes
+     * except the control ones. A code without its own budget adds its sales
+     * and nothing to the budget, so it is judged with its own sales too.
      * Codes without a person always stay per code.
      *
      * @param  array<int, Money>  $sales
@@ -160,14 +162,12 @@ final class SalesCommission
         $personBudget = Money::zero();
 
         foreach ($this->parameters->codes() as $code => $other) {
-            $budget = $budgets[$code] ?? null;
-
-            if ($other->person?->id !== $person->id || $budget === null || ! $budget->isPositive()) {
+            if ($other->person?->id !== $person->id || $other->scope === CodeScope::Control) {
                 continue;
             }
 
             $personSales = $personSales->plus($sales[$code]);
-            $personBudget = $personBudget->plus($budget);
+            $personBudget = $personBudget->plus($budgets[$code] ?? Money::zero());
         }
 
         return [$personSales, $personBudget];
