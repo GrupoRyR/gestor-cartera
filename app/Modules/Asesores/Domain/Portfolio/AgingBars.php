@@ -2,6 +2,7 @@
 
 namespace App\Modules\Asesores\Domain\Portfolio;
 
+use App\Modules\Asesores\Domain\Chart\BarWidth;
 use App\Modules\Core\Contracts\Data\AgingBuckets;
 
 /**
@@ -10,11 +11,6 @@ use App\Modules\Core\Contracts\Data\AgingBuckets;
  */
 final class AgingBars
 {
-    /**
-     * A bucket with money in it never draws thinner than this, in percent.
-     */
-    private const float MIN_WIDTH = 1.5;
-
     /**
      * @return list<AgingRow> Not due first, then older and older.
      */
@@ -37,20 +33,11 @@ final class AgingBars
                 key: $key,
                 value: $value,
                 share: $total == 0.0 ? 0.0 : round($value / $total * 100, 1),
-                width: self::width($value, $biggest),
+                width: BarWidth::of($value, $biggest),
                 negative: $value < 0,
             );
         }
 
         return $rows;
-    }
-
-    private static function width(float $value, float $biggest): float
-    {
-        if ($value == 0.0 || $biggest == 0.0) {
-            return 0.0;
-        }
-
-        return max(self::MIN_WIDTH, round(abs($value) / $biggest * 100, 1));
     }
 }
