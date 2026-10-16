@@ -5,6 +5,7 @@ namespace App\Modules\Core\Providers;
 use App\Models\User;
 use App\Modules\Core\Application\Auth\IdentityProvider;
 use App\Modules\Core\Contracts\AuditLogger;
+use App\Modules\Core\Contracts\CarteraRepository;
 use App\Modules\Core\Contracts\CurrentCompany;
 use App\Modules\Core\Contracts\Events\BatchAccepted;
 use App\Modules\Core\Http\Middleware\EnsureUserIsActive;
@@ -16,6 +17,7 @@ use App\Modules\Core\Infrastructure\Ingest\ImportAdvisors;
 use App\Modules\Core\Infrastructure\Ingest\ImportReceivablesSnapshot;
 use App\Modules\Core\Infrastructure\Persistence\AdvisorRecord;
 use App\Modules\Core\Infrastructure\Persistence\CompanyRecord;
+use App\Modules\Core\Infrastructure\Portfolio\EloquentCarteraRepository;
 use App\Support\Modules\ModuleServiceProvider;
 use App\Support\Navigation\NavItem;
 use App\Support\Navigation\NavRegistry;
@@ -52,6 +54,9 @@ final class CoreServiceProvider extends ModuleServiceProvider
 
         // Reads the signed-in user and the request, so one per request (or job).
         $this->app->scoped(AuditLogger::class, DatabaseAuditLogger::class);
+
+        // Follows CurrentCompany, so one per request (or job) as well.
+        $this->app->scoped(CarteraRepository::class, EloquentCarteraRepository::class);
 
         // Microsoft Entra ID sign-in; tests bind a fake instead.
         $this->app->bind(IdentityProvider::class, SocialiteMicrosoftIdentityProvider::class);
