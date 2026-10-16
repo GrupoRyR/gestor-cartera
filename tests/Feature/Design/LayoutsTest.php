@@ -221,6 +221,8 @@ describe('<x-layouts.app>', function () {
 
     it('checks each navigation permission once per page', function () {
         registerLayoutPages();
+        // A registry of its own: the modules' real menu entries (which also use cartera.view) would add links and checks.
+        app()->instance(NavRegistry::class, new NavRegistry);
         $checks = 0;
         Gate::define('cartera.view', function () use (&$checks): bool {
             $checks++;
