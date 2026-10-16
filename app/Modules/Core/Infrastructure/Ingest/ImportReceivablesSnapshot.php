@@ -3,6 +3,7 @@
 namespace App\Modules\Core\Infrastructure\Ingest;
 
 use App\Modules\Core\Application\Portfolio\Cents;
+use App\Modules\Core\Application\Portfolio\CompanyStatusesLock;
 use App\Modules\Core\Application\Portfolio\RecomputeClientStatuses;
 use App\Modules\Core\Contracts\Data\LoadRecord;
 use App\Modules\Core\Contracts\Enums\CompanyCode;
@@ -12,8 +13,10 @@ use App\Modules\Core\Contracts\IngestaSink;
 use App\Modules\Core\Infrastructure\Persistence\ClientRecord;
 use App\Modules\Core\Infrastructure\Persistence\InvoiceRecord;
 use App\Modules\Core\Infrastructure\Persistence\PortfolioLoadRecord;
+use DateTimeInterface;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Database\ConnectionInterface;
+use Illuminate\Queue\Middleware\WithoutOverlapping;
 
 /**
  * Imports a cartera batch accepted by Ingesta as a receivables snapshot, in
@@ -29,14 +32,29 @@ use Illuminate\Database\ConnectionInterface;
  *
  * Idempotent: a load that already has its snapshot is skipped. The rows are
  * read twice (clients and totals, then invoices), so memory stays flat.
+ *
+ * Runs only while it holds the company's CompanyStatusesLock, shared with
+ * RecomputeCompanyStatuses, so the two never recompute the same company at
+ * once. Being idempotent by load_id, running it again after a release is
+ * safe.
  */
 final class ImportReceivablesSnapshot implements ShouldQueue
 {
     /** Seconds a large snapshot may take before the worker stops it. */
     public int $timeout = 300;
 
-    /** A failed import is rolled back whole and kept in failed_jobs. */
-    public int $tries = 1;
+    /**
+     * A run killed at the timeout fails instead of retrying until
+     * retryUntil(): only waiting for the lock is retried.
+     */
+    public bool $failOnTimeout = true;
+
+    /**
+     * A real exception rolls the import back whole and fails it at once,
+     * kept in failed_jobs. Waiting for the lock is a release, not an
+     * exception: it retries until retryUntil().
+     */
+    public int $maxExceptions = 1;
 
     /** Rows written per statement. */
     private const int CHUNK = 500;
@@ -56,6 +74,22 @@ final class ImportReceivablesSnapshot implements ShouldQueue
     public function shouldQueue(BatchAccepted $event): bool
     {
         return $event->load->dataset === Dataset::Receivables;
+    }
+
+    /**
+     * @return list<WithoutOverlapping>
+     */
+    public function middleware(BatchAccepted $event): array
+    {
+        return [CompanyStatusesLock::middleware($event->load->company)];
+    }
+
+    /**
+     * How long an import that finds the company's lock taken keeps retrying.
+     */
+    public function retryUntil(BatchAccepted $event): DateTimeInterface
+    {
+        return now()->addMinutes(CompanyStatusesLock::RETRY_MINUTES);
     }
 
     public function handle(BatchAccepted $event): void
