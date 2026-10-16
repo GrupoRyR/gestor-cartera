@@ -20,8 +20,9 @@ use Illuminate\Database\Eloquent\ModelNotFoundException;
  * Recomputes the figures and the automatic status cached on every client of
  * a company from one snapshot, with the company's current parameters.
  *
- * Used by the robot import after each cartera snapshot; the daily commitment
- * task and the parameters screen reuse it.
+ * Used by the robot import after each cartera snapshot; the parameters screen
+ * will reuse it. The commitment workflow reads the automatic status of one
+ * client with automaticStatus().
  */
 final class RecomputeClientStatuses
 {
@@ -128,6 +129,26 @@ final class RecomputeClientStatuses
     }
 
     /**
+     * The automatic status of one client from the latest snapshot of its
+     * company, ignoring the manual status it has now: what the commitment
+     * workflow hands a client back to (StatusDecision::recompute()).
+     *
+     * Resolved as from a manual status, so a client that no longer owes
+     * anything (or is missing from the snapshot, or whose company has no
+     * snapshot yet) becomes PaymentReceived, and one that owes gets
+     * Overdue, DueSoon or Current. Reads only; the caller saves it.
+     */
+    public function automaticStatus(ClientRecord $client): ClientStatus
+    {
+        $snapshot = $this->snapshot($client->company, null);
+        $positions = $snapshot === null ? [] : $this->positions($snapshot, $client->id);
+        $position = $positions[$client->id] ?? new ClientPosition;
+
+        // Any automatic status other than Current: Current would stay Current on a zero balance.
+        return ClientStatusRules::resolve(ClientStatus::Overdue, $position->items(), $this->companies->parameters($client->company));
+    }
+
+    /**
      * One system entry (ActivityType::StatusChange) per status change in the
      * log of its client, inserted CHUNK rows per statement. A bulk insert
      * skips the model, so the metadata goes JSON-encoded and the timestamps
@@ -173,17 +194,19 @@ final class RecomputeClientStatuses
     }
 
     /**
-     * The position of every client with items in the snapshot, read in one
-     * query and added up in cents, so sums are exact on every engine.
+     * The position of every client with items in the snapshot (or only of
+     * $clientId), read in one query and added up in cents, so sums are exact
+     * on every engine.
      *
      * @return array<int, ClientPosition>
      */
-    private function positions(PortfolioLoadRecord $snapshot): array
+    private function positions(PortfolioLoadRecord $snapshot, ?int $clientId = null): array
     {
         $positions = [];
 
         $items = InvoiceRecord::query()
             ->where('portfolio_load_id', $snapshot->id)
+            ->when($clientId !== null, fn ($items) => $items->where('client_id', $clientId))
             ->toBase()
             ->select(['client_id', 'balance', 'days_overdue'])
             ->cursor();
