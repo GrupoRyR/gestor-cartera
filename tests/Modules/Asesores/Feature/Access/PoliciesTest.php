@@ -115,3 +115,15 @@ it('does not let an advisor change a SDC commitment', function () {
 
     expect(Gate::forUser($user)->allows('update', Make::commitment(company: CompanyCode::SDC)))->toBeFalse();
 });
+
+it('lets an advisor write commitments whatever their status, and leaves the status to Core', function (CommitmentStatus $status) {
+    $user = CoreUsers::create(Role::SalesAdvisor, CompanyCode::SGX);
+
+    expect(Gate::forUser($user)->allows('manage', Make::commitment(status: $status)))->toBeTrue();
+})->with([CommitmentStatus::Pending, CommitmentStatus::Broken, CommitmentStatus::Fulfilled, CommitmentStatus::Cancelled]);
+
+it('does not let anyone but an advisor write commitments at all', function (Role $role) {
+    $user = CoreUsers::create($role, CompanyCode::SGX, CompanyCode::SDC);
+
+    expect(Gate::forUser($user)->allows('manage', Make::commitment()))->toBeFalse();
+})->with([Role::SalesManager, Role::PortfolioManager, Role::PortfolioAnalyst, Role::Admin]);

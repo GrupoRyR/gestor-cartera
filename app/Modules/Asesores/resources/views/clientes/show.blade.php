@@ -61,6 +61,9 @@
     >
         <x-slot:actions>
             <x-ui.badge-state :state="$summary->status" />
+            @if ($canManage)
+                <x-ui.button icon="plus" data-modal-open="nuevo-compromiso">{{ __('asesores::compromisos.nuevo.boton') }}</x-ui.button>
+            @endif
             <x-ui.link-button :href="route('asesores.clientes.index')" variant="secondary" icon="chevron-left">{{ __('asesores::ficha.volver') }}</x-ui.link-button>
         </x-slot:actions>
     </x-ui.page-header>
@@ -184,6 +187,10 @@
                                         · {{ __('asesores::ficha.compromisos.cumplido_el', ['fecha' => DateFormat::date($commitment->fulfilledAt)]) }}
                                     @endif
                                 </span>
+                                <a href="{{ route('asesores.compromisos.show', $commitment->id) }}" class="inline-flex min-h-touch items-center text-sm font-semibold text-brand-ink underline-offset-4 hover:underline">
+                                    @can('fulfill', $commitment){{ __('asesores::compromisos.ver') }}@else{{ __('asesores::compromisos.detalle') }}@endcan
+                                    <span data-visually-hidden>&nbsp;{{ Money::format($commitment->amount) }}</span>
+                                </a>
                             </li>
                         @endforeach
                     </ul>
@@ -215,4 +222,32 @@
             </x-ui.card>
         </div>
     </div>
+
+    @if ($canManage)
+        @php($newFormFailed = old('formulario') === 'nuevo-compromiso' && $errors->any())
+
+        <x-ui.modal id="nuevo-compromiso" :title="__('asesores::compromisos.nuevo.titulo')" :open="$newFormFailed">
+            <form id="form-nuevo-compromiso" method="POST" action="{{ route('asesores.compromisos.store', $summary->id) }}" class="grid gap-4">
+                @csrf
+                <input type="hidden" name="formulario" value="nuevo-compromiso">
+
+                <x-ui.input name="fecha" type="date" :label="__('asesores::compromisos.campos.fecha.etiqueta')" :hint="__('asesores::compromisos.campos.fecha.ayuda')" :min="$today->format('Y-m-d')" required />
+                <x-ui.input
+                    name="valor"
+                    :label="__('asesores::compromisos.campos.valor.etiqueta')"
+                    :hint="$position->overdue > 0 ? __('asesores::compromisos.campos.valor.ayuda_vencido', ['vencido' => Money::format($position->overdue)]) : __('asesores::compromisos.campos.valor.ayuda')"
+                    prefix="$"
+                    inputmode="decimal"
+                    autocomplete="off"
+                    required
+                />
+                <x-ui.textarea name="notas" :label="__('asesores::compromisos.campos.notas.etiqueta')" :hint="__('asesores::compromisos.campos.notas.ayuda')" :rows="3" />
+            </form>
+
+            <x-slot:footer>
+                <x-ui.button variant="secondary" data-modal-close>{{ __('asesores::compromisos.nuevo.cancelar') }}</x-ui.button>
+                <x-ui.button type="submit" form="form-nuevo-compromiso" icon="check">{{ __('asesores::compromisos.nuevo.guardar') }}</x-ui.button>
+            </x-slot:footer>
+        </x-ui.modal>
+    @endif
 </x-layouts.app>

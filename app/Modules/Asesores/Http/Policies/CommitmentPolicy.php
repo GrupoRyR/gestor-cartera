@@ -14,6 +14,16 @@ use App\Modules\Core\Contracts\Enums\CommitmentStatus;
 final readonly class CommitmentPolicy
 {
     /**
+     * Write commitments at all: the permission, in a company where advisors
+     * write them. The status is left to Core, so a double click on "fulfil"
+     * gets a clear message instead of a 403.
+     */
+    public function manage(User $user, Commitment $commitment): bool
+    {
+        return $this->writes($user, $commitment);
+    }
+
+    /**
      * Change the date, amount or notes: only while pending.
      */
     public function update(User $user, Commitment $commitment): bool
