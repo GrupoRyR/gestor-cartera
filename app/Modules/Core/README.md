@@ -9,7 +9,7 @@ Core es la base de la plataforma: los contratos que usan los demás módulos (`C
 | `Contracts/` | Interfaces, objetos de datos, enums y excepciones públicos (ver `docs/arquitectura.md` §6). No cambian sin acordarlo. |
 | `Domain/` | Reglas puras en PHP: sin Laravel, sin base de datos y sin reloj. Reciben fechas, saldos y parámetros ya resueltos. |
 | `Application/` | Casos de uso: el ingreso con Microsoft (`Auth\`, ver «Ingreso con Microsoft»), la pantalla Equipo (`Team\`) y el recálculo de saldos y estados de los clientes (`Portfolio\`, ver «Importación del robot»). |
-| `Infrastructure/` | Eloquent (`Persistence\*Record`), el acceso por empresa (`Access\CompanyAccess`), el catálogo de empresas y la empresa activa (`Companies\`), la bitácora de auditoría (`Audit\`), el adaptador de Microsoft sobre Socialite (`Auth\`) y la importación de los lotes del robot (`Ingest\`). |
+| `Infrastructure/` | Eloquent (`Persistence\*Record`), el acceso por empresa y el alcance de la cartera (`Access\`), el catálogo de empresas y la empresa activa (`Companies\`), la bitácora de auditoría (`Audit\`), el adaptador de Microsoft sobre Socialite (`Auth\`), la importación de los lotes del robot (`Ingest\`) y la lectura de la cartera (`Portfolio\`, ver «CarteraRepository»). |
 | `Http/` | Controladores, FormRequests y middleware de las rutas web (ver «Ingreso con Microsoft» e «Inicio y acceso»). |
 | `config/core.php` | Valores por defecto para sembrar los parámetros de cada empresa. |
 
@@ -140,7 +140,7 @@ La llave es (`user_id`, `advisor_id`): un asesor puede estar en el equipo de var
 
 > **En código de `app/`** usa `AdvisorRecord::linkedTo($user)` y `AdvisorRecord::teamOf($user)`, no `$user->advisors()` ni `$user->teamAdvisors()`: Larastan no ve las relaciones registradas con `resolveRelationUsing()`.
 
-**Alcance de la cartera** (`docs/arquitectura.md` §6.2). La implementación de `CarteraRepository` leerá estas dos tablas: un `asesor` ve los clientes de los asesores vinculados a él (`advisors.user_id`) y un `gerente_comercial`, los de los asesores de su equipo (`advisor_team`). Hoy ningún módulo filtra todavía con ellas.
+**Alcance de la cartera** (`docs/arquitectura.md` §6.2). `CarteraRepository` lee estas dos tablas: un `asesor` ve los clientes de los asesores vinculados a él (`advisors.user_id`) y un `gerente_comercial`, los de los asesores de su equipo (`advisor_team`) y los de los vinculados a él. Ver «CarteraRepository».
 
 ## Entidades de cartera
 
@@ -203,6 +203,57 @@ Solo se escriben los clientes cuyos valores cambian. Cuando cambia el estado de 
 - Repetir el lote deja lo mismo.
 
 **Cola en el hosting compartido.** Los listeners van a la cola `database`, que vacía la tarea de cada minuto (`docs/arquitectura.md` §10). La cartera se escribe por lotes (clientes y partidas de a 500, y el recálculo lee las partidas en una sola consulta), así que una instantánea de miles de filas tarda segundos. `ImportReceivablesSnapshot` tiene `$timeout = 300` y un solo intento (`$tries = 1`): si falla, la transacción se deshace y el trabajo queda en `failed_jobs`; `php artisan queue:retry` lo vuelve a correr sin duplicar nada. En pruebas la cola es `sync`: los listeners corren en el momento.
+
+## CarteraRepository
+
+`Infrastructure\Portfolio\EloquentCarteraRepository` implementa `CarteraRepository` (`docs/arquitectura.md` §6.4) y Core la registra en el contenedor (una instancia por petición o por job). En cada llamada lee el usuario con sesión iniciada y `CurrentCompany`, así que nunca guarda un alcance viejo. Solo usa SQL portable (SQLite en local, MySQL 8 en CI y producción).
+
+**Alcance** (`Infrastructure\Access\PortfolioScope`, §6.2). Las empresas son las de `CurrentCompany::scope()` (la activa, o todas en la vista de grupo); si la consulta trae `ClientQuery::$companies`, esas, recortadas a `CurrentCompany::available()`. Dentro de ellas:
+
+| Usuario | Clientes y asesores que ve |
+|---|---|
+| `admin`, `gerente_cartera`, `analista_cartera` | Todos. |
+| `asesor` | Los clientes de los asesores de SAP vinculados a él (`advisors.user_id`), y esos asesores. |
+| `gerente_comercial` | Los de los asesores de su equipo (`advisor_team`) y de los vinculados a él, y esos asesores. |
+| `tesoreria` o sin rol | Ninguno. |
+| Invitado, inactivo o eliminado | Ninguno: no tiene empresas (`CompanyAccess`). |
+
+- Un cliente es de un asesor por empresa y código (`clients.company` y `clients.advisor_code`): el 12 de SGX y el 12 de SDC son asesores distintos.
+- Un usuario con varios roles ve la suma de lo que ve cada uno.
+- Lo que está fuera del alcance no existe: listas vacías, `client()` en `null` y `openInvoices()` vacío. Los clientes eliminados (borrado lógico) nunca aparecen.
+- `client()`, `openInvoices()` y `advisors()` usan las empresas de `CurrentCompany::scope()`: un cliente de SDC no aparece mientras el usuario trabaja en SGX.
+- **Copia del sistema.** `asSystem()` devuelve una copia sin usuario que ve todos los clientes de las empresas de la consulta, o de todas si no trae ninguna. Es solo para jobs, colas y listeners, nunca para controladores.
+
+**Listas.** `paginateClients()` y `allClients()` (`Portfolio\ClientListing`) filtran y ordenan con las cifras que cada cliente guarda de la última instantánea de su empresa (ver «Entidades de cartera»). Los filtros se suman:
+
+| Filtro de `ClientQuery` | Clientes que deja |
+|---|---|
+| `search` | Los que tienen ese texto en el nombre, el código de SAP o el NIT, sin importar mayúsculas. `%` y `_` se buscan tal cual; un texto en blanco no filtra. |
+| `statuses` | Los que están en uno de esos estados. |
+| `advisorCode` | Los de ese `SlpCode`. |
+| `onlyOverdue` | Los que tienen `overdue` mayor que 0. |
+| `inactiveSince` | Los que no tienen actividad (`last_activity_at` vacío) o cuya última actividad es anterior a ese momento. |
+
+| Orden (`sort`) | Columna |
+|---|---|
+| `name` | El nombre, sin importar mayúsculas. |
+| `balance`, `overdue` | `balance` y `overdue`. |
+| `days_overdue` | `max_days_overdue`; los valores negativos cuentan como 0, igual que en `ClientSummary`. |
+| `status` | El orden de `ClientStatus` (columnas del Kanban), con un `CASE`, no el orden alfabético de los valores. |
+| `last_activity` | `last_activity_at`; en ascendente, los clientes sin actividad van primero. |
+
+- Los empates se resuelven por nombre (sin importar mayúsculas) y luego por id, los dos ascendentes.
+- `paginateClients()` lee la página de `?page=` y lanza `InvalidArgumentException` si `$perPage` es menor que 1.
+- `allClients()` resuelve el alcance al llamarla y devuelve un generador que lee de a 500 clientes (`EloquentCarteraRepository::CHUNK`) en el mismo orden, para exportar sin cargar todo en memoria.
+- El asesor de SAP (por empresa y código, con `userId`) y el gestor responsable de cada página o bloque se leen con una consulta cada uno. Un gestor eliminado (borrado lógico) se sigue mostrando: el cliente conserva su gestor hasta que alguien lo cambie.
+
+**Ficha, facturas y asesores.**
+
+- `client()` agrega a `ClientSummary` el cupo, el grupo, el municipio, la condición de pago y los contactos: los principales primero y luego en el orden en que se guardaron.
+- `openInvoices()` devuelve las partidas del cliente en la **última instantánea** de su empresa (el corte más reciente y, en empate, la última importada) cuyo saldo, en valor absoluto, supera la tolerancia de 0,01 (`ClientStatusRules::BALANCE_TOLERANCE`): las notas crédito también salen. Van por vencimiento y luego por id.
+- `advisors()` devuelve los asesores cuyos clientes ve el usuario (todos los de sus empresas para los roles con acceso total), por nombre, empresa (orden de `CompanyCode`) y código, con su usuario vinculado (`userId`).
+
+`totals()` y `history()` llegan en el siguiente cambio; mientras tanto lanzan `LogicException`.
 
 ## Ingreso con Microsoft
 
