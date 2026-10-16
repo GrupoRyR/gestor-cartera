@@ -1,10 +1,62 @@
-"""Pruebas del contrato de lotes (esquema.py)."""
+"""Pruebas del contrato de lotes (esquema.py) y de sus consultas SQL."""
 from __future__ import annotations
 
+import re
 import unittest
+from pathlib import Path
 
 import esquema
 from esquema import ENTERO, NUMERO, TASA, TEXTO, Columna, Lote
+
+QUERIES_DIR = Path(esquema.__file__).resolve().parent / "queries"
+ALIAS = re.compile(r'\bAS\s+"([^"]+)"', re.IGNORECASE)
+VENTANA = "ADD_DAYS(CURRENT_DATE, -6 - DAYOFMONTH(CURRENT_DATE))"
+
+# Contrato acordado con Laravel (Ingesta): columnas, obligatorias, llave y si
+# admite 0 filas. Si cambia aqui, cambia tambien en app/Modules/Ingesta.
+CONTRATO = {
+    "contactos": (
+        10, {"codigo_sn", "principal", "activo"}, ("codigo_sn", "contacto_id"), False,
+    ),
+    "ventas": (
+        34,
+        {"tipo_objeto", "doc_entry", "numero_documento", "linea", "clase_documento",
+         "estado_documento", "fecha_documento", "fecha_contabilizacion", "slp_code",
+         "codigo_cliente", "cantidad", "total"},
+        ("tipo_objeto", "doc_entry", "linea"),
+        True,
+    ),
+    "recaudos": (
+        23,
+        {"doc_entry_pago", "numero_pago", "linea", "fecha_pago", "estado_pago",
+         "tipo_documento", "doc_entry_factura", "codigo_cliente", "slp_code",
+         "valor_aplicado", "valor_pagado_sin_iva"},
+        ("doc_entry_pago", "linea"),
+        True,
+    ),
+    "cruces": (
+        21,
+        {"numero_cruce", "linea", "fecha_cruce", "tipo_cruce", "tipo_conciliacion",
+         "estado", "codigo_cliente", "doc_entry_factura", "slp_code_factura",
+         "valor_compensado", "valor_compensado_sin_iva"},
+        ("numero_cruce", "linea"),
+        True,
+    ),
+    "maestro_clientes": (
+        10, {"codigo_cliente", "slp_code", "estado"}, ("codigo_cliente",), False,
+    ),
+    "maestro_vendedores": (
+        7, {"slp_code", "nombre", "estado"}, ("slp_code",), False,
+    ),
+}
+
+
+def _sql(lote: Lote) -> str:
+    return (QUERIES_DIR / lote.consulta).read_text(encoding="utf-8")
+
+
+def _sin_comentarios(sql: str) -> str:
+    return re.sub(r"--[^\n]*", "", sql)
 
 
 class LotesTest(unittest.TestCase):
@@ -54,6 +106,53 @@ class LotesTest(unittest.TestCase):
         self.assertEqual(len(esquema.CARTERA), 38)
         self.assertEqual(esquema.CARTERA[0].pg, "slp_code")
         self.assertEqual(esquema.CARTERA[-1].pg, "rango")
+
+    def test_lotes_nuevos_cumplen_el_contrato_con_laravel(self):
+        self.assertEqual(
+            set(esquema.LOTES), {"cartera", "asesores", *CONTRATO},
+        )
+        for nombre, (columnas, obligatorias, llave, vacio) in CONTRATO.items():
+            lote = esquema.LOTES[nombre]
+            with self.subTest(lote=nombre):
+                self.assertEqual(len(lote.columnas), columnas)
+                self.assertEqual({c.pg for c in lote.columnas if c.requerida}, obligatorias)
+                self.assertEqual(lote.llave, llave)
+                self.assertEqual(lote.permite_vacio, vacio)
+        self.assertEqual(esquema.LOTES["contactos"].consulta, "contactos_clientes.sql")
+
+
+class ConsultasTest(unittest.TestCase):
+    def test_cada_lote_tiene_su_archivo_sql(self):
+        for nombre, lote in esquema.LOTES.items():
+            with self.subTest(lote=nombre):
+                self.assertTrue((QUERIES_DIR / lote.consulta).is_file())
+
+    def test_cada_alias_del_esquema_sale_en_su_consulta(self):
+        for nombre, lote in esquema.LOTES.items():
+            alias = set(ALIAS.findall(_sql(lote)))
+            for columna in lote.columnas:
+                with self.subTest(lote=nombre, alias=columna.hana):
+                    self.assertIn(columna.hana, alias)
+
+    def test_las_consultas_corren_tal_cual_en_el_query_manager(self):
+        for nombre, lote in esquema.LOTES.items():
+            sql = _sin_comentarios(_sql(lote))
+            with self.subTest(lote=nombre):
+                self.assertNotIn("?", sql)               # sin parametros
+                self.assertNotRegex(sql, r"(?im)^\s*WITH\b")  # sin CTE
+                self.assertNotIn('"SEGUREX".', sql)      # sin prefijo de esquema
+
+    def test_los_movimientos_usan_la_ventana_del_mes_mas_siete_dias(self):
+        for nombre in ("ventas", "recaudos", "cruces"):
+            sql = _sin_comentarios(_sql(esquema.LOTES[nombre]))
+            with self.subTest(lote=nombre):
+                self.assertIn(VENTANA, sql)
+                self.assertIn("<= CURRENT_DATE", sql)
+
+    def test_las_consultas_nuevas_marcan_lo_que_falta_validar(self):
+        for nombre in CONTRATO:
+            with self.subTest(lote=nombre):
+                self.assertIn("VALIDAR CON DATOS REALES", _sql(esquema.LOTES[nombre]))
 
 
 class ColumnaTest(unittest.TestCase):

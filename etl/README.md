@@ -66,6 +66,75 @@ Cada lote es una consulta de `etl/queries` y su contrato de columnas en `etl/esq
 
 `ETL_LOTES` decide qué lotes corren. Agrega un lote nuevo solo después de validar su consulta con datos reales.
 
+| Lote | Consulta | Lo consume | Llave natural | Admite 0 filas |
+|---|---|---|---|---|
+| `cartera` | `cartera.sql` | Core | (ninguna) | No: aborta la corrida |
+| `asesores` | `asesores.sql` | Core | `slp_code` | No: no se envía y se conserva la carga anterior |
+| `contactos` | `contactos_clientes.sql` | Core | `codigo_sn`, `contacto_id` | No |
+| `ventas` | `ventas.sql` | Comisiones | `tipo_objeto`, `doc_entry`, `linea` | Sí |
+| `recaudos` | `recaudos.sql` | Comisiones | `doc_entry_pago`, `linea` | Sí |
+| `cruces` | `cruces.sql` | Comisiones | `numero_cruce`, `linea` | Sí |
+| `maestro_clientes` | `maestro_clientes.sql` | Comisiones | `codigo_cliente` | No |
+| `maestro_vendedores` | `maestro_vendedores.sql` | Comisiones | `slp_code` | No |
+
+Ventas, recaudos y cruces traen el mes en curso más los últimos 7 días del mes anterior, hasta hoy; incluyen los documentos anulados con su estado. Las notas crédito de ventas llegan con signo negativo. Los maestros traen todos los registros, activos o no.
+
+Valores de texto que Comisiones puede filtrar:
+
+| Lote | Columna | Valores |
+|---|---|---|
+| `ventas` | `clase_documento` | `factura`, `nota_debito`, `nota_credito` |
+| `ventas` | `estado_documento` | `anulado`, `anulacion`, `cerrado`, `abierto` |
+| `recaudos` | `estado_pago` | `anulado`, `vigente` |
+| `cruces` | `tipo_cruce` | `anticipo`, `cliente-proveedor`, `otro` |
+| `cruces` | `estado` | `anulado`, `vigente` |
+| `maestro_clientes`, `maestro_vendedores` | `estado` | `activo`, `inactivo` |
+| `contactos` | `principal`, `activo` | `Y`, `N` |
+
+### Pendiente de validar con datos reales
+
+Cada punto está marcado en su consulta con `VALIDAR CON DATOS REALES`. Valídalos con `--diagnostico` y el informe equivalente de SAP antes de agregar el lote a `ETL_LOTES`.
+
+**contactos_clientes.sql**
+
+- [ ] `principal`: compara `OCPR.Name` con `OCRD.CntctPrsn` (SAP guarda ahí el nombre, no el código). Revisar que coincidan exactamente y que cada cliente tenga un solo `Y`.
+- [ ] Fila general: sale para todos los clientes, aunque no tengan correo ni teléfonos. Confirmar con Core si la quiere así.
+
+**ventas.sql**
+
+- [ ] `fecha_documento`: es `TaxDate` y `fecha_contabilizacion` es `DocDate`. Confirmar cuál asigna la venta al período.
+- [ ] `canal`: va en `NULL`; no se sabe si sale del grupo del cliente, de un campo de usuario o de Comisiones.
+- [ ] `pedido`: solo cuando la línea viene de un pedido (`BaseType` 17). Si la factura sale de una entrega, queda `NULL`.
+- [ ] `id_pedido_app`: va en `NULL`; no hay un campo conocido en SAP.
+- [ ] `ciudad_envio`: va en `NULL`; candidata `INV12.CityS` / `RIN12.CityS`.
+- [ ] `costo_unitario` y `costo_total`: salen de `StockPrice`. Confirmar contra el margen del informe actual.
+- [ ] `precio_lista`: es `PriceBefDi` (precio antes del descuento de la línea), no la lista de precios del artículo.
+
+**recaudos.sql**
+
+- [ ] Solo aplicaciones a facturas (`InvType` 13): quedan fuera las de facturas de anticipo, asientos y notas crédito.
+- [ ] `fecha_factura`: es `DocDate`. Confirmar que no sea `TaxDate` y que coincida con ventas.
+- [ ] `slp_code`: es el vendedor de la factura, no el asignado hoy al cliente.
+- [ ] `comision_sap`: va en `NULL`; no se conoce su origen en Business One.
+
+**cruces.sql** (toda la consulta está por validar)
+
+- [ ] Que los cruces que hoy se digitan a mano sean las reconciliaciones internas de tipo 0, 1 y 2.
+- [ ] `tipo_cruce`: la regla de anticipo (línea de pago recibido) y de cliente-proveedor (línea de proveedor o documento de compras).
+- [ ] `codigo_proveedor`: el proveedor de la reconciliación o, si no hay, `OCRD.ConnBP` del cliente.
+- [ ] `fecha_factura`: es `DocDate`, como en recaudos.
+- [ ] `usuario`: va en `NULL`; no hay una columna confirmada en `OITR`.
+
+**maestro_clientes.sql**
+
+- [ ] `canal`: va en `NULL`, igual que en ventas.
+- [ ] `estado`: `inactivo` solo si el cliente está congelado (`frozenFor`); no mira los rangos de fechas.
+
+**maestro_vendedores.sql**
+
+- [ ] `canal` y `zona`: van en `NULL`; no hay columnas conocidas en `OSLP`.
+- [ ] `fecha_modificacion`: va en `NULL`; revisar si la versión de SAP tiene `OSLP.UpdateDate`.
+
 ## Validar una consulta nueva
 
 ```powershell
