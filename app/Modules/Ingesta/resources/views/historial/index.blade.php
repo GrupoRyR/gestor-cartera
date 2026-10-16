@@ -30,7 +30,13 @@
 @endphp
 
 <x-layouts.app :title="__('ingesta::historial.titulo')">
-    <x-ui.page-header :title="__('ingesta::historial.titulo')" :description="__('ingesta::historial.descripcion')" />
+    <x-ui.page-header :title="__('ingesta::historial.titulo')" :description="__('ingesta::historial.descripcion')">
+        @can('ingesta.upload')
+            <x-slot:actions>
+                <x-ui.link-button :href="route('ingesta.manual.create')" icon="upload">{{ __('ingesta::manual.boton') }}</x-ui.link-button>
+            </x-slot:actions>
+        @endcan
+    </x-ui.page-header>
 
     <div class="flex flex-col gap-6">
         @foreach ($missing as $company)
