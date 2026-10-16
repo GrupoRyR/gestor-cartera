@@ -143,7 +143,7 @@ describe('collection tranches (§5.3)', function () {
             ->and($detail->share->percent())->toBe('100')
             ->and($detail->commission->amount())->toBe('7500')
             ->and($alerts)->toHaveCount(1)
-            ->and($alerts[0]->reference)->toBe('P9-1')
+            ->and($alerts[0]->reference)->toBe('pago:P9-1')
             ->and($alerts[0]->sellerCode)->toBe(34)
             ->and($alerts[0]->isBlocking())->toBeFalse()
             ->and($alerts[0]->message)->toBe('El pago P9-1 tiene fecha anterior a su factura 9001; se contó con 0 días.');
@@ -232,7 +232,7 @@ describe('collection line filtering (§5.1)', function () {
             ->and($result->controls()->loadedCollections->amount())->toBe('1000000')
             ->and($result->controls()->collectionsReconcile())->toBeTrue()
             ->and($alerts)->toHaveCount(1)
-            ->and($alerts[0]->reference)->toBe('P6-1')
+            ->and($alerts[0]->reference)->toBe('pago:P6-1')
             ->and($alerts[0]->sellerCode)->toBe(34)
             ->and($alerts[0]->isBlocking())->toBeFalse()
             ->and($alerts[0]->message)->toBe('El pago P6-1 está anulado; no se liquida.');
@@ -273,7 +273,7 @@ describe('collection line filtering (§5.1)', function () {
         ]);
 
         expect(Settle::code($result, 34)->collected->amount())->toBe('1000')
-            ->and(Settle::references($result, AlertKind::ForeignCurrency))->toBe(['P7-1']);
+            ->and(Settle::references($result, AlertKind::ForeignCurrency))->toBe(['pago:P7-1']);
     });
 
     it('converts a foreign currency payment to pesos, to cents, when asked to', function () {
@@ -308,7 +308,7 @@ describe('collection line filtering (§5.1)', function () {
                 ->and($alerts[0]->message)->toBe('La línea P8-1 viene en USD con TRM 1; revisa la TRM, se tomó el valor reportado.');
         }
     })->with([
-        'USD at 1' => ['USD', '1', ['P8-1']],
+        'USD at 1' => ['USD', '1', ['pago:P8-1']],
         'COP at 1' => ['COP', '1', []],
     ]);
 });

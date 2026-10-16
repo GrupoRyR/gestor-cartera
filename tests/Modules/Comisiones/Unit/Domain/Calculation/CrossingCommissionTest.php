@@ -1,10 +1,13 @@
 <?php
 
+use App\Modules\Comisiones\Domain\Calculation\Alert;
 use App\Modules\Comisiones\Domain\Calculation\AlertKind;
 use App\Modules\Comisiones\Domain\Calculation\CollectionSource;
+use App\Modules\Comisiones\Domain\Input\SettlementInput;
 use App\Modules\Comisiones\Domain\Parameters\Options\CrossingSellerDate;
 use App\Modules\Comisiones\Domain\Parameters\Options\CurrencyTreatment;
 use App\Modules\Comisiones\Domain\Parameters\SettlementOptions;
+use App\Modules\Comisiones\Domain\Shared\Period;
 use Tests\Modules\Comisiones\Support\Lines;
 use Tests\Modules\Comisiones\Support\Settle;
 
@@ -201,7 +204,7 @@ describe('crossing line filtering (§5.1)', function () {
 
         expect(Settle::code($result, 34)->transactions())->toBe(0)
             ->and($alerts)->toHaveCount(1)
-            ->and($alerts[0]->reference)->toBe('CR-5')
+            ->and($alerts[0]->reference)->toBe('cruce:CR-5')
             ->and($alerts[0]->sellerCode)->toBe(34)
             ->and($alerts[0]->message)->toBe('El cruce CR-5 está anulado; no se liquida.')
             ->and($result->controls()->loadedCollections->amount())->toBe('0');
@@ -213,9 +216,31 @@ describe('crossing line filtering (§5.1)', function () {
         ], assignments: $this->assignments);
 
         expect(Settle::code($result, 34)->collectionDetails[0]->days)->toBe(0)
-            ->and(Settle::references($result, AlertKind::PaymentBeforeInvoice))->toBe(['CR-6'])
+            ->and(Settle::references($result, AlertKind::PaymentBeforeInvoice))->toBe(['cruce:CR-6'])
             ->and($result->alertsOf(AlertKind::PaymentBeforeInvoice)[0]->message)
             ->toBe('El cruce CR-6 tiene fecha anterior a su factura 6006; se contó con 0 días.');
+    });
+
+    it('keeps apart the alerts of a sale, a payment and a crossing that share a key', function () {
+        $result = Settle::run(new SettlementInput(
+            Period::of(2026, 9),
+            sales: [Lines::sale(34, 1_000, date: '2026-09-02', key: 'K-1', currency: 'USD', exchangeRate: '4000')],
+            payments: [
+                Lines::payment(34, 1_000, paymentDate: '2026-09-02', invoiceDate: '2026-09-10', key: 'K-1', currency: 'USD', exchangeRate: '4000'),
+                Lines::payment(34, 1_000, paymentDate: '2026-09-02', key: 'K-2', annulled: true),
+            ],
+            crossings: [
+                Lines::crossing(1_000, crossingDate: '2026-09-02', invoiceDate: '2026-09-10', key: 'K-1', taxBase: 1_000, currency: 'USD', exchangeRate: '4000'),
+                Lines::crossing(1_000, crossingDate: '2026-09-02', key: 'K-2', taxBase: 1_000, sellerOverride: 34, annulled: true),
+            ],
+            assignments: $this->assignments,
+        ));
+
+        expect(Settle::references($result, AlertKind::ForeignCurrency))->toBe(['venta:K-1', 'pago:K-1', 'cruce:K-1'])
+            ->and(Settle::references($result, AlertKind::PaymentBeforeInvoice))->toBe(['pago:K-1', 'cruce:K-1'])
+            ->and(Settle::references($result, AlertKind::AnnulledCollection))->toBe(['pago:K-2', 'cruce:K-2'])
+            ->and(array_map(fn (Alert $alert) => $alert->key(), $result->alertsOf(AlertKind::AnnulledCollection)))
+            ->toBe(['recaudo_anulado:pago:K-2', 'recaudo_anulado:cruce:K-2']);
     });
 
     it('converts the base of a foreign currency crossing to pesos when asked to', function () {

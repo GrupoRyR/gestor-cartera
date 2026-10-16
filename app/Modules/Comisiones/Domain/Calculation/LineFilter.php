@@ -81,7 +81,7 @@ final class LineFilter
             if (Decimals::parse($line->exchangeRate)->isEqualTo(1)) {
                 $this->alerts->add(new Alert(
                     AlertKind::ForeignCurrency,
-                    $line->key,
+                    self::reference($line),
                     "La línea {$line->key} viene en {$line->currency} con TRM 1; revisa la TRM, se tomó el valor reportado.",
                     $line instanceof CrossingLine ? $line->sellerOverride : $line->sellerCode,
                 ));
@@ -92,7 +92,7 @@ final class LineFilter
 
         $this->alerts->add(new Alert(
             AlertKind::ForeignCurrency,
-            $line->key,
+            self::reference($line),
             "La línea {$line->key} viene en {$line->currency} con TRM {$line->exchangeRate}; se tomó el valor reportado.",
             $line instanceof CrossingLine ? $line->sellerOverride : $line->sellerCode,
         ));
@@ -125,26 +125,38 @@ final class LineFilter
     }
 
     /**
-     * The DuplicateLine alert of a repeated key. Its reference carries the
-     * kind of line ("venta:F100-1", "pago:…", "cruce:…") because a sale, a
-     * payment and a crossing may share a key without being the same line.
+     * The reference of an alert about one line: its key prefixed with the
+     * kind of line ("venta:F100-1", "pago:…", "cruce:…"), because a sale, a
+     * payment and a crossing may share a key without being the same line,
+     * and each alert must be justified on its own (§9.7).
      */
-    private static function duplicate(SaleLine|PaymentLine|CrossingLine $line): Alert
+    public static function reference(SaleLine|PaymentLine|CrossingLine $line): string
     {
-        [$kind, $message] = match (true) {
-            $line instanceof SaleLine => ['venta', "La venta {$line->key} viene repetida; se tomó solo la primera."],
-            $line instanceof PaymentLine => ['pago', "El pago {$line->key} viene repetido; se tomó solo el primero."],
-            $line instanceof CrossingLine => ['cruce', "El cruce {$line->key} viene repetido; se tomó solo el primero."],
+        $kind = match (true) {
+            $line instanceof SaleLine => 'venta',
+            $line instanceof PaymentLine => 'pago',
+            $line instanceof CrossingLine => 'cruce',
         };
 
-        return new Alert(AlertKind::DuplicateLine, "{$kind}:{$line->key}", $message);
+        return "{$kind}:{$line->key}";
+    }
+
+    private static function duplicate(SaleLine|PaymentLine|CrossingLine $line): Alert
+    {
+        $message = match (true) {
+            $line instanceof SaleLine => "La venta {$line->key} viene repetida; se tomó solo la primera.",
+            $line instanceof PaymentLine => "El pago {$line->key} viene repetido; se tomó solo el primero.",
+            $line instanceof CrossingLine => "El cruce {$line->key} viene repetido; se tomó solo el primero.",
+        };
+
+        return new Alert(AlertKind::DuplicateLine, self::reference($line), $message);
     }
 
     private static function annulled(PaymentLine|CrossingLine $line): Alert
     {
         return $line instanceof PaymentLine
-            ? new Alert(AlertKind::AnnulledCollection, $line->key, "El pago {$line->key} está anulado; no se liquida.", $line->sellerCode)
-            : new Alert(AlertKind::AnnulledCollection, $line->key, "El cruce {$line->key} está anulado; no se liquida.", $line->sellerOverride);
+            ? new Alert(AlertKind::AnnulledCollection, self::reference($line), "El pago {$line->key} está anulado; no se liquida.", $line->sellerCode)
+            : new Alert(AlertKind::AnnulledCollection, self::reference($line), "El cruce {$line->key} está anulado; no se liquida.", $line->sellerOverride);
     }
 
     private static function withoutCode(string $sellerText): Alert

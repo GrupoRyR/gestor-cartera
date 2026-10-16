@@ -409,7 +409,7 @@ describe('line filtering (§5.1)', function () {
 
         expect(Settle::code($result, 34)->sales->amount())->toBe('1000')
             ->and($alerts)->toHaveCount(1)
-            ->and($alerts[0]->reference)->toBe('F7-1')
+            ->and($alerts[0]->reference)->toBe('venta:F7-1')
             ->and($alerts[0]->sellerCode)->toBe(34)
             ->and($alerts[0]->isBlocking())->toBeFalse()
             ->and($alerts[0]->message)->toBe('La línea F7-1 viene en USD con TRM 4000; se tomó el valor reportado.')

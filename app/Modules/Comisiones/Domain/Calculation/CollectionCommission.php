@@ -103,7 +103,7 @@ final class CollectionCommission
         if ($days < 0) {
             $this->alerts->add(new Alert(
                 AlertKind::PaymentBeforeInvoice,
-                $line->key,
+                LineFilter::reference($line),
                 ($crossing ? 'El cruce' : 'El pago')
                     ." {$line->key} tiene fecha anterior a su factura {$line->invoiceNumber}; se contó con 0 días.",
                 $rule->code,
