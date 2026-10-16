@@ -9,7 +9,7 @@ use App\Modules\Core\Domain\Status\StatusParameters;
 use App\Modules\Core\Infrastructure\Persistence\CompanyRecord;
 
 /**
- * Every company with the parameters admins edit, read once from "companies"
+ * Every company with its editable parameters, read once from "companies"
  * and kept until refresh(). A company without a row falls back to its seed
  * defaults (config('core.companies')) and its CompanyCode label.
  */
@@ -39,7 +39,7 @@ final class CompanyCatalog
     }
 
     /**
-     * Forgets what was read, e.g. after an admin edits a company.
+     * Forgets what was read, e.g. after someone edits a company's parameters.
      */
     public function refresh(): void
     {

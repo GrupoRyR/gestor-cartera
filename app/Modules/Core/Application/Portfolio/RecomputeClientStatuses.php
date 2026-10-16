@@ -21,7 +21,7 @@ use Illuminate\Database\Eloquent\ModelNotFoundException;
  * a company from one snapshot, with the company's current parameters.
  *
  * Used by the robot import after each cartera snapshot and, through the
- * RecomputeCompanyStatuses job, after an admin edits the company's
+ * RecomputeCompanyStatuses job, after someone edits the company's
  * parameters. The commitment workflow reads the automatic status of one
  * client with automaticStatus().
  */
@@ -54,7 +54,7 @@ final class RecomputeClientStatuses
      * change. Does nothing while the company has no snapshot.
      *
      * $source tells why the recompute runs when it is not a snapshot import
-     * (e.g. "parameters" after an admin edits the company): it is added as
+     * (e.g. "parameters" after someone edits the company): it is added as
      * "source" to the audit context and to the metadata of the log entries.
      *
      * @param  list<int>  $newClientIds  Clients created by the import being recomputed.
