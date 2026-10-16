@@ -6,6 +6,7 @@ use App\Models\User;
 use App\Modules\Core\Application\Auth\IdentityProvider;
 use App\Modules\Core\Contracts\AuditLogger;
 use App\Modules\Core\Contracts\CarteraRepository;
+use App\Modules\Core\Contracts\ClientStatusService;
 use App\Modules\Core\Contracts\CurrentCompany;
 use App\Modules\Core\Contracts\Events\BatchAccepted;
 use App\Modules\Core\Contracts\GestionLogger;
@@ -20,6 +21,7 @@ use App\Modules\Core\Infrastructure\Ingest\ImportReceivablesSnapshot;
 use App\Modules\Core\Infrastructure\Persistence\AdvisorRecord;
 use App\Modules\Core\Infrastructure\Persistence\CompanyRecord;
 use App\Modules\Core\Infrastructure\Portfolio\EloquentCarteraRepository;
+use App\Modules\Core\Infrastructure\Portfolio\EloquentClientStatusService;
 use App\Support\Modules\ModuleServiceProvider;
 use App\Support\Navigation\NavItem;
 use App\Support\Navigation\NavRegistry;
@@ -60,6 +62,7 @@ final class CoreServiceProvider extends ModuleServiceProvider
         // Follows CurrentCompany, so one per request (or job) as well.
         $this->app->scoped(CarteraRepository::class, EloquentCarteraRepository::class);
         $this->app->scoped(GestionLogger::class, DatabaseGestionLogger::class);
+        $this->app->scoped(ClientStatusService::class, EloquentClientStatusService::class);
 
         // Microsoft Entra ID sign-in; tests bind a fake instead.
         $this->app->bind(IdentityProvider::class, SocialiteMicrosoftIdentityProvider::class);

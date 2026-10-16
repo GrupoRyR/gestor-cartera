@@ -20,7 +20,7 @@ Core es la base de la plataforma: los contratos que usan los demás módulos (`C
 | Tipo | Estados | Quién los cambia |
 |---|---|---|
 | Automático | Al día, Por vencer, Vencida, Pago recibido | Se recalculan con cada instantánea. |
-| Manual | En gestión, Compromiso, Incumplido, Jurídico | Los usuarios o el flujo de compromisos. Sobreviven a nuevas instantáneas mientras el cliente deba. |
+| Manual | En gestión, Compromiso, Incumplido, Jurídico | Los usuarios (ver «Cambio de estado manual») o el flujo de compromisos. Sobreviven a nuevas instantáneas mientras el cliente deba. |
 
 ### Orden de evaluación
 
@@ -106,6 +106,8 @@ Los roles son los de `Contracts\Enums\Role` (Spatie, guard `web`, sin equipos). 
 | `core.access` | Los seis | Usar la plataforma. Un usuario sin rol no lo tiene. |
 | `core.team.manage` | `admin` | Usar la pantalla Equipo (ver «Pantalla Equipo»). |
 | `core.activities.delete` | `gerente_cartera`, `analista_cartera` | Eliminar (borrado lógico) una gestión de la bitácora de un cliente (ver «Bitácora de gestiones»). |
+| `core.clients.change_status` | `gerente_cartera`, `analista_cartera` | Cambiar a mano el estado de un cliente: Kanban y ficha (ver «Cambio de estado manual»). |
+| `core.clients.delete` | `gerente_cartera` | Eliminar (borrado lógico) y restaurar clientes (ver «Borrado lógico de clientes»). Por confirmar (ver «Pendientes»). |
 
 Sembrar `core.access` también garantiza que existan los seis roles, para que la pantalla de equipo pueda asignarlos. Correr el seeder otra vez no duplica nada.
 
@@ -157,7 +159,7 @@ Core es dueño de las entidades compartidas, así que sus tablas no llevan prefi
 **Reglas:**
 
 - **Las instantáneas nunca se sobrescriben** (A.4). Cada carga crea su fila en `portfolio_loads` y sus propias partidas en `invoices`; las anteriores quedan como histórico. Si se borra una instantánea, sus partidas se borran en cascada.
-- **Clientes con borrado lógico.** Un cliente eliminado conserva su fila, su histórico y su código: sigue ocupando el índice único (`company`, `code`). La base impide borrar del todo un cliente con partidas; si se borra del todo uno sin partidas, sus contactos se borran con él.
+- **Clientes con borrado lógico** (ver «Borrado lógico de clientes»). Un cliente eliminado conserva su fila, su histórico y su código: sigue ocupando el índice único (`company`, `code`). La base impide borrar del todo un cliente con partidas; si se borra del todo uno sin partidas, sus contactos se borran con él.
 - Si el gestor responsable se borra del todo (no el borrado lógico), el cliente queda sin gestor.
 - Los montos son `decimal(18,2)` y los modelos los entregan como cadenas exactas (cast `decimal:2`), p. ej. `"1234567.89"`. `company` es el valor de `CompanyCode`, `status` el de `ClientStatus` y `source` el de `LoadSource`.
 - Los días de vencida van del vencimiento al corte, igual que `Invoice::$daysOverdue`: positivo = vencida, 0 = vence en el corte, negativo = aún no vence.
@@ -316,6 +318,35 @@ Sin sesión iniciada las dos devuelven `[]` (§6.2).
 - `Application\Activity\DeleteActivity` hace el borrado lógico, recalcula la última actividad y audita `core.activity.deleted`: sujeto `activity`, `changes` con `type`, `summary` y `client` (el nombre) y `context` con `client_id`.
 - Vuelve a la página anterior con el flash `status`: «Eliminamos la gestión «Llamada a tesorería».».
 
+## Cambio de estado manual
+
+`Contracts\ClientStatusService` es un contrato nuevo de Core, agregado después de la Fase 0a para el Kanban (arrastrar una tarjeta a otra columna) y el cambio de estado de la ficha del cliente (Parte B, módulo 2, puntos 3 y 5). Los contratos existentes no cambian. Lo implementa `Infrastructure\Portfolio\EloquentClientStatusService`, registrado en el contenedor (una instancia por petición o por job). `tests/Fakes` todavía no tiene un fake suyo.
+
+`change($clientId, $status, $note = null): ClientSummary` actúa como el usuario con sesión iniciada:
+
+1. Sin el permiso `core.clients.change_status` (`gerente_cartera` y `analista_cartera`) lanza `AuthorizationException`, también para invitados. Se revisa primero, así que la respuesta es la misma para cualquier id.
+2. Un cliente que no existe, está eliminado o está fuera del alcance del usuario en sus empresas (`Portfolio\ClientReach`, como en la bitácora) lanza `RecordNotFound`.
+3. Si el estado es el mismo, no escribe nada y devuelve el cliente.
+4. Si no, en una sola transacción y con la fila del cliente bloqueada: guarda `status` y `status_changed_at`; escribe en la bitácora, como el usuario, una gestión «Cambio de estado» («De «Vencida» a «Jurídico»», la nota sin espacios sobrantes como detalle, o ninguno si viene en blanco, y `metadata` `from` y `to`), que mueve la última actividad del cliente; y audita `core.client.status_changed` con `changes.status` (`old` y `new`) y `context` `{"source": "manual"}`.
+5. Devuelve el `ClientSummary` ya cambiado.
+
+Se puede elegir cualquier estado, y las reglas de «Estados del cliente» le siguen aplicando en la siguiente instantánea: un estado automático elegido a mano (Al día, Por vencer, Vencida, Pago recibido) se recalcula con ella; uno manual (En gestión, Compromiso, Incumplido, Jurídico) sobrevive mientras el cliente deba y pasa a «Pago recibido» cuando ya no debe.
+
+## Borrado lógico de clientes
+
+Core da las rutas; las pantallas de Cartera las llaman (el botón vive en sus vistas):
+
+| Ruta | Nombre | Hace |
+|---|---|---|
+| `DELETE /clientes/{client}` | `core.clientes.destroy` | Borrado lógico. |
+| `POST /clientes/{client}/restaurar` | `core.clientes.restore` | Restaura a un cliente eliminado. |
+
+- Las dos piden el permiso `core.clients.delete`, que por ahora solo tiene `gerente_cartera` (ver «Pendientes»). Los demás roles reciben 403 y los invitados van a `/login`.
+- `{client}` solo encuentra clientes no eliminados, salvo al restaurar. Un cliente fuera del alcance del usuario en sus empresas da 404; al restaurar, el alcance se evalúa sin tener en cuenta el borrado.
+- `Application\Portfolio\ClientDeletion` borra o restaura y audita `core.client.deleted` o `core.client.restored`: sujeto `client` y `changes` con `code`, `name` y `company`.
+- Vuelven a la página anterior con el flash `status`: «Eliminamos el cliente Agro Arango.», «Restauramos el cliente Agro Arango.» o, si no estaba eliminado, «El cliente Agro Arango no estaba eliminado.» (sin auditoría).
+- Un cliente eliminado conserva sus instantáneas, su bitácora y su código (ver «Entidades de cartera»). Desaparece de `CarteraRepository`, de la bitácora y del cambio de estado, y vuelve igual al restaurarlo. Las cargas del robot lo siguen actualizando, pero nunca lo restauran.
+
 ## Ingreso con Microsoft
 
 Solo se entra con Microsoft Entra ID, en el directorio de la empresa. No hay contraseñas propias.
@@ -471,3 +502,4 @@ Solo para administradores: el permiso `core.team.manage`, que `CorePermissionSee
 ## Pendientes
 
 - **Parte D, punto 11:** María Paula debe confirmar que los 15 días de SGX se cuentan después del vencimiento de la factura y no desde su emisión. Las reglas ya los cuentan después del vencimiento; si la respuesta cambia, se ajusta `ClientStatusRules::overdueForStatus()` y sus pruebas.
+- **Borrado de clientes:** Miguel debe confirmar que solo `gerente_cartera` elimina y restaura clientes (`core.clients.delete`). Si la analista también debe hacerlo, basta con agregar `Role::PortfolioAnalyst` a ese permiso en `CorePermissionSeeder` y ajustar sus pruebas.

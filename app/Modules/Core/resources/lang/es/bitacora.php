@@ -6,6 +6,7 @@ return [
     // Summaries Core writes in the log; stored as written, not translated on read.
     'resumen' => [
         'estado_automatico' => 'Estado automático: de «:anterior» a «:nuevo»',
+        'estado_manual' => 'De «:anterior» a «:nuevo»',
     ],
 
     'mensajes' => [
