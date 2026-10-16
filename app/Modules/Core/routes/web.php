@@ -48,7 +48,8 @@ Route::middleware(['auth', 'can:core.team.manage'])
         Route::post('{user}/restaurar', 'restore')->whereNumber('user')->withTrashed()->name('restore');
     });
 
-// Parámetros: admins only. {empresa} is bound to CompanyCode, so anything
+// Parámetros: admins and the portfolio manager (core.companies.manage).
+// {empresa} is bound to CompanyCode, so anything
 // but SGX or SDC is a 404.
 Route::middleware(['auth', 'can:core.companies.manage'])
     ->prefix('empresas')
