@@ -36,8 +36,8 @@ use Illuminate\Support\Facades\Event;
 
 /**
  * Core: shared kernel: Microsoft sign-in, roles and permissions, active
- * company, the "Equipo" screen, shared entities, client states and the audit
- * trail (docs/prompt-gestor-cartera.md, Part B, "Módulo 0N — Núcleo").
+ * company, the "Equipo" and "Parámetros" screens, shared entities, client
+ * states and the audit trail (docs/prompt-gestor-cartera.md, Part B, "Módulo 0N — Núcleo").
  *
  * Web routes: / (site root), named core.*.
  * API routes: /api/core/*, named core.api.*.
@@ -47,7 +47,7 @@ use Illuminate\Support\Facades\Event;
 final class CoreServiceProvider extends ModuleServiceProvider
 {
     /**
-     * Core serves the site root: /, /login and /equipo.
+     * Core serves the site root: /, /login, /equipo and /empresas.
      */
     protected function webPrefix(): string
     {
@@ -117,9 +117,10 @@ final class CoreServiceProvider extends ModuleServiceProvider
     }
 
     /**
-     * Equipo is the only entry admins see, so it is also their home (see
-     * HomeController). Order 900 keeps administration after the screens of
-     * the other modules for anyone who sees both.
+     * Equipo is the first entry admins see, so it is also their home (see
+     * HomeController); Parámetros follows it. Orders 900 and up keep
+     * administration after the screens of the other modules for anyone who
+     * sees both.
      */
     protected function navigation(NavRegistry $navigation): void
     {
@@ -133,6 +134,16 @@ final class CoreServiceProvider extends ModuleServiceProvider
                 group: 'Administración',
                 order: 900,
                 activePattern: 'core.equipo.*',
+            ),
+            new NavItem(
+                key: 'core.empresas',
+                label: 'Parámetros',
+                route: 'core.empresas.index',
+                icon: 'sliders',
+                permission: 'core.companies.manage',
+                group: 'Administración',
+                order: 910,
+                activePattern: 'core.empresas.*',
             ),
         );
     }

@@ -24,6 +24,14 @@ it('lets only admins manage the team', function () {
     }
 });
 
+it('lets only admins edit the company parameters', function () {
+    $this->seed(CorePermissionSeeder::class);
+
+    foreach (Role::cases() as $role) {
+        expect(SpatieRole::findByName($role, 'web')->hasPermissionTo('core.companies.manage'))->toBe($role === Role::Admin);
+    }
+});
+
 it('lets portfolio managers and analysts remove entries of a client log', function () {
     $this->seed(CorePermissionSeeder::class);
 
@@ -56,6 +64,7 @@ it('can run again without duplicating permissions or roles', function () {
 
     expect(Permission::query()->where('name', 'core.access')->count())->toBe(1)
         ->and(Permission::query()->where('name', 'core.team.manage')->count())->toBe(1)
+        ->and(Permission::query()->where('name', 'core.companies.manage')->count())->toBe(1)
         ->and(Permission::query()->where('name', 'core.activities.delete')->count())->toBe(1)
         ->and(Permission::query()->where('name', 'core.clients.change_status')->count())->toBe(1)
         ->and(Permission::query()->where('name', 'core.clients.delete')->count())->toBe(1)

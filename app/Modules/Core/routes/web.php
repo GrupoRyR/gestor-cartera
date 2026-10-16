@@ -9,6 +9,7 @@ use App\Modules\Core\Http\Controllers\Auth\LoginController;
 use App\Modules\Core\Http\Controllers\Auth\LogoutController;
 use App\Modules\Core\Http\Controllers\Auth\MicrosoftCallbackController;
 use App\Modules\Core\Http\Controllers\Auth\MicrosoftRedirectController;
+use App\Modules\Core\Http\Controllers\Companies\CompanyParametersController;
 use App\Modules\Core\Http\Controllers\HomeController;
 use App\Modules\Core\Http\Controllers\NoAccessController;
 use App\Modules\Core\Http\Controllers\Portfolio\ActivityController;
@@ -45,6 +46,18 @@ Route::middleware(['auth', 'can:core.team.manage'])
         Route::put('{user}', 'update')->whereNumber('user')->name('update');
         Route::delete('{user}', 'destroy')->whereNumber('user')->name('destroy');
         Route::post('{user}/restaurar', 'restore')->whereNumber('user')->withTrashed()->name('restore');
+    });
+
+// Parámetros: admins only. {empresa} is bound to CompanyCode, so anything
+// but SGX or SDC is a 404.
+Route::middleware(['auth', 'can:core.companies.manage'])
+    ->prefix('empresas')
+    ->name('empresas.')
+    ->controller(CompanyParametersController::class)
+    ->group(function () {
+        Route::get('/', 'index')->name('index');
+        Route::get('{empresa}/editar', 'edit')->name('edit');
+        Route::put('{empresa}', 'update')->name('update');
     });
 
 // Client log (gestiones): portfolio managers and analysts remove an entry of
