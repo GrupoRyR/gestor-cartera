@@ -24,7 +24,12 @@
 @endphp
 
 <x-layouts.app :title="__('asesores::clientes.titulo')">
-    <x-ui.page-header :title="__('asesores::clientes.titulo')" :description="__('asesores::clientes.descripcion')" />
+    <x-ui.page-header :title="__('asesores::clientes.titulo')" :description="__('asesores::clientes.descripcion')">
+        <x-slot:actions>
+            {{-- The file holds the clients of the list: the same filters and order. --}}
+            <x-ui.link-button :href="route('asesores.clientes.exportar', $filter->params())" variant="secondary" icon="download">{{ __('asesores::exportar.boton.excel') }}</x-ui.link-button>
+        </x-slot:actions>
+    </x-ui.page-header>
 
     <div class="mt-6 grid gap-6">
         <x-asesores::advisor-filter :advisors="$advisors" :filter="$filter" :action="route('asesores.clientes.index')" />
