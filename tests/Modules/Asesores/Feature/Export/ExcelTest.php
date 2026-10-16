@@ -54,6 +54,21 @@ it('describes each document: type, due date, days and age', function () {
         ->and($notDue[11])->toBe('Sin vencer');
 });
 
+it('writes text that looks like a formula as text, never as a formula', function () {
+    $this->agro->update(['name' => '=HYPERLINK("http://evil.example","Agro")', 'tax_id' => '+1-2']);
+
+    $sheets = Spreadsheet::of($this->actingAs($this->world->ana)->get(route('asesores.clientes.exportar')));
+    $cell = $sheets['Clientes'][1][1] ?? $sheets['Clientes'][2][1];
+    $names = Spreadsheet::column($sheets['Clientes'], 1);
+
+    expect($names)->toContain('=HYPERLINK("http://evil.example","Agro")');
+
+    // A formula cell reads back as its result or empty; a text cell keeps the text.
+    $xml = file_get_contents('zip://'.($this->actingAs($this->world->ana)->get(route('asesores.clientes.exportar'))->baseResponse->getFile()->getPathname()).'#xl/worksheets/sheet1.xml');
+
+    expect($xml)->not->toContain('<f>')->and($cell)->not->toBeNull();
+});
+
 it('follows the filters and the order of the list', function () {
     $overdue = Spreadsheet::of($this->actingAs($this->world->ana)->get(route('asesores.clientes.exportar', ['vencidos' => '1'])));
     $reversed = Spreadsheet::of($this->actingAs($this->world->ana)->get(route('asesores.clientes.exportar', ['sort' => 'name', 'direction' => 'desc'])));

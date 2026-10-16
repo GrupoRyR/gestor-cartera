@@ -3,6 +3,8 @@
 namespace App\Modules\Asesores\Infrastructure\Export;
 
 use DateTimeInterface;
+use OpenSpout\Common\Entity\Cell;
+use OpenSpout\Common\Entity\Cell\StringCell;
 use OpenSpout\Common\Entity\Row;
 use OpenSpout\Common\Entity\Style\Style;
 use OpenSpout\Writer\Common\Entity\Sheet;
@@ -83,7 +85,19 @@ final class XlsxFile
      */
     public function row(array $values): void
     {
-        $this->writer->addRow(Row::fromValuesWithStyles($values, $this->styles));
+        $cells = [];
+
+        foreach ($values as $index => $value) {
+            // OpenSpout turns any string that starts with "=" into a formula.
+            // These strings come from SAP (client names, document numbers),
+            // so they are always written as text: a name like
+            // =HYPERLINK(...) must never run when the advisor opens the file.
+            $cells[] = is_string($value) && $value !== ''
+                ? new StringCell($value, $this->styles[$index] ?? null)
+                : Cell::fromValue($value, $this->styles[$index] ?? null);
+        }
+
+        $this->writer->addRow(new Row($cells));
     }
 
     /**

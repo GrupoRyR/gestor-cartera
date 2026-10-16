@@ -172,3 +172,11 @@ it('is closed to guests and to the roles that have their own screens', function 
     $this->get(route('asesores.agenda'))->assertRedirect(route('core.login'));
     $this->actingAs($this->world->mariaPaula)->get(route('asesores.agenda'))->assertForbidden();
 });
+
+it('ignores a page number in the URL: the agenda and the client file read their own list', function () {
+    $agenda = $this->actingAs($this->world->ana)->get(route('asesores.agenda', ['page' => 2]));
+    $file = $this->actingAs($this->world->ana)->get(route('asesores.clientes.show', [$this->world->clients['agro']->id, 'page' => 3]));
+
+    expect(Page::groupRows($agenda, 'today', 1))->toBe(['Agro Arango'])
+        ->and(Page::html($file)->count('//ul[@data-part="commitments"]/li'))->toBeGreaterThan(0);
+});
