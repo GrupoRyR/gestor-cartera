@@ -104,6 +104,7 @@ Los roles son los de `Contracts\Enums\Role` (Spatie, guard `web`, sin equipos). 
 | Permiso | Roles | Qué permite |
 |---|---|---|
 | `core.access` | Los seis | Usar la plataforma. Un usuario sin rol no lo tiene. |
+| `core.team.manage` | `admin` | Usar la pantalla Equipo (ver «Pantalla Equipo»). |
 
 Sembrar `core.access` también garantiza que existan los seis roles, para que la pantalla de equipo pueda asignarlos. Correr el seeder otra vez no duplica nada.
 
@@ -217,6 +218,28 @@ Los invitados y los usuarios activos pasan sin cambios. Un usuario cargado sin l
 **Inmutable.** `AuditLogRecord` lanza `LogicException` si intentas guardar cambios en una fila existente o borrarla, también con `saveQuietly()` y `deleteQuietly()`. Las escrituras del constructor de consultas no pasan por el modelo: nunca uses `update()` ni `delete()` masivos sobre `AuditLogRecord::query()` o `DB::table('audit_logs')`, ni `increment()` o `decrement()`.
 
 **Red de seguridad.** El contrato prohíbe guardar secretos. Aun así, en `changes` y `context`, a cualquier profundidad, el valor de toda llave que contenga `password`, `secret` o `token` (sin importar mayúsculas) se guarda como `[redacted]`.
+
+## Pantalla Equipo
+
+Solo para administradores: el permiso `core.team.manage`, que `CorePermissionSeeder` da únicamente a `admin`. Aparece en el menú como «Equipo», en el grupo «Administración» (`order: 900`); como es la única entrada que ve un administrador, también es su inicio. Los demás roles reciben 403 en todas sus rutas y los invitados van a `/login`.
+
+| Ruta | Nombre | Hace |
+|---|---|---|
+| `GET /equipo` | `core.equipo.index` | La lista, por pestañas, con búsqueda, orden y paginación. |
+
+**Lista.** Cada pestaña es un enlace (`?estado=`):
+
+| Pestaña | Usuarios |
+|---|---|
+| Activos (por defecto) | Activos y con rol. |
+| Sin rol | Activos sin rol: quienes ingresaron con Microsoft y esperan acceso. |
+| Inactivos | Desactivados, con o sin rol. |
+| Eliminados | Con borrado lógico. |
+
+- Cada pestaña muestra cuántos usuarios tiene con la búsqueda actual.
+- `?buscar=` busca por parte del nombre o del correo dentro de la pestaña.
+- La tabla se ordena por nombre o por correo (`?sort=name|email&direction=asc|desc`); un valor desconocido vuelve al nombre ascendente. Muestra 25 por página, y los enlaces de pestañas y páginas conservan la búsqueda y el orden.
+- Columnas: nombre, correo, rol («Sin rol» si no tiene), empresas (chips; «Todas» para un administrador) y estado (Activo, Inactivo o Eliminado).
 
 ## Pendientes
 
