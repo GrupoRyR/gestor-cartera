@@ -84,15 +84,31 @@ describe('role matching', function () {
             ->and($assigned->context)->toEqual(['source' => 'microsoft']);
     });
 
-    it('assigns the role from an advisor linked before, without duplicating companies', function () {
+    it('does not give back a role taken away from a user whose advisor was linked before', function () {
+        // An admin revoked the access by removing every role; the advisor stays linked.
         $user = CoreUsers::create(null, CompanyCode::SGX);
         $user->update(['email' => 'ana.gomez@segurex.com', 'microsoft_id' => 'oid-ana']);
-        AdvisorRecord::factory()->linkedTo($user)->create(['company' => CompanyCode::SGX, 'email' => null]);
+        AdvisorRecord::factory()->linkedTo($user)->create(['company' => CompanyCode::SDC, 'email' => 'ana.gomez@segurex.com']);
 
         signInWithMicrosoft('ana.gomez@segurex.com');
 
+        expect($user->fresh()?->getRoleNames()->all())->toBe([])
+            ->and(assignedCompanies($user))->toBe(['SGX'])
+            ->and(AuditLogRecord::query()->where('action', 'core.user.role_assigned')->exists())->toBeFalse();
+    });
+
+    it('assigns the role only from the advisors linked in this sign-in, without duplicating companies', function () {
+        $user = CoreUsers::create(null, CompanyCode::SGX);
+        $user->update(['email' => 'ana.gomez@segurex.com', 'microsoft_id' => 'oid-ana']);
+        AdvisorRecord::factory()->linkedTo($user)->create(['company' => CompanyCode::SDC, 'email' => null]);
+        AdvisorRecord::factory()->create(['company' => CompanyCode::SGX, 'code' => 12, 'email' => 'ana.gomez@segurex.com']);
+
+        signInWithMicrosoft('ana.gomez@segurex.com');
+        $assigned = AuditLogRecord::query()->where('action', 'core.user.role_assigned')->sole();
+
         expect($user->fresh()?->getRoleNames()->all())->toBe([Role::SalesAdvisor->value])
-            ->and(assignedCompanies($user))->toBe(['SGX']);
+            ->and(assignedCompanies($user))->toBe(['SGX'])
+            ->and($assigned->changes)->toEqual(['role' => 'asesor', 'companies' => ['SGX']]);
     });
 
     it('never changes the role or the companies of a user who already has a role', function () {
