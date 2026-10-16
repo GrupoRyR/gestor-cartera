@@ -1,36 +1,56 @@
-"""Robot de actualizacion de cartera SEGUREX.
+"""Robot del gestor de cartera SEGUREX.
 
 Flujo (dos fases, a proposito):
-    FASE 1 - con VPN:  conectar Sophos -> consultar SAP HANA -> bajar la VPN
-    FASE 2 - sin VPN:  publicar el snapshot en Supabase -> registrar la ejecucion
+    FASE 1 - con VPN:  conectar Sophos -> consultar SAP HANA (una consulta por
+                       lote) -> bajar la VPN
+    FASE 2 - sin VPN:  validar -> respaldo CSV -> publicar en Laravel (HTTPS
+                       firmado) -> publicar en Supabase (respaldo) -> registrar
 
 Se separan porque el perfil VPN es de tunel completo (0.0.0.0/0): manteniendola
-arriba, el trafico hacia Supabase saldria por la red corporativa y quedaria a
-merced de su proxy. Extraemos, cerramos el tunel y recien ahi publicamos.
+arriba, el trafico hacia Laravel y Supabase saldria por la red corporativa y
+quedaria a merced de su proxy. Extraemos, cerramos el tunel y recien ahi
+publicamos.
+
+Lotes (esquema.LOTES, elegidos con ETL_LOTES o --lotes):
+    - cartera y asesores son la base: un fallo de HANA, del contrato de
+      columnas o una cartera vacia abortan la corrida completa, como siempre.
+    - los demas son de mejor esfuerzo: si fallan se registran y se avisan al
+      final, pero nunca frenan la cartera.
 
 Uso:
-    python run_etl.py                # ejecucion normal
-    python run_etl.py --diagnostico  # solo prueba VPN + HANA, no escribe nada
-    python run_etl.py --sin-vpn      # asume la VPN ya conectada a mano
+    python run_etl.py                               # ejecucion normal
+    python run_etl.py --diagnostico                 # VPN + HANA + CSV, no publica
+    python run_etl.py --diagnostico --lotes ventas  # valida una consulta nueva
+    python run_etl.py --sin-vpn                     # asume la VPN ya conectada
 """
 from __future__ import annotations
 
 import argparse
 import json
+import logging
 import sys
 import time
 import traceback
-from datetime import datetime, timezone
+from dataclasses import dataclass
+from datetime import date, datetime, timedelta, timezone
+from typing import Any
 
 import esquema
 import hana
 import notificar
 import registro
-from config import STATE_DIR, ConfigError, cargar_config, leer_query
-from sinks import csv_sink, postgres_sink
+from config import STATE_DIR, ConfigError, cargar_config, leer_query, parsear_lotes
+from sinks import csv_sink, http_sink, postgres_sink
 from vpn import RobotVPN, VpnError
 
 ARCHIVO_ESTADO = STATE_DIR / "ultima_ejecucion.json"
+
+# Colombia no tiene horario de verano: UTC-5 fijo. No se usa zoneinfo porque
+# en Windows no viene la base tzdata y fallaria sin instalar paquetes.
+ZONA_COLOMBIA = timezone(timedelta(hours=-5))
+
+# Cualquier fallo de estos lotes aborta la corrida completa.
+LOTES_BASE = ("cartera", "asesores")
 
 
 class FalloEtapa(RuntimeError):
@@ -41,8 +61,51 @@ class FalloEtapa(RuntimeError):
         self.etapa = etapa
 
 
+@dataclass(frozen=True)
+class Fallo:
+    lote: str
+    etapa: str
+    mensaje: str
+
+
+class Corrida:
+    """Resultado de cada lote: alimenta el archivo de estado y el aviso final."""
+
+    def __init__(self, orden: list[str], log: logging.Logger) -> None:
+        self.orden = orden
+        self.log = log
+        self.lotes: dict[str, dict[str, Any]] = {
+            nombre: {"estado": "PENDIENTE", "filas": None} for nombre in orden
+        }
+        self.fallos: list[Fallo] = []
+
+    def fallo(self, nombre: str, etapa: str, exc: BaseException) -> None:
+        mensaje = str(exc)
+        self.log.error("Fallo el lote '%s' en la etapa %s: %s", nombre, etapa, mensaje)
+        self.fallos.append(Fallo(nombre, etapa, mensaje))
+        info = self.lotes[nombre]
+        info["estado"] = "ERROR"
+        info.setdefault("errores", []).append({"etapa": etapa, "error": mensaje})
+
+    def omitir(self, nombre: str, motivo: str) -> None:
+        self.lotes[nombre].update(estado="OMITIDO", motivo=motivo)
+
+    def fallos_ordenados(self) -> list[Fallo]:
+        """La cartera primero; luego el resto en el orden de la corrida."""
+        return sorted(self.fallos, key=lambda f: self.orden.index(f.lote))
+
+    def filas(self, nombre: str) -> int | None:
+        return self.lotes.get(nombre, {}).get("filas")
+
+    def cerrar(self) -> dict[str, dict[str, Any]]:
+        for info in self.lotes.values():
+            if info["estado"] == "PENDIENTE":
+                info["estado"] = "OK"
+        return self.lotes
+
+
 def guardar_estado(**datos) -> None:
-    """Estado local: sobrevive aunque Supabase sea justamente lo que falla."""
+    """Estado local: sobrevive aunque la publicacion sea justamente lo que falla."""
     try:
         STATE_DIR.mkdir(parents=True, exist_ok=True)
         datos["actualizado_en"] = datetime.now(timezone.utc).isoformat()
@@ -53,12 +116,29 @@ def guardar_estado(**datos) -> None:
         pass
 
 
+def hoy_colombia() -> date:
+    """Fecha de corte: el dia en Colombia (la corrida de las 00:00 en UTC ya
+    seria del dia siguiente)."""
+    return datetime.now(ZONA_COLOMBIA).date()
+
+
+def ordenar_lotes(lotes: tuple[str, ...] | list[str]) -> list[str]:
+    """Primero los lotes base: asi un lote nuevo que tumbe la conexion a HANA
+    nunca deja sin extraer la cartera."""
+    return [n for n in LOTES_BASE if n in lotes] + [
+        n for n in lotes if n not in LOTES_BASE
+    ]
+
+
 def main() -> int:
-    parser = argparse.ArgumentParser(description="Robot de cartera SEGUREX")
+    parser = argparse.ArgumentParser(description="Robot del gestor de cartera SEGUREX")
     parser.add_argument("--diagnostico", action="store_true",
-                        help="Prueba VPN y HANA sin escribir en Supabase.")
+                        help="Prueba VPN, HANA y las consultas sin publicar nada.")
     parser.add_argument("--sin-vpn", action="store_true",
                         help="No gestionar la VPN (asume que ya esta activa).")
+    parser.add_argument("--lotes", metavar="LOTE[,LOTE]",
+                        help="Lotes a extraer separados por comas; reemplaza "
+                             "ETL_LOTES (ej: --lotes ventas).")
     args = parser.parse_args()
 
     log = registro.configurar()
@@ -70,8 +150,9 @@ def main() -> int:
 
     try:
         cfg = cargar_config()
+        lotes = parsear_lotes(args.lotes) if args.lotes is not None else cfg.lotes
         cfg.validar(
-            requiere_supabase=not args.diagnostico,
+            requiere_destino=not args.diagnostico,
             requiere_esquema=not args.diagnostico,
         )
     except ConfigError as exc:
@@ -79,9 +160,12 @@ def main() -> int:
         guardar_estado(estado="ERROR", etapa="CONFIGURACION", error=str(exc))
         return 2
 
+    orden = ordenar_lotes(lotes)
+    log.info("Lotes de esta corrida: %s", ", ".join(orden))
+    corrida = Corrida(orden, log)
     etapa = "INICIO"
-    filas_cartera = filas_asesores = 0
     robot = RobotVPN(cfg.vpn)
+    extraidos: dict[str, tuple[list[str], list[tuple]]] = {}
 
     try:
         # ---------------------------------------------- FASE 1: extraccion
@@ -106,91 +190,236 @@ def main() -> int:
                             "(el de SAP B1) y ponlo en el archivo .env.",
                         )
 
-                cols_cartera, datos_cartera = hana.ejecutar(
-                    conn, leer_query("cartera.sql"), "cartera", cfg.hana.esquema
-                )
-                cols_asesores, datos_asesores = hana.ejecutar(
-                    conn, leer_query("asesores.sql"), "asesores", cfg.hana.esquema
-                )
+                for nombre in orden:
+                    lote = esquema.LOTES[nombre]
+                    try:
+                        extraidos[nombre] = hana.ejecutar(
+                            conn, leer_query(lote.consulta), nombre,
+                            cfg.hana.esquema,
+                        )
+                    except (hana.HanaError, ConfigError) as exc:
+                        if nombre in LOTES_BASE:
+                            raise
+                        corrida.fallo(nombre, "HANA", exc)
         finally:
             if not args.sin_vpn:
                 robot.desconectar()
 
+        # ------------------------------------- FASE 2: sin VPN desde aqui
         etapa = "VALIDACION"
-        if not datos_cartera:
-            raise FalloEtapa(
-                "VALIDACION",
-                "La consulta de cartera devolvio 0 filas. Se cancela la "
-                "publicacion para no dejar la web sin datos.",
-            )
-        pos_cartera = esquema.indices(cols_cartera, esquema.CARTERA)
-        pos_asesores = esquema.indices(cols_asesores, esquema.ASESORES)
-        filas_cartera, filas_asesores = len(datos_cartera), len(datos_asesores)
+        validos = _validar(extraidos, corrida, log)
 
         etapa = "RESPALDO"
-        csv_sink.guardar(
-            "cartera", esquema.CARTERA,
-            [[f[i] for i in pos_cartera] for f in datos_cartera],
-        )
+        _respaldar(validos, corrida)
+
+        etapa = "CONTRATO"
+        # El diagnostico tambien serializa: asi una consulta nueva se valida
+        # contra el contrato de Laravel (tipos y obligatorias) sin publicar.
+        listos: dict[str, tuple[list[str], list[list[Any]]]] = {}
+        if args.diagnostico or cfg.ingesta.habilitada:
+            listos = _serializar(validos, corrida)
 
         if args.diagnostico:
-            log.info("Diagnostico correcto: %d filas de cartera, %d asesores. "
-                     "No se escribio en Supabase.", filas_cartera, filas_asesores)
-            guardar_estado(estado="DIAGNOSTICO_OK",
-                           filas_cartera=filas_cartera,
-                           filas_asesores=filas_asesores)
-            return 0
+            return _cerrar_diagnostico(corrida, log)
 
-        # ---------------------------------------------- FASE 2: publicacion
-        etapa = "SUPABASE"
-        with postgres_sink.conectar(cfg.supabase_url) as pg:
-            postgres_sink.preparar(
-                pg, {"cartera": esquema.CARTERA, "asesores": esquema.ASESORES}
-            )
-            postgres_sink.publicar(
-                pg, "cartera", esquema.CARTERA, datos_cartera, pos_cartera
-            )
-            if datos_asesores:
-                postgres_sink.publicar(
-                    pg, "asesores", esquema.ASESORES, datos_asesores, pos_asesores
-                )
-            else:
-                log.warning("Sin asesores en OSLP; se conserva la tabla anterior.")
+        if cfg.ingesta.habilitada:
+            etapa = "LARAVEL"
+            _publicar_laravel(cfg, listos, corrida, log)
+        else:
+            log.info("INGESTA_URL vacio: no se publica en Laravel.")
 
-            postgres_sink.registrar_historico(pg)
-
-            duracion = time.monotonic() - inicio
-            postgres_sink.registrar_run(
-                pg, iniciado_en=inicio_utc, estado="OK",
-                filas_cartera=filas_cartera, filas_asesores=filas_asesores,
-                duracion=duracion,
-            )
+        if cfg.supabase_url:
+            etapa = "SUPABASE"
+            _publicar_supabase(cfg, validos, corrida, log, inicio, inicio_utc)
 
         duracion = time.monotonic() - inicio
-        log.info("Actualizacion completada: %d filas de cartera, %d asesores, "
-                 "%.1fs.", filas_cartera, filas_asesores, duracion)
-        guardar_estado(estado="OK", filas_cartera=filas_cartera,
-                       filas_asesores=filas_asesores,
+        if corrida.fallos:
+            return _cerrar_con_fallos(cfg, log, corrida, duracion)
+
+        log.info("Actualizacion completada en %.1fs: %s.", duracion, _resumen(corrida))
+        guardar_estado(estado="OK", lotes=corrida.cerrar(),
+                       filas_cartera=corrida.filas("cartera"),
+                       filas_asesores=corrida.filas("asesores"),
                        duracion_seg=round(duracion, 1))
         return 0
 
     except (VpnError, hana.HanaError, postgres_sink.PostgresError,
-            esquema.ColumnasInesperadas, FalloEtapa) as exc:
+            esquema.ColumnasInesperadas, FalloEtapa, ConfigError) as exc:
         etapa_fallo = getattr(exc, "etapa", etapa)
-        return _fallar(cfg, log, etapa_fallo, exc, inicio, inicio_utc,
-                       filas_cartera, filas_asesores)
+        return _fallar(cfg, log, etapa_fallo, exc, inicio, inicio_utc, corrida)
 
     except KeyboardInterrupt:
         log.warning("Ejecucion cancelada por el usuario.")
         return 130
 
     except Exception as exc:  # red de seguridad: nada sale sin registrar
-        return _fallar(cfg, log, etapa, exc, inicio, inicio_utc,
-                       filas_cartera, filas_asesores, inesperado=True)
+        return _fallar(cfg, log, etapa, exc, inicio, inicio_utc, corrida,
+                       inesperado=True)
 
 
-def _fallar(cfg, log, etapa, exc, inicio, inicio_utc, filas_cartera,
-            filas_asesores, inesperado: bool = False) -> int:
+# ------------------------------------------------------------------ etapas
+def _validar(
+    extraidos: dict[str, tuple[list[str], list[tuple]]],
+    corrida: Corrida,
+    log: logging.Logger,
+) -> dict[str, tuple[esquema.Lote, list[tuple], list[int]]]:
+    """Contrato de columnas y regla de lote vacio. Devuelve los lotes validos."""
+    validos = {}
+    for nombre, (columnas_hana, datos) in extraidos.items():
+        lote = esquema.LOTES[nombre]
+        corrida.lotes[nombre]["filas"] = len(datos)
+        try:
+            posiciones = esquema.indices(columnas_hana, lote.columnas)
+            if not datos and not lote.permite_vacio:
+                if nombre == "cartera":
+                    raise FalloEtapa(
+                        "VALIDACION",
+                        "La consulta de cartera devolvio 0 filas. Se cancela la "
+                        "publicacion para no dejar la web sin datos.",
+                    )
+                if nombre == "asesores":
+                    log.warning("Sin asesores en OSLP; no se envian y se "
+                                "conservan los datos anteriores.")
+                    corrida.omitir(nombre, "0 filas")
+                    continue
+                raise FalloEtapa(
+                    "VALIDACION",
+                    f"La consulta del lote '{nombre}' devolvio 0 filas y este "
+                    "lote no admite cargas vacias; no se envia.",
+                )
+        except (FalloEtapa, esquema.ColumnasInesperadas) as exc:
+            if nombre in LOTES_BASE:
+                raise
+            corrida.fallo(nombre, "VALIDACION", exc)
+            continue
+        validos[nombre] = (lote, datos, posiciones)
+    return validos
+
+
+def _respaldar(
+    validos: dict[str, tuple[esquema.Lote, list[tuple], list[int]]],
+    corrida: Corrida,
+) -> None:
+    """CSV local de cada lote extraido (auditoria y plan B)."""
+    for nombre, (lote, datos, posiciones) in validos.items():
+        try:
+            csv_sink.guardar(
+                nombre, lote.columnas, [[f[i] for i in posiciones] for f in datos]
+            )
+        except OSError as exc:
+            if nombre in LOTES_BASE:
+                raise
+            corrida.fallo(nombre, "RESPALDO", exc)
+
+
+def _serializar(
+    validos: dict[str, tuple[esquema.Lote, list[tuple], list[int]]],
+    corrida: Corrida,
+) -> dict[str, tuple[list[str], list[list[Any]]]]:
+    listos = {}
+    for nombre, (lote, datos, posiciones) in validos.items():
+        try:
+            listos[nombre] = http_sink.serializar(lote.columnas, datos, posiciones)
+        except http_sink.DatoInvalido as exc:
+            corrida.fallo(nombre, "CONTRATO", exc)
+    return listos
+
+
+def _publicar_laravel(cfg, listos, corrida: Corrida, log: logging.Logger) -> None:
+    """Todos los lotes, aunque uno falle: cada uno es independiente en Laravel."""
+    corte = hoy_colombia()
+    log.info("Publicando en Laravel %s (empresa %s, corte %s).",
+             cfg.ingesta.url, cfg.ingesta.empresa, corte.isoformat())
+    for nombre, (columnas, filas) in listos.items():
+        try:
+            respuesta = http_sink.publicar(
+                cfg.ingesta, nombre, cfg.ingesta.empresa, corte, columnas, filas
+            )
+        except http_sink.HttpSinkError as exc:
+            corrida.fallo(nombre, "LARAVEL", exc)
+            continue
+        corrida.lotes[nombre]["laravel"] = (
+            "duplicado" if respuesta.get("duplicate") else "nuevo"
+        )
+
+
+def _publicar_supabase(cfg, validos, corrida: Corrida, log: logging.Logger,
+                       inicio: float, inicio_utc: datetime) -> None:
+    """Respaldo mientras viva el portal anterior: cartera y asesores, como antes."""
+    tablas = [n for n in LOTES_BASE if n in validos]
+    if not tablas:
+        log.info("Ningun lote de esta corrida va a Supabase.")
+        return
+    actual = tablas[0]
+    try:
+        with postgres_sink.conectar(cfg.supabase_url) as pg:
+            postgres_sink.preparar(
+                pg, {"cartera": esquema.CARTERA, "asesores": esquema.ASESORES}
+            )
+            for actual in tablas:
+                lote, datos, posiciones = validos[actual]
+                postgres_sink.publicar(pg, actual, lote.columnas, datos, posiciones)
+                corrida.lotes[actual]["supabase"] = "ok"
+            actual = tablas[0]  # un fallo de aqui en adelante es de la corrida
+            if "cartera" in tablas:
+                postgres_sink.registrar_historico(pg)
+            postgres_sink.registrar_run(
+                pg, iniciado_en=inicio_utc, estado="OK",
+                filas_cartera=corrida.filas("cartera"),
+                filas_asesores=corrida.filas("asesores"),
+                duracion=time.monotonic() - inicio,
+            )
+    except Exception as exc:  # respaldo: su fallo no tumba lo ya publicado
+        corrida.fallo(actual, "SUPABASE", exc)
+
+
+# ----------------------------------------------------------------- cierre
+def _resumen(corrida: Corrida) -> str:
+    return ", ".join(
+        f"{nombre} {info['filas'] if info['filas'] is not None else '-'} filas"
+        for nombre, info in corrida.lotes.items()
+    )
+
+
+def _cerrar_diagnostico(corrida: Corrida, log: logging.Logger) -> int:
+    lotes = corrida.cerrar()
+    if corrida.fallos:
+        for f in corrida.fallos_ordenados():
+            log.error("Diagnostico: el lote '%s' fallo en %s: %s",
+                      f.lote, f.etapa, f.mensaje)
+        guardar_estado(estado="DIAGNOSTICO_CON_FALLOS", lotes=lotes)
+        return 1
+    log.info("Diagnostico correcto (%s). No se publico nada; revisa los CSV "
+             "en etl/out.", _resumen(corrida))
+    guardar_estado(estado="DIAGNOSTICO_OK", lotes=lotes,
+                   filas_cartera=corrida.filas("cartera"),
+                   filas_asesores=corrida.filas("asesores"))
+    return 0
+
+
+def _cerrar_con_fallos(cfg, log: logging.Logger, corrida: Corrida,
+                       duracion: float) -> int:
+    """Todos los lotes ya se intentaron: se registra y se avisa una sola vez."""
+    fallos = corrida.fallos_ordenados()
+    detalle = "\n".join(f"- {f.lote} ({f.etapa}): {f.mensaje}" for f in fallos)
+    log.error("La corrida termino con %d fallo(s):\n%s", len(fallos), detalle)
+    log.error("Los lotes que fallaron conservan su ultima carga correcta.")
+    primero = fallos[0]
+    guardar_estado(estado="ERROR", etapa=primero.etapa, error=detalle,
+                   lotes=corrida.cerrar(),
+                   filas_cartera=corrida.filas("cartera"),
+                   filas_asesores=corrida.filas("asesores"),
+                   duracion_seg=round(duracion, 1))
+    notificar.avisar_fallo(
+        cfg.alertas, f"{primero.etapa} ({primero.lote})",
+        f"{len(fallos)} fallo(s) en la corrida:\n{detalle}",
+    )
+    return 1
+
+
+def _fallar(cfg, log, etapa, exc, inicio, inicio_utc, corrida: Corrida,
+            inesperado: bool = False) -> int:
+    """Aborto de la corrida completa (VPN, HANA o un lote base)."""
     duracion = time.monotonic() - inicio
     detalle = traceback.format_exc()
     if inesperado:
@@ -199,8 +428,10 @@ def _fallar(cfg, log, etapa, exc, inicio, inicio_utc, filas_cartera,
     log.error("FALLO en la etapa %s: %s", etapa, exc)
     log.error("Los asesores conservan los datos de la ultima carga correcta.")
 
+    filas_cartera = corrida.filas("cartera")
+    filas_asesores = corrida.filas("asesores")
     guardar_estado(estado="ERROR", etapa=etapa, error=str(exc),
-                   duracion_seg=round(duracion, 1))
+                   lotes=corrida.lotes, duracion_seg=round(duracion, 1))
 
     # Intento de dejar rastro en Supabase (puede que sea justo lo que fallo).
     if cfg.supabase_url and etapa != "SUPABASE":

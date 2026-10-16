@@ -31,7 +31,7 @@ class _RedactarSecretos(logging.Filter):
 
 def registrar_secreto(valor: str | None) -> None:
     """Marca un valor para que nunca aparezca en los logs."""
-    if valor and len(valor) >= 4:
+    if valor and len(valor) >= 4 and valor not in _SECRETOS:
         _SECRETOS.append(valor)
 
 
