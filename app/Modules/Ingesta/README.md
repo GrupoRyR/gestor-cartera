@@ -81,3 +81,18 @@ El gzip descomprimido no puede pasar de `ingesta.max_payload_bytes` (60 MB). El 
 ## Cómo leen los consumidores
 
 Escuchan `BatchAccepted`, que se despacha una vez por carga aceptada y después del commit (la cola `database` no espera commits), filtran por `$event->load->dataset` y recorren `app(IngestaSink::class)->rows($event->load->id)`. Las filas llegan en el orden recibido, como arreglos asociativos en el orden de columnas del esquema, y se leen un bloque a la vez. `latest()` da la instantánea vigente de un lote y empresa; `history()`, el historial más reciente primero.
+
+## Permisos
+
+| Permiso | Roles | Abre |
+|---|---|---|
+| `ingesta.view` | `admin`, `gerente_cartera`, `analista_cartera` | El historial de cargas |
+| `ingesta.upload` | `admin`, `gerente_cartera`, `analista_cartera` | La carga manual del Excel de cartera |
+
+## Historial de cargas
+
+`GET /ingesta` (ruta `ingesta.index`, menú «Cargas de datos» en Administración): todas las cargas, aceptadas y rechazadas, 25 por página y la más reciente primero, con filtros por lote, empresa y estado (`?lote=cartera&empresa=SGX&estado=rechazada`; un valor desconocido no filtra). Arriba muestra la cartera vigente (`IngestaSink::latest()`) de cada empresa de `ingesta.alert_companies` y, pasada la hora límite (`ingesta.alert_deadline`, 07:00 en Bogotá), un aviso por cada una que aún no tenga una carga de cartera **del robot**, aceptada y con corte de hoy (`DailyCarteraCheck`). Una carga manual no apaga el aviso: mantiene la plataforma al día, pero el robot igual necesita revisión.
+
+`GET /ingesta/cargas/{id}` (`ingesta.cargas.show`): los datos de una carga; si se rechazó, el resumen y los mensajes por campo (las filas se numeran desde 0, como en los mensajes); si es una cartera aceptada, el saldo total y el vencido. Un id que no existe responde 404.
+
+`ingesta.alert_companies` trae solo `SGX`: el robot lee únicamente el esquema SEGUREX de HANA; SDC carga su cartera con el Excel manual hasta que se configure su esquema de SAP.
