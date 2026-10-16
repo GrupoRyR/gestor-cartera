@@ -16,6 +16,10 @@ use Symfony\Component\HttpFoundation\Response;
  * seconds of now and a matching X-Ingesta-Signature over the raw body. It
  * runs before the body is decompressed or parsed.
  *
+ * A request over config('ingesta.max_request_bytes') is refused with 413
+ * first, by its Content-Length and then by its body, so an unauthenticated
+ * caller cannot make the server hash a body it would never accept.
+ *
  * Every failure answers the same 401, so a caller learns nothing about
  * which check failed; the reason, the key id and the IP go to the log,
  * never a secret.
@@ -29,6 +33,13 @@ final class VerifyRobotSignature
      */
     public function handle(Request $request, Closure $next): Response
     {
+        $maxBytes = (int) config('ingesta.max_request_bytes');
+
+        // The header first: a body announced as too large is never read.
+        if ((int) $request->header('Content-Length', '0') > $maxBytes || strlen($request->getContent()) > $maxBytes) {
+            return $this->tooLarge($maxBytes);
+        }
+
         $keyring = HmacKeyring::parse((string) config('ingesta.hmac_keys'));
         $keyId = (string) $request->header('X-Ingesta-Key', '');
 
@@ -89,6 +100,14 @@ final class VerifyRobotSignature
         }
 
         return null;
+    }
+
+    /**
+     * The same 413 that ReceiveBatchController answers.
+     */
+    private function tooLarge(int $maxBytes): JsonResponse
+    {
+        return new JsonResponse(['message' => __('ingesta::robot.demasiado_grande', ['max' => $maxBytes])], Response::HTTP_REQUEST_ENTITY_TOO_LARGE);
     }
 
     private function refuse(): JsonResponse

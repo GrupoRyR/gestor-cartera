@@ -41,8 +41,9 @@ ESPERAS = (2, 5, 10)
 MAX_ERRORES = 10
 
 # Escala y digitos enteros maximos que acepta Laravel por tipo decimal.
+# NUMERO se guarda en decimal(18,2): 16 digitos enteros como maximo.
 _DECIMALES = {
-    NUMERO: (Decimal("0.01"), 17),      # ^-?\d{1,17}(\.\d{1,2})?$
+    NUMERO: (Decimal("0.01"), 16),      # ^-?\d{1,16}(\.\d{1,2})?$
     TASA: (Decimal("0.000001"), 13),    # ^-?\d{1,13}(\.\d{1,6})?$
 }
 
