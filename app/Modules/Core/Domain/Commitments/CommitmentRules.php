@@ -55,15 +55,23 @@ final class CommitmentRules
     /**
      * A fulfilled or cancelled commitment hands the client back to the
      * automatic statuses when the commitment workflow set the current one
-     * (Committed or Defaulted) and no other commitment is pending. The caller
-     * recomputes from the latest snapshot, ignoring the manual status.
+     * (Committed or Defaulted) and no other commitment is pending or broken.
+     * The caller recomputes from the latest snapshot, ignoring the manual
+     * status. While another commitment is still broken (and none is
+     * pending), the client stays, or goes back to, Defaulted.
      */
-    public static function afterClose(ClientStatus $current, bool $hasOtherPending): StatusDecision
+    public static function afterClose(ClientStatus $current, bool $hasOtherPending, bool $hasOtherBroken = false): StatusDecision
     {
         $workflow = [ClientStatus::Committed, ClientStatus::Defaulted];
 
         if ($hasOtherPending || ! in_array($current, $workflow, true)) {
             return StatusDecision::keep();
+        }
+
+        if ($hasOtherBroken) {
+            return $current === ClientStatus::Defaulted
+                ? StatusDecision::keep()
+                : StatusDecision::set(ClientStatus::Defaulted);
         }
 
         return StatusDecision::recompute();
