@@ -11,6 +11,7 @@ Core es la base de la plataforma: los contratos que usan los demás módulos (`C
 | `Application/` | Casos de uso: el ingreso con Microsoft (`Auth\`, ver «Ingreso con Microsoft»), la pantalla Equipo (`Team\`), el borrado de gestiones (`Activity\`, ver «Bitácora de gestiones»), el recálculo de saldos y estados de los clientes (`Portfolio\`, ver «Importación del robot») y la regla de escritura y los efectos de los compromisos (`Commitments\`, ver «Compromisos de pago»). |
 | `Infrastructure/` | Eloquent (`Persistence\*Record`), el acceso por empresa y el alcance de la cartera (`Access\`), el catálogo de empresas y la empresa activa (`Companies\`), la bitácora de auditoría (`Audit\`), la bitácora de gestiones (`Activity\`), el adaptador de Microsoft sobre Socialite (`Auth\`), la importación de los lotes del robot (`Ingest\`), la lectura de la cartera (`Portfolio\`, ver «CarteraRepository») y los compromisos de pago (`Commitments\`, ver «Compromisos de pago»). |
 | `Http/` | Controladores, FormRequests y middleware de las rutas web (ver «Ingreso con Microsoft», «Inicio y acceso» y «Bitácora de gestiones»). |
+| `Console/` | Comandos de Artisan (`core:<acción>`), registrados en `bootModule()`: la tarea diaria de compromisos (ver «Tarea diaria de incumplimiento»). |
 | `config/core.php` | Valores por defecto para sembrar los parámetros de cada empresa. |
 
 ## Estados del cliente
@@ -54,7 +55,7 @@ Los valores de la tabla son los de siembra (`config('core.companies')`). Los vig
 | Se incumple | Pasa a «Incumplido», salvo si tiene otro compromiso pendiente o está en «Jurídico», «Pago recibido» o ya en «Incumplido». |
 | Se cumple o se anula | Si estaba en «Compromiso» o «Incumplido» y no tiene otro compromiso pendiente, se recalcula su estado automático con la última instantánea, ignorando el estado manual. Si no, conserva su estado. |
 
-**Incumplimiento diario.** Una tarea diaria marca «Incumplido» todo compromiso «Pendiente» cuya fecha de pago sea anterior a hoy (`CommitmentRules::isBroken()`). Un compromiso que vence hoy no se incumple hasta mañana. Solo cuenta la fecha, no la hora.
+**Incumplimiento diario.** Una tarea diaria marca «Incumplido» todo compromiso «Pendiente» cuya fecha de pago sea anterior a hoy (`CommitmentRules::isBroken()`). Un compromiso que vence hoy no se incumple hasta mañana. Solo cuenta la fecha, no la hora. Ver «Tarea diaria de incumplimiento».
 
 ### CompromisoService
 
@@ -101,6 +102,22 @@ Los valores de la tabla son los de siembra (`config('core.companies')`). Los vig
 - Las gestiones de compromiso llevan `metadata` `commitment_id`, `amount` (en pesos) y `due_date` (`Y-m-d`). La auditoría lleva `context.client_id`.
 - **Estado del cliente** (`Application\Commitments\CommitmentClientStatus`, con la tabla de arriba): al crear aplica `afterCreate()`, y al cumplir o anular, `afterClose()` según si el cliente tiene otro compromiso pendiente. Recalcular es tomar el estado automático de la última instantánea de la empresa (`RecomputeClientStatuses::automaticStatus()`) sin mirar el estado manual: «Vencida», «Por vencer» o «Al día» si el cliente debe, y «Pago recibido» si ya no debe (o no aparece en la instantánea). Editar un compromiso no cambia el estado.
 - Cada cambio de estado guarda `status` y `status_changed_at`, deja una gestión «Cambio de estado» («Por el compromiso de pago: de «Vencida» a «Compromiso»», con `metadata` `from`, `to` y `commitment_id`) y audita `core.client.status_changed` con `changes.status` y `context` `{"source": "commitment", "commitment_id": …}`.
+
+### Tarea diaria de incumplimiento
+
+El comando `core:compromisos-incumplidos` (`Console\BreakOverdueCommitmentsCommand`, que llama a `Application\Commitments\BreakOverdueCommitments`) corre todos los días a las 00:15 de Bogotá. Lo programa `CoreServiceProvider::schedule()` con `withoutOverlapping(10)`: tarda segundos, así que el candado de un proceso que muera vence a los 10 minutos y no al día siguiente. Correrlo a mano es seguro.
+
+1. Busca, de a 100 por consulta (`BreakOverdueCommitments::CHUNK`), los compromisos «Pendiente» cuya fecha de pago es anterior a hoy en el calendario de Bogotá: el que vence hoy espera a mañana, y a las 23:30 del 14 todavía es 14 aunque en UTC ya sea 15.
+2. Cada uno va en su propia transacción, con el compromiso y el cliente bloqueados, y se revisa otra vez con `CommitmentRules::isBroken()`: si alguien lo cumplió o lo anuló entretanto, no lo toca.
+3. Lo pasa a «Incumplido» y guarda `broken_at`; deja en la bitácora una gestión «Compromiso de pago» del sistema («Compromiso incumplido: vencía el 14/10/2026», con `metadata` `commitment_id`, `amount` y `due_date`); y audita `core.commitment.broken` con `changes.status` y `context` `client_id` y `due_date`.
+4. Aplica `CommitmentRules::afterBreak()`: el cliente pasa a «Incumplido» salvo que tenga otro compromiso pendiente o esté en «Jurídico», «Pago recibido» o ya en «Incumplido». El cambio queda como en «CompromisoService»: `status_changed_at`, una gestión «Cambio de estado» del sistema y `core.client.status_changed` con `source: commitment`. Si un cliente tiene varios compromisos vencidos, pasa a «Incumplido» una sola vez, con el último.
+
+- Corre como el sistema: la consola no tiene sesión, así que sus gestiones y su auditoría no tienen autor y no mueven la última actividad del cliente.
+- Es idempotente: una segunda corrida no encuentra nada que marcar y no escribe nada.
+- Si un compromiso falla, su transacción se deshace, el error se reporta al log y la tarea sigue con los demás. El comando termina con error (código 1) si alguno falló.
+- Los compromisos de un cliente eliminado (borrado lógico) esperan: se incumplen en la primera corrida después de restaurarlo.
+- Imprime un resumen: «Marcamos 2 compromisos como incumplidos.» (o «No hay compromisos vencidos para marcar como incumplidos.») y, si algo falló, «No pudimos marcar 1 compromiso; el error quedó en el log.».
+- Un pago tardío sigue cumpliendo: `markFulfilled()` acepta un compromiso «Incumplido» y, si no queda otro pendiente, devuelve al cliente a su estado automático.
 
 ## Empresas y parámetros
 

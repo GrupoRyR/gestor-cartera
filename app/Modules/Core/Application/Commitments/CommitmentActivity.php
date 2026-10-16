@@ -55,6 +55,16 @@ final class CommitmentActivity
     }
 
     /**
+     * «Compromiso incumplido: vencía el 14/10/2026»: the daily task broke it.
+     */
+    public static function broken(CommitmentRecord $commitment): NewActivity
+    {
+        return self::entry($commitment, self::text('core::compromisos.resumen.incumplido', [
+            'fecha' => DateFormat::date($commitment->due_date),
+        ]));
+    }
+
+    /**
      * «Por el compromiso de pago: de «Vencida» a «Compromiso»»: the
      * commitment workflow changed the client's status.
      */
