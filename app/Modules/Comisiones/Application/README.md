@@ -32,7 +32,8 @@ infrastructure passes everything in through three ports and stores what the use 
 2. **Seed the parameters** once with `DefaultParameters::book()`. Later edits are new versions with their
    own `Validity`; a period takes, per key, the version with the latest start in force on any of its days.
 3. **Call the use cases** (constructor-injected ports, method `handle`), passing the user and the current
-   time from outside:
+   time from outside. Each one checks the stored state first, so a refused step never reads the inputs or
+   runs the engine:
 
    | Use case | Spec | Does |
    |---|---|---|

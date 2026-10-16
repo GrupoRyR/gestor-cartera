@@ -16,7 +16,8 @@ use DateTimeImmutable;
  * "Calcular liquidación" (§6 step 4): settles the period on the parameters
  * in force for it and stores the draft. The first time it creates version 1;
  * while the latest version is open (draft or approved) it recalculates that
- * version, which goes back to draft.
+ * version, which goes back to draft. A closed period is refused before the
+ * inputs and parameters are read, so the refusal never runs the engine.
  */
 final class CalculateSettlement
 {
@@ -33,6 +34,11 @@ final class CalculateSettlement
     public function handle(Period $period, string $analyst, DateTimeImmutable $at): Settlement
     {
         $previous = $this->settlements->latest($period);
+
+        if ($previous !== null && ! $previous->isOpen()) {
+            throw SettlementLocked::closed($previous->period, $previous->version);
+        }
+
         $result = (new SettlementCalculator)->calculate(
             $this->inputs->forPeriod($period),
             $this->parameters->book()->forPeriod($period),

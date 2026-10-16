@@ -17,6 +17,8 @@ use InvalidArgumentException;
  * Corrects a closed period (§6 step 7): settles it again on the current data
  * and parameters as a new draft version with its reason, which then goes
  * through approval and closing. The closed version stays stored as it was.
+ * A missing or still open period is refused before the inputs and
+ * parameters are read, so the refusal never runs the engine.
  */
 final class RegisterComplementarySettlement
 {
@@ -35,6 +37,11 @@ final class RegisterComplementarySettlement
     public function handle(Period $period, string $analyst, string $reason, DateTimeImmutable $at): Settlement
     {
         $closed = $this->settlements->latest($period) ?? throw SettlementNotFound::forPeriod($period);
+
+        if ($closed->isOpen()) {
+            throw InvalidTransition::cannot('complement', $closed);
+        }
+
         $result = (new SettlementCalculator)->calculate(
             $this->inputs->forPeriod($period),
             $this->parameters->book()->forPeriod($period),

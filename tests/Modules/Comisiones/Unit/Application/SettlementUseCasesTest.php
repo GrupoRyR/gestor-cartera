@@ -4,17 +4,21 @@ use App\Modules\Comisiones\Application\ApproveSettlement;
 use App\Modules\Comisiones\Application\CalculateSettlement;
 use App\Modules\Comisiones\Application\CloseSettlement;
 use App\Modules\Comisiones\Application\DefaultParameters;
+use App\Modules\Comisiones\Application\Ports\CommissionParameters;
+use App\Modules\Comisiones\Application\Ports\SettlementInputs;
 use App\Modules\Comisiones\Application\RegisterComplementarySettlement;
 use App\Modules\Comisiones\Application\SettlementNotFound;
 use App\Modules\Comisiones\Domain\Calculation\Alert;
 use App\Modules\Comisiones\Domain\Input\SettlementInput;
 use App\Modules\Comisiones\Domain\Parameters\ParameterBook;
 use App\Modules\Comisiones\Domain\Parameters\SellerCodeRule;
+use App\Modules\Comisiones\Domain\Settlement\InvalidTransition;
 use App\Modules\Comisiones\Domain\Settlement\Settlement;
 use App\Modules\Comisiones\Domain\Settlement\SettlementLocked;
 use App\Modules\Comisiones\Domain\Settlement\SettlementStatus;
 use App\Modules\Comisiones\Domain\Settlement\StaleSettlement;
 use App\Modules\Comisiones\Domain\Shared\Period;
+use PHPUnit\Framework\Assert;
 use Tests\Modules\Comisiones\Support\FixedInputs;
 use Tests\Modules\Comisiones\Support\FixedParameters;
 use Tests\Modules\Comisiones\Support\InMemorySettlements;
@@ -131,6 +135,54 @@ describe('a period without settlement', function () {
         'approve' => [fn ($test) => $test->approve->handle($test->july, 'beto', new DateTimeImmutable, 1)],
         'close' => [fn ($test) => $test->close->handle($test->july, 'beto', new DateTimeImmutable)],
         'complement' => [fn ($test) => $test->complement->handle($test->july, 'carla', 'Corrección.', new DateTimeImmutable)],
+    ]);
+});
+
+describe('refusing a step before reading the inputs or running the engine', function () {
+    beforeEach(function () {
+        // Ports that fail the test when a refused step still reads them.
+        $inputs = new class implements SettlementInputs
+        {
+            public function forPeriod(Period $period): SettlementInput
+            {
+                Assert::fail('The inputs were read for a step that is refused.');
+            }
+        };
+        $parameters = new class implements CommissionParameters
+        {
+            public function book(): ParameterBook
+            {
+                Assert::fail('The parameters were read for a step that is refused.');
+            }
+        };
+
+        $this->strictCalculate = new CalculateSettlement($inputs, $parameters, $this->settlements);
+        $this->strictComplement = new RegisterComplementarySettlement($inputs, $parameters, $this->settlements);
+        $this->draft = Settlement::calculate(Settle::run(($this->annex)()), 'ana', new DateTimeImmutable('2026-08-03 09:00'));
+    });
+
+    it('refuses to calculate a closed period', function () {
+        $this->settlements->save($this->draft
+            ->approve('beto', new DateTimeImmutable('2026-08-04 09:00'), 1)
+            ->close('beto', new DateTimeImmutable('2026-08-04 10:00')));
+
+        expect(fn () => $this->strictCalculate->handle($this->july, 'ana', new DateTimeImmutable('2026-09-01 08:00')))
+            ->toThrow(SettlementLocked::class, 'Version 1 of the 2026-07 settlement is closed');
+    });
+
+    it('refuses to complement a period that was never calculated', function () {
+        expect(fn () => $this->strictComplement->handle($this->july, 'carla', 'Corrección.', new DateTimeImmutable))
+            ->toThrow(SettlementNotFound::class);
+    });
+
+    it('refuses to complement an open period', function (Closure $open, string $status) {
+        $this->settlements->save($open($this));
+
+        expect(fn () => $this->strictComplement->handle($this->july, 'carla', 'Corrección.', new DateTimeImmutable))
+            ->toThrow(InvalidTransition::class, "Cannot complement version 1 of the 2026-07 settlement while it is {$status}");
+    })->with([
+        'draft' => [fn ($test) => $test->draft, 'draft'],
+        'approved' => [fn ($test) => $test->draft->approve('beto', new DateTimeImmutable('2026-08-04 09:00'), 1), 'approved'],
     ]);
 });
 
