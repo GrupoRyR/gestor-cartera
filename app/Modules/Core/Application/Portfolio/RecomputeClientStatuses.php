@@ -20,8 +20,9 @@ use Illuminate\Database\Eloquent\ModelNotFoundException;
  * Recomputes the figures and the automatic status cached on every client of
  * a company from one snapshot, with the company's current parameters.
  *
- * Used by the robot import after each cartera snapshot; the parameters screen
- * will reuse it. The commitment workflow reads the automatic status of one
+ * Used by the robot import after each cartera snapshot and, through the
+ * RecomputeCompanyStatuses job, after an admin edits the company's
+ * parameters. The commitment workflow reads the automatic status of one
  * client with automaticStatus().
  */
 final class RecomputeClientStatuses
@@ -52,11 +53,16 @@ final class RecomputeClientStatuses
      * just created them, so their first status is their initial state, not a
      * change. Does nothing while the company has no snapshot.
      *
+     * $source tells why the recompute runs when it is not a snapshot import
+     * (e.g. "parameters" after an admin edits the company): it is added as
+     * "source" to the audit context and to the metadata of the log entries.
+     *
      * @param  list<int>  $newClientIds  Clients created by the import being recomputed.
+     * @param  string|null  $source  Why the recompute runs; null for a snapshot import.
      *
      * @throws ModelNotFoundException When $portfolioLoadId is not a snapshot of $company.
      */
-    public function forCompany(CompanyCode $company, ?int $portfolioLoadId = null, array $newClientIds = []): void
+    public function forCompany(CompanyCode $company, ?int $portfolioLoadId = null, array $newClientIds = [], ?string $source = null): void
     {
         $snapshot = $this->snapshot($company, $portfolioLoadId);
 
@@ -115,17 +121,19 @@ final class RecomputeClientStatuses
             );
         }
 
+        $sourceData = $source === null ? [] : ['source' => $source];
+
         foreach ($statusChanges as $clientId => [$old, $new]) {
             $this->audit->record(
                 'core.client.status_changed',
                 'client',
                 $clientId,
                 ['status' => ['old' => $old->value, 'new' => $new->value]],
-                ['load_id' => $snapshot->load_id, 'cutoff_date' => $snapshot->cutoff_date->toDateString()],
+                ['load_id' => $snapshot->load_id, 'cutoff_date' => $snapshot->cutoff_date->toDateString(), ...$sourceData],
             );
         }
 
-        $this->logStatusChanges($company, $statusChanges, $snapshot, $now);
+        $this->logStatusChanges($company, $statusChanges, $snapshot, $now, $sourceData);
     }
 
     /**
@@ -155,8 +163,9 @@ final class RecomputeClientStatuses
      * are explicit. System entries never move the client's last activity.
      *
      * @param  array<int, array{ClientStatus, ClientStatus}>  $statusChanges  Old and new status by client id.
+     * @param  array{source?: string}  $sourceData  Added to the metadata of every entry.
      */
-    private function logStatusChanges(CompanyCode $company, array $statusChanges, PortfolioLoadRecord $snapshot, DateTimeInterface $now): void
+    private function logStatusChanges(CompanyCode $company, array $statusChanges, PortfolioLoadRecord $snapshot, DateTimeInterface $now, array $sourceData): void
     {
         $entries = [];
 
@@ -168,7 +177,7 @@ final class RecomputeClientStatuses
                 'summary' => StatusChangeSummary::automatic($old, $new),
                 'user_id' => null,
                 'occurred_at' => $now,
-                'metadata' => json_encode(['from' => $old->value, 'to' => $new->value, 'load_id' => $snapshot->load_id], JSON_THROW_ON_ERROR),
+                'metadata' => json_encode(['from' => $old->value, 'to' => $new->value, 'load_id' => $snapshot->load_id, ...$sourceData], JSON_THROW_ON_ERROR),
                 'created_at' => $now,
                 'updated_at' => $now,
             ];

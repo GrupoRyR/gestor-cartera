@@ -8,9 +8,9 @@ Core es la base de la plataforma: los contratos que usan los demás módulos (`C
 |---|---|
 | `Contracts/` | Interfaces, objetos de datos, enums y excepciones públicos (ver `docs/arquitectura.md` §6). No cambian sin acordarlo. |
 | `Domain/` | Reglas puras en PHP: sin Laravel, sin base de datos y sin reloj. Reciben fechas, saldos y parámetros ya resueltos. |
-| `Application/` | Casos de uso: el ingreso con Microsoft (`Auth\`, ver «Ingreso con Microsoft»), la pantalla Equipo (`Team\`), el borrado de gestiones (`Activity\`, ver «Bitácora de gestiones»), el recálculo de saldos y estados de los clientes (`Portfolio\`, ver «Importación del robot») y la regla de escritura y los efectos de los compromisos (`Commitments\`, ver «Compromisos de pago»). |
+| `Application/` | Casos de uso: el ingreso con Microsoft (`Auth\`, ver «Ingreso con Microsoft»), la pantalla Equipo (`Team\`), el borrado de gestiones (`Activity\`, ver «Bitácora de gestiones»), el recálculo de saldos y estados de los clientes (`Portfolio\`, ver «Importación del robot»), los parámetros de las empresas (`Companies\`, ver «Empresas y parámetros») y la regla de escritura y los efectos de los compromisos (`Commitments\`, ver «Compromisos de pago»). |
 | `Infrastructure/` | Eloquent (`Persistence\*Record`), el acceso por empresa y el alcance de la cartera (`Access\`), el catálogo de empresas y la empresa activa (`Companies\`), la bitácora de auditoría (`Audit\`), la bitácora de gestiones (`Activity\`), el adaptador de Microsoft sobre Socialite (`Auth\`), la importación de los lotes del robot (`Ingest\`), la lectura de la cartera (`Portfolio\`, ver «CarteraRepository») y los compromisos de pago (`Commitments\`, ver «Compromisos de pago»). |
-| `Http/` | Controladores, FormRequests y middleware de las rutas web (ver «Ingreso con Microsoft», «Inicio y acceso» y «Bitácora de gestiones»). |
+| `Http/` | Controladores, FormRequests y middleware de las rutas web (ver «Ingreso con Microsoft», «Inicio y acceso», «Bitácora de gestiones», «Pantalla Equipo» y «Empresas y parámetros»). |
 | `Console/` | Comandos de Artisan (`core:<acción>`), registrados en `bootModule()`: la tarea diaria de compromisos (ver «Tarea diaria de incumplimiento»). |
 | `config/core.php` | Valores por defecto para sembrar los parámetros de cada empresa. |
 
@@ -43,7 +43,7 @@ Solo cuentan para los pasos 3 y 4 las partidas con saldo mayor a la tolerancia: 
 
 Los días de vencida van del vencimiento a la fecha de corte, solo por fecha de calendario (sin horas): positivo = vencida, 0 = vence en el corte, negativo = aún no vence. `OpenItem::fromDates()` los calcula.
 
-Los valores de la tabla son los de siembra (`config('core.companies')`). Los vigentes viven en la tabla `companies` (ver «Empresas y parámetros»). Las edades de la deuda (`AgingBuckets`) ignoran los días de gracia.
+Los valores de la tabla son los de siembra (`config('core.companies')`). Los vigentes viven en la tabla `companies` y los edita un administrador en la pantalla Parámetros (ver «Empresas y parámetros»). Las edades de la deuda (`AgingBuckets`) ignoran los días de gracia.
 
 ## Compromisos de pago
 
@@ -134,6 +134,23 @@ La tabla `companies` (llave `code`: `SGX` o `SDC`) guarda el nombre y los parám
 
 Si falta la fila de una empresa, usa los valores de `config('core.companies')` y la etiqueta del enum.
 
+**Pantalla Parámetros.** Solo para administradores (TI, «Usuarios, parámetros y buzones» en A.5): el permiso `core.companies.manage`, que `CorePermissionSeeder` da únicamente a `admin`. Aparece en el menú como «Parámetros», en el grupo «Administración», después de «Equipo» (`order: 910`), así que el inicio de un administrador sigue siendo Equipo. Los demás roles reciben 403 en todas sus rutas y los invitados van a `/login`.
+
+| Ruta | Nombre | Hace |
+|---|---|---|
+| `GET /empresas` | `core.empresas.index` | Una tabla con cada empresa («Segurex Latam (SGX)»), sus días de gracia, su ventana de «Por vencer» y el enlace «Editar». |
+| `GET /empresas/{empresa}/editar` | `core.empresas.edit` | El formulario con los valores vigentes. |
+| `PUT /empresas/{empresa}` | `core.empresas.update` | Guarda y vuelve a la tabla. |
+
+- `{empresa}` es un valor de `CompanyCode` (`SGX` o `SDC`, en mayúsculas); cualquier otro da 404.
+- «Días de gracia» (`grace_days`) es un entero de 0 a 120 y «Ventana de «Por vencer»» (`due_soon_days`), de 0 a 60 (`Http\Requests\Companies\UpdateCompanyParametersRequest`). Un valor vacío, negativo, mayor que el tope o con decimales falla la validación en español («El campo días de gracia no debe ser mayor que 120.»).
+- `Application\Companies\UpdateCompanyParameters` guarda con la fila bloqueada (si falta, la crea con la etiqueta del enum) y, si algo cambió:
+  1. audita `core.company.updated`: sujeto `company`, id el código y `changes` solo con los campos que cambian (`grace_days`, `due_soon_days`), con `old` y `new`;
+  2. llama `CompanyCatalog::refresh()`, así que el resto de la petición (`CurrentCompany::of()`, `parameters()`) ya lee los valores nuevos;
+  3. encola `Application\Companies\RecomputeCompanyStatuses`, que corre `RecomputeClientStatuses::forCompany()` con los parámetros nuevos sobre la última instantánea de la empresa (ver «Importación del robot»). Cada cambio de estado se audita y deja su gestión del sistema como en una importación, con `source: parameters` en el `context` de la auditoría y en la `metadata` de la gestión. Los clientes de la otra empresa no cambian.
+- Vuelve a la tabla con el flash `status` «Guardamos los parámetros de Segurex Latam. Los estados de sus clientes se recalculan en unos minutos.». Si nada cambió, no escribe, no audita ni encola nada, y el flash dice «Los parámetros de Segurex Latam no cambiaron.».
+- **Cola.** Como la importación, el trabajo tiene `$timeout = 300` y un solo intento (`$tries = 1`): si falla, queda en `failed_jobs` y `php artisan queue:retry` lo vuelve a correr sin duplicar nada (el recálculo solo escribe lo que cambia). Lee los parámetros cuando corre, así que dos guardados seguidos terminan con los últimos. En pruebas la cola es `sync`: el recálculo corre en la misma petición.
+
 La tabla `company_user` asigna empresas a los usuarios (`user_id`, `company`). Core la expone como `$user->companies()` con `User::resolveRelationUsing()`, sin editar `App\Models\User`.
 
 ## Empresa activa
@@ -168,6 +185,7 @@ Los roles son los de `Contracts\Enums\Role` (Spatie, guard `web`, sin equipos). 
 |---|---|---|
 | `core.access` | Los seis | Usar la plataforma. Un usuario sin rol no lo tiene. |
 | `core.team.manage` | `admin` | Usar la pantalla Equipo (ver «Pantalla Equipo»). |
+| `core.companies.manage` | `admin` | Editar los días de gracia y la ventana de «Por vencer» de cada empresa: pantalla Parámetros (ver «Empresas y parámetros»). |
 | `core.activities.delete` | `gerente_cartera`, `analista_cartera` | Eliminar (borrado lógico) una gestión de la bitácora de un cliente (ver «Bitácora de gestiones»). |
 | `core.clients.change_status` | `gerente_cartera`, `analista_cartera` | Cambiar a mano el estado de un cliente: Kanban y ficha (ver «Cambio de estado manual»). |
 | `core.clients.delete` | `gerente_cartera` | Eliminar (borrado lógico) y restaurar clientes (ver «Borrado lógico de clientes»). Por confirmar (ver «Pendientes»). |
@@ -259,7 +277,7 @@ Ingesta guarda cada lote del robot (o de una carga manual) y despacha `BatchAcce
 | `max_days_overdue` | Días de vencida de la partida más atrasada entre las que deben más de la tolerancia (0,01); 0 si ninguna debe. Es negativo si ninguna está vencida todavía. |
 | `status` | `ClientStatusRules::resolve()` con el estado actual y los parámetros vigentes de la empresa (`CompanyCatalog::parameters()`, tabla `companies`). Ver «Estados del cliente»: un cliente que ya no debe pasa a «Pago recibido» (o sigue «Al día») y un estado manual se conserva mientras deba. |
 
-Solo se escriben los clientes cuyos valores cambian. Cuando cambia el estado de un cliente que ya existía, se guarda `status_changed_at` y se audita `core.client.status_changed`: sujeto `client`, `changes.status` con `old` y `new`, y `context` con `load_id` y `cutoff_date` de la instantánea. No tiene usuario porque lo hace el sistema. Cada cambio deja también una gestión del sistema en la bitácora del cliente (ver «Bitácora de gestiones»). Un cliente que crea la importación recibe su primer estado (y `status_changed_at` si no queda «Al día») sin entrada de auditoría ni de bitácora: es su estado inicial, no un cambio; así la primera carga del robot no escribe una entrada por cliente (`forCompany()` recibe esos clientes en `$newClientIds`). La pantalla de parámetros reutilizará este servicio; el flujo de compromisos lee el estado automático de un solo cliente con `automaticStatus()` (ver «Compromisos de pago»).
+Solo se escriben los clientes cuyos valores cambian. Cuando cambia el estado de un cliente que ya existía, se guarda `status_changed_at` y se audita `core.client.status_changed`: sujeto `client`, `changes.status` con `old` y `new`, y `context` con `load_id` y `cutoff_date` de la instantánea (más `source` cuando el recálculo no viene de una importación: `parameters` desde la pantalla Parámetros). No tiene usuario porque lo hace el sistema. Cada cambio deja también una gestión del sistema en la bitácora del cliente (ver «Bitácora de gestiones»). Un cliente que crea la importación recibe su primer estado (y `status_changed_at` si no queda «Al día») sin entrada de auditoría ni de bitácora: es su estado inicial, no un cambio; así la primera carga del robot no escribe una entrada por cliente (`forCompany()` recibe esos clientes en `$newClientIds`). La pantalla Parámetros lo reutiliza con `source: parameters` (ver «Empresas y parámetros»); el flujo de compromisos lee el estado automático de un solo cliente con `automaticStatus()` (ver «Compromisos de pago»).
 
 **Asesores.** Por cada fila, por empresa y `slp_code`:
 
@@ -368,7 +386,7 @@ Solo se escriben los clientes cuyos valores cambian. Cuando cambia el estado de 
 
 Sin sesión iniciada las dos devuelven `[]` (§6.2).
 
-**Cambios de estado automáticos.** Cuando `RecomputeClientStatuses` cambia el estado de un cliente que ya existía (ver «Importación del robot»), además de la auditoría agrega una gestión del sistema de tipo «Cambio de estado»: «Estado automático: de «Vencida» a «Por vencer»», con `metadata` `from`, `to` (valores de `ClientStatus`) y `load_id`. Se insertan de a 500 por consulta, sin una consulta por cliente.
+**Cambios de estado automáticos.** Cuando `RecomputeClientStatuses` cambia el estado de un cliente que ya existía (ver «Importación del robot»), además de la auditoría agrega una gestión del sistema de tipo «Cambio de estado»: «Estado automático: de «Vencida» a «Por vencer»», con `metadata` `from`, `to` (valores de `ClientStatus`) y `load_id`, más `source` (`parameters`) cuando lo pide la pantalla Parámetros. Se insertan de a 500 por consulta, sin una consulta por cliente.
 
 **Eliminar una gestión.** El contrato solo agrega y lee; el borrado lógico es de Core:
 
@@ -509,7 +527,7 @@ Los invitados y los usuarios activos pasan sin cambios. Un usuario cargado sin l
 
 ## Pantalla Equipo
 
-Solo para administradores: el permiso `core.team.manage`, que `CorePermissionSeeder` da únicamente a `admin`. Aparece en el menú como «Equipo», en el grupo «Administración» (`order: 900`); como es la única entrada que ve un administrador, también es su inicio. Los demás roles reciben 403 en todas sus rutas y los invitados van a `/login`.
+Solo para administradores: el permiso `core.team.manage`, que `CorePermissionSeeder` da únicamente a `admin`. Aparece en el menú como «Equipo», en el grupo «Administración» (`order: 900`); como es la primera entrada que ve un administrador (antes de «Parámetros»), también es su inicio. Los demás roles reciben 403 en todas sus rutas y los invitados van a `/login`.
 
 | Ruta | Nombre | Hace |
 |---|---|---|
