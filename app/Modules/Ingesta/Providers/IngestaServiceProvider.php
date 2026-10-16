@@ -53,8 +53,9 @@ final class IngestaServiceProvider extends ModuleServiceProvider
     }
 
     /**
-     * Cargas de datos sits in Administración, before Core's entries (900
-     * and up).
+     * Cargas de datos sits in Administración, after Core's entries (900
+     * and 910): the home page redirects to the first visible entry, so an
+     * admin keeps landing on Equipo.
      */
     protected function navigation(NavRegistry $navigation): void
     {
@@ -65,7 +66,7 @@ final class IngestaServiceProvider extends ModuleServiceProvider
             icon: 'history',
             permission: 'ingesta.view',
             group: 'Administración',
-            order: 800,
+            order: 920,
             activePattern: 'ingesta.*',
         ));
     }
