@@ -26,7 +26,7 @@ function asesoresMenuOf(User $user): array
 }
 
 it('gives advisors and sales managers the viewer screens', function (string $person) {
-    expect(asesoresMenuOf($this->world->{$person}))->toBe(['asesores.resumen', 'asesores.clientes', 'asesores.historico']);
+    expect(asesoresMenuOf($this->world->{$person}))->toBe(['asesores.resumen', 'asesores.clientes', 'asesores.agenda', 'asesores.historico']);
 })->with(['an advisor' => ['ana'], 'a sales manager' => ['gloria']]);
 
 it('keeps the viewer out of the menu of the other roles', function () {
@@ -40,5 +40,5 @@ it('is the home of an advisor, where Core sends them after signing in', function
 it('puts the dashboard first and marks the quick access of the phone', function () {
     $items = app(NavRegistry::class)->mobileFor($this->world->ana);
 
-    expect(array_map(fn ($item): string => $item->key, $items))->toBe(['asesores.resumen', 'asesores.clientes']);
+    expect(array_map(fn ($item): string => $item->key, $items))->toBe(['asesores.resumen', 'asesores.clientes', 'asesores.agenda']);
 });

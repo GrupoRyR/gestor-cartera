@@ -198,6 +198,12 @@
             </x-ui.card>
 
             <x-ui.card :title="__('asesores::ficha.bitacora.titulo')" :description="__('asesores::ficha.bitacora.ayuda')">
+                @if ($canAnnotate)
+                    <x-slot:actions>
+                        <x-ui.button variant="secondary" icon="plus" data-modal-open="nueva-nota">{{ __('asesores::ficha.bitacora.nota.boton') }}</x-ui.button>
+                    </x-slot:actions>
+                @endif
+
                 @if ($file->activity === [])
                     <p class="text-sm text-fg-soft">{{ __('asesores::ficha.bitacora.vacio') }}</p>
                 @else
@@ -222,6 +228,22 @@
             </x-ui.card>
         </div>
     </div>
+
+    @if ($canAnnotate)
+        <x-ui.modal id="nueva-nota" :title="__('asesores::ficha.bitacora.nota.titulo')" :open="old('formulario') === 'nueva-nota' && $errors->any()">
+            <form id="form-nueva-nota" method="POST" action="{{ route('asesores.notas.store', $summary->id) }}" class="grid gap-4">
+                @csrf
+                <input type="hidden" name="formulario" value="nueva-nota">
+
+                <x-ui.textarea name="nota" :label="__('asesores::ficha.bitacora.nota.etiqueta')" :hint="__('asesores::ficha.bitacora.nota.ayuda')" :rows="5" required />
+            </form>
+
+            <x-slot:footer>
+                <x-ui.button variant="secondary" data-modal-close>{{ __('asesores::ficha.bitacora.nota.cancelar') }}</x-ui.button>
+                <x-ui.button type="submit" form="form-nueva-nota" icon="check">{{ __('asesores::ficha.bitacora.nota.guardar') }}</x-ui.button>
+            </x-slot:footer>
+        </x-ui.modal>
+    @endif
 
     @if ($canManage)
         @php($newFormFailed = old('formulario') === 'nuevo-compromiso' && $errors->any())

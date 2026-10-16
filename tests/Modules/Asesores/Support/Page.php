@@ -65,6 +65,20 @@ final class Page
     }
 
     /**
+     * The text of one column of the card marked data-group="$group", in page
+     * order (the groups of the agenda).
+     *
+     * @return list<string>
+     */
+    public static function groupRows(TestResponse $response, string $group, int $position): array
+    {
+        return array_map(
+            fn ($cell): string => Html::clean($cell->textContent),
+            self::html($response)->all("//*[@data-group='{$group}']//table/tbody/tr[not(@data-part=\"empty\")]/td[{$position}]"),
+        );
+    }
+
+    /**
      * The client names listed under the heading of a card.
      *
      * @return list<string>

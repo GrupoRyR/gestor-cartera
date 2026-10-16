@@ -80,6 +80,16 @@ return [
         'resultado' => 'Resultado: :resultado',
         'por' => ':nombre · :fecha',
         'plataforma' => 'Plataforma',
+        'nota' => [
+            'nombre' => 'nota',
+            'boton' => 'Agregar nota',
+            'titulo' => 'Agregar una nota',
+            'etiqueta' => '¿Qué pasó?',
+            'ayuda' => 'Con quién hablaste, qué te dijeron y qué sigue. La primera línea es el título de la gestión.',
+            'guardar' => 'Guardar nota',
+            'cancelar' => 'Cancelar',
+            'guardada' => 'Guardamos la nota en la bitácora del cliente.',
+        ],
     ],
 
 ];
