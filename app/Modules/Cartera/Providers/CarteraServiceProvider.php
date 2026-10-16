@@ -36,6 +36,15 @@ final class CarteraServiceProvider extends ModuleServiceProvider
                 mobile: true,
             ),
             new NavItem(
+                key: 'cartera.kanban',
+                label: 'Kanban',
+                route: 'cartera.kanban',
+                icon: 'board',
+                permission: 'cartera.view',
+                group: 'Cartera',
+                order: 20,
+            ),
+            new NavItem(
                 key: 'cartera.clientes',
                 label: 'Clientes',
                 route: 'cartera.clientes.index',

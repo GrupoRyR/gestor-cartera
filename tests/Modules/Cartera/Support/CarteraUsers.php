@@ -31,6 +31,18 @@ final class CarteraUsers
         return $user;
     }
 
+    /**
+     * A user who can open the module's screens (cartera.view) and nothing
+     * else: no role, so no Core permission to change statuses either.
+     */
+    public static function viewer(): User
+    {
+        $user = self::create(null);
+        $user->givePermissionTo('cartera.view');
+
+        return $user;
+    }
+
     public static function analyst(): User
     {
         return self::create(Role::PortfolioAnalyst);
