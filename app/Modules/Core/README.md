@@ -50,7 +50,7 @@ Los valores de la tabla son los de siembra (`config('core.companies')`). Los vig
 |---|---|
 | Se crea | Pasa a «Compromiso», salvo si está en «Jurídico» o ya en «Compromiso». |
 | Se incumple | Pasa a «Incumplido», salvo si tiene otro compromiso pendiente o está en «Jurídico», «Pago recibido» o ya en «Incumplido». |
-| Se cumple o se anula | Si estaba en «Compromiso» o «Incumplido» y no tiene otro compromiso pendiente, se recalcula su estado automático con la última instantánea, ignorando el estado manual. Si no, conserva su estado. |
+| Se cumple o se anula | Si estaba en «Compromiso» o «Incumplido» y no tiene otro compromiso pendiente ni incumplido, se recalcula su estado automático con la última instantánea, ignorando el estado manual. Si no tiene pendientes pero sí otro incumplido, queda (o vuelve) en «Incumplido». En cualquier otro caso conserva su estado. |
 
 **Incumplimiento diario.** Una tarea diaria marca «Incumplido» todo compromiso «Pendiente» cuya fecha de pago sea anterior a hoy (`CommitmentRules::isBroken()`). Un compromiso que vence hoy no se incumple hasta mañana. Solo cuenta la fecha, no la hora.
 
