@@ -1,0 +1,83 @@
+# Ingesta
+
+Recibe los lotes del robot de SAP (`etl/`), los valida contra el esquema de cada lote, los guarda como instantáneas con fecha y avisa a los consumidores con `BatchAccepted`. Implementa el contrato `IngestaSink` (`docs/arquitectura.md` §6.8 y §6.9).
+
+## Endpoint del robot
+
+`POST /api/ingesta/{lote}` (ruta `ingesta.api.lotes.store`), donde `{lote}` es un valor de `Dataset`: `cartera`, `asesores`, `contactos`, `ventas`, `recaudos`, `cruces`, `maestro_clientes` o `maestro_vendedores`. Otro valor responde 404. Límite: 60 peticiones por minuto por IP (`throttle:ingesta-robot`).
+
+### Encabezados
+
+| Encabezado | Valor |
+|---|---|
+| `Content-Type` | `application/json` |
+| `Content-Encoding` | `gzip` (opcional; el robot comprime por defecto) |
+| `X-Ingesta-Key` | id de la llave, p. ej. `k2026a` |
+| `X-Ingesta-Timestamp` | segundos Unix (UTC), entero |
+| `X-Ingesta-Signature` | `sha256=` + HMAC-SHA256 en hexadecimal minúscula |
+
+### Firma
+
+Cadena canónica en UTF-8, campos unidos por `\n`, sin salto final:
+
+```
+{timestamp}
+POST
+/api/ingesta/{lote}
+{sha256 en hexadecimal del cuerpo tal como viaja (los bytes gzip si va comprimido)}
+```
+
+`firma = hex(hmac_sha256(secreto, cadena))`. La ruta se arma con `{lote}` en ambos lados, nunca con la URL de la petición, así que un subdirectorio o un proxy no la rompen. `VerifyRobotSignature` revisa, antes de descomprimir o leer el JSON, que la llave exista, que el timestamp esté a menos de `INGESTA_HMAC_MAX_SKEW` segundos (300 por defecto) de la hora del servidor y que la firma coincida (`hash_equals`). Cualquier falla responde 401 `{"message": "Firma inválida."}`, el mismo texto para todas, y queda en el log con el motivo, el id de la llave y la IP, nunca con el secreto.
+
+Vector de prueba compartido con el robot (`tests/Modules/Ingesta/Unit/RequestSignerTest.php`): secreto `k2026a-secreto-de-prueba`, timestamp `1792152000`, lote `cartera` y cuerpo `{"rows":[]}` dan `sha256=ba04577457e09c8e9a6bec8983b85a09559f01b466e48a8f8fb2090e3a5b0fc9`.
+
+### Cuerpo
+
+JSON por columnas, para que pese poco:
+
+```json
+{
+  "batch_id": "cartera-SGX-2026-10-16-3f2a9c1b7d4e5f60",
+  "company": "SGX",
+  "cutoff_date": "2026-10-16",
+  "columns": ["slp_code", "email_asesor", "..."],
+  "rows": [[12, "ana@segurex.com", "..."]]
+}
+```
+
+- `batch_id`: hasta 120 caracteres de `A-Z a-z 0-9 . _ : -`. Es la llave de idempotencia: el mismo lote reenviado devuelve la carga original.
+- `company`: `SGX` o `SDC`. `cutoff_date`: `AAAA-MM-DD`, no posterior a hoy en Bogotá.
+- `columns`: los nombres «pg» de `etl/esquema.py`, en cualquier orden y sin repetir; cada fila de `rows` es una lista con un valor por columna.
+- Valores: enteros como número JSON; montos (`NUMERO`, 2 decimales) y tasas o cantidades (`TASA`, 6 decimales) como texto decimal con punto y sin separador de miles (`"1234567.89"`); fechas `"AAAA-MM-DD"`; texto hasta 4000 caracteres; `null` si falta. Las columnas obligatorias no pueden llegar nulas ni en blanco.
+- Cada fila debe traer exactamente las columnas del lote; un lote con llave natural no puede repetirla; solo `ventas`, `recaudos` y `cruces` pueden llegar vacíos; máximo `ingesta.max_rows` filas (200 000).
+
+`Domain/Schema/DatasetSchemas.php` replica `etl/esquema.py`; `DatasetSchemasTest` lee el archivo de Python y falla si los dos se separan. Si cambias el esquema, cambia ambos.
+
+### Respuestas
+
+| Estado | Cuándo | Cuerpo |
+|---|---|---|
+| 201 | Carga nueva aceptada | `{"load": {...}, "duplicate": false}` |
+| 200 | `batch_id` de una carga ya aceptada | `{"load": {...carga original}, "duplicate": true}` |
+| 401 | Firma inválida, llave desconocida, timestamp fuera de margen o sin llaves configuradas | `{"message": "Firma inválida."}` |
+| 404 | `{lote}` desconocido | estándar |
+| 413 | Cuerpo de más de `ingesta.max_request_bytes` (20 MB) | `{"message": ...}` |
+| 422 | Cuerpo mal formado: gzip o JSON inválido, sobre incompleto, fila con otro número de valores. No queda en el historial. | `{"message": ..., "errors": {...}}` |
+| 422 | El lote no cumple el esquema. Queda en el historial como rechazado y su `batch_id` se puede reenviar ya corregido. | `{"message": "El lote tiene N errores.", "errors": {"rows.3.saldo": [...]}}`, máximo 50 llaves |
+
+`load` trae `id`, `dataset`, `company`, `cutoff_date` (`AAAA-MM-DD`), `source`, `status`, `row_count`, `total` y `overdue` (texto con 2 decimales, solo cartera; `null` en los demás), `received_at` (ISO 8601) y `error`. Las filas de los errores se numeran desde 0, como las llaves `rows.N`.
+
+El gzip descomprimido no puede pasar de `ingesta.max_payload_bytes` (60 MB). El `post_max_size` de PHP en el servidor debe ser al menos `ingesta.max_request_bytes`.
+
+## Rotación de llaves
+
+`INGESTA_HMAC_KEYS` admite varias parejas `id:secreto` separadas por comas (el secreto puede tener `:`; se parte en el primero). Para rotar: agrega la llave nueva junto a la vieja, cambia el robot a la nueva y, cuando ya firme con ella, quita la vieja. Una pareja mal formada se ignora con una advertencia en el log. Sin ninguna llave válida, el endpoint responde 401 a todo y lo registra como error.
+
+## Almacenamiento
+
+- `ingesta_loads`: el historial, aceptadas y rechazadas, con el corte, el origen, el usuario de una carga manual, los totales de cartera (`decimal(18,2)`, sumas exactas en centavos), el orden de columnas guardado y, en las rechazadas, el resumen y los errores por campo. `accepted_batch_id` es único y solo se llena en las aceptadas: así un rechazo se puede reenviar y dos copias simultáneas del mismo lote no crean dos cargas.
+- `ingesta_load_chunks`: las filas de cada carga aceptada en bloques de 500 (`ChunkCodec`: JSON de listas de valores, gzip y base64). Las instantáneas nunca se sobrescriben.
+
+## Cómo leen los consumidores
+
+Escuchan `BatchAccepted`, que se despacha una vez por carga aceptada y después del commit (la cola `database` no espera commits), filtran por `$event->load->dataset` y recorren `app(IngestaSink::class)->rows($event->load->id)`. Las filas llegan en el orden recibido, como arreglos asociativos en el orden de columnas del esquema, y se leen un bloque a la vez. `latest()` da la instantánea vigente de un lote y empresa; `history()`, el historial más reciente primero.
