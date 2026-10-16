@@ -2,6 +2,7 @@
 
 namespace App\Modules\Asesores\Application\Client;
 
+use App\Modules\Asesores\Application\Support\FirstPage;
 use App\Modules\Asesores\Domain\Client\Position;
 use App\Modules\Core\Contracts\CarteraRepository;
 use App\Modules\Core\Contracts\CompromisoService;
@@ -52,10 +53,10 @@ final readonly class ClientFiles
      */
     private function commitmentsOf(int $clientId): array
     {
-        $all = array_values($this->commitments->paginate(
+        $all = array_values(FirstPage::read(fn () => $this->commitments->paginate(
             new CommitmentQuery(clientId: $clientId, sort: 'due_date', direction: 'desc'),
             self::LIMIT,
-        )->items());
+        ))->items());
 
         $open = array_values(array_filter($all, fn (Commitment $commitment): bool => $this->isOpen($commitment)));
         $closed = array_values(array_filter($all, fn (Commitment $commitment): bool => ! $this->isOpen($commitment)));

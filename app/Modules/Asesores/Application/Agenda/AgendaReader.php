@@ -3,6 +3,7 @@
 namespace App\Modules\Asesores\Application\Agenda;
 
 use App\Modules\Asesores\Application\Portfolio\PortfolioFilter;
+use App\Modules\Asesores\Application\Support\FirstPage;
 use App\Modules\Asesores\Domain\Agenda\AgendaPlanner;
 use App\Modules\Core\Contracts\CarteraRepository;
 use App\Modules\Core\Contracts\CompromisoService;
@@ -29,7 +30,7 @@ final readonly class AgendaReader
 
     public function read(PortfolioFilter $filter, CarbonImmutable $today): AgendaPage
     {
-        $page = $this->commitments->paginate(
+        $page = FirstPage::read(fn () => $this->commitments->paginate(
             new CommitmentQuery(
                 advisorCode: $filter->advisor?->code,
                 statuses: [CommitmentStatus::Pending, CommitmentStatus::Broken],
@@ -38,7 +39,7 @@ final readonly class AgendaReader
                 direction: 'asc',
             ),
             self::LIMIT,
-        );
+        ));
 
         /** @var list<Commitment> $commitments */
         $commitments = array_values($page->items());
