@@ -23,7 +23,7 @@ return [
     'texto' => 'La columna :columna debe ser texto.',
     'texto_largo' => 'La columna :columna no puede tener más de :max caracteres.',
     'entero' => 'La columna :columna debe ser un número entero.',
-    'decimal2' => 'La columna :columna debe ser un número con punto decimal y hasta 2 decimales, como 1234.56.',
+    'decimal2' => 'La columna :columna debe ser un número con punto decimal, hasta 16 cifras enteras y 2 decimales, como 1234.56.',
     'decimal6' => 'La columna :columna debe ser un número con punto decimal y hasta 6 decimales, como 4123.456789.',
     'fecha' => 'La columna :columna debe ser una fecha real con formato AAAA-MM-DD.',
 

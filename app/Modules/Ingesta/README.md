@@ -48,7 +48,7 @@ JSON por columnas, para que pese poco:
 - `batch_id`: hasta 120 caracteres de `A-Z a-z 0-9 . _ : -`. Es la llave de idempotencia: el mismo lote reenviado devuelve la carga original.
 - `company`: `SGX` o `SDC`. `cutoff_date`: `AAAA-MM-DD`, no posterior a hoy en Bogotá.
 - `columns`: los nombres «pg» de `etl/esquema.py`, en cualquier orden y sin repetir; cada fila de `rows` es una lista con un valor por columna.
-- Valores: enteros como número JSON; montos (`NUMERO`, 2 decimales) y tasas o cantidades (`TASA`, 6 decimales) como texto decimal con punto y sin separador de miles (`"1234567.89"`); fechas `"AAAA-MM-DD"`; texto hasta 4000 caracteres; `null` si falta. Las columnas obligatorias no pueden llegar nulas ni en blanco.
+- Valores: enteros como número JSON; montos (`NUMERO`, hasta 16 cifras enteras y 2 decimales, el rango de `decimal(18,2)`) y tasas o cantidades (`TASA`, 6 decimales) como texto decimal con punto y sin separador de miles (`"1234567.89"`); fechas `"AAAA-MM-DD"`; texto hasta 4000 caracteres; `null` si falta. Las columnas obligatorias no pueden llegar nulas ni en blanco.
 - Cada fila debe traer exactamente las columnas del lote; un lote con llave natural no puede repetirla; solo `ventas`, `recaudos` y `cruces` pueden llegar vacíos; máximo `ingesta.max_rows` filas (200 000).
 
 `Domain/Schema/DatasetSchemas.php` replica `etl/esquema.py`; `DatasetSchemasTest` lee el archivo de Python y falla si los dos se separan. Si cambias el esquema, cambia ambos.

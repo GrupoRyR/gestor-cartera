@@ -152,12 +152,15 @@ it('checks integer values', function (mixed $value) {
 it('checks decimal values with two places', function (mixed $value, bool $valid) {
     $errors = $this->validator->errors(batchToValidate([salesRow(['total' => $value])], Dataset::Sales));
 
-    expect($errors)->toBe($valid ? [] : ['rows.0.total' => ['La columna total debe ser un número con punto decimal y hasta 2 decimales, como 1234.56.']]);
+    expect($errors)->toBe($valid ? [] : ['rows.0.total' => ['La columna total debe ser un número con punto decimal, hasta 16 cifras enteras y 2 decimales, como 1234.56.']]);
 })->with([
     ['18750', true],
     ['-18750.5', true],
-    ['12345678901234567.99', true],
-    ['123456789012345678', false],
+    // decimal(18,2): the totals of a load are summed in Cents, which holds 16 integer digits.
+    ['9999999999999999.99', true],
+    ['-9999999999999999.99', true],
+    ['12345678901234567', false],
+    ['12345678901234567.99', false],
     ['18750.505', false],
     ['18.750,50', false],
     ['+5', false],

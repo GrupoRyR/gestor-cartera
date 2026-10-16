@@ -229,6 +229,20 @@ it('answers 422 for a batch that fails the schema and records it as rejected', f
     Event::assertNotDispatched(BatchAccepted::class);
 });
 
+it('answers 422 instead of failing the totals for a saldo of 17 integer digits', function () {
+    $rows = [IngestaRows::cartera(['saldo' => '12345678901234567.00'])];
+
+    postRobotBatch('cartera', RobotRequests::body($rows, batchId: 'cartera-SGX-2026-10-15-17'))
+        ->assertUnprocessable()
+        ->assertExactJson([
+            'message' => 'La columna saldo debe ser un número con punto decimal, hasta 16 cifras enteras y 2 decimales, como 1234.56.',
+            'errors' => ['rows.0.saldo' => ['La columna saldo debe ser un número con punto decimal, hasta 16 cifras enteras y 2 decimales, como 1234.56.']],
+        ]);
+
+    expect(IngestaLoad::query()->sole()->status)->toBe(LoadStatus::Rejected);
+    Event::assertNotDispatched(BatchAccepted::class);
+});
+
 it('answers 422 for a batch whose columns do not match the dataset', function () {
     $row = IngestaRows::advisor();
     unset($row['clientes']);
