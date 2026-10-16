@@ -3,10 +3,12 @@
 namespace App\Modules\Core\Providers;
 
 use App\Models\User;
+use App\Modules\Core\Application\Auth\IdentityProvider;
 use App\Modules\Core\Contracts\AuditLogger;
 use App\Modules\Core\Contracts\CurrentCompany;
 use App\Modules\Core\Http\Middleware\EnsureUserIsActive;
 use App\Modules\Core\Infrastructure\Audit\DatabaseAuditLogger;
+use App\Modules\Core\Infrastructure\Auth\SocialiteMicrosoftIdentityProvider;
 use App\Modules\Core\Infrastructure\Companies\CompanyCatalog;
 use App\Modules\Core\Infrastructure\Companies\SessionCurrentCompany;
 use App\Modules\Core\Infrastructure\Persistence\AdvisorRecord;
@@ -44,6 +46,9 @@ final class CoreServiceProvider extends ModuleServiceProvider
 
         // Reads the signed-in user and the request, so one per request (or job).
         $this->app->scoped(AuditLogger::class, DatabaseAuditLogger::class);
+
+        // Microsoft Entra ID sign-in; tests bind a fake instead.
+        $this->app->bind(IdentityProvider::class, SocialiteMicrosoftIdentityProvider::class);
     }
 
     protected function bootModule(): void
