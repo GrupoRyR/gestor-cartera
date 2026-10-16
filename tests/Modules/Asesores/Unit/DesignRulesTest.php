@@ -22,12 +22,22 @@ it('has views to check', function () {
     expect(asesoresViews())->not->toBeEmpty();
 });
 
-it('adds no styles of its own: no <style> blocks and no raw colors', function () {
+it('adds no styles of its own to the screens: no <style> blocks', function () {
+    foreach (asesoresViews() as $path) {
+        // The PDF documents cannot use the app styles: dompdf needs its CSS in the page.
+        if (str_contains($path, DIRECTORY_SEPARATOR.'documentos'.DIRECTORY_SEPARATOR)) {
+            continue;
+        }
+
+        expect((string) file_get_contents($path))->not->toMatch('/<style\b/i', "{$path} adds a <style> block.");
+    }
+});
+
+it('writes no raw colors, not even in the documents: they come from the palette of the company', function () {
     foreach (asesoresViews() as $path) {
         $source = (string) file_get_contents($path);
 
-        expect($source)->not->toMatch('/<style\b/i', "{$path} adds a <style> block.")
-            ->not->toMatch('/#(?:[0-9a-f]{8}|[0-9a-f]{6}|[0-9a-f]{3})\b/i', "{$path} writes a raw color.")
+        expect($source)->not->toMatch('/#(?:[0-9a-f]{8}|[0-9a-f]{6}|[0-9a-f]{3})\b/i', "{$path} writes a raw color.")
             ->not->toMatch('/\b(?:rgb|hsl|oklch)a?\(/i', "{$path} writes a raw color function.");
     }
 });

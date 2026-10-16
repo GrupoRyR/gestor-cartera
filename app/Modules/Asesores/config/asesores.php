@@ -25,6 +25,13 @@ return [
         'page_days' => 90,
     ],
 
+    // The Excel of the portfolio reads the open documents of each client, one
+    // query per client: past this many clients the documents sheet stops (the
+    // clients sheet always lists all of them) and says so in its last row.
+    'export' => [
+        'max_clients_with_invoices' => 1500,
+    ],
+
     // The WhatsApp button (a wa.me link the advisor reviews and sends).
     'whatsapp' => [
         'country_code' => '57',

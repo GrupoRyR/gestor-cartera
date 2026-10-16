@@ -64,11 +64,18 @@
             @if ($canManage)
                 <x-ui.button icon="plus" data-modal-open="nuevo-compromiso">{{ __('asesores::compromisos.nuevo.boton') }}</x-ui.button>
             @endif
-            <x-ui.link-button :href="route('asesores.clientes.index')" variant="secondary" icon="chevron-left">{{ __('asesores::ficha.volver') }}</x-ui.link-button>
+            <x-ui.link-button :href="$whatsapp->url" variant="secondary" icon="phone" :external="true">{{ __('asesores::exportar.boton.whatsapp') }}</x-ui.link-button>
+            <x-ui.link-button :href="route('asesores.clientes.exportar_cliente', $summary->id)" variant="secondary" icon="download">{{ __('asesores::exportar.boton.excel') }}</x-ui.link-button>
+            <x-ui.link-button :href="route('asesores.clientes.estado_cuenta', $summary->id)" variant="secondary" icon="document">{{ __('asesores::exportar.boton.pdf') }}</x-ui.link-button>
+            <x-ui.link-button :href="route('asesores.clientes.index')" variant="ghost" icon="chevron-left">{{ __('asesores::ficha.volver') }}</x-ui.link-button>
         </x-slot:actions>
     </x-ui.page-header>
 
     <div class="mt-6 grid gap-6">
+        @unless ($whatsapp->direct)
+            <p data-part="whatsapp-hint" class="text-sm text-fg-muted">{{ __('asesores::exportar.whatsapp.sin_celular') }}</p>
+        @endunless
+
         @if ($position->exceeded() > 0)
             <x-ui.alert tone="warning" :title="__('asesores::ficha.cupo_excedido.titulo')">
                 {{ __('asesores::ficha.cupo_excedido.detalle', ['exceso' => Money::format($position->exceeded())]) }}

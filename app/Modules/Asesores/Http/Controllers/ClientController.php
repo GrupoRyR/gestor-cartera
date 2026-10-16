@@ -4,6 +4,7 @@ namespace App\Modules\Asesores\Http\Controllers;
 
 use App\Modules\Asesores\Application\Client\ClientFiles;
 use App\Modules\Asesores\Application\Portfolio\PortfolioFilter;
+use App\Modules\Asesores\Application\Whatsapp\WhatsappStatement;
 use App\Modules\Core\Contracts\CarteraRepository;
 use Carbon\CarbonImmutable;
 use Illuminate\Contracts\View\View;
@@ -20,6 +21,7 @@ final readonly class ClientController
     public function __construct(
         private CarteraRepository $cartera,
         private ClientFiles $files,
+        private WhatsappStatement $whatsapp,
     ) {}
 
     /**
@@ -52,9 +54,13 @@ final readonly class ClientController
 
         Gate::authorize('view', $detail);
 
+        $file = $this->files->open($detail);
+        $today = CarbonImmutable::today();
+
         return view('asesores::clientes.show', [
-            'file' => $this->files->open($detail),
-            'today' => CarbonImmutable::today(),
+            'file' => $file,
+            'whatsapp' => $this->whatsapp->share($file, $today),
+            'today' => $today,
             'canManage' => Gate::allows('manage', $detail),
             'canAnnotate' => Gate::allows('annotate', $detail),
         ]);
