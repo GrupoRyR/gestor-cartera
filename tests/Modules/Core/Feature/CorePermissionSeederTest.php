@@ -24,11 +24,12 @@ it('lets only admins manage the team', function () {
     }
 });
 
-it('lets only admins edit the company parameters', function () {
+it('lets admins and portfolio managers edit the company parameters', function () {
     $this->seed(CorePermissionSeeder::class);
 
     foreach (Role::cases() as $role) {
-        expect(SpatieRole::findByName($role, 'web')->hasPermissionTo('core.companies.manage'))->toBe($role === Role::Admin);
+        expect(SpatieRole::findByName($role, 'web')->hasPermissionTo('core.companies.manage'))
+            ->toBe(in_array($role, [Role::Admin, Role::PortfolioManager], true));
     }
 });
 
