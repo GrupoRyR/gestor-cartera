@@ -2,16 +2,20 @@
 
 namespace Tests\Modules\Comisiones\Support;
 
+use App\Modules\Comisiones\Domain\Input\AdjustmentKind;
 use App\Modules\Comisiones\Domain\Input\Budget;
 use App\Modules\Comisiones\Domain\Input\ClientAssignment;
 use App\Modules\Comisiones\Domain\Input\CrossingLine;
 use App\Modules\Comisiones\Domain\Input\CrossingSource;
 use App\Modules\Comisiones\Domain\Input\CrossingType;
 use App\Modules\Comisiones\Domain\Input\DocumentType;
+use App\Modules\Comisiones\Domain\Input\ManualAdjustment;
+use App\Modules\Comisiones\Domain\Input\ObrSale;
 use App\Modules\Comisiones\Domain\Input\PaymentLine;
 use App\Modules\Comisiones\Domain\Input\SaleLine;
 use App\Modules\Comisiones\Domain\Shared\Dates;
 use App\Modules\Comisiones\Domain\Shared\Money;
+use App\Modules\Comisiones\Domain\Shared\Percentage;
 use App\Modules\Comisiones\Domain\Shared\SellerCode;
 use DateInterval;
 
@@ -146,6 +150,24 @@ final class Lines
     public static function budget(int $code, int|string $amount): Budget
     {
         return new Budget($code, Money::of($amount));
+    }
+
+    /** A manual OBR/Escudos sale of a code with its own rate (§5.5). */
+    public static function obr(int $code, int|string $sold, string $rate = '2', string $description = 'Escudos obsoletos'): ObrSale
+    {
+        return new ObrSale($code, $description, Money::of($sold), Percentage::of($rate));
+    }
+
+    /** A reimbursement captured by hand: it adds to the code total (§5.7). */
+    public static function reimbursement(int $code, int|string $amount, string $description = 'Reintegro con soporte'): ManualAdjustment
+    {
+        return new ManualAdjustment($code, AdjustmentKind::Reimbursement, Money::of($amount), $description);
+    }
+
+    /** A deduction captured by hand: it subtracts from the code total (§5.7). */
+    public static function deduction(int $code, int|string $amount, string $description = 'Descuento con soporte'): ManualAdjustment
+    {
+        return new ManualAdjustment($code, AdjustmentKind::Deduction, Money::of($amount), $description);
     }
 
     /** The seller of a client from a date on (Report 5 history). */

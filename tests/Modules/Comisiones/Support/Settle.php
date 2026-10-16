@@ -7,6 +7,11 @@ use App\Modules\Comisiones\Domain\Calculation\Alert;
 use App\Modules\Comisiones\Domain\Calculation\AlertKind;
 use App\Modules\Comisiones\Domain\Calculation\CodeSettlement;
 use App\Modules\Comisiones\Domain\Calculation\CollectionDetail;
+use App\Modules\Comisiones\Domain\Calculation\DerivedSettlement;
+use App\Modules\Comisiones\Domain\Calculation\DirectorSettlement;
+use App\Modules\Comisiones\Domain\Calculation\PersonRole;
+use App\Modules\Comisiones\Domain\Calculation\PersonSettlement;
+use App\Modules\Comisiones\Domain\Calculation\RoleKind;
 use App\Modules\Comisiones\Domain\Calculation\SettlementCalculator;
 use App\Modules\Comisiones\Domain\Calculation\SettlementResult;
 use App\Modules\Comisiones\Domain\Input\Budget;
@@ -15,6 +20,8 @@ use App\Modules\Comisiones\Domain\Input\CrossingLine;
 use App\Modules\Comisiones\Domain\Input\PaymentLine;
 use App\Modules\Comisiones\Domain\Input\SaleLine;
 use App\Modules\Comisiones\Domain\Input\SettlementInput;
+use App\Modules\Comisiones\Domain\Parameters\DerivedCommissionRule;
+use App\Modules\Comisiones\Domain\Parameters\DirectorTeam;
 use App\Modules\Comisiones\Domain\Parameters\OptionsVersion;
 use App\Modules\Comisiones\Domain\Parameters\ParameterBook;
 use App\Modules\Comisiones\Domain\Parameters\PeriodParameters;
@@ -105,22 +112,91 @@ final class Settle
     }
 
     /**
+     * Runs the engine on a parameter book of the test, for the period of the input.
+     */
+    public static function using(ParameterBook $book, SettlementInput $input): SettlementResult
+    {
+        return (new SettlementCalculator)->calculate($input, $book->forPeriod($input->period));
+    }
+
+    /**
      * The default parameters in force for the period, with the options when given.
      */
     public static function parameters(Period $period, ?SettlementOptions $options = null): PeriodParameters
     {
+        return self::book($options)->forPeriod($period);
+    }
+
+    /**
+     * The default parameter book (Annex 1), with extra director teams or
+     * derived commissions and the options when given.
+     *
+     * @param  list<DirectorTeam>  $teams  Added to the default teams.
+     * @param  list<DerivedCommissionRule>  $derived  Added to the default derived commissions.
+     */
+    public static function book(?SettlementOptions $options = null, array $teams = [], array $derived = []): ParameterBook
+    {
         $book = DefaultParameters::book();
 
-        if ($options !== null) {
-            $book = new ParameterBook(
-                codes: $book->codes,
-                trancheTables: $book->trancheTables,
-                teams: $book->teams,
-                derived: $book->derived,
-                options: [new OptionsVersion(Validity::from('2026-01-01'), $options)],
-            );
+        if ($options === null && $teams === [] && $derived === []) {
+            return $book;
         }
 
-        return $book->forPeriod($period);
+        return new ParameterBook(
+            codes: $book->codes,
+            trancheTables: $book->trancheTables,
+            teams: [...$book->teams, ...$teams],
+            derived: [...$book->derived, ...$derived],
+            options: $options === null ? [] : [new OptionsVersion(Validity::from('2026-01-01'), $options)],
+        );
+    }
+
+    /**
+     * The derived commission with the key ("85.1"), failing the test when there is none.
+     */
+    public static function derived(SettlementResult $result, string $key): DerivedSettlement
+    {
+        $derived = $result->derived($key);
+
+        Assert::assertNotNull($derived, "There is no derived commission {$key}.");
+
+        return $derived;
+    }
+
+    /**
+     * The director settlement of the team, failing the test when there is none.
+     */
+    public static function director(SettlementResult $result, string $team): DirectorSettlement
+    {
+        $director = $result->director($team);
+
+        Assert::assertNotNull($director, "There is no director settlement for team {$team}.");
+
+        return $director;
+    }
+
+    /**
+     * The roles of a person as [kind, reference, label, amount] rows, for compact assertions.
+     *
+     * @return list<array{RoleKind, string, string, string}>
+     */
+    public static function roles(PersonSettlement $person): array
+    {
+        return array_map(
+            fn (PersonRole $role) => [$role->kind, $role->reference, $role->label, $role->amount->amount()],
+            $person->roles,
+        );
+    }
+
+    /**
+     * The settlement of a person, failing the test when the person has none.
+     */
+    public static function person(SettlementResult $result, string $id): PersonSettlement
+    {
+        $person = $result->person($id);
+
+        Assert::assertNotNull($person, "Person {$id} has no settlement.");
+
+        return $person;
     }
 }

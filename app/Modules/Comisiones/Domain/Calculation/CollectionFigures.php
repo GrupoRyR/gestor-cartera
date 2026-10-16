@@ -20,4 +20,25 @@ final readonly class CollectionFigures
         public Money $commission,
         public array $details,
     ) {}
+
+    /**
+     * The lines a derived or director commission counts (§5.5, §5.6): the
+     * payments, plus the crossings only when the options say so (§14.3).
+     *
+     * @return list<CollectionDetail>
+     */
+    public function lines(bool $withCrossings): array
+    {
+        if ($withCrossings) {
+            return $this->details;
+        }
+
+        return array_values(array_filter($this->details, fn (CollectionDetail $detail) => ! $detail->isCrossing()));
+    }
+
+    /** The paid base of those lines. */
+    public function collectedOf(bool $withCrossings): Money
+    {
+        return Money::sum(array_map(fn (CollectionDetail $detail) => $detail->paidBase, $this->lines($withCrossings)));
+    }
 }

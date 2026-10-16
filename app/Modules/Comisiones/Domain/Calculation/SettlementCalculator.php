@@ -9,10 +9,11 @@ use InvalidArgumentException;
 
 /**
  * Settles one period (§5): filters the SAP lines (§5.1), computes the sales
- * commission (§5.2) and the collection commission, payments and crossings
- * (§5.3, §5.4), of every code, adds up each code (§5.7) and gathers the
- * alerts and controls (§9). Pure and repeatable: the same input and
- * parameters always give the same result.
+ * commission (§5.2), the collection commission of payments and crossings
+ * (§5.3, §5.4), the manual captures and the derived commissions (§5.5) and
+ * the channel directors (§5.6) of every code, adds up each code and each
+ * person (§5.7) and gathers the alerts and controls (§9). Pure and
+ * repeatable: the same input and parameters always give the same result.
  */
 final class SettlementCalculator
 {
@@ -34,12 +35,16 @@ final class SettlementCalculator
         $sales = (new SalesCommission($parameters, $filter, $alerts))->calculate($input->sales, $input->budgets);
         $collections = (new CollectionCommission($parameters, $filter, $alerts))
             ->calculate($input->payments, $input->crossings, $input->assignments);
+        $captures = new ManualCaptures($parameters, $alerts, $input->obrSales, $input->adjustments);
+        $directors = (new DirectorCommission($parameters))->calculate($sales, $collections);
+        $derived = (new DerivedCommission($parameters))->calculate($sales, $collections);
 
         $codes = [];
 
         foreach ($parameters->codes() as $code => $rule) {
             $figures = $sales->forCode($code);
             $collection = $collections->forCode($code);
+            $capture = $captures->forCode($rule);
 
             $settlement = new CodeSettlement(
                 rule: $rule,
@@ -50,12 +55,14 @@ final class SettlementCalculator
                 saleCommission: $figures->commission,
                 collected: $collection->collected,
                 collectionCommission: $collection->commission,
-                obrCommission: Money::zero(),
-                reimbursements: Money::zero(),
-                deductions: Money::zero(),
-                directorCommission: Money::zero(),
+                obrCommission: $capture->obrCommission,
+                reimbursements: $capture->reimbursements,
+                deductions: $capture->deductions,
+                directorCommission: self::directorCommissionOf($code, $directors),
                 saleDetails: $figures->details,
                 collectionDetails: $collection->details,
+                obrSales: $capture->obrSales,
+                adjustments: $capture->adjustments,
             );
 
             if ($settlement->hasNegativeCommission()) {
@@ -74,9 +81,9 @@ final class SettlementCalculator
             period: $input->period,
             parameters: $parameters,
             codes: $codes,
-            derived: [],
-            directors: [],
-            persons: [],
+            derived: $derived,
+            directors: $directors,
+            persons: PersonTotals::calculate($codes, $derived, $directors),
             alerts: $alerts->all(),
             controls: new ControlTotals(
                 loadedSales: $sales->loaded,
@@ -87,5 +94,19 @@ final class SettlementCalculator
                 unassignedCollections: $collections->unassigned,
             ),
         );
+    }
+
+    /**
+     * The director commissions the options place on this code (§14.4); zero
+     * when the directors are paid apart.
+     *
+     * @param  list<DirectorSettlement>  $directors
+     */
+    private static function directorCommissionOf(int $code, array $directors): Money
+    {
+        return Money::sum(array_map(
+            fn (DirectorSettlement $director) => $director->total,
+            array_filter($directors, fn (DirectorSettlement $director) => $director->paidWithCode === $code),
+        ));
     }
 }

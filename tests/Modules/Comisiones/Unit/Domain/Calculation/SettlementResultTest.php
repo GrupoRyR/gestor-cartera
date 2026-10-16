@@ -2,6 +2,7 @@
 
 use App\Modules\Comisiones\Domain\Calculation\Alert;
 use App\Modules\Comisiones\Domain\Calculation\AlertKind;
+use App\Modules\Comisiones\Domain\Calculation\CodeSettlement;
 use App\Modules\Comisiones\Domain\Calculation\CollectionDetail;
 use App\Modules\Comisiones\Domain\Calculation\CollectionSource;
 use App\Modules\Comisiones\Domain\Calculation\ControlTotals;
@@ -66,8 +67,11 @@ describe('SettlementResult', function () {
     });
 
     it('adds the regular code totals and the derived commissions', function () {
-        expect($this->base->regularTotal()->amount())->toBe('675000')
-            ->and($this->result->regularTotal()->amount())->toBe('685000');
+        $regularCodes = Money::sum(array_map(fn (CodeSettlement $code) => $code->total, $this->result->regular()));
+
+        expect($regularCodes->amount())->toBe('675000')
+            ->and($this->result->regularTotal()->amount())->toBe('685000')
+            ->and($this->base->regularTotal()->amount())->toBe('685000');
     });
 
     it('finds derived commissions, directors and persons by key', function () {

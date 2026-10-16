@@ -79,7 +79,7 @@ describe('Annex 2 sales (July 2026)', function () {
         expect($this->result->regularTotal()->amount())->toBe('6501709');
     });
 
-    it('has no collections without payments, and leaves derived commissions, directors and persons for later', function () {
+    it('has no collections, captures or director commission on a code without them', function () {
         $settlement = Settle::code($this->result, 14);
 
         expect($settlement->collected->amount())->toBe('0')
@@ -89,10 +89,9 @@ describe('Annex 2 sales (July 2026)', function () {
             ->and($settlement->deductions->amount())->toBe('0')
             ->and($settlement->directorCommission->amount())->toBe('0')
             ->and($settlement->collectionDetails)->toBe([])
-            ->and($settlement->transactions())->toBe(0)
-            ->and($this->result->derivedCommissions())->toBe([])
-            ->and($this->result->directors())->toBe([])
-            ->and($this->result->persons())->toBe([]);
+            ->and($settlement->obrSales)->toBe([])
+            ->and($settlement->adjustments)->toBe([])
+            ->and($settlement->transactions())->toBe(0);
     });
 });
 
@@ -278,17 +277,17 @@ describe('special codes', function () {
             ->and($result->regularTotal()->amount())->toBe('15000');
     });
 
-    it('calculates the sales commission of the codes settled apart', function (int $code, string $commission) {
+    it('calculates the sales commission of the codes settled apart, out of the regular total', function (int $code, string $commission, string $regularTotal) {
         $result = Settle::sales([Lines::sale($code, 10_000_000)]);
 
         expect(Settle::code($result, $code)->rule->scope)->toBe(CodeScope::Separate)
             ->and(Settle::code($result, $code)->saleCommission->amount())->toBe($commission)
             ->and(array_keys($result->separate()))->toBe([81, 84, 90])
-            ->and($result->regularTotal()->amount())->toBe('0');
+            ->and($result->regularTotal()->amount())->toBe($regularTotal);
     })->with([
-        '81 at 0.35 %' => [81, '35000'],
-        '84 at 1 %' => [84, '100000'],
-        '90 at 2 %' => [90, '200000'],
+        '81 at 0.35 %, with 81.1 in the regular total' => [81, '35000', '10000'],
+        '84 at 1 %' => [84, '100000', '0'],
+        '90 at 2 %' => [90, '200000', '0'],
     ]);
 
     it('settles every code with a rule in the period, sorted, with or without activity', function () {

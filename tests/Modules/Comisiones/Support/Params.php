@@ -71,13 +71,15 @@ final class Params
         string $rate = '0.2',
         string $from = '2026-01-01',
         ?string $until = null,
+        string $channel = 'Distribución',
+        ?int $associatedCode = 53,
     ): DirectorTeam {
         return new DirectorTeam(
             Validity::from($from, $until),
             $key,
-            'Distribución',
+            $channel,
             new PersonRef('jessika-quintero', 'Jessika Quintero'),
-            53,
+            $associatedCode,
             Percentage::of($rate),
             $members,
         );
@@ -88,14 +90,17 @@ final class Params
         string $rate = '0.1',
         string $from = '2026-01-01',
         ?string $until = null,
+        int $source = 81,
+        DerivedBase $base = DerivedBase::Sales,
+        string $label = 'Sergio Caballero (venta)',
     ): DerivedCommissionRule {
         return new DerivedCommissionRule(
             Validity::from($from, $until),
             $key,
-            'Sergio Caballero (venta)',
+            $label,
             new PersonRef('sergio-caballero', 'Sergio Caballero'),
-            81,
-            DerivedBase::Sales,
+            $source,
+            $base,
             Percentage::of($rate),
         );
     }

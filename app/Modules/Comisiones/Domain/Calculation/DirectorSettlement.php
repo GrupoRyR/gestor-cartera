@@ -16,6 +16,9 @@ final readonly class DirectorSettlement
      * @param  Money  $salesCommission  Team sales × rate, rounded to the peso.
      * @param  Money  $collectionCommission  Team collections × rate, rounded to the peso.
      * @param  Money  $total  Both commissions.
+     * @param  int|null  $paidWithCode  The code whose total carries this commission when the options
+     *                                  place it on the associated code (§14.4); null when the
+     *                                  director is paid for it as a role of its own.
      */
     public function __construct(
         public DirectorTeam $team,
@@ -25,5 +28,6 @@ final readonly class DirectorSettlement
         public Money $salesCommission,
         public Money $collectionCommission,
         public Money $total,
+        public ?int $paidWithCode = null,
     ) {}
 }
