@@ -52,7 +52,7 @@ Los valores de la tabla son los de siembra (`config('core.companies')`). Los vig
 |---|---|
 | Se crea | Pasa a «Compromiso», salvo si está en «Jurídico» o ya en «Compromiso». |
 | Se incumple | Pasa a «Incumplido», salvo si tiene otro compromiso pendiente o está en «Jurídico», «Pago recibido» o ya en «Incumplido». |
-| Se cumple o se anula | Si estaba en «Compromiso» o «Incumplido» y no tiene otro compromiso pendiente, se recalcula su estado automático con la última instantánea, ignorando el estado manual. Si no, conserva su estado. |
+| Se cumple o se anula | Si estaba en «Compromiso» o «Incumplido» y no tiene otro compromiso pendiente ni incumplido, se recalcula su estado automático con la última instantánea, ignorando el estado manual. Si no tiene pendientes pero sí otro incumplido, queda (o vuelve) en «Incumplido». En cualquier otro caso conserva su estado. |
 
 **Incumplimiento diario.** Una tarea diaria marca «Incumplido» todo compromiso «Pendiente» cuya fecha de pago sea anterior a hoy (`CommitmentRules::isBroken()`). Un compromiso que vence hoy no se incumple hasta mañana. Solo cuenta la fecha, no la hora.
 
@@ -170,7 +170,7 @@ Ingesta guarda cada lote del robot (o de una carga manual) y despacha `BatchAcce
 | Lote | Listener (`Infrastructure\Ingest\`) | Qué hace |
 |---|---|---|
 | `cartera` | `ImportReceivablesSnapshot` | Guarda la instantánea con sus partidas, crea o actualiza los clientes y recalcula el saldo y el estado de todos los clientes de la empresa. |
-| `asesores` | `ImportAdvisors` | Actualiza los asesores de SAP de la empresa y desactiva los que no llegan. |
+| `asesores` | `ImportAdvisors` | Actualiza los asesores de SAP de la empresa y desactiva los que no llegan. Un lote sin ningún asesor válido se ignora: es una extracción fallida, no una empresa sin vendedores. |
 | `contactos` | — | Pendiente: llega cuando Ingesta defina las columnas del lote. |
 
 **Cartera, paso a paso.** Todo va en una sola transacción: si algo falla, no queda nada a medias.
@@ -290,7 +290,7 @@ Un usuario con sesión que abre una ruta de invitados vuelve a `/`.
 1. **Tenant.** El claim `tid` debe ser igual a `MICROSOFT_TENANT_ID` (sin distinguir mayúsculas, porque es un GUID). Si falta el claim o no hay tenant configurado, nadie entra.
 2. **Usuario por correo.** Se busca en `users`, también entre los borrados. Si no existe, se crea sin rol con `User::withTrashed()->restoreOrCreate()`, con el nombre y el object id de Microsoft. Si existe, se le guarda el object id la primera vez y se actualiza el nombre si cambió en Microsoft.
 3. **Asesor por correo.** Se vinculan los asesores activos, sin usuario, cuyo `email` es el del usuario. Un asesor inactivo o ya vinculado a otra persona no cambia.
-4. **Rol por asesor.** Si el usuario no tiene rol y tiene al menos un asesor activo vinculado (de este ingreso o de antes), recibe el rol `asesor` y las empresas de esos asesores en `company_user`, sin duplicar. Un usuario que ya tiene rol nunca cambia de rol ni de empresas. Los demás roles los asigna TI desde la pantalla de equipo.
+4. **Rol por asesor.** Si el usuario no tiene rol y **este ingreso** le vinculó al menos un asesor, recibe el rol `asesor` y las empresas de esos asesores en `company_user`, sin duplicar. Los asesores vinculados antes no devuelven un rol: si TI le quitó todos los roles para revocar el acceso, sigue sin rol. Un usuario que ya tiene rol nunca cambia de rol ni de empresas. Los demás roles los asigna TI desde la pantalla de equipo.
 
 Un usuario sin rol termina en `/sin-acceso`. El que tiene rol llega a la página que pidió antes de ingresar o a `/`.
 
