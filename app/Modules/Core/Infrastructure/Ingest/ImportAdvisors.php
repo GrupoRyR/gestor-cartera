@@ -68,6 +68,13 @@ final class ImportAdvisors implements ShouldQueue
             ];
         }
 
+        // A batch without a single advisor is a failed extraction, not a
+        // company that lost every salesperson: deactivating them all would
+        // follow from whereNotIn('code', []), which matches every row.
+        if ($advisors === []) {
+            return;
+        }
+
         $this->db->transaction(function () use ($company, $advisors): void {
             foreach (array_chunk(array_values($advisors), self::CHUNK) as $chunk) {
                 AdvisorRecord::query()->upsert($chunk, ['company', 'code'], ['name', 'email', 'active']);

@@ -69,6 +69,17 @@ it('gives the same result when the same advisors arrive again', function () {
         ->and($first)->toHaveCount(2);
 });
 
+it('leaves the advisors untouched when a batch has no valid advisor', function (array $rows) {
+    AdvisorRecord::factory()->create(['company' => CompanyCode::SGX, 'code' => 12]);
+
+    $this->robot->send(Dataset::Advisors, CompanyCode::SGX, '2026-10-15', $rows);
+
+    expect(AdvisorRecord::query()->sole()->active)->toBeTrue();
+})->with([
+    'empty batch' => [[]],
+    'only "no sales employee"' => [[RobotBatches::advisor(['slp_code' => -1])]],
+]);
+
 it('ignores the batches of other datasets', function () {
     AdvisorRecord::factory()->create(['company' => CompanyCode::SGX, 'code' => 12]);
 
