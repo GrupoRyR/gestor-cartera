@@ -122,6 +122,14 @@ it('releases a job for a minute while the lock is taken and frees a lost lock af
         ->and($middleware->expiresAfter)->toBeGreaterThan((new RecomputeCompanyStatuses(CompanyCode::SDC))->timeout);
 });
 
+it('fails a job that runs past its timeout instead of retrying it', function () {
+    Queue::fake();
+    $this->robot->receivables(CompanyCode::SGX, '2026-10-15', [RobotBatches::receivable()]);
+
+    expect(Queue::pushed(CallQueuedListener::class)->sole()->failOnTimeout)->toBeTrue()
+        ->and((new RecomputeCompanyStatuses(CompanyCode::SGX))->failOnTimeout)->toBeTrue();
+});
+
 it('retries a job that waits for the lock for 30 minutes but fails it on its first exception', function () {
     $this->freezeTime();
     Queue::fake();

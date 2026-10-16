@@ -35,6 +35,12 @@ final class RecomputeCompanyStatuses implements ShouldQueue
     public int $timeout = 300;
 
     /**
+     * A run killed at the timeout fails instead of retrying until
+     * retryUntil(): only waiting for the lock is retried.
+     */
+    public bool $failOnTimeout = true;
+
+    /**
      * A real exception fails the job at once and keeps it in failed_jobs;
      * queue:retry runs it again safely. Waiting for the lock is a release,
      * not an exception: it retries until retryUntil().

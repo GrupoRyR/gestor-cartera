@@ -44,6 +44,12 @@ final class ImportReceivablesSnapshot implements ShouldQueue
     public int $timeout = 300;
 
     /**
+     * A run killed at the timeout fails instead of retrying until
+     * retryUntil(): only waiting for the lock is retried.
+     */
+    public bool $failOnTimeout = true;
+
+    /**
      * A real exception rolls the import back whole and fails it at once,
      * kept in failed_jobs. Waiting for the lock is a release, not an
      * exception: it retries until retryUntil().
