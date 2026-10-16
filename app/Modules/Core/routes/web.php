@@ -11,6 +11,7 @@ use App\Modules\Core\Http\Controllers\Auth\MicrosoftCallbackController;
 use App\Modules\Core\Http\Controllers\Auth\MicrosoftRedirectController;
 use App\Modules\Core\Http\Controllers\HomeController;
 use App\Modules\Core\Http\Controllers\NoAccessController;
+use App\Modules\Core\Http\Controllers\Portfolio\ActivityController;
 use App\Modules\Core\Http\Controllers\SwitchCompanyController;
 use App\Modules\Core\Http\Controllers\Team\TeamMemberController;
 use Illuminate\Support\Facades\Route;
@@ -44,3 +45,10 @@ Route::middleware(['auth', 'can:core.team.manage'])
         Route::delete('{user}', 'destroy')->whereNumber('user')->name('destroy');
         Route::post('{user}/restaurar', 'restore')->whereNumber('user')->withTrashed()->name('restore');
     });
+
+// Client log (gestiones): portfolio managers and analysts remove an entry of
+// a client within their reach. {activity} finds only entries not removed.
+Route::middleware(['auth', 'can:core.activities.delete'])
+    ->delete('gestiones/{activity}', [ActivityController::class, 'destroy'])
+    ->whereNumber('activity')
+    ->name('gestiones.destroy');
