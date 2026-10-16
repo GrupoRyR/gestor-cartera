@@ -142,6 +142,27 @@ La llave es (`user_id`, `advisor_id`): un asesor puede estar en el equipo de var
 
 **Alcance de la cartera** (`docs/arquitectura.md` §6.2). La implementación de `CarteraRepository` leerá estas dos tablas: un `asesor` ve los clientes de los asesores vinculados a él (`advisors.user_id`) y un `gerente_comercial`, los de los asesores de su equipo (`advisor_team`). Hoy ningún módulo filtra todavía con ellas.
 
+## Entidades de cartera
+
+Core es dueño de las entidades compartidas, así que sus tablas no llevan prefijo. `Infrastructure\Persistence` las representa con `PortfolioLoadRecord`, `ClientRecord`, `InvoiceRecord` y `ContactRecord`, cada uno con su factory.
+
+| Tabla | Qué guarda |
+|---|---|
+| `portfolio_loads` | Una fila por instantánea de cartera (CargaCartera): la empresa, la fecha de corte (`cutoff_date`), la carga de Ingesta de la que salió (`load_id`, única), el origen (`robot` o `manual`), cuántas partidas trae (`invoice_count`) y los totales: `total` (suma de saldos) y `overdue` (saldo de las partidas vencidas al corte). |
+| `clients` | Un cliente por empresa y código de SAP (`company` y `code` = `OCRD.CardCode`, únicos juntos): nombre, NIT (`tax_id`), grupo, municipio, condición de pago, cupo (`credit_limit`), asesor actual (`advisor_code` = `SlpCode`) y gestor responsable (`manager_user_id`). También guarda, de la última instantánea, el saldo (`balance`), lo vencido (`overdue`), los días de vencida de la partida con saldo más atrasada (`max_days_overdue`) y el estado (`status`, con `status_changed_at`), para que las pantallas ordenen y filtren sin leer partidas. |
+| `invoices` | Las partidas abiertas de cada instantánea: una fila por cuota de factura (o nota crédito, recibo o asiento) con documento, tipo (`TransType` de SAP), cuota, emisión, vencimiento, valor (`amount`), saldo (`balance`, negativo en notas crédito), días de vencida al corte (`days_overdue`) y asesor. |
+| `contacts` | Las personas de contacto de cada cliente: nombre, correo, teléfono, cargo, si es el principal (`is_primary`) y el origen (`source`: `sap` o la plataforma). La carga desde SAP (lote `contactos`) llega cuando Ingesta defina las columnas de ese lote en `etl/esquema.py`. |
+
+**Reglas:**
+
+- **Las instantáneas nunca se sobrescriben** (A.4). Cada carga crea su fila en `portfolio_loads` y sus propias partidas en `invoices`; las anteriores quedan como histórico. Si se borra una instantánea, sus partidas se borran en cascada.
+- **Clientes con borrado lógico.** Un cliente eliminado conserva su fila, su histórico y su código: sigue ocupando el índice único (`company`, `code`). La base impide borrar del todo un cliente con partidas; si se borra del todo uno sin partidas, sus contactos se borran con él.
+- Si el gestor responsable se borra del todo (no el borrado lógico), el cliente queda sin gestor.
+- Los montos son `decimal(18,2)` y los modelos los entregan como cadenas exactas (cast `decimal:2`), p. ej. `"1234567.89"`. `company` es el valor de `CompanyCode`, `status` el de `ClientStatus` y `source` el de `LoadSource`.
+- Los días de vencida van del vencimiento al corte, igual que `Invoice::$daysOverdue`: positivo = vencida, 0 = vence en el corte, negativo = aún no vence.
+
+**Factories.** `ClientRecordFactory` crea clientes ficticios de Segurex, al día y sin saldo, con un NIT válido (dígito de verificación de la DIAN, `ClientRecordFactory::checkDigit()`) y el código `C<NIT>`. `InvoiceRecordFactory` crea una partida que vence hoy, con su propia instantánea y su cliente salvo que la prueba los pase con `for()`. `PortfolioLoadRecordFactory` y `ContactRecordFactory` (estado `primary()`) completan el juego.
+
 ## Ingreso con Microsoft
 
 Solo se entra con Microsoft Entra ID, en el directorio de la empresa. No hay contraseñas propias.
