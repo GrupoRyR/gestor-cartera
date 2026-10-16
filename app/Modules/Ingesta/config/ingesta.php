@@ -11,6 +11,10 @@ return [
     // Maximum clock difference, in seconds, accepted on a signed request.
     'hmac_max_skew' => (int) env('INGESTA_HMAC_MAX_SKEW', 300),
 
+    // Most rows one batch may carry. A cartera of a company has a few
+    // thousand installments; this only stops a runaway extraction.
+    'max_rows' => 200000,
+
     // Time (America/Bogota) by which the robot must have published the day's load.
     'alert_deadline' => env('INGESTA_ALERT_DEADLINE', '07:00'),
 
