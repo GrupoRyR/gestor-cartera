@@ -4,13 +4,14 @@ namespace Tests\Modules\Comisiones\Support;
 
 use App\Modules\Comisiones\Application\Ports\Settlements;
 use App\Modules\Comisiones\Domain\Settlement\Settlement;
+use App\Modules\Comisiones\Domain\Settlement\StaleSettlement;
 use App\Modules\Comisiones\Domain\Shared\Period;
 use LogicException;
 
 /**
  * Keeps every saved version of each period in memory, the way the
- * infrastructure must: a version is replaced while it is open and a closed
- * version is never overwritten (§6 step 7).
+ * infrastructure must: a version is replaced while it is open, never by an
+ * older revision, and a closed version is never overwritten (§6 step 7).
  */
 final class InMemorySettlements implements Settlements
 {
@@ -30,6 +31,10 @@ final class InMemorySettlements implements Settlements
 
         if ($stored !== null && ! $stored->isOpen()) {
             throw new LogicException("Version {$settlement->version} of {$settlement->period->key()} is closed; it cannot be overwritten.");
+        }
+
+        if ($stored !== null && $stored->revision > $settlement->revision) {
+            throw new StaleSettlement($settlement->period, $settlement->version, $settlement->revision, $stored->revision);
         }
 
         $this->versions[$settlement->period->key()][$settlement->version] = $settlement;

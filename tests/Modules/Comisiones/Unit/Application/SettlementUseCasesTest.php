@@ -13,6 +13,7 @@ use App\Modules\Comisiones\Domain\Parameters\SellerCodeRule;
 use App\Modules\Comisiones\Domain\Settlement\Settlement;
 use App\Modules\Comisiones\Domain\Settlement\SettlementLocked;
 use App\Modules\Comisiones\Domain\Settlement\SettlementStatus;
+use App\Modules\Comisiones\Domain\Settlement\StaleSettlement;
 use App\Modules\Comisiones\Domain\Shared\Period;
 use Tests\Modules\Comisiones\Support\FixedInputs;
 use Tests\Modules\Comisiones\Support\FixedParameters;
@@ -68,7 +69,9 @@ describe('recalculating an open period and registering a complementary settlemen
             ->and($this->settlements->versions($this->july))->toHaveCount(1);
 
         // §6 steps 5 and 6: another user approves with the blocking alert justified, then closes.
-        $this->approve->handle($this->july, 'beto', new DateTimeImmutable('2026-08-05 10:00'), [
+        expect($recalculated->revision)->toBe(2);
+
+        $this->approve->handle($this->july, 'beto', new DateTimeImmutable('2026-08-05 10:00'), $recalculated->revision, [
             'codigo_desconocido:99' => 'Código 99 es una venta de prueba de SAP; se excluye.',
         ]);
         $closed = $this->close->handle($this->july, 'beto', new DateTimeImmutable('2026-08-05 11:00'));
@@ -98,8 +101,12 @@ describe('recalculating an open period and registering a complementary settlemen
 
         // The complementary draft is the open one now: calculating recalculates it.
         $this->inputs->put(($this->annex)([Lines::sale(14, 10_084_866)]));
-        $this->calculate->handle($this->july, 'carla', new DateTimeImmutable('2026-09-03 08:00'));
-        $this->approve->handle($this->july, 'beto', new DateTimeImmutable('2026-09-03 10:00'));
+        $reopened = $this->calculate->handle($this->july, 'carla', new DateTimeImmutable('2026-09-03 08:00'));
+
+        expect($reopened->version)->toBe(2)
+            ->and($reopened->revision)->toBe(2);
+
+        $this->approve->handle($this->july, 'beto', new DateTimeImmutable('2026-09-03 10:00'), $reopened->revision);
         $this->close->handle($this->july, 'beto', new DateTimeImmutable('2026-09-03 11:00'));
 
         [$first, $second] = $this->settlements->versions($this->july);
@@ -121,17 +128,83 @@ describe('a period without settlement', function () {
     it('cannot be approved, closed or complemented before it is calculated', function (Closure $step) {
         expect(fn () => $step($this))->toThrow(SettlementNotFound::class, 'There is no settlement of 2026-07');
     })->with([
-        'approve' => [fn ($test) => $test->approve->handle($test->july, 'beto', new DateTimeImmutable)],
+        'approve' => [fn ($test) => $test->approve->handle($test->july, 'beto', new DateTimeImmutable, 1)],
         'close' => [fn ($test) => $test->close->handle($test->july, 'beto', new DateTimeImmutable)],
         'complement' => [fn ($test) => $test->complement->handle($test->july, 'carla', 'Corrección.', new DateTimeImmutable)],
     ]);
+});
+
+describe('approving only what the approver reviewed (§6 step 5, §10)', function () {
+    beforeEach(function () {
+        $this->inputs->put(($this->annex)());
+        $this->reviewed = $this->calculate->handle($this->july, 'ana', new DateTimeImmutable('2026-08-03 09:00'));
+    });
+
+    it('refuses the approval when the analyst recalculated after the review, and stores nothing', function () {
+        // The approver reviews revision 1; late SAP lines arrive and the analyst recalculates.
+        $this->inputs->put(($this->annex)([Lines::sale(14, 2_000_000)]));
+        $recalculated = $this->calculate->handle($this->july, 'ana', new DateTimeImmutable('2026-08-04 09:00'));
+
+        expect(fn () => $this->approve->handle($this->july, 'beto', new DateTimeImmutable('2026-08-04 10:00'), $this->reviewed->revision))
+            ->toThrow(StaleSettlement::class, 'is at revision 2');
+
+        expect($this->settlements->latest($this->july))->toBe($recalculated)
+            ->and($this->settlements->latest($this->july)?->status)->toBe(SettlementStatus::Draft);
+    });
+
+    it('approves once the approver reviews the current revision', function () {
+        $this->inputs->put(($this->annex)([Lines::sale(14, 2_000_000)]));
+        $recalculated = $this->calculate->handle($this->july, 'ana', new DateTimeImmutable('2026-08-04 09:00'));
+
+        $approved = $this->approve->handle($this->july, 'beto', new DateTimeImmutable('2026-08-04 10:00'), $recalculated->revision);
+
+        expect($approved->status)->toBe(SettlementStatus::Approved)
+            ->and($approved->revision)->toBe(2)
+            ->and(($this->saleCommissionOf14)($approved))->toBe('539364')
+            ->and($this->settlements->latest($this->july))->toBe($approved);
+    });
+});
+
+describe('the Settlements port refuses to go back to an older revision', function () {
+    beforeEach(function () {
+        $this->draft = Settlement::calculate(Settle::run(($this->annex)()), 'ana', new DateTimeImmutable('2026-08-03 09:00'));
+        $this->settlements->save($this->draft);
+    });
+
+    it('lets a recalculation, an approval and a closing replace the open version', function () {
+        $recalculated = $this->draft->recalculate($this->draft->result, 'ana', new DateTimeImmutable('2026-08-04 09:00'));
+        $approved = $recalculated->approve('beto', new DateTimeImmutable('2026-08-04 10:00'), 2);
+        $closed = $approved->close('beto', new DateTimeImmutable('2026-08-04 11:00'));
+
+        foreach ([$recalculated, $approved, $closed] as $settlement) {
+            $this->settlements->save($settlement);
+
+            expect($this->settlements->latest($this->july))->toBe($settlement);
+        }
+    });
+
+    it('refuses an approval of an older revision saved after a recalculation', function () {
+        // Both users loaded revision 1; the analyst's recalculation is saved first.
+        $approvedLate = $this->draft->approve('beto', new DateTimeImmutable('2026-08-04 10:00'), 1);
+        $recalculated = $this->draft->recalculate($this->draft->result, 'ana', new DateTimeImmutable('2026-08-04 09:00'));
+        $this->settlements->save($recalculated);
+
+        try {
+            $this->settlements->save($approvedLate);
+            $this->fail('The stale approval should have been refused.');
+        } catch (StaleSettlement $exception) {
+            expect($exception->expectedRevision())->toBe(1)
+                ->and($exception->currentRevision())->toBe(2)
+                ->and($this->settlements->latest($this->july))->toBe($recalculated);
+        }
+    });
 });
 
 describe('frozen parameters (§4, §6 step 6)', function () {
     it('keeps the stored result of a closed version when the parameters change afterwards', function () {
         $this->inputs->put(($this->annex)());
         $this->calculate->handle($this->july, 'ana', new DateTimeImmutable('2026-08-03 09:00'));
-        $this->approve->handle($this->july, 'beto', new DateTimeImmutable('2026-08-04 09:00'));
+        $this->approve->handle($this->july, 'beto', new DateTimeImmutable('2026-08-04 09:00'), 1);
         $closed = $this->close->handle($this->july, 'beto', new DateTimeImmutable('2026-08-04 10:00'));
 
         // The administrator raises code 14 to 1 % for the whole year, July included.

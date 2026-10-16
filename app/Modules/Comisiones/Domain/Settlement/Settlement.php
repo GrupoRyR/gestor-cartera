@@ -12,11 +12,15 @@ use InvalidArgumentException;
  * One version of the settlement of a period and its step in the monthly
  * flow (§6 steps 4–7):
  *
- *   calculate               → draft, version 1
- *   draft or approved       → recalculate → draft, same version (approval and justifications cleared)
- *   draft                   → approve     → approved (another user, every blocking alert justified)
+ *   calculate               → draft, version 1, revision 1
+ *   draft or approved       → recalculate → draft, same version, next revision (approval and justifications cleared)
+ *   draft                   → approve     → approved (the reviewed revision, another user, every blocking alert justified)
  *   approved                → close       → closed (frozen)
- *   closed                  → complement  → draft, next version, with a reason
+ *   closed                  → complement  → draft, next version, revision 1, with a reason
+ *
+ * The revision counts the calculations of a version. The approver names the
+ * revision they reviewed, so a recalculation between the review and the
+ * approval is never approved unseen (§6 step 5, §10).
  *
  * Immutable: each step returns a new instance and leaves the old one as it
  * was, so a closed version is never overwritten (§6 step 7). The result
@@ -31,6 +35,8 @@ final readonly class Settlement
 {
     /**
      * @param  int  $version  1 for the settlement of the period, one more per complementary settlement.
+     * @param  int  $revision  1 when the version is calculated, one more per recalculation; the approval
+     *                         and the closing keep it.
      * @param  string  $calculatedBy  The analyst who calculated this version last.
      * @param  string|null  $reason  Why the complementary version was registered; null for version 1.
      * @param  int|null  $previousVersion  The closed version a complementary one corrects; null for version 1.
@@ -43,6 +49,7 @@ final readonly class Settlement
     public function __construct(
         public Period $period,
         public int $version,
+        public int $revision,
         public SettlementStatus $status,
         public SettlementResult $result,
         public string $calculatedBy,
@@ -59,6 +66,10 @@ final readonly class Settlement
             throw new InvalidArgumentException("A settlement version starts at 1, got {$version}.");
         }
 
+        if ($revision < 1) {
+            throw new InvalidArgumentException("A settlement revision starts at 1, got {$revision}.");
+        }
+
         if (! $result->period()->equals($period)) {
             throw new InvalidArgumentException(sprintf(
                 'A %s result cannot be stored in the %s settlement.',
@@ -72,15 +83,16 @@ final readonly class Settlement
         $this->assertSteps();
     }
 
-    /** Calculates the settlement of a period for the first time: draft version 1 (§6 step 4). */
+    /** Calculates the settlement of a period for the first time: draft version 1, revision 1 (§6 step 4). */
     public static function calculate(SettlementResult $result, string $analyst, DateTimeImmutable $at): self
     {
-        return new self($result->period(), 1, SettlementStatus::Draft, $result, $analyst, $at);
+        return new self($result->period(), 1, 1, SettlementStatus::Draft, $result, $analyst, $at);
     }
 
     /**
-     * Replaces the result while the period is open (§6 step 4). An approved
-     * settlement goes back to draft: the new figures need a new approval.
+     * Replaces the result while the period is open (§6 step 4), as the next
+     * revision of the same version. An approved settlement goes back to
+     * draft: the new figures need a new approval.
      *
      * @throws SettlementLocked when this version is closed.
      * @throws InvalidArgumentException when the result belongs to another period.
@@ -94,6 +106,7 @@ final readonly class Settlement
         return new self(
             period: $this->period,
             version: $this->version,
+            revision: $this->revision + 1,
             status: SettlementStatus::Draft,
             result: $result,
             calculatedBy: $analyst,
@@ -104,21 +117,28 @@ final readonly class Settlement
     }
 
     /**
-     * Approves a draft (§6 step 5): the approver is not the analyst who
-     * calculated it (§10) and every blocking alert of the result has a
-     * justification (§9.7). Warnings need none.
+     * Approves a draft (§6 step 5): it is still at the revision the approver
+     * reviewed, the approver is not the analyst who calculated it (§10) and
+     * every blocking alert of the result has a justification (§9.7). Warnings
+     * need none.
      *
+     * @param  int  $reviewedRevision  The revision the approver reviewed (`$settlement->revision` when shown).
      * @param  array<string, string>  $justifications  Alert key ("codigo_desconocido:99") → justification.
      *
      * @throws InvalidTransition when this version is not a draft.
+     * @throws StaleSettlement when it was recalculated after the review: the revisions differ.
      * @throws SegregationOfDuties when the approver calculated it.
      * @throws InvalidArgumentException when the approver is blank or a key is not a blocking alert of the result.
      * @throws UnresolvedAlerts when a blocking alert has no justification, or a blank one.
      */
-    public function approve(string $approver, DateTimeImmutable $at, array $justifications = []): self
+    public function approve(string $approver, DateTimeImmutable $at, int $reviewedRevision, array $justifications = []): self
     {
         if ($this->status !== SettlementStatus::Draft) {
             throw InvalidTransition::cannot('approve', $this);
+        }
+
+        if ($reviewedRevision !== $this->revision) {
+            throw new StaleSettlement($this->period, $this->version, $reviewedRevision, $this->revision);
         }
 
         self::assertUser($approver, 'approved');
@@ -127,6 +147,7 @@ final readonly class Settlement
         return new self(
             period: $this->period,
             version: $this->version,
+            revision: $this->revision,
             status: SettlementStatus::Approved,
             result: $this->result,
             calculatedBy: $this->calculatedBy,
@@ -154,6 +175,7 @@ final readonly class Settlement
         return new self(
             period: $this->period,
             version: $this->version,
+            revision: $this->revision,
             status: SettlementStatus::Closed,
             result: $this->result,
             calculatedBy: $this->calculatedBy,
@@ -170,8 +192,8 @@ final readonly class Settlement
 
     /**
      * Registers a complementary settlement over this closed one (§6 step 7):
-     * a new draft version with its reason, which goes through approval and
-     * closing again. This version stays closed and untouched.
+     * a new draft version, at revision 1, with its reason, which goes through
+     * approval and closing again. This version stays closed and untouched.
      *
      * @throws InvalidTransition when this version is not closed.
      * @throws InvalidArgumentException when the reason is blank or the result belongs to another period.
@@ -185,6 +207,7 @@ final readonly class Settlement
         return new self(
             period: $this->period,
             version: $this->version + 1,
+            revision: 1,
             status: SettlementStatus::Draft,
             result: $result,
             calculatedBy: $analyst,

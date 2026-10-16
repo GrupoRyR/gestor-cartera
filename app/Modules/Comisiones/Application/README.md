@@ -26,7 +26,9 @@ infrastructure passes everything in through three ports and stores what the use 
    - `SettlementInputs::forPeriod(Period): SettlementInput`: the period's lines and captures (mapping below).
    - `CommissionParameters::book(): ParameterBook`: every version of the parameters.
    - `Settlements::latest(Period): ?Settlement` and `Settlements::save(Settlement)`: keep every version;
-     replace an open version in place; never overwrite a closed one.
+     replace an open version in place; never overwrite a closed one. Optimistic check: never replace a
+     stored version with a higher `revision` than the one being saved (throw `StaleSettlement`), checked
+     and written atomically (for example `UPDATE … WHERE revision <= ?`).
 2. **Seed the parameters** once with `DefaultParameters::book()`. Later edits are new versions with their
    own `Validity`; a period takes, per key, the version with the latest start in force on any of its days.
 3. **Call the use cases** (constructor-injected ports, method `handle`), passing the user and the current
@@ -34,15 +36,16 @@ infrastructure passes everything in through three ports and stores what the use 
 
    | Use case | Spec | Does |
    |---|---|---|
-   | `CalculateSettlement::handle(Period, $analyst, $at)` | §6.4 | No version yet → draft v1. Open (draft or approved) → recalculated in the same version, back to draft. Closed → `SettlementLocked`. |
-   | `ApproveSettlement::handle(Period, $approver, $at, $justifications)` | §6.5, §9.7, §10 | Approves the latest draft. `$justifications` maps alert key → text for every blocking alert. |
+   | `CalculateSettlement::handle(Period, $analyst, $at)` | §6.4 | No version yet → draft v1, revision 1. Open (draft or approved) → recalculated in the same version as the next revision, back to draft. Closed → `SettlementLocked`. |
+   | `ApproveSettlement::handle(Period, $approver, $at, $reviewedRevision, $justifications)` | §6.5, §9.7, §10 | Approves the latest draft only while it is still at `$reviewedRevision`, the `revision` the approver reviewed on screen; a recalculation after the review → `StaleSettlement`. `$justifications` maps alert key → text for every blocking alert. |
    | `CloseSettlement::handle(Period, $user, $at)` | §6.6 | Closes the latest approved version; it is frozen from then on. |
-   | `RegisterComplementarySettlement::handle(Period, $analyst, $reason, $at)` | §6.7 | Recalculates a closed period as a new draft, version + 1, with its reason; the closed version stays. |
+   | `RegisterComplementarySettlement::handle(Period, $analyst, $reason, $at)` | §6.7 | Recalculates a closed period as a new draft, version + 1 at revision 1, with its reason; the closed version stays. |
 
-4. **Persist each `Settlement`** with its `SettlementResult`, which carries the `PeriodParameters` it was
-   calculated with (`$settlement->result->parameters()`), so a stored version never depends on later
-   parameter changes. Rebuild it through the public `Settlement` constructor, which rejects states the
-   flow cannot reach.
+4. **Persist each `Settlement`** with its `version`, its `revision` and its `SettlementResult`, which
+   carries the `PeriodParameters` it was calculated with (`$settlement->result->parameters()`), so a
+   stored version never depends on later parameter changes. Rebuild it through the public `Settlement`
+   constructor, which rejects states the flow cannot reach. Show the `revision` on the approval screen
+   and send it back with the approval.
 5. **Map the exceptions** to Spanish messages for the user:
 
    | Exception | When |
@@ -50,6 +53,7 @@ infrastructure passes everything in through three ports and stores what the use 
    | `SettlementNotFound` | Approve, close or complement a period that was never calculated |
    | `SettlementLocked` | Recalculate a closed version |
    | `InvalidTransition` | Approve a version that is not a draft, close one that is not approved, complement one that is not closed |
+   | `StaleSettlement` | The draft was recalculated after the approver reviewed it, or `save` met a stored copy with a higher revision; `expectedRevision()` and `currentRevision()` say which. Reload and review again |
    | `SegregationOfDuties` | The approver is the analyst who calculated it (users compared trimmed, case-insensitive) |
    | `UnresolvedAlerts` | A blocking alert has no justification; `keys()` lists them |
    | `InvalidArgumentException` | Blank user or reason, or a justification for anything but a blocking alert of the result |
