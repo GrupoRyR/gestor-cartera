@@ -20,8 +20,9 @@ use Spatie\Permission\Models\Role as SpatieRole;
  * 2. The user is found by e-mail. A removed, deactivated or differently
  *    linked user is turned away; an unknown one is created without a role.
  * 3. The active, unlinked SAP advisors with the same e-mail are linked.
- * 4. A user without a role who has an active advisor becomes "asesor" of the
- *    advisors' companies. A user with a role keeps it untouched.
+ * 4. A user without a role for whom step 3 linked an advisor becomes
+ *    "asesor" of those advisors' companies. Advisors linked earlier never
+ *    give a role back. A user with a role keeps it untouched.
  *
  * Steps 2 to 4 run in one transaction. Every change and every rejection goes
  * to the audit trail; tokens never do.
@@ -45,8 +46,7 @@ final class SignInWithMicrosoft
             return $this->database->transaction(function () use ($identity): User {
                 $user = $this->registeredUser($identity);
 
-                $this->linkAdvisors($user);
-                $this->assignAdvisorRole($user);
+                $this->assignAdvisorRole($user, $this->linkAdvisors($user));
 
                 return $user;
             });
@@ -150,8 +150,10 @@ final class SignInWithMicrosoft
     /**
      * Links the active SAP advisors of the user's e-mail (OSLP.Email) that
      * nobody claimed yet. Advisors linked to someone else stay theirs.
+     *
+     * @return list<AdvisorRecord> The advisors linked by this sign-in.
      */
-    private function linkAdvisors(User $user): void
+    private function linkAdvisors(User $user): array
     {
         $advisors = AdvisorRecord::query()
             ->where('email', $user->email)
@@ -174,19 +176,25 @@ final class SignInWithMicrosoft
                 ['company' => $advisor->company->value, 'code' => $advisor->code],
             );
         }
+
+        return array_values($advisors->all());
     }
 
     /**
-     * A user without a role who has an active advisor becomes "asesor" of
-     * the companies of their active advisors.
+     * A user without a role for whom this sign-in linked an advisor becomes
+     * "asesor" of the companies of those advisors. Advisors linked before do
+     * not count: an admin who took every role away to revoke the access must
+     * not see it come back at the next sign-in.
+     *
+     * @param  list<AdvisorRecord>  $linked  The advisors linked by this sign-in.
      */
-    private function assignAdvisorRole(User $user): void
+    private function assignAdvisorRole(User $user, array $linked): void
     {
-        if ($user->roles()->exists()) {
+        if ($linked === [] || $user->roles()->exists()) {
             return;
         }
 
-        $advisorCompanies = AdvisorRecord::linkedTo($user)->where('active', true)->distinct()->pluck('company')->all();
+        $advisorCompanies = array_map(fn (AdvisorRecord $advisor): CompanyCode => $advisor->company, $linked);
         $companies = array_values(array_map(
             fn (CompanyCode $code): string => $code->value,
             array_filter(CompanyCode::cases(), fn (CompanyCode $code): bool => in_array($code, $advisorCompanies, true)),
