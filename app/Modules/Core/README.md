@@ -42,6 +42,18 @@ Los días de vencida van del vencimiento a la fecha de corte, solo por fecha de 
 
 Los valores de la tabla son los de siembra (`config('core.companies')`). Los vigentes son parámetros de cada empresa que edita un administrador. Las edades de la deuda (`AgingBuckets`) ignoran los días de gracia.
 
+## Compromisos de pago
+
+`Domain\Commitments\CommitmentRules` decide cuándo se incumple un compromiso y qué le pasa al estado del cliente. Las reglas devuelven un `StatusDecision`: conservar el estado (`keep`), cambiarlo (`set`, solo cuando el estado de verdad cambia) o recalcular el estado automático (`recompute`).
+
+| Momento | Efecto en el cliente |
+|---|---|
+| Se crea | Pasa a «Compromiso», salvo si está en «Jurídico» o ya en «Compromiso». |
+| Se incumple | Pasa a «Incumplido», salvo si tiene otro compromiso pendiente o está en «Jurídico», «Pago recibido» o ya en «Incumplido». |
+| Se cumple o se anula | Si estaba en «Compromiso» o «Incumplido» y no tiene otro compromiso pendiente ni incumplido, se recalcula su estado automático con la última instantánea, ignorando el estado manual. Si no tiene pendientes pero sí otro incumplido, queda (o vuelve) en «Incumplido». En cualquier otro caso conserva su estado. |
+
+**Incumplimiento diario.** Una tarea diaria marca «Incumplido» todo compromiso «Pendiente» cuya fecha de pago sea anterior a hoy (`CommitmentRules::isBroken()`). Un compromiso que vence hoy no se incumple hasta mañana. Solo cuenta la fecha, no la hora.
+
 ## Pendientes
 
 - **Parte D, punto 11:** María Paula debe confirmar que los 15 días de SGX se cuentan después del vencimiento de la factura y no desde su emisión. Las reglas ya los cuentan después del vencimiento; si la respuesta cambia, se ajusta `ClientStatusRules::overdueForStatus()` y sus pruebas.
