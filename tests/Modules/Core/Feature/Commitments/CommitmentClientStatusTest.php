@@ -6,6 +6,7 @@ use App\Modules\Core\Contracts\Enums\ActivityType;
 use App\Modules\Core\Contracts\Enums\ClientStatus;
 use App\Modules\Core\Contracts\Enums\CommitmentStatus;
 use App\Modules\Core\Contracts\Enums\CompanyCode;
+use App\Modules\Core\Infrastructure\Persistence\CommitmentRecord;
 use Tests\Modules\Core\Support\CarteraRecords;
 use Tests\Modules\Core\Support\CommitmentRecords;
 use Tests\Modules\Core\Support\TeamUsers;
@@ -104,6 +105,21 @@ it('keeps the client committed while another commitment is pending', function ()
 
     expect($this->agro->refresh()->status)->toBe(ClientStatus::Overdue)
         ->and(TeamUsers::audits('core.client.status_changed'))->toHaveCount(2);
+});
+
+it('sends the client back to defaulted while another commitment is still broken', function () {
+    CarteraRecords::invoice(CarteraRecords::snapshot(CompanyCode::SGX, '2026-10-14'), $this->agro, '1000.00', 30);
+    $broken = ($this->create)('2026-10-22');
+    CommitmentRecord::query()->whereKey($broken->id)->update(['status' => CommitmentStatus::Broken->value, 'broken_at' => now()]);
+    $this->agro->update(['status' => ClientStatus::Defaulted]);
+
+    $renewed = ($this->create)('2026-10-29');
+
+    expect($this->agro->refresh()->status)->toBe(ClientStatus::Committed);
+
+    $this->service->markFulfilled($renewed->id);
+
+    expect($this->agro->refresh()->status)->toBe(ClientStatus::Defaulted);
 });
 
 it('keeps a status someone chose after the commitment was created', function (ClientStatus $status) {
