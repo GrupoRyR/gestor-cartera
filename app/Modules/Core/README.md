@@ -226,6 +226,12 @@ Solo para administradores: el permiso `core.team.manage`, que `CorePermissionSee
 | Ruta | Nombre | Hace |
 |---|---|---|
 | `GET /equipo` | `core.equipo.index` | La lista, por pestañas, con búsqueda, orden y paginación. |
+| `GET /equipo/nuevo`, `POST /equipo` | `core.equipo.create`, `core.equipo.store` | Registra a una persona antes de su primer ingreso. |
+| `GET /equipo/{user}/editar`, `PUT /equipo/{user}` | `core.equipo.edit`, `core.equipo.update` | Edita el nombre, el rol, las empresas y si la cuenta está activa. |
+| `DELETE /equipo/{user}` | `core.equipo.destroy` | Borrado lógico, confirmado en un modal de la página de edición. |
+| `POST /equipo/{user}/restaurar` | `core.equipo.restore` | Restaura a un usuario eliminado. |
+
+`{user}` solo encuentra usuarios no eliminados (un eliminado da 404), salvo al restaurar.
 
 **Lista.** Cada pestaña es un enlace (`?estado=`):
 
@@ -234,12 +240,38 @@ Solo para administradores: el permiso `core.team.manage`, que `CorePermissionSee
 | Activos (por defecto) | Activos y con rol. |
 | Sin rol | Activos sin rol: quienes ingresaron con Microsoft y esperan acceso. |
 | Inactivos | Desactivados, con o sin rol. |
-| Eliminados | Con borrado lógico. |
+| Eliminados | Con borrado lógico. Cada fila tiene el botón «Restaurar». |
 
 - Cada pestaña muestra cuántos usuarios tiene con la búsqueda actual.
 - `?buscar=` busca por parte del nombre o del correo dentro de la pestaña.
 - La tabla se ordena por nombre o por correo (`?sort=name|email&direction=asc|desc`); un valor desconocido vuelve al nombre ascendente. Muestra 25 por página, y los enlaces de pestañas y páginas conservan la búsqueda y el orden.
-- Columnas: nombre, correo, rol («Sin rol» si no tiene), empresas (chips; «Todas» para un administrador) y estado (Activo, Inactivo o Eliminado).
+- Columnas: nombre, correo, rol («Sin rol» si no tiene), empresas (chips; «Todas» para un administrador), estado (Activo, Inactivo o Eliminado) y la acción.
+
+**Qué se edita.** El nombre, un solo rol o ninguno (`syncRoles()` de Spatie), las empresas (`company_user`) y «Cuenta activa». El correo no se edita: es la identidad con la que la persona ingresa con Microsoft.
+
+- Todo rol salvo `admin` exige al menos una empresa («Elige al menos una empresa para este rol.»).
+- Las empresas de un administrador se ignoran y se guardan vacías: ve las dos (`CompanyAccess`).
+- Una cuenta desactivada sale de la plataforma en su siguiente página (ver «Cuentas desactivadas»).
+
+**Registro previo y restauración.** «Nuevo usuario» pide nombre, correo, rol y empresas. Crea la cuenta activa y sin `microsoft_id`; el primer ingreso con Microsoft la vincula por el correo, que se guarda sin espacios y en minúsculas.
+
+- Si el correo es de un usuario no eliminado, el formulario falla en «correo»: «Ya existe un usuario con ese correo.».
+- Si es de un usuario eliminado, restaura esa misma fila (`restoreOrCreate()`, ver `docs/arquitectura.md` §12.2) y le aplica el formulario, incluida la activación.
+
+**Eliminar y restaurar.** Eliminar es un borrado lógico: la fila, su rol y sus empresas se conservan para la bitácora. Desde ese momento la sesión no encuentra al usuario (queda como invitado en su siguiente página) y el ingreso con Microsoft lo rechaza. «Restaurar» lo devuelve como estaba, con su rol, sus empresas y su activación.
+
+**Protección contra el bloqueo.** Un administrador no puede desactivar su propia cuenta, quitarse el rol `admin` ni eliminarse: la pantalla vuelve con el flash `error` y no guarda nada. Su propia página de edición no muestra «Eliminar usuario».
+
+**Bitácora.** `Application\Team\TeamMembers` hace las escrituras, la bitácora y las protecciones; los controladores solo la llaman. Cada entrada lleva el contexto `{"source": "equipo"}` y al administrador como actor:
+
+| Acción | Cuándo | `changes` |
+|---|---|---|
+| `core.user.created` | Registro de una persona nueva. | `name`, `email`, `role` (valor o `null`) y `companies` (códigos ordenados). |
+| `core.user.updated` | Edición, o restauración desde «Nuevo usuario». | Solo los campos que cambian (`name`, `role`, `companies`, `active`), como `campo => ['old' => …, 'new' => …]`. Sin cambios, no hay entrada. |
+| `core.user.deleted` | Borrado lógico. | `name` y `email`. |
+| `core.user.restored` | Restauración, con el botón o desde «Nuevo usuario». | `name` y `email`. |
+
+**Siguiente PR.** Vincular a mano asesores de SAP a un usuario y el equipo del gerente comercial llegan después.
 
 ## Pendientes
 

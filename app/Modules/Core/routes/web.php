@@ -29,11 +29,18 @@ Route::middleware('auth')->group(function () {
     Route::post('logout', LogoutController::class)->name('logout');
 });
 
-// Equipo: admins only.
+// Equipo: admins only. {user} finds only users who are not deleted, except
+// on restore.
 Route::middleware(['auth', 'can:core.team.manage'])
     ->prefix('equipo')
     ->name('equipo.')
     ->controller(TeamMemberController::class)
     ->group(function () {
         Route::get('/', 'index')->name('index');
+        Route::get('nuevo', 'create')->name('create');
+        Route::post('/', 'store')->name('store');
+        Route::get('{user}/editar', 'edit')->whereNumber('user')->name('edit');
+        Route::put('{user}', 'update')->whereNumber('user')->name('update');
+        Route::delete('{user}', 'destroy')->whereNumber('user')->name('destroy');
+        Route::post('{user}/restaurar', 'restore')->whereNumber('user')->withTrashed()->name('restore');
     });
