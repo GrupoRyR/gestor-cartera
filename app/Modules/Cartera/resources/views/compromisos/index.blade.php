@@ -90,7 +90,7 @@
         >
             @foreach ($commitments as $commitment)
                 <tr>
-                    <td><x-cartera::client-link :id="$commitment->clientId" :name="$commitment->clientName" /></td>
+                    <td class="min-w-44"><x-cartera::client-link :id="$commitment->clientId" :name="$commitment->clientName" /></td>
                     @if ($isGroup)
                         <td><x-ui.chip :dot="false">{{ $commitment->company->value }}</x-ui.chip></td>
                     @endif

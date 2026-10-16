@@ -192,7 +192,7 @@
                         <x-ui.table :caption="__('cartera::tablero.principales.tabla')" :caption-hidden="true" :columns="$topColumns">
                             @foreach ($dashboard->topDebtors as $client)
                                 <tr>
-                                    <td><x-cartera::client-link :id="$client->id" :name="$client->name" /></td>
+                                    <td class="min-w-44"><x-cartera::client-link :id="$client->id" :name="$client->name" /></td>
                                     @if ($dashboard->isGroup)
                                         <td><x-ui.chip :dot="false">{{ $client->company->value }}</x-ui.chip></td>
                                     @endif

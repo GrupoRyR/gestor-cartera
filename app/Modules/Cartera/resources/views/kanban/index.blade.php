@@ -104,7 +104,7 @@
                                 x-bind:disabled="picked && picked.status === '{{ $option->value }}'"
                             >
                                 <span>{{ $option->label() }}</span>
-                                <span class="font-normal text-fg-muted" x-show="picked && picked.status === '{{ $option->value }}'" hidden>{{ __('cartera::kanban.mover.actual') }}</span>
+                                <span class="font-normal text-fg-muted" hidden x-bind:hidden="! (picked && picked.status === '{{ $option->value }}')">{{ __('cartera::kanban.mover.actual') }}</span>
                             </x-ui.button>
                         </li>
                     @endforeach
