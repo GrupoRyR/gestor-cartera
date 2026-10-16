@@ -1,6 +1,9 @@
 <?php
 
+use App\Modules\Comisiones\Domain\Calculation\Alert;
+use App\Modules\Comisiones\Domain\Calculation\AlertCollector;
 use App\Modules\Comisiones\Domain\Calculation\AlertKind;
+use App\Modules\Comisiones\Domain\Calculation\LineFilter;
 use App\Modules\Comisiones\Domain\Calculation\SettlementCalculator;
 use App\Modules\Comisiones\Domain\Input\DocumentType;
 use App\Modules\Comisiones\Domain\Input\SettlementInput;
@@ -226,6 +229,36 @@ describe('compliance scope (§14.6)', function () {
             ->and(Settle::code($result, 32)->saleCommission->amount())->toBe('0')
             ->and(Settle::code($result, 34)->compliance->percent())->toBe('80');
     });
+
+    it('measures a code without its own budget on the budget of its person', function (int $sales34, bool $meets, string $commission) {
+        // Harold Marín: 32 has a 90 % minimum, 34 none; only 34 has a budget.
+        $result = Settle::sales(
+            [Lines::sale(32, 10_000_000), Lines::sale(34, $sales34)],
+            [Lines::budget(34, 100_000_000)],
+            new SettlementOptions(complianceScope: ComplianceScope::Person),
+        );
+        $settlement = Settle::code($result, 32);
+
+        expect($settlement->hasBudget())->toBeFalse()
+            ->and($settlement->meetsMinimum)->toBe($meets)
+            ->and($settlement->saleCommission->amount())->toBe($commission)
+            ->and($result->alertsOf(AlertKind::MissingBudget))->toBe([]);
+    })->with([
+        'the person reaches 95 %' => [95_000_000, true, '75000'],
+        'the person stays at 85 %' => [85_000_000, false, '0'],
+    ]);
+
+    it('asks for a budget when no code of the person has one', function () {
+        $result = Settle::sales(
+            [Lines::sale(32, 10_000_000), Lines::sale(34, 95_000_000)],
+            options: new SettlementOptions(complianceScope: ComplianceScope::Person),
+        );
+
+        expect(Settle::code($result, 32)->meetsMinimum)->toBeFalse()
+            ->and(Settle::code($result, 32)->saleCommission->amount())->toBe('0')
+            ->and(Settle::code($result, 34)->saleCommission->amount())->toBe('712500')
+            ->and(Settle::references($result, AlertKind::MissingBudget))->toBe(['32']);
+    });
 });
 
 describe('special codes', function () {
@@ -333,8 +366,30 @@ describe('line filtering (§5.1)', function () {
         expect(Settle::code($result, 34)->sales->amount())->toBe('3000000')
             ->and($result->controls()->loadedSales->amount())->toBe('3000000')
             ->and($alerts)->toHaveCount(1)
-            ->and($alerts[0]->reference)->toBe('F100-1')
-            ->and($alerts[0]->isBlocking())->toBeTrue();
+            ->and($alerts[0]->reference)->toBe('venta:F100-1')
+            ->and($alerts[0]->key())->toBe('linea_duplicada:venta:F100-1')
+            ->and($alerts[0]->isBlocking())->toBeTrue()
+            ->and($alerts[0]->message)->toBe('La venta F100-1 viene repetida; se tomó solo la primera.');
+    });
+
+    it('tells a repeated sale, payment or crossing apart when they share a key', function () {
+        $alerts = new AlertCollector;
+        $filter = new LineFilter(Settle::parameters(Period::of(2026, 7)), $alerts);
+
+        $filter->keep([Lines::sale(34, 1_000, key: 'K-1'), Lines::sale(34, 1_000, key: 'K-1')]);
+        $filter->keep([
+            Lines::payment(34, 1_000, paymentDate: '2026-07-10', key: 'K-1'),
+            Lines::payment(34, 1_000, paymentDate: '2026-07-10', key: 'K-1'),
+        ]);
+        $filter->keep([
+            Lines::crossing(1_000, crossingDate: '2026-07-10', key: 'K-1'),
+            Lines::crossing(1_000, crossingDate: '2026-07-10', key: 'K-1'),
+        ]);
+
+        expect(array_map(fn (Alert $alert) => $alert->reference, $alerts->all()))
+            ->toBe(['venta:K-1', 'pago:K-1', 'cruce:K-1'])
+            ->and($alerts->all()[1]->message)->toBe('El pago K-1 viene repetido; se tomó solo el primero.')
+            ->and($alerts->all()[2]->message)->toBe('El cruce K-1 viene repetido; se tomó solo el primero.');
     });
 
     it('drops annulled sales silently', function () {

@@ -45,11 +45,7 @@ final class LineFilter
             }
 
             if (isset($seen[$line->key])) {
-                $this->alerts->add(new Alert(
-                    AlertKind::DuplicateLine,
-                    $line->key,
-                    "La línea {$line->key} viene repetida; se tomó solo la primera.",
-                ));
+                $this->alerts->add(self::duplicate($line));
 
                 continue;
             }
@@ -111,6 +107,22 @@ final class LineFilter
         ));
 
         return null;
+    }
+
+    /**
+     * The DuplicateLine alert of a repeated key. Its reference carries the
+     * kind of line ("venta:F100-1", "pago:…", "cruce:…") because a sale, a
+     * payment and a crossing may share a key without being the same line.
+     */
+    private static function duplicate(SaleLine|PaymentLine|CrossingLine $line): Alert
+    {
+        [$kind, $message] = match (true) {
+            $line instanceof SaleLine => ['venta', "La venta {$line->key} viene repetida; se tomó solo la primera."],
+            $line instanceof PaymentLine => ['pago', "El pago {$line->key} viene repetido; se tomó solo el primero."],
+            $line instanceof CrossingLine => ['cruce', "El cruce {$line->key} viene repetido; se tomó solo el primero."],
+        };
+
+        return new Alert(AlertKind::DuplicateLine, "{$kind}:{$line->key}", $message);
     }
 
     private static function withoutCode(string $sellerText): Alert

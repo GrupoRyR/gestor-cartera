@@ -95,6 +95,11 @@ final class SalesCommission
     }
 
     /**
+     * The minimum and the MissingBudget alert look at the basis budget: the
+     * code's own, or the person's when compliance is measured per person
+     * (§14.6), so a code without its own budget can still meet the minimum
+     * on the budget of the person's other codes.
+     *
      * @param  array<int, Money>  $sales  Sales of every code with a rule.
      * @param  array<int, Money>  $budgets  Budget of every code that has rows.
      * @param  list<SaleDetail>  $details
@@ -103,8 +108,8 @@ final class SalesCommission
     {
         $codeSales = $sales[$rule->code];
         $budget = $budgets[$rule->code] ?? null;
-        $hasBudget = $budget !== null && $budget->isPositive();
         [$basisSales, $basisBudget] = $this->basis($rule, $sales, $budgets);
+        $hasBudget = $basisBudget->isPositive();
 
         $meetsMinimum = $rule->minimumCompliance->isZero()
             || ($hasBudget && $basisSales->compareTo($basisBudget->times($rule->minimumCompliance)) >= 0);
