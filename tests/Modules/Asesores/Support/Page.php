@@ -33,7 +33,7 @@ final class Page
     {
         return array_map(
             fn ($cell): string => Html::clean($cell->textContent),
-            self::html($response)->all('//table/tbody/tr[not(@data-part="empty")]/td[1]/span[1]'),
+            self::html($response)->all('//table/tbody/tr[not(@data-part="empty")]/td[1]/*[1]'),
         );
     }
 
@@ -51,6 +51,20 @@ final class Page
     }
 
     /**
+     * The text of one column of the table with the given caption, in page
+     * order. For pages with more than one table.
+     *
+     * @return list<string>
+     */
+    public static function tableColumn(TestResponse $response, string $caption, int $position): array
+    {
+        return array_map(
+            fn ($cell): string => Html::clean($cell->textContent),
+            self::html($response)->all("//table[caption[normalize-space(.)='{$caption}']]/tbody/tr[not(@data-part=\"empty\")]/td[{$position}]"),
+        );
+    }
+
+    /**
      * The client names listed under the heading of a card.
      *
      * @return list<string>
@@ -59,7 +73,7 @@ final class Page
     {
         return array_map(
             fn ($item): string => Html::clean($item->textContent),
-            self::html($response)->all("//section[.//h2[normalize-space(.)='{$heading}']]//li/span[1]/span[1]"),
+            self::html($response)->all("//section[.//h2[normalize-space(.)='{$heading}']]//li/span[1]/*[1]"),
         );
     }
 }

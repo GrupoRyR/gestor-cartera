@@ -72,7 +72,7 @@
                             @foreach ($overview->priority as $client)
                                 <li class="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 py-3 first:pt-0">
                                     <span class="min-w-0">
-                                        <span class="block font-semibold [overflow-wrap:anywhere]">{{ $client->name }}</span>
+                                        <a href="{{ route('asesores.clientes.show', $client->id) }}" class="block min-h-touch font-semibold text-brand-ink underline-offset-4 hover:underline [overflow-wrap:anywhere]">{{ $client->name }}</a>
                                         <span class="block text-sm text-fg-muted">{{ __('asesores::resumen.prioridad.dias', ['dias' => $client->maxDaysOverdue]) }}</span>
                                     </span>
                                     <x-ui.money :value="$client->overdue" class="font-semibold" />

@@ -2,11 +2,13 @@
 
 namespace App\Modules\Asesores\Http\Controllers;
 
+use App\Modules\Asesores\Application\Client\ClientFiles;
 use App\Modules\Asesores\Application\Portfolio\PortfolioFilter;
 use App\Modules\Core\Contracts\CarteraRepository;
 use Carbon\CarbonImmutable;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Gate;
 
 /**
  * The clients of the portfolio the user may see. Every read goes through
@@ -15,7 +17,10 @@ use Illuminate\Http\Request;
  */
 final readonly class ClientController
 {
-    public function __construct(private CarteraRepository $cartera) {}
+    public function __construct(
+        private CarteraRepository $cartera,
+        private ClientFiles $files,
+    ) {}
 
     /**
      * GET /asesores/clientes.
@@ -33,6 +38,24 @@ final readonly class ClientController
             'advisors' => $advisors,
             'showAdvisor' => count($advisors) > 1,
             'today' => CarbonImmutable::today(),
+        ]);
+    }
+
+    /**
+     * GET /asesores/clientes/{client}: the client file. A client outside the
+     * user's scope does not exist for them: 404, the same answer as for an
+     * id nobody has, so the URL reveals nothing.
+     */
+    public function show(int $client): View
+    {
+        $detail = $this->cartera->client($client) ?? abort(404);
+
+        Gate::authorize('view', $detail);
+
+        return view('asesores::clientes.show', [
+            'file' => $this->files->open($detail),
+            'today' => CarbonImmutable::today(),
+            'canManage' => Gate::allows('manage', $detail),
         ]);
     }
 }

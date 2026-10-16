@@ -82,7 +82,7 @@
                 @foreach ($clients as $client)
                     <tr>
                         <td>
-                            <span class="block font-semibold [overflow-wrap:anywhere]">{{ $client->name }}</span>
+                            <a href="{{ route('asesores.clientes.show', $client->id) }}" class="block min-h-touch font-semibold text-brand-ink underline-offset-4 hover:underline [overflow-wrap:anywhere]">{{ $client->name }}</a>
                             <span class="block text-xs text-fg-muted">{{ __('asesores::clientes.cliente_detalle', ['codigo' => $client->code, 'nit' => $client->taxId]) }}</span>
                         </td>
                         <td><x-ui.badge-state :state="$client->status" /></td>

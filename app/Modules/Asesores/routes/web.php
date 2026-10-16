@@ -18,6 +18,7 @@ Route::middleware(['auth', 'can:asesores.view'])->group(function () {
     Route::get('/', DashboardController::class)->name('inicio');
 
     Route::get('clientes', [ClientController::class, 'index'])->name('clientes.index');
+    Route::get('clientes/{client}', [ClientController::class, 'show'])->whereNumber('client')->name('clientes.show');
 
     Route::get('historico', HistoryController::class)->name('historico');
 });
