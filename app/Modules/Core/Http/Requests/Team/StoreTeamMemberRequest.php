@@ -31,7 +31,13 @@ final class StoreTeamMemberRequest extends TeamMemberRequest
 
     public function details(): TeamMemberDetails
     {
-        return new TeamMemberDetails($this->memberName(), $this->role(), $this->companies());
+        return new TeamMemberDetails(
+            $this->memberName(),
+            $this->role(),
+            $this->companies(),
+            advisors: $this->advisorIds(),
+            team: $this->teamIds(),
+        );
     }
 
     protected function prepareForValidation(): void

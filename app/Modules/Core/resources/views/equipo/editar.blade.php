@@ -1,11 +1,12 @@
 @use('App\Modules\Core\Contracts\Enums\Role')
 
 {{--
-    GET /equipo/{user}/editar (core.equipo.edit): name, role, companies and
-    activation of a user who is not deleted, and the soft delete behind a
-    confirmation. An admin editing themselves gets no delete button
-    (TeamMembers refuses it anyway). $member comes with its roles;
-    $companies: list<CompanyCode>.
+    GET /equipo/{user}/editar (core.equipo.edit): name, role, companies,
+    SAP advisors, sales manager's team and activation of a user who is not
+    deleted, and the soft delete behind a confirmation. An admin editing
+    themselves gets no delete button (TeamMembers refuses it anyway).
+    $member comes with its roles; $companies: list<CompanyCode>; the advisor
+    fields come from TeamDirectory::advisorFields().
 --}}
 @php($role = Role::tryFrom((string) $member->roles->first()?->name))
 
@@ -20,6 +21,7 @@
             <x-ui.input name="nombre" :label="__('core::equipo.formulario.nombre')" :value="$member->name" :required="true" autocomplete="off" />
 
             @include('core::equipo.partials.acceso', ['role' => $role, 'companies' => $companies])
+            @include('core::equipo.partials.asesores', ['memberId' => $member->id])
 
             <x-ui.checkbox
                 name="activo"

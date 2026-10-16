@@ -9,6 +9,11 @@ return [
     'sin_rol' => 'Sin rol',
     'todas' => 'Todas',
 
+    // A SAP advisor: in the forms, and in the list with its company.
+    'asesor' => ':codigo · :nombre',
+    'asesor_inactivo' => ':codigo · :nombre (inactivo)',
+    'asesor_empresa' => ':empresa :codigo · :nombre',
+
     'pestanas' => [
         'etiqueta' => 'Estado de los usuarios',
         'activos' => 'Activos',
@@ -29,6 +34,7 @@ return [
         'correo' => 'Correo',
         'rol' => 'Rol',
         'empresas' => 'Empresas',
+        'asesores' => 'Asesor SAP',
         'estado' => 'Estado',
         'acciones' => 'Acciones',
     ],
@@ -84,6 +90,12 @@ return [
         'rol_ayuda' => 'Sin rol, la persona ve la pantalla que le pide solicitar acceso.',
         'empresas' => 'Empresas',
         'empresas_ayuda' => 'Elige al menos una para cualquier rol, salvo administrador: los administradores ven las dos.',
+        'asesores' => 'Asesor de SAP vinculado',
+        'asesores_ayuda' => 'La persona ve la cartera de los asesores que marques. Cada asesor se vincula a una sola persona: si ya tiene otra, desvincúlalo primero en su página.',
+        'equipo' => 'Equipo del gerente comercial',
+        'equipo_ayuda' => 'Solo aplica al rol Gerente comercial: verá la cartera de estos asesores.',
+        'sin_asesores' => 'Aún no hay asesores de SAP cargados.',
+        'vinculado_a' => 'Vinculado a :nombre',
         'activo' => 'Cuenta activa',
         'activo_ayuda' => 'Si la desactivas, la persona sale de la plataforma en su próxima página y no puede volver a ingresar.',
         'crear' => 'Registrar',
@@ -115,6 +127,7 @@ return [
         'self_demotion' => 'No puedes quitarte el rol de administrador.',
         'self_deletion' => 'No puedes eliminar tu propia cuenta.',
         'email_taken' => 'Ya existe un usuario con ese correo.',
+        'advisor_taken' => 'Ese asesor ya está vinculado a otra persona.',
     ],
 
     // Attribute names inside the validation messages ("El campo nombre…").
@@ -125,6 +138,10 @@ return [
         'empresas' => 'empresas',
         'empresa' => 'empresa',
         'activo' => 'cuenta activa',
+        'asesores' => 'asesores',
+        'asesor' => 'asesor',
+        'equipo' => 'equipo',
+        'asesor_equipo' => 'asesor del equipo',
     ],
 
     'validacion' => [

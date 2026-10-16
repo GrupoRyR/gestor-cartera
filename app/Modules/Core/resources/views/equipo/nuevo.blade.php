@@ -1,7 +1,8 @@
 {{--
     GET /equipo/nuevo (core.equipo.create): pre-registers a person before
-    their first Microsoft sign-in, or restores the deleted user of that
-    e-mail (TeamMembers::create()).
+    their first Microsoft sign-in, with their SAP advisors and team, or
+    restores the deleted user of that e-mail (TeamMembers::create()). The
+    advisor fields come from TeamDirectory::advisorFields().
 --}}
 <x-layouts.app :title="__('core::equipo.nuevo')">
     <x-ui.page-header
@@ -25,6 +26,7 @@
             />
 
             @include('core::equipo.partials.acceso', ['role' => null, 'companies' => []])
+            @include('core::equipo.partials.asesores', ['memberId' => null])
 
             <x-ui.button type="submit" icon="check">{{ __('core::equipo.formulario.crear') }}</x-ui.button>
             <x-ui.link-button :href="route('core.equipo.index')" variant="ghost">{{ __('core::equipo.formulario.cancelar') }}</x-ui.link-button>

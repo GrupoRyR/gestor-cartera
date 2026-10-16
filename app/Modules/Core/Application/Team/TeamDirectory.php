@@ -4,13 +4,15 @@ namespace App\Modules\Core\Application\Team;
 
 use App\Models\User;
 use App\Modules\Core\Contracts\Enums\CompanyCode;
+use App\Modules\Core\Infrastructure\Persistence\AdvisorRecord;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Database\ConnectionInterface;
 use Illuminate\Database\Eloquent\Builder;
 
 /**
  * Reads the users of the Equipo list: one tab at a time, searched by name or
- * e-mail, sorted and paginated, with the count of every tab.
+ * e-mail, sorted and paginated, with the count of every tab. Also reads the
+ * SAP advisors the list and the forms show.
  */
 final class TeamDirectory
 {
@@ -66,6 +68,74 @@ final class TeamDirectory
     }
 
     /**
+     * The SAP advisors linked to each of $users, by user id, in CompanyCode
+     * order and then by name, read in one query. Users without advisors are
+     * missing from the result.
+     *
+     * @param  iterable<User>  $users
+     * @return array<int, list<AdvisorRecord>>
+     */
+    public function advisorsOf(iterable $users): array
+    {
+        $ids = [];
+
+        foreach ($users as $user) {
+            $ids[] = $user->id;
+        }
+
+        $linked = [];
+
+        foreach ($this->byCompany(AdvisorRecord::query()->whereIn('user_id', $ids)) as $advisors) {
+            foreach ($advisors as $advisor) {
+                $linked[(int) $advisor->user_id][] = $advisor;
+            }
+        }
+
+        return $linked;
+    }
+
+    /**
+     * What the advisor fields of the Equipo forms show: every SAP advisor by
+     * company code (CompanyCode order, then name), the name of the user each
+     * linked advisor belongs to by user id (deleted users included), and the
+     * ids of the advisors linked to $member and in their team (none on the
+     * form for a new user).
+     *
+     * @return array{advisors: array<string, list<AdvisorRecord>>, owners: array<int, string>, linked: list<int>, team: list<int>}
+     */
+    public function advisorFields(?User $member): array
+    {
+        $advisors = $this->byCompany(AdvisorRecord::query());
+        $ownerIds = [];
+        $linked = [];
+
+        foreach ($advisors as $inCompany) {
+            foreach ($inCompany as $advisor) {
+                if ($advisor->user_id !== null) {
+                    $ownerIds[] = $advisor->user_id;
+                }
+
+                if ($member !== null && $advisor->user_id === $member->id) {
+                    $linked[] = $advisor->id;
+                }
+            }
+        }
+
+        $owners = [];
+
+        foreach ($this->database->table('users')->whereIn('id', array_unique($ownerIds))->get(['id', 'name']) as $row) {
+            $owners[(int) $row->id] = (string) $row->name;
+        }
+
+        $team = $member === null ? [] : AdvisorRecord::teamOf($member)->pluck('advisors.id')
+            ->map(fn (mixed $id): int => (int) $id)
+            ->values()
+            ->all();
+
+        return ['advisors' => $advisors, 'owners' => $owners, 'linked' => $linked, 'team' => $team];
+    }
+
+    /**
      * How many users each tab holds for the search, by tab value.
      *
      * @return array<string, int>
@@ -100,5 +170,28 @@ final class TeamDirectory
         }
 
         return $query;
+    }
+
+    /**
+     * The advisors of $query by company code, in CompanyCode order and by
+     * name within each company. Companies without advisors are missing.
+     *
+     * @param  Builder<AdvisorRecord>  $query
+     * @return array<string, list<AdvisorRecord>>
+     */
+    private function byCompany(Builder $query): array
+    {
+        $advisors = $query->orderBy('name')->orderBy('code')->get();
+        $grouped = [];
+
+        foreach (CompanyCode::cases() as $company) {
+            foreach ($advisors as $advisor) {
+                if ($advisor->company === $company) {
+                    $grouped[$company->value][] = $advisor;
+                }
+            }
+        }
+
+        return $grouped;
     }
 }
