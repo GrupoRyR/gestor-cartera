@@ -43,7 +43,7 @@ Solo cuentan para los pasos 3 y 4 las partidas con saldo mayor a la tolerancia: 
 
 Los días de vencida van del vencimiento a la fecha de corte, solo por fecha de calendario (sin horas): positivo = vencida, 0 = vence en el corte, negativo = aún no vence. `OpenItem::fromDates()` los calcula.
 
-Los valores de la tabla son los de siembra (`config('core.companies')`). Los vigentes viven en la tabla `companies` y los edita un administrador en la pantalla Parámetros (ver «Empresas y parámetros»). Las edades de la deuda (`AgingBuckets`) ignoran los días de gracia.
+Los valores de la tabla son los de siembra (`config('core.companies')`). Los vigentes viven en la tabla `companies` y los editan un administrador o el gerente de cartera en la pantalla Parámetros (ver «Empresas y parámetros»). Las edades de la deuda (`AgingBuckets`) ignoran los días de gracia.
 
 ## Compromisos de pago
 
@@ -130,11 +130,11 @@ La tabla `companies` (llave `code`: `SGX` o `SDC`) guarda el nombre y los parám
 | `all()` | Las empresas (`Contracts\Data\Company`) en el orden de `CompanyCode`. |
 | `get($code)` | Una empresa con su nombre, días de gracia y paleta oficial. |
 | `parameters($code)` | Los `StatusParameters` de la empresa para `ClientStatusRules`. |
-| `refresh()` | Olvida lo leído; úsalo después de que un administrador edite una empresa. |
+| `refresh()` | Olvida lo leído; úsalo después de editar una empresa. |
 
 Si falta la fila de una empresa, usa los valores de `config('core.companies')` y la etiqueta del enum.
 
-**Pantalla Parámetros.** Solo para administradores (TI, «Usuarios, parámetros y buzones» en A.5): el permiso `core.companies.manage`, que `CorePermissionSeeder` da únicamente a `admin`. Aparece en el menú como «Parámetros», en el grupo «Administración», después de «Equipo» (`order: 910`), así que el inicio de un administrador sigue siendo Equipo. Los demás roles reciben 403 en todas sus rutas y los invitados van a `/login`.
+**Pantalla Parámetros.** Para administradores (TI, «Usuarios, parámetros y buzones» en A.5) y para el gerente de cartera, que ajusta las reglas de estado de la cartera: el permiso `core.companies.manage`, que `CorePermissionSeeder` da a `admin` y a `gerente_cartera`. Aparece en el menú como «Parámetros», en el grupo «Administración», después de «Equipo» (`order: 910`), así que el inicio de un administrador sigue siendo Equipo. El gerente de cartera ve «Parámetros» sin «Equipo»; mientras ningún otro módulo le registre una pantalla, `HomeController` lo lleva a Parámetros como su inicio. La pantalla muestra y edita las dos empresas, sin importar las empresas asignadas al usuario. Los demás roles (`analista_cartera`, `asesor`, `gerente_comercial`, `tesoreria`) reciben 403 en todas sus rutas y los invitados van a `/login`.
 
 | Ruta | Nombre | Hace |
 |---|---|---|
@@ -149,7 +149,8 @@ Si falta la fila de una empresa, usa los valores de `config('core.companies')` y
   2. llama `CompanyCatalog::refresh()`, así que el resto de la petición (`CurrentCompany::of()`, `parameters()`) ya lee los valores nuevos;
   3. encola `Application\Companies\RecomputeCompanyStatuses`, que corre `RecomputeClientStatuses::forCompany()` con los parámetros nuevos sobre la última instantánea de la empresa (ver «Importación del robot»). Cada cambio de estado se audita y deja su gestión del sistema como en una importación, con `source: parameters` en el `context` de la auditoría y en la `metadata` de la gestión. Los clientes de la otra empresa no cambian.
 - Vuelve a la tabla con el flash `status` «Guardamos los parámetros de Segurex Latam. Los estados de sus clientes se recalculan en unos minutos.». Si nada cambió, no escribe, no audita ni encola nada, y el flash dice «Los parámetros de Segurex Latam no cambiaron.».
-- **Cola.** Como la importación, el trabajo tiene `$timeout = 300` y un solo intento (`$tries = 1`): si falla, queda en `failed_jobs` y `php artisan queue:retry` lo vuelve a correr sin duplicar nada (el recálculo solo escribe lo que cambia). Lee los parámetros cuando corre, así que dos guardados seguidos terminan con los últimos. En pruebas la cola es `sync`: el recálculo corre en la misma petición.
+- **Cola.** Como la importación, el trabajo tiene `$timeout = 300` y falla con la primera excepción (`$maxExceptions = 1`): queda en `failed_jobs` y `php artisan queue:retry` lo vuelve a correr sin duplicar nada (el recálculo solo escribe lo que cambia). Lee los parámetros cuando corre, así que dos guardados seguidos terminan con los últimos. En pruebas la cola es `sync`: el recálculo corre en la misma petición.
+- **Un recálculo por empresa a la vez.** El recálculo y la importación del robot comparten un candado por empresa (`Application\Portfolio\CompanyStatusesLock`, llave `company-statuses:SGX` o `company-statuses:SDC`, con el `WithoutOverlapping` compartido de Laravel), así que un cambio de parámetros y una carga de la misma empresa nunca recalculan sus estados al mismo tiempo; las dos empresas sí corren en paralelo. Un trabajo que encuentra el candado ocupado vuelve a la cola y se reintenta cada 60 segundos durante 30 minutos (`retryUntil()`); esperar no cuenta como excepción. Una excepción real o pasarse del `$timeout` lo fallan de una vez (`$maxExceptions = 1`, `$failOnTimeout`), sin reintentos. El candado vence solo a los 15 minutos, por encima del `$timeout` de 300 segundos, así que un worker que el hosting mate no lo deja tomado para siempre.
 
 La tabla `company_user` asigna empresas a los usuarios (`user_id`, `company`). Core la expone como `$user->companies()` con `User::resolveRelationUsing()`, sin editar `App\Models\User`.
 
@@ -185,7 +186,7 @@ Los roles son los de `Contracts\Enums\Role` (Spatie, guard `web`, sin equipos). 
 |---|---|---|
 | `core.access` | Los seis | Usar la plataforma. Un usuario sin rol no lo tiene. |
 | `core.team.manage` | `admin` | Usar la pantalla Equipo (ver «Pantalla Equipo»). |
-| `core.companies.manage` | `admin` | Editar los días de gracia y la ventana de «Por vencer» de cada empresa: pantalla Parámetros (ver «Empresas y parámetros»). |
+| `core.companies.manage` | `admin`, `gerente_cartera` | Editar los días de gracia y la ventana de «Por vencer» de cada empresa: pantalla Parámetros (ver «Empresas y parámetros»). |
 | `core.activities.delete` | `gerente_cartera`, `analista_cartera` | Eliminar (borrado lógico) una gestión de la bitácora de un cliente (ver «Bitácora de gestiones»). |
 | `core.clients.change_status` | `gerente_cartera`, `analista_cartera` | Cambiar a mano el estado de un cliente: Kanban y ficha (ver «Cambio de estado manual»). |
 | `core.clients.delete` | `gerente_cartera` | Eliminar (borrado lógico) y restaurar clientes (ver «Borrado lógico de clientes»). Por confirmar (ver «Pendientes»). |
@@ -286,7 +287,9 @@ Solo se escriben los clientes cuyos valores cambian. Cuando cambia el estado de 
 - Nunca toca `user_id`: el vínculo lo hacen el ingreso con Microsoft y la pantalla Equipo. Si alguien ingresó antes de que llegara su asesor, queda vinculado en su siguiente ingreso.
 - Repetir el lote deja lo mismo.
 
-**Cola en el hosting compartido.** Los listeners van a la cola `database`, que vacía la tarea de cada minuto (`docs/arquitectura.md` §10). La cartera se escribe por lotes (clientes y partidas de a 500, y el recálculo lee las partidas en una sola consulta), así que una instantánea de miles de filas tarda segundos. `ImportReceivablesSnapshot` tiene `$timeout = 300` y un solo intento (`$tries = 1`): si falla, la transacción se deshace y el trabajo queda en `failed_jobs`; `php artisan queue:retry` lo vuelve a correr sin duplicar nada. En pruebas la cola es `sync`: los listeners corren en el momento.
+**Cola en el hosting compartido.** Los listeners van a la cola `database`, que vacía la tarea de cada minuto (`docs/arquitectura.md` §10). La cartera se escribe por lotes (clientes y partidas de a 500, y el recálculo lee las partidas en una sola consulta), así que una instantánea de miles de filas tarda segundos. `ImportReceivablesSnapshot` tiene `$timeout = 300` y falla con la primera excepción (`$maxExceptions = 1`): la transacción se deshace y el trabajo queda en `failed_jobs`; `php artisan queue:retry` lo vuelve a correr sin duplicar nada. En pruebas la cola es `sync`: los listeners corren en el momento.
+
+**Un recálculo por empresa a la vez.** La importación comparte con `RecomputeCompanyStatuses` (pantalla Parámetros) un candado por empresa: `Application\Portfolio\CompanyStatusesLock`, llave `company-statuses:SGX` o `company-statuses:SDC`. Así una carga y un cambio de parámetros de la misma empresa nunca recalculan sus estados al mismo tiempo, mientras las dos empresas corren en paralelo. Si el candado está ocupado, la importación vuelve a la cola y se reintenta cada 60 segundos durante 30 minutos (`retryUntil()`); como es idempotente por `load_id`, reintentarla es seguro. Ver «Empresas y parámetros».
 
 ## CarteraRepository
 
