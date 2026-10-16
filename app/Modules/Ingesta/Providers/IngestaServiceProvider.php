@@ -4,6 +4,7 @@ namespace App\Modules\Ingesta\Providers;
 
 use App\Modules\Core\Contracts\IngestaSink;
 use App\Modules\Ingesta\Console\CheckDailyLoadCommand;
+use App\Modules\Ingesta\Console\PruneManualUploadsCommand;
 use App\Modules\Ingesta\Infrastructure\DailyCarteraCheck;
 use App\Modules\Ingesta\Infrastructure\EloquentIngestaSink;
 use App\Support\Modules\ModuleServiceProvider;
@@ -36,18 +37,24 @@ final class IngestaServiceProvider extends ModuleServiceProvider
         // runaway loop or a flood of forged requests.
         RateLimiter::for('ingesta-robot', fn (Request $request): Limit => Limit::perMinute(60)->by((string) $request->ip()));
 
-        $this->commands([CheckDailyLoadCommand::class]);
+        $this->commands([CheckDailyLoadCommand::class, PruneManualUploadsCommand::class]);
     }
 
     /**
      * At the deadline (Bogotá), mail the alert when the robot cartera of
-     * the day is missing. The check takes seconds, so a lock left by a
-     * killed process expires after 10 minutes instead of a day.
+     * the day is missing; at 03:00, delete the manual uploads nobody
+     * confirmed or discarded. Both take seconds, so a lock left by a killed
+     * process expires after 10 minutes instead of a day.
      */
     protected function schedule(Schedule $schedule): void
     {
         $schedule->command(CheckDailyLoadCommand::class)
             ->dailyAt((string) config('ingesta.alert_deadline'))
+            ->timezone(DailyCarteraCheck::TIMEZONE)
+            ->withoutOverlapping(10);
+
+        $schedule->command(PruneManualUploadsCommand::class)
+            ->dailyAt('03:00')
             ->timezone(DailyCarteraCheck::TIMEZONE)
             ->withoutOverlapping(10);
     }

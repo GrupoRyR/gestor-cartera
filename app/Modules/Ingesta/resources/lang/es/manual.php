@@ -85,4 +85,9 @@ return [
         'descartada' => 'Descartaste la carga; no se guardó nada.',
     ],
 
+    // Output of ingesta:limpiar-cargas-manuales.
+    'limpieza' => [
+        'borradas' => '{0} No había cargas manuales sin confirmar para borrar.|{1} Se borró 1 carga manual sin confirmar.|[2,*] Se borraron :count cargas manuales sin confirmar.',
+    ],
+
 ];
