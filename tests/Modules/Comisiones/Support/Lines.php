@@ -3,6 +3,7 @@
 namespace Tests\Modules\Comisiones\Support;
 
 use App\Modules\Comisiones\Domain\Input\Budget;
+use App\Modules\Comisiones\Domain\Input\ClientAssignment;
 use App\Modules\Comisiones\Domain\Input\CrossingLine;
 use App\Modules\Comisiones\Domain\Input\CrossingSource;
 use App\Modules\Comisiones\Domain\Input\CrossingType;
@@ -12,6 +13,7 @@ use App\Modules\Comisiones\Domain\Input\SaleLine;
 use App\Modules\Comisiones\Domain\Shared\Dates;
 use App\Modules\Comisiones\Domain\Shared\Money;
 use App\Modules\Comisiones\Domain\Shared\SellerCode;
+use DateInterval;
 
 /**
  * Small builders for the SAP lines and manual captures a settlement reads.
@@ -55,7 +57,11 @@ final class Lines
         );
     }
 
-    /** A payment applied to an invoice (Report 2); $paidBase is already without VAT. */
+    /**
+     * A payment applied to an invoice (Report 2); $paidBase is already without VAT.
+     * When $days is given, the invoice is dated that many days before the
+     * payment and $invoiceDate is ignored.
+     */
     public static function payment(
         int|string $seller,
         int|string $paidBase,
@@ -67,9 +73,11 @@ final class Lines
         string $exchangeRate = '1',
         bool $annulled = false,
         string $client = 'C001',
+        ?string $invoice = null,
+        ?int $days = null,
     ): PaymentLine {
         $number = 'P'.(++self::$sequence);
-        $invoice = 'FV'.self::$sequence;
+        $invoice ??= 'FV'.self::$sequence;
 
         return new PaymentLine(
             key: $key ?? "{$number}-{$invoice}-1",
@@ -78,7 +86,7 @@ final class Lines
             paymentNumber: $number,
             paymentDate: Dates::day($paymentDate),
             invoiceNumber: $invoice,
-            invoiceDate: Dates::day($invoiceDate),
+            invoiceDate: $days === null ? Dates::day($invoiceDate) : Dates::day($paymentDate)->sub(new DateInterval("P{$days}D")),
             clientCode: $client,
             clientName: "Cliente {$client}",
             invoiceAmount: Money::of($invoiceAmount ?? $paidBase),
@@ -89,7 +97,11 @@ final class Lines
         );
     }
 
-    /** An advance or client-supplier crossing (Report 4); $crossed includes VAT. */
+    /**
+     * An advance or client-supplier crossing (Report 4); $crossed includes VAT.
+     * Without $taxBase, $invoiceVat or $crossedWithoutVat the crossing has no
+     * base without VAT.
+     */
     public static function crossing(
         int|string $crossed,
         string $crossingDate = '2026-09-16',
@@ -102,6 +114,9 @@ final class Lines
         string $exchangeRate = '1',
         bool $annulled = false,
         string $client = 'C001',
+        int|string|null $invoiceVat = null,
+        int|string|null $crossedWithoutVat = null,
+        ?string $invoice = null,
     ): CrossingLine {
         $number = 'CR'.(++self::$sequence);
 
@@ -111,7 +126,7 @@ final class Lines
             source: CrossingSource::Sap,
             documentNumber: $number,
             crossingDate: Dates::day($crossingDate),
-            invoiceNumber: 'FV'.self::$sequence,
+            invoiceNumber: $invoice ?? 'FV'.self::$sequence,
             invoiceDate: Dates::day($invoiceDate),
             clientCode: $client,
             clientName: "Cliente {$client}",
@@ -119,6 +134,8 @@ final class Lines
             invoiceAmount: Money::of($invoiceAmount ?? $crossed),
             crossedAmount: Money::of($crossed),
             invoiceTaxBase: $taxBase === null ? null : Money::of($taxBase),
+            invoiceVat: $invoiceVat === null ? null : Money::of($invoiceVat),
+            crossedAmountWithoutVat: $crossedWithoutVat === null ? null : Money::of($crossedWithoutVat),
             sellerOverride: $sellerOverride,
             currency: $currency,
             exchangeRate: $exchangeRate,
@@ -129,6 +146,12 @@ final class Lines
     public static function budget(int $code, int|string $amount): Budget
     {
         return new Budget($code, Money::of($amount));
+    }
+
+    /** The seller of a client from a date on (Report 5 history). */
+    public static function assignment(string $client, int $seller, string $from = '2026-01-01'): ClientAssignment
+    {
+        return new ClientAssignment($client, $seller, Dates::day($from));
     }
 
     private static function code(int|string $seller): ?int

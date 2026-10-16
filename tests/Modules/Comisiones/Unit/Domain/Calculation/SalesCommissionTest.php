@@ -79,7 +79,7 @@ describe('Annex 2 sales (July 2026)', function () {
         expect($this->result->regularTotal()->amount())->toBe('6501709');
     });
 
-    it('leaves collections, derived commissions, directors and persons for later', function () {
+    it('has no collections without payments, and leaves derived commissions, directors and persons for later', function () {
         $settlement = Settle::code($this->result, 14);
 
         expect($settlement->collected->amount())->toBe('0')

@@ -6,9 +6,13 @@ use App\Modules\Comisiones\Application\DefaultParameters;
 use App\Modules\Comisiones\Domain\Calculation\Alert;
 use App\Modules\Comisiones\Domain\Calculation\AlertKind;
 use App\Modules\Comisiones\Domain\Calculation\CodeSettlement;
+use App\Modules\Comisiones\Domain\Calculation\CollectionDetail;
 use App\Modules\Comisiones\Domain\Calculation\SettlementCalculator;
 use App\Modules\Comisiones\Domain\Calculation\SettlementResult;
 use App\Modules\Comisiones\Domain\Input\Budget;
+use App\Modules\Comisiones\Domain\Input\ClientAssignment;
+use App\Modules\Comisiones\Domain\Input\CrossingLine;
+use App\Modules\Comisiones\Domain\Input\PaymentLine;
 use App\Modules\Comisiones\Domain\Input\SaleLine;
 use App\Modules\Comisiones\Domain\Input\SettlementInput;
 use App\Modules\Comisiones\Domain\Parameters\OptionsVersion;
@@ -39,6 +43,43 @@ final class Settle
     public static function sales(array $sales, array $budgets = [], ?SettlementOptions $options = null): SettlementResult
     {
         return self::run(new SettlementInput(Period::of(2026, 7), sales: $sales, budgets: $budgets), $options);
+    }
+
+    /**
+     * A settlement of the period ("2026-08") with only collections: payments,
+     * crossings and the client assignment history.
+     *
+     * @param  list<PaymentLine>  $payments
+     * @param  list<CrossingLine>  $crossings
+     * @param  list<ClientAssignment>  $assignments
+     */
+    public static function collections(
+        string $period,
+        array $payments = [],
+        array $crossings = [],
+        array $assignments = [],
+        ?SettlementOptions $options = null,
+    ): SettlementResult {
+        return self::run(new SettlementInput(
+            Period::fromString($period),
+            payments: $payments,
+            crossings: $crossings,
+            assignments: $assignments,
+        ), $options);
+    }
+
+    /**
+     * The collection line of a code with the given key, failing the test when there is none.
+     */
+    public static function detail(SettlementResult $result, int $code, string $key): CollectionDetail
+    {
+        foreach (self::code($result, $code)->collectionDetails as $detail) {
+            if ($detail->key === $key) {
+                return $detail;
+            }
+        }
+
+        Assert::fail("Code {$code} has no collection line {$key}.");
     }
 
     /**

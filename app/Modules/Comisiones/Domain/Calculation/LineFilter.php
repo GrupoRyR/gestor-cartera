@@ -8,6 +8,7 @@ use App\Modules\Comisiones\Domain\Input\SaleLine;
 use App\Modules\Comisiones\Domain\Parameters\Options\CurrencyTreatment;
 use App\Modules\Comisiones\Domain\Parameters\PeriodParameters;
 use App\Modules\Comisiones\Domain\Parameters\SellerCodeRule;
+use App\Modules\Comisiones\Domain\Shared\Decimals;
 use App\Modules\Comisiones\Domain\Shared\Money;
 
 /**
@@ -26,7 +27,8 @@ final class LineFilter
      * 1. lines dated outside the period are ignored silently (the robot sends
      *    days of the previous month);
      * 2. a repeated key keeps its first line and raises DuplicateLine (§9.5);
-     * 3. annulled lines are left out.
+     * 3. annulled lines are left out; an annulled payment or crossing raises
+     *    AnnulledCollection (§9.6), an annulled sale goes silently.
      *
      * @template T of SaleLine|PaymentLine|CrossingLine
      *
@@ -54,6 +56,8 @@ final class LineFilter
 
             if (! $line->annulled) {
                 $kept[] = $line;
+            } elseif (! $line instanceof SaleLine) {
+                $this->alerts->add(self::annulled($line));
             }
         }
 
@@ -63,7 +67,9 @@ final class LineFilter
     /**
      * An amount of the line in pesos (§14.7). Lines in pesos at rate 1 keep
      * it. Otherwise AsReported keeps it and raises ForeignCurrency; Convert
-     * multiplies it by the exchange rate, to cents.
+     * multiplies it by the exchange rate, to cents, and still raises
+     * ForeignCurrency when another currency comes at rate 1 (SAP sends TRM 1
+     * today, so that rate is likely missing, not real).
      */
     public function pesos(Money $amount, SaleLine|PaymentLine|CrossingLine $line): Money
     {
@@ -72,6 +78,15 @@ final class LineFilter
         }
 
         if ($this->parameters->options()->currency === CurrencyTreatment::Convert) {
+            if (Decimals::parse($line->exchangeRate)->isEqualTo(1)) {
+                $this->alerts->add(new Alert(
+                    AlertKind::ForeignCurrency,
+                    $line->key,
+                    "La línea {$line->key} viene en {$line->currency} con TRM 1; revisa la TRM, se tomó el valor reportado.",
+                    $line instanceof CrossingLine ? $line->sellerOverride : $line->sellerCode,
+                ));
+            }
+
             return $amount->multipliedBy($line->exchangeRate)->toCents();
         }
 
@@ -123,6 +138,13 @@ final class LineFilter
         };
 
         return new Alert(AlertKind::DuplicateLine, "{$kind}:{$line->key}", $message);
+    }
+
+    private static function annulled(PaymentLine|CrossingLine $line): Alert
+    {
+        return $line instanceof PaymentLine
+            ? new Alert(AlertKind::AnnulledCollection, $line->key, "El pago {$line->key} está anulado; no se liquida.", $line->sellerCode)
+            : new Alert(AlertKind::AnnulledCollection, $line->key, "El cruce {$line->key} está anulado; no se liquida.", $line->sellerOverride);
     }
 
     private static function withoutCode(string $sellerText): Alert

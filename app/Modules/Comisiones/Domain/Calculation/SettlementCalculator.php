@@ -9,7 +9,8 @@ use InvalidArgumentException;
 
 /**
  * Settles one period (§5): filters the SAP lines (§5.1), computes the sales
- * commission of every code (§5.2), adds up each code (§5.7) and gathers the
+ * commission (§5.2) and the collection commission, payments and crossings
+ * (§5.3, §5.4), of every code, adds up each code (§5.7) and gathers the
  * alerts and controls (§9). Pure and repeatable: the same input and
  * parameters always give the same result.
  */
@@ -31,11 +32,14 @@ final class SettlementCalculator
         $alerts = new AlertCollector;
         $filter = new LineFilter($parameters, $alerts);
         $sales = (new SalesCommission($parameters, $filter, $alerts))->calculate($input->sales, $input->budgets);
+        $collections = (new CollectionCommission($parameters, $filter, $alerts))
+            ->calculate($input->payments, $input->crossings, $input->assignments);
 
         $codes = [];
 
         foreach ($parameters->codes() as $code => $rule) {
             $figures = $sales->forCode($code);
+            $collection = $collections->forCode($code);
 
             $settlement = new CodeSettlement(
                 rule: $rule,
@@ -44,13 +48,14 @@ final class SettlementCalculator
                 compliance: $figures->compliance,
                 meetsMinimum: $figures->meetsMinimum,
                 saleCommission: $figures->commission,
-                collected: Money::zero(),
-                collectionCommission: Money::zero(),
+                collected: $collection->collected,
+                collectionCommission: $collection->commission,
                 obrCommission: Money::zero(),
                 reimbursements: Money::zero(),
                 deductions: Money::zero(),
                 directorCommission: Money::zero(),
                 saleDetails: $figures->details,
+                collectionDetails: $collection->details,
             );
 
             if ($settlement->hasNegativeCommission()) {
@@ -77,9 +82,9 @@ final class SettlementCalculator
                 loadedSales: $sales->loaded,
                 salesByCode: $sales->byCode(),
                 unassignedSales: $sales->unassigned,
-                loadedCollections: Money::zero(),
-                settledCollections: Money::zero(),
-                unassignedCollections: Money::zero(),
+                loadedCollections: $collections->loaded,
+                settledCollections: $collections->settled(),
+                unassignedCollections: $collections->unassigned,
             ),
         );
     }
