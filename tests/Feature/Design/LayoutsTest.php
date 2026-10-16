@@ -6,6 +6,7 @@ use App\Modules\Core\Contracts\Data\BrandPalette;
 use App\Modules\Core\Contracts\Enums\CompanyCode;
 use App\Support\Navigation\NavItem;
 use App\Support\Navigation\NavRegistry;
+use Illuminate\Routing\RouteCollection;
 use Illuminate\Support\Facades\Blade;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Route;
@@ -41,6 +42,23 @@ function registerNamedPost(string $uri, string $name): void
 {
     Route::post($uri, fn () => null)->name($name);
     Route::getRoutes()->refreshNameLookups();
+}
+
+/**
+ * Drops the named routes, as if Core had not registered them yet. Names
+ * that are not registered are ignored.
+ */
+function withoutRoutes(string ...$names): void
+{
+    $routes = new RouteCollection;
+
+    foreach (Route::getRoutes()->getRoutes() as $route) {
+        if (! in_array($route->getName(), $names, true)) {
+            $routes->add($route);
+        }
+    }
+
+    app('router')->setRoutes($routes);
 }
 
 /**
@@ -240,6 +258,7 @@ describe('<x-layouts.app>', function () {
     });
 
     it('hides the company selector while Core has no route for it', function () {
+        withoutRoutes('core.empresa.cambiar', 'core.logout');
         ContractFakes::install($this->app);
         $this->actingAs(User::factory()->make());
 

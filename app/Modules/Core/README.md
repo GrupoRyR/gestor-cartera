@@ -10,6 +10,7 @@ Core es la base de la plataforma: los contratos que usan los demás módulos (`C
 | `Domain/` | Reglas puras en PHP: sin Laravel, sin base de datos y sin reloj. Reciben fechas, saldos y parámetros ya resueltos. |
 | `Application/` | Casos de uso (tareas siguientes). |
 | `Infrastructure/` | Eloquent (`Persistence\*Record`), el acceso por empresa (`Access\CompanyAccess`), el catálogo de empresas y la empresa activa (`Companies\`). |
+| `Http/` | Controladores y FormRequests de las rutas de `routes/web.php`. |
 | `config/core.php` | Valores por defecto para sembrar los parámetros de cada empresa. |
 
 ## Estados del cliente
@@ -93,6 +94,18 @@ La tabla `company_user` asigna empresas a los usuarios (`user_id`, `company`). C
 - `switchTo()` lanza `CompanyNotAvailable` si la empresa, o la vista de grupo, no está disponible. Sin sesión (consola, colas), la elección dura solo lo que dura el proceso.
 - `palette()` es la de la empresa activa; la vista de grupo, los invitados y los usuarios sin rol ven la paleta neutra.
 - `of($code)` devuelve cualquier empresa, sin importar el usuario (jobs, colas y plantillas de correo).
+
+**Selector.** `POST /empresa` (`core.empresa.cambiar`, solo con sesión iniciada) recibe `empresa` = `SGX`, `SDC` o `grupo`. Si funciona, vuelve atrás con el flash `status` («Ahora trabajas en …»); si la empresa no está disponible, con el flash `error`. Un valor distinto falla la validación del campo «empresa». El layout `<x-layouts.app>` muestra el selector solo cuando el usuario tiene más de una empresa.
+
+## Roles y permisos
+
+Los roles son los de `Contracts\Enums\Role` (Spatie, guard `web`, sin equipos). `CorePermissionSeeder` siembra:
+
+| Permiso | Roles | Qué permite |
+|---|---|---|
+| `core.access` | Los seis | Usar la plataforma. Un usuario sin rol no lo tiene. |
+
+Sembrar `core.access` también garantiza que existan los seis roles, para que la pantalla de equipo pueda asignarlos. Correr el seeder otra vez no duplica nada.
 
 ## Pendientes
 
