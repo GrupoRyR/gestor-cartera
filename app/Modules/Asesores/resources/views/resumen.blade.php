@@ -23,6 +23,13 @@
     <x-ui.page-header :title="$heading" :description="__('asesores::resumen.descripcion')" />
 
     <div class="mt-6 grid gap-6">
+        @if ($isManager && $overview->selected !== null)
+            <x-ui.alert tone="info">
+                {{ __('asesores::equipo.viendo', ['nombre' => $overview->selected->name]) }}
+                <x-ui.link-button :href="route('asesores.equipo.index')" variant="ghost" icon="chevron-left">{{ __('asesores::equipo.volver') }}</x-ui.link-button>
+            </x-ui.alert>
+        @endif
+
         <x-asesores::advisor-filter :advisors="$overview->advisors" :filter="$filter" :action="route('asesores.inicio')" />
 
         <x-asesores::cutoff :cutoff="$totals->cutoffDate" :today="$today" />

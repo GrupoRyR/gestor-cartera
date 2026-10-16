@@ -4,8 +4,11 @@ namespace App\Modules\Asesores\Providers;
 
 use App\Modules\Asesores\Http\Policies\ClientPolicy;
 use App\Modules\Asesores\Http\Policies\CommitmentPolicy;
+use App\Modules\Core\Contracts\CompromisoService;
 use App\Modules\Core\Contracts\Data\ClientDetail;
 use App\Modules\Core\Contracts\Data\Commitment;
+use App\Modules\Core\Contracts\Data\CommitmentQuery;
+use App\Modules\Core\Contracts\Enums\CommitmentStatus;
 use App\Support\Modules\ModuleServiceProvider;
 use App\Support\Navigation\NavItem;
 use App\Support\Navigation\NavRegistry;
@@ -66,6 +69,20 @@ final class AsesoresServiceProvider extends ModuleServiceProvider
                 activePattern: 'asesores.clientes.*',
             ),
             new NavItem(
+                key: 'asesores.agenda',
+                label: __('asesores::comun.nav.agenda'),
+                route: 'asesores.agenda',
+                icon: 'calendar',
+                permission: 'asesores.view',
+                group: $group,
+                order: 30,
+                mobile: true,
+                // Broken commitments are the ones that ask for a call today.
+                badge: fn (): ?int => app(CompromisoService::class)
+                    ->paginate(new CommitmentQuery(statuses: [CommitmentStatus::Broken]), 1)
+                    ->total() ?: null,
+            ),
+            new NavItem(
                 key: 'asesores.historico',
                 label: __('asesores::comun.nav.historico'),
                 route: 'asesores.historico',
@@ -73,6 +90,17 @@ final class AsesoresServiceProvider extends ModuleServiceProvider
                 permission: 'asesores.view',
                 group: $group,
                 order: 40,
+            ),
+            new NavItem(
+                key: 'asesores.equipo',
+                label: __('asesores::comun.nav.equipo'),
+                route: 'asesores.equipo.index',
+                icon: 'company',
+                permission: 'asesores.team',
+                group: $group,
+                order: 50,
+                mobile: true,
+                activePattern: 'asesores.equipo.*',
             ),
         );
     }

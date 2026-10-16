@@ -56,6 +56,7 @@ final readonly class ClientController
             'file' => $this->files->open($detail),
             'today' => CarbonImmutable::today(),
             'canManage' => Gate::allows('manage', $detail),
+            'canAnnotate' => Gate::allows('annotate', $detail),
         ]);
     }
 }
