@@ -65,6 +65,7 @@ class Escenario:
             lotes=tuple(lotes),
         )
         self.argv = ["run_etl.py", *argv]
+        self.hoy = lambda: date(2026, 10, 16)
 
     # -- dobles ------------------------------------------------------------
     def _vpn(self, _cfg):
@@ -111,7 +112,7 @@ class Escenario:
             parche(run_etl, "cargar_config", lambda: self.cfg)
             parche(run_etl, "leer_query", lambda nombre: f"-- {nombre}")
             parche(run_etl, "RobotVPN", self._vpn)
-            parche(run_etl, "hoy_colombia", lambda: date(2026, 10, 16))
+            parche(run_etl, "hoy_colombia", lambda: self.hoy())
             parche(run_etl, "guardar_estado", lambda **datos: self.estados.append(datos))
             parche(hana, "conectar", self._conectar)
             parche(hana, "listar_esquemas", lambda _conn: ["SEGUREX"])
@@ -213,6 +214,25 @@ class RunEtlTest(unittest.TestCase):
         (aviso,) = escenario.avisos
         self.assertEqual(aviso[0], "LARAVEL (cartera)")
         self.assertLess(aviso[1].index("cartera"), aviso[1].index("prueba"))
+
+    def test_la_fecha_de_corte_es_la_del_inicio_de_la_extraccion(self):
+        escenario = Escenario(
+            {"cartera": _resultado("cartera"), "asesores": _resultado("asesores")},
+            ["cartera", "asesores"],
+        )
+        pedidas: list[int] = []
+
+        def hoy():
+            # Extrae el 16 antes de medianoche y publica ya el 17.
+            pedidas.append(len(escenario.eventos))
+            if "vpn:abajo" in escenario.eventos:
+                return date(2026, 10, 17)
+            return date(2026, 10, 16)
+
+        escenario.hoy = hoy
+        self.assertEqual(escenario.ejecutar(), 0)  # _publicar exige el 16
+        self.assertEqual(pedidas, [0])  # una sola vez, antes de subir la VPN
+        self.assertEqual(escenario.avisos, [])
 
     def test_supabase_sigue_como_respaldo_aunque_falle_laravel(self):
         escenario = Escenario(
