@@ -2,6 +2,8 @@
 
 namespace App\Modules\Ingesta\Providers;
 
+use App\Modules\Core\Contracts\IngestaSink;
+use App\Modules\Ingesta\Infrastructure\EloquentIngestaSink;
 use App\Support\Modules\ModuleServiceProvider;
 
 /**
@@ -15,5 +17,8 @@ use App\Support\Modules\ModuleServiceProvider;
  */
 final class IngestaServiceProvider extends ModuleServiceProvider
 {
-    //
+    protected function registerModule(): void
+    {
+        $this->app->singleton(IngestaSink::class, EloquentIngestaSink::class);
+    }
 }
