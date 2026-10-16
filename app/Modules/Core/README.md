@@ -8,9 +8,9 @@ Core es la base de la plataforma: los contratos que usan los demás módulos (`C
 |---|---|
 | `Contracts/` | Interfaces, objetos de datos, enums y excepciones públicos (ver `docs/arquitectura.md` §6). No cambian sin acordarlo. |
 | `Domain/` | Reglas puras en PHP: sin Laravel, sin base de datos y sin reloj. Reciben fechas, saldos y parámetros ya resueltos. |
-| `Application/` | Casos de uso: el ingreso con Microsoft (`Auth\`, ver «Ingreso con Microsoft»), la pantalla Equipo (`Team\`) y el recálculo de saldos y estados de los clientes (`Portfolio\`, ver «Importación del robot»). |
-| `Infrastructure/` | Eloquent (`Persistence\*Record`), el acceso por empresa y el alcance de la cartera (`Access\`), el catálogo de empresas y la empresa activa (`Companies\`), la bitácora de auditoría (`Audit\`), el adaptador de Microsoft sobre Socialite (`Auth\`), la importación de los lotes del robot (`Ingest\`) y la lectura de la cartera (`Portfolio\`, ver «CarteraRepository»). |
-| `Http/` | Controladores, FormRequests y middleware de las rutas web (ver «Ingreso con Microsoft» e «Inicio y acceso»). |
+| `Application/` | Casos de uso: el ingreso con Microsoft (`Auth\`, ver «Ingreso con Microsoft»), la pantalla Equipo (`Team\`), el borrado de gestiones (`Activity\`, ver «Bitácora de gestiones») y el recálculo de saldos y estados de los clientes (`Portfolio\`, ver «Importación del robot»). |
+| `Infrastructure/` | Eloquent (`Persistence\*Record`), el acceso por empresa y el alcance de la cartera (`Access\`), el catálogo de empresas y la empresa activa (`Companies\`), la bitácora de auditoría (`Audit\`), la bitácora de gestiones (`Activity\`), el adaptador de Microsoft sobre Socialite (`Auth\`), la importación de los lotes del robot (`Ingest\`) y la lectura de la cartera (`Portfolio\`, ver «CarteraRepository»). |
+| `Http/` | Controladores, FormRequests y middleware de las rutas web (ver «Ingreso con Microsoft», «Inicio y acceso» y «Bitácora de gestiones»). |
 | `config/core.php` | Valores por defecto para sembrar los parámetros de cada empresa. |
 
 ## Estados del cliente
@@ -105,6 +105,7 @@ Los roles son los de `Contracts\Enums\Role` (Spatie, guard `web`, sin equipos). 
 |---|---|---|
 | `core.access` | Los seis | Usar la plataforma. Un usuario sin rol no lo tiene. |
 | `core.team.manage` | `admin` | Usar la pantalla Equipo (ver «Pantalla Equipo»). |
+| `core.activities.delete` | `gerente_cartera`, `analista_cartera` | Eliminar (borrado lógico) una gestión de la bitácora de un cliente (ver «Bitácora de gestiones»). |
 
 Sembrar `core.access` también garantiza que existan los seis roles, para que la pantalla de equipo pueda asignarlos. Correr el seeder otra vez no duplica nada.
 
@@ -193,7 +194,7 @@ Ingesta guarda cada lote del robot (o de una carga manual) y despacha `BatchAcce
 | `max_days_overdue` | Días de vencida de la partida más atrasada entre las que deben más de la tolerancia (0,01); 0 si ninguna debe. Es negativo si ninguna está vencida todavía. |
 | `status` | `ClientStatusRules::resolve()` con el estado actual y los parámetros vigentes de la empresa (`CompanyCatalog::parameters()`, tabla `companies`). Ver «Estados del cliente»: un cliente que ya no debe pasa a «Pago recibido» (o sigue «Al día») y un estado manual se conserva mientras deba. |
 
-Solo se escriben los clientes cuyos valores cambian. Cuando cambia el estado de un cliente que ya existía, se guarda `status_changed_at` y se audita `core.client.status_changed`: sujeto `client`, `changes.status` con `old` y `new`, y `context` con `load_id` y `cutoff_date` de la instantánea. No tiene usuario porque lo hace el sistema. Un cliente que crea la importación recibe su primer estado (y `status_changed_at` si no queda «Al día») sin entrada de auditoría: es su estado inicial, no un cambio; así la primera carga del robot no escribe una entrada por cliente (`forCompany()` recibe esos clientes en `$newClientIds`). La entrada en la bitácora de gestiones (`GestionLogger`) llega en un PR posterior. La tarea diaria de compromisos y la pantalla de parámetros reutilizarán este servicio.
+Solo se escriben los clientes cuyos valores cambian. Cuando cambia el estado de un cliente que ya existía, se guarda `status_changed_at` y se audita `core.client.status_changed`: sujeto `client`, `changes.status` con `old` y `new`, y `context` con `load_id` y `cutoff_date` de la instantánea. No tiene usuario porque lo hace el sistema. Cada cambio deja también una gestión del sistema en la bitácora del cliente (ver «Bitácora de gestiones»). Un cliente que crea la importación recibe su primer estado (y `status_changed_at` si no queda «Al día») sin entrada de auditoría ni de bitácora: es su estado inicial, no un cambio; así la primera carga del robot no escribe una entrada por cliente (`forCompany()` recibe esos clientes en `$newClientIds`). La tarea diaria de compromisos y la pantalla de parámetros reutilizarán este servicio.
 
 **Asesores.** Por cada fila, por empresa y `slp_code`:
 
@@ -269,6 +270,51 @@ Solo se escriben los clientes cuyos valores cambian. Cuando cambia el estado de 
 - Sin instantáneas en las empresas del alcance, o si el usuario no ve ningún cliente (invitado, `tesoreria`, sin rol), devuelve `PortfolioTotals::empty()`. Si hay instantánea pero ningún cliente cumple la consulta, devuelve ceros con su fecha de corte.
 - **`history($from, $to)`** devuelve un total por fecha de corte con instantánea en el rango, incluidos los dos extremos (se comparan solo las fechas, sin la hora), de la más antigua a la más reciente. Para cada empresa y fecha usa la última carga importada ese día, y combina las empresas que comparten la fecha. Lanza `InvalidArgumentException` si `$from` es posterior a `$to`.
 - Los filtros de la consulta se aplican con los datos actuales de cada cliente (estado, asesor, saldo guardado), también en las fechas pasadas del histórico.
+
+## Bitácora de gestiones
+
+`Infrastructure\Activity\DatabaseGestionLogger` implementa `GestionLogger` (`docs/arquitectura.md` §6.6) y Core la registra en el contenedor (una instancia por petición o por job). Guarda cada gestión en la tabla `activities` (`Persistence\ActivityRecord`, con `ActivityRecordFactory`):
+
+| Columna | Contenido |
+|---|---|
+| `company`, `client_id` | La empresa (copiada del cliente) y el cliente. Un cliente con bitácora nunca se borra del todo. |
+| `type` | El valor de `ActivityType`: llamada, nota, compromiso, descuento, correo enviado o recibido, cambio de estado o sistema. |
+| `summary`, `details`, `result` | La línea que muestra la bitácora (hasta 255 caracteres), el texto largo y el resultado de una llamada (hasta 150). |
+| `user_id` | El autor, o `null` si la escribió la plataforma. Si el usuario se borra del todo, queda en `null`. |
+| `occurred_at` | Cuándo pasó; por defecto, al guardarla. |
+| `metadata` | Los datos de `NewActivity::$metadata` en JSON (`array<string, scalar\|null>`), p. ej. `commitment_id` o `internet_message_id`. Vacío se guarda como `null`. |
+| `deleted_at` | Borrado lógico. |
+
+**Escribir** (`log()`):
+
+- Con sesión iniciada, escribe como ese usuario y solo en clientes de su **alcance en todas sus empresas**, no solo en la activa (`Portfolio\ClientReach`): una acción que empezó antes de cambiar de empresa sigue encontrando a su cliente. Un cliente fuera de ese alcance lanza `RecordNotFound`.
+- Sin sesión (jobs, colas, consola), escribe como el sistema (`Activity::$user = null`) en cualquier cliente.
+- Un cliente que no existe o está eliminado (borrado lógico) lanza `RecordNotFound` en los dos casos.
+- Devuelve la `Activity` guardada, con el nombre del cliente y el autor (`UserRef`).
+
+**Última actividad.** Una gestión escrita por una persona (con autor y de un tipo distinto de «Sistema») mueve `clients.last_activity_at` a su `occurred_at` solo si es posterior: una gestión con fecha atrasada no la devuelve. Las de la plataforma no la mueven, porque `ClientSummary::$lastActivityAt` es la última gestión que no es del sistema: un correo automático o un cambio de estado automático no esconden a un cliente que nadie ha gestionado (filtro `inactiveSince`, «vencidos sin gestión»). Al eliminar una gestión, la última actividad vuelve a la gestión más reciente que queda, o a `null` si no queda ninguna (`Activity\LastActivity`).
+
+**Leer.** Las dos listas van de la más reciente a la más antigua (`occurred_at` y luego id), con el cliente y el autor de toda la lista leídos en una consulta cada uno, y nunca muestran gestiones eliminadas ni clientes eliminados. Un límite menor que 1 lanza `InvalidArgumentException`.
+
+| Método | Clientes |
+|---|---|
+| `forClient($clientId, $limit = 50)` | El cliente, si está en el alcance del usuario en cualquiera de sus empresas (igual que `log()`); si no, `[]`. |
+| `recent($limit = 20)` | Los del alcance en la empresa activa o la vista de grupo (`CurrentCompany::scope()`), como `CarteraRepository`. |
+
+Sin sesión iniciada las dos devuelven `[]` (§6.2).
+
+**Cambios de estado automáticos.** Cuando `RecomputeClientStatuses` cambia el estado de un cliente que ya existía (ver «Importación del robot»), además de la auditoría agrega una gestión del sistema de tipo «Cambio de estado»: «Estado automático: de «Vencida» a «Por vencer»», con `metadata` `from`, `to` (valores de `ClientStatus`) y `load_id`. Se insertan de a 500 por consulta, sin una consulta por cliente.
+
+**Eliminar una gestión.** El contrato solo agrega y lee; el borrado lógico es de Core:
+
+| Ruta | Nombre | Permiso |
+|---|---|---|
+| `DELETE /gestiones/{activity}` | `core.gestiones.destroy` | `core.activities.delete` (`gerente_cartera` y `analista_cartera`) |
+
+- Los demás roles reciben 403 y los invitados van a `/login`.
+- `{activity}` solo encuentra gestiones no eliminadas. Una gestión de un cliente eliminado, o fuera del alcance del usuario en sus empresas, da 404.
+- `Application\Activity\DeleteActivity` hace el borrado lógico, recalcula la última actividad y audita `core.activity.deleted`: sujeto `activity`, `changes` con `type`, `summary` y `client` (el nombre) y `context` con `client_id`.
+- Vuelve a la página anterior con el flash `status`: «Eliminamos la gestión «Llamada a tesorería».».
 
 ## Ingreso con Microsoft
 

@@ -20,6 +20,9 @@ final class CorePermissionSeeder extends PermissionSeeder
      * core.team.manage: the Equipo screen (users, roles, companies,
      * activation and soft delete). Only admins (IT, Part A.5).
      *
+     * core.activities.delete: soft-delete an entry of a client's log
+     * (gestión). The portfolio manager and the analyst, who run the log.
+     *
      * @return array<string, list<string|\BackedEnum>>
      */
     public function permissions(): array
@@ -27,6 +30,7 @@ final class CorePermissionSeeder extends PermissionSeeder
         return [
             'core.access' => Role::cases(),
             'core.team.manage' => [Role::Admin],
+            'core.activities.delete' => [Role::PortfolioManager, Role::PortfolioAnalyst],
         ];
     }
 }

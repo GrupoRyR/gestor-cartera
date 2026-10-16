@@ -2,13 +2,18 @@
 
 namespace App\Modules\Core\Application\Portfolio;
 
+use App\Modules\Core\Application\Activity\StatusChangeSummary;
 use App\Modules\Core\Contracts\AuditLogger;
+use App\Modules\Core\Contracts\Enums\ActivityType;
+use App\Modules\Core\Contracts\Enums\ClientStatus;
 use App\Modules\Core\Contracts\Enums\CompanyCode;
 use App\Modules\Core\Domain\Status\ClientStatusRules;
 use App\Modules\Core\Infrastructure\Companies\CompanyCatalog;
+use App\Modules\Core\Infrastructure\Persistence\ActivityRecord;
 use App\Modules\Core\Infrastructure\Persistence\ClientRecord;
 use App\Modules\Core\Infrastructure\Persistence\InvoiceRecord;
 use App\Modules\Core\Infrastructure\Persistence\PortfolioLoadRecord;
+use DateTimeInterface;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
 
 /**
@@ -40,11 +45,11 @@ final class RecomputeClientStatuses
      * - status: ClientStatusRules::resolve() from the current status.
      *
      * A client missing from the snapshot owes nothing. Only clients whose
-     * values change are written; each status change sets status_changed_at
-     * and is audited as core.client.status_changed, except for the clients
-     * in $newClientIds: an import just created them, so their first status
-     * is their initial state, not a change. Does nothing while the company
-     * has no snapshot.
+     * values change are written; each status change sets status_changed_at,
+     * is audited as core.client.status_changed and leaves a system entry in
+     * the client's log, except for the clients in $newClientIds: an import
+     * just created them, so their first status is their initial state, not a
+     * change. Does nothing while the company has no snapshot.
      *
      * @param  list<int>  $newClientIds  Clients created by the import being recomputed.
      *
@@ -97,7 +102,7 @@ final class RecomputeClientStatuses
             ];
 
             if ($statusChanged && ! isset($newClients[$client->id])) {
-                $statusChanges[$client->id] = ['old' => $client->status->value, 'new' => $status->value];
+                $statusChanges[$client->id] = [$client->status, $status];
             }
         }
 
@@ -109,14 +114,47 @@ final class RecomputeClientStatuses
             );
         }
 
-        foreach ($statusChanges as $clientId => $change) {
+        foreach ($statusChanges as $clientId => [$old, $new]) {
             $this->audit->record(
                 'core.client.status_changed',
                 'client',
                 $clientId,
-                ['status' => $change],
+                ['status' => ['old' => $old->value, 'new' => $new->value]],
                 ['load_id' => $snapshot->load_id, 'cutoff_date' => $snapshot->cutoff_date->toDateString()],
             );
+        }
+
+        $this->logStatusChanges($company, $statusChanges, $snapshot, $now);
+    }
+
+    /**
+     * One system entry (ActivityType::StatusChange) per status change in the
+     * log of its client, inserted CHUNK rows per statement. A bulk insert
+     * skips the model, so the metadata goes JSON-encoded and the timestamps
+     * are explicit. System entries never move the client's last activity.
+     *
+     * @param  array<int, array{ClientStatus, ClientStatus}>  $statusChanges  Old and new status by client id.
+     */
+    private function logStatusChanges(CompanyCode $company, array $statusChanges, PortfolioLoadRecord $snapshot, DateTimeInterface $now): void
+    {
+        $entries = [];
+
+        foreach ($statusChanges as $clientId => [$old, $new]) {
+            $entries[] = [
+                'company' => $company->value,
+                'client_id' => $clientId,
+                'type' => ActivityType::StatusChange->value,
+                'summary' => StatusChangeSummary::automatic($old, $new),
+                'user_id' => null,
+                'occurred_at' => $now,
+                'metadata' => json_encode(['from' => $old->value, 'to' => $new->value, 'load_id' => $snapshot->load_id], JSON_THROW_ON_ERROR),
+                'created_at' => $now,
+                'updated_at' => $now,
+            ];
+        }
+
+        foreach (array_chunk($entries, self::CHUNK) as $chunk) {
+            ActivityRecord::query()->insert($chunk);
         }
     }
 

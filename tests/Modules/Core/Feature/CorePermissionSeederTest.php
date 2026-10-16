@@ -24,11 +24,21 @@ it('lets only admins manage the team', function () {
     }
 });
 
+it('lets portfolio managers and analysts remove entries of a client log', function () {
+    $this->seed(CorePermissionSeeder::class);
+
+    foreach (Role::cases() as $role) {
+        expect(SpatieRole::findByName($role, 'web')->hasPermissionTo('core.activities.delete'))
+            ->toBe(in_array($role, [Role::PortfolioManager, Role::PortfolioAnalyst], true));
+    }
+});
+
 it('can run again without duplicating permissions or roles', function () {
     $this->seed(CorePermissionSeeder::class);
     $this->seed(CorePermissionSeeder::class);
 
     expect(Permission::query()->where('name', 'core.access')->count())->toBe(1)
         ->and(Permission::query()->where('name', 'core.team.manage')->count())->toBe(1)
+        ->and(Permission::query()->where('name', 'core.activities.delete')->count())->toBe(1)
         ->and(SpatieRole::query()->count())->toBe(count(Role::cases()));
 });

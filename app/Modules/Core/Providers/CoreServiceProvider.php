@@ -8,7 +8,9 @@ use App\Modules\Core\Contracts\AuditLogger;
 use App\Modules\Core\Contracts\CarteraRepository;
 use App\Modules\Core\Contracts\CurrentCompany;
 use App\Modules\Core\Contracts\Events\BatchAccepted;
+use App\Modules\Core\Contracts\GestionLogger;
 use App\Modules\Core\Http\Middleware\EnsureUserIsActive;
+use App\Modules\Core\Infrastructure\Activity\DatabaseGestionLogger;
 use App\Modules\Core\Infrastructure\Audit\DatabaseAuditLogger;
 use App\Modules\Core\Infrastructure\Auth\SocialiteMicrosoftIdentityProvider;
 use App\Modules\Core\Infrastructure\Companies\CompanyCatalog;
@@ -57,6 +59,7 @@ final class CoreServiceProvider extends ModuleServiceProvider
 
         // Follows CurrentCompany, so one per request (or job) as well.
         $this->app->scoped(CarteraRepository::class, EloquentCarteraRepository::class);
+        $this->app->scoped(GestionLogger::class, DatabaseGestionLogger::class);
 
         // Microsoft Entra ID sign-in; tests bind a fake instead.
         $this->app->bind(IdentityProvider::class, SocialiteMicrosoftIdentityProvider::class);
