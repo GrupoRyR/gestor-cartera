@@ -22,7 +22,6 @@ use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Pagination\LengthAwarePaginator as Paginator;
 use InvalidArgumentException;
-use LogicException;
 
 /**
  * CarteraRepository over the Core tables, for the signed-in user.
@@ -32,8 +31,9 @@ use LogicException;
  * view (or the query's companies the user may see) and, within them, the
  * clients of the user's roles; asSystem() drops the user. Soft-deleted
  * clients never appear. Lists sort and filter on the figures each client
- * caches from the latest snapshot of its company; invoices come from that
- * snapshot (the latest cutoff date and, on a tie, the last one imported).
+ * caches from the latest snapshot of its company; invoices and totals come
+ * from that snapshot (the latest cutoff date and, on a tie, the last one
+ * imported).
  */
 final class EloquentCarteraRepository implements CarteraRepository
 {
@@ -46,12 +46,13 @@ final class EloquentCarteraRepository implements CarteraRepository
         private readonly CurrentCompany $currentCompany,
         private readonly AuthFactory $auth,
         private readonly PortfolioMapper $mapper,
+        private readonly SnapshotTotals $snapshotTotals,
         private readonly bool $system = false,
     ) {}
 
     public function asSystem(): CarteraRepository
     {
-        return new self($this->currentCompany, $this->auth, $this->mapper, system: true);
+        return new self($this->currentCompany, $this->auth, $this->mapper, $this->snapshotTotals, system: true);
     }
 
     public function paginateClients(ClientQuery $query, int $perPage = 25): LengthAwarePaginator
@@ -60,7 +61,7 @@ final class EloquentCarteraRepository implements CarteraRepository
             throw new InvalidArgumentException("The perPage must be at least 1, {$perPage} given.");
         }
 
-        $page = ClientListing::sort($this->matching($query), $query)->paginate($perPage);
+        $page = ClientListing::sort($this->matching($query, $this->scope($query->companies)), $query)->paginate($perPage);
 
         return new Paginator(
             $this->mapper->summaries($page->items()),
@@ -80,7 +81,7 @@ final class EloquentCarteraRepository implements CarteraRepository
      */
     public function allClients(ClientQuery $query): iterable
     {
-        return $this->lazily(ClientListing::sort($this->matching($query), $query));
+        return $this->lazily(ClientListing::sort($this->matching($query, $this->scope($query->companies)), $query));
     }
 
     public function client(int $clientId): ?ClientDetail
@@ -97,14 +98,14 @@ final class EloquentCarteraRepository implements CarteraRepository
     public function openInvoices(int $clientId): array
     {
         $client = $this->visibleClient($clientId);
-        $snapshotId = $client === null ? null : $this->latestSnapshotId($client->company);
+        $snapshot = $client === null ? null : $this->latestSnapshot($client->company);
 
-        if ($client === null || $snapshotId === null) {
+        if ($client === null || $snapshot === null) {
             return [];
         }
 
         $records = InvoiceRecord::query()
-            ->where('portfolio_load_id', $snapshotId)
+            ->where('portfolio_load_id', $snapshot->id)
             ->where('client_id', $client->id)
             ->whereRaw('ABS(balance) > '.number_format(ClientStatusRules::BALANCE_TOLERANCE, 2, '.', ''))
             ->orderBy('due_at')
@@ -121,19 +122,79 @@ final class EloquentCarteraRepository implements CarteraRepository
     }
 
     /**
-     * @throws LogicException Totals arrive with the next work unit.
+     * Sums the latest snapshot of each company in scope for the clients in
+     * scope that match the query (its sort does not matter). Without
+     * snapshots, or when the scope sees no client, the totals are empty;
+     * with snapshots and no matching client, they are zero at the cutoff.
      */
     public function totals(?ClientQuery $query = null): PortfolioTotals
     {
-        throw new LogicException('CarteraRepository::totals() is not implemented yet.');
+        $query ??= new ClientQuery;
+        $scope = $this->scope($query->companies);
+        $snapshots = [];
+
+        foreach ($scope->isEmpty() ? [] : $scope->companies as $company) {
+            $snapshot = $this->latestSnapshot($company);
+
+            if ($snapshot !== null) {
+                $snapshots[] = $snapshot;
+            }
+        }
+
+        if ($snapshots === []) {
+            return PortfolioTotals::empty();
+        }
+
+        return $this->combine($snapshots, $this->sums($snapshots, $this->matching($query, $scope)));
     }
 
     /**
-     * @throws LogicException History arrives with the next work unit.
+     * One entry per cutoff date with a snapshot in scope, combining the
+     * companies that share the date; for each company and date, its last
+     * load imported. Dates compare without the time of day.
      */
     public function history(CarbonImmutable $from, CarbonImmutable $to, ?ClientQuery $query = null): array
     {
-        throw new LogicException('CarteraRepository::history() is not implemented yet.');
+        if ($from->toDateString() > $to->toDateString()) {
+            throw new InvalidArgumentException("The history range ends ({$to->toDateString()}) before it starts ({$from->toDateString()}).");
+        }
+
+        $query ??= new ClientQuery;
+        $scope = $this->scope($query->companies);
+
+        if ($scope->isEmpty()) {
+            return [];
+        }
+
+        $records = PortfolioLoadRecord::query()
+            ->whereIn('company', array_map(fn (CompanyCode $code): string => $code->value, $scope->companies))
+            ->whereDate('cutoff_date', '>=', $from->toDateString())
+            ->whereDate('cutoff_date', '<=', $to->toDateString())
+            ->orderBy('cutoff_date')
+            ->orderBy('id')
+            ->get(['id', 'company', 'cutoff_date']);
+
+        // By date (ascending) and company; a later load of the same day replaces the earlier one.
+        $byDate = [];
+
+        foreach ($records as $record) {
+            $byDate[$record->cutoff_date->toDateString()][$record->company->value] = $record;
+        }
+
+        $snapshots = [];
+
+        foreach ($byDate as $ofDate) {
+            $snapshots = [...$snapshots, ...array_values($ofDate)];
+        }
+
+        $sums = $this->sums($snapshots, $this->matching($query, $scope));
+        $history = [];
+
+        foreach ($byDate as $ofDate) {
+            $history[] = $this->combine(array_values($ofDate), $sums);
+        }
+
+        return $history;
     }
 
     /**
@@ -170,13 +231,13 @@ final class EloquentCarteraRepository implements CarteraRepository
     }
 
     /**
-     * The clients in scope that match the filters of $query, unsorted.
+     * The clients of $scope that match the filters of $query, unsorted.
      *
      * @return Builder<ClientRecord>
      */
-    private function matching(ClientQuery $query): Builder
+    private function matching(ClientQuery $query, PortfolioScope $scope): Builder
     {
-        return ClientListing::filter($this->scope($query->companies)->clients(ClientRecord::query()), $query);
+        return ClientListing::filter($scope->clients(ClientRecord::query()), $query);
     }
 
     /**
@@ -188,18 +249,48 @@ final class EloquentCarteraRepository implements CarteraRepository
     }
 
     /**
-     * The id of the latest snapshot of $company: the latest cutoff date and,
-     * on a tie, the last one imported.
+     * The latest snapshot of $company: the latest cutoff date and, on a tie,
+     * the last one imported.
      */
-    private function latestSnapshotId(CompanyCode $company): ?int
+    private function latestSnapshot(CompanyCode $company): ?PortfolioLoadRecord
     {
-        $id = PortfolioLoadRecord::query()
+        return PortfolioLoadRecord::query()
             ->where('company', $company)
             ->orderByDesc('cutoff_date')
             ->orderByDesc('id')
-            ->value('id');
+            ->first(['id', 'company', 'cutoff_date']);
+    }
 
-        return $id === null ? null : (int) $id;
+    /**
+     * @param  list<PortfolioLoadRecord>  $snapshots
+     * @param  Builder<ClientRecord>  $clients
+     * @return array<int, SnapshotSums> By snapshot id.
+     */
+    private function sums(array $snapshots, Builder $clients): array
+    {
+        return $this->snapshotTotals->bySnapshot(
+            array_map(fn (PortfolioLoadRecord $snapshot): int => $snapshot->id, $snapshots),
+            $clients,
+        );
+    }
+
+    /**
+     * The totals of $snapshots together, at the oldest of their cutoff dates.
+     *
+     * @param  non-empty-list<PortfolioLoadRecord>  $snapshots
+     * @param  array<int, SnapshotSums>  $sums  By snapshot id; a missing one adds nothing.
+     */
+    private function combine(array $snapshots, array $sums): PortfolioTotals
+    {
+        $combined = new SnapshotSums;
+        $cutoffDate = $snapshots[0]->cutoff_date;
+
+        foreach ($snapshots as $snapshot) {
+            $combined = $combined->plus($sums[$snapshot->id] ?? new SnapshotSums);
+            $cutoffDate = $snapshot->cutoff_date->lessThan($cutoffDate) ? $snapshot->cutoff_date : $cutoffDate;
+        }
+
+        return $combined->toTotals($cutoffDate);
     }
 
     /**

@@ -253,7 +253,22 @@ Solo se escriben los clientes cuyos valores cambian. Cuando cambia el estado de 
 - `openInvoices()` devuelve las partidas del cliente en la **última instantánea** de su empresa (el corte más reciente y, en empate, la última importada) cuyo saldo, en valor absoluto, supera la tolerancia de 0,01 (`ClientStatusRules::BALANCE_TOLERANCE`): las notas crédito también salen. Van por vencimiento y luego por id.
 - `advisors()` devuelve los asesores cuyos clientes ve el usuario (todos los de sus empresas para los roles con acceso total), por nombre, empresa (orden de `CompanyCode`) y código, con su usuario vinculado (`userId`).
 
-`totals()` y `history()` llegan en el siguiente cambio; mientras tanto lanzan `LogicException`.
+### Totales e histórico
+
+`totals()` y `history()` suman las **partidas** de las instantáneas (no los saldos guardados en `clients`), solo de los clientes del alcance que cumplen los filtros de la consulta; el orden de la consulta no importa. `Portfolio\SnapshotTotals` lo hace en una sola consulta agrupada (primero por instantánea y cliente, después por instantánea), en centavos enteros (`ROUND(balance * 100)`), así que las sumas son exactas en MySQL y en SQLite; se pasan a pesos (`float`) al final.
+
+| Cifra de `PortfolioTotals` | Valor |
+|---|---|
+| `total` | Suma del saldo de las partidas, notas crédito incluidas. |
+| `overdue` | Suma del saldo de las partidas con `days_overdue` mayor que 0, notas crédito vencidas incluidas. |
+| `clientCount` | Clientes con al menos una partida en esas instantáneas. |
+| `overdueClientCount` | Los de ellos cuya suma vencida es mayor que 0: una nota crédito vencida puede compensar una factura vencida. |
+| `aging` | Edades por `days_overdue`, sin días de gracia: sin vencer (0 o menos), 1 a 30, 31 a 60, 61 a 90 y más de 90. |
+
+- **`totals()`** usa la última instantánea de cada empresa del alcance (el corte más reciente; en empate, la última importada). En la vista de grupo combina las de las dos empresas y `cutoffDate` es el corte más antiguo de ellas.
+- Sin instantáneas en las empresas del alcance, o si el usuario no ve ningún cliente (invitado, `tesoreria`, sin rol), devuelve `PortfolioTotals::empty()`. Si hay instantánea pero ningún cliente cumple la consulta, devuelve ceros con su fecha de corte.
+- **`history($from, $to)`** devuelve un total por fecha de corte con instantánea en el rango, incluidos los dos extremos (se comparan solo las fechas, sin la hora), de la más antigua a la más reciente. Para cada empresa y fecha usa la última carga importada ese día, y combina las empresas que comparten la fecha. Lanza `InvalidArgumentException` si `$from` es posterior a `$to`.
+- Los filtros de la consulta se aplican con los datos actuales de cada cliente (estado, asesor, saldo guardado), también en las fechas pasadas del histórico.
 
 ## Ingreso con Microsoft
 
