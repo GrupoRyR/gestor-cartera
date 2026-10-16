@@ -9,7 +9,7 @@ use Illuminate\Foundation\Queue\Queueable;
 
 /**
  * Recomputes the status of every client of a company from its latest
- * snapshot, after an admin edits the company's parameters. Queued, so the
+ * snapshot, after someone edits the company's parameters. Queued, so the
  * save answers at once; the worker reads the parameters again when the job
  * runs, so it always applies the latest ones.
  *

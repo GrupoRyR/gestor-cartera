@@ -43,7 +43,7 @@ Solo cuentan para los pasos 3 y 4 las partidas con saldo mayor a la tolerancia: 
 
 Los días de vencida van del vencimiento a la fecha de corte, solo por fecha de calendario (sin horas): positivo = vencida, 0 = vence en el corte, negativo = aún no vence. `OpenItem::fromDates()` los calcula.
 
-Los valores de la tabla son los de siembra (`config('core.companies')`). Los vigentes viven en la tabla `companies` y los edita un administrador en la pantalla Parámetros (ver «Empresas y parámetros»). Las edades de la deuda (`AgingBuckets`) ignoran los días de gracia.
+Los valores de la tabla son los de siembra (`config('core.companies')`). Los vigentes viven en la tabla `companies` y los editan un administrador o el gerente de cartera en la pantalla Parámetros (ver «Empresas y parámetros»). Las edades de la deuda (`AgingBuckets`) ignoran los días de gracia.
 
 ## Compromisos de pago
 
@@ -130,11 +130,11 @@ La tabla `companies` (llave `code`: `SGX` o `SDC`) guarda el nombre y los parám
 | `all()` | Las empresas (`Contracts\Data\Company`) en el orden de `CompanyCode`. |
 | `get($code)` | Una empresa con su nombre, días de gracia y paleta oficial. |
 | `parameters($code)` | Los `StatusParameters` de la empresa para `ClientStatusRules`. |
-| `refresh()` | Olvida lo leído; úsalo después de que un administrador edite una empresa. |
+| `refresh()` | Olvida lo leído; úsalo después de editar una empresa. |
 
 Si falta la fila de una empresa, usa los valores de `config('core.companies')` y la etiqueta del enum.
 
-**Pantalla Parámetros.** Solo para administradores (TI, «Usuarios, parámetros y buzones» en A.5): el permiso `core.companies.manage`, que `CorePermissionSeeder` da únicamente a `admin`. Aparece en el menú como «Parámetros», en el grupo «Administración», después de «Equipo» (`order: 910`), así que el inicio de un administrador sigue siendo Equipo. Los demás roles reciben 403 en todas sus rutas y los invitados van a `/login`.
+**Pantalla Parámetros.** Para administradores (TI, «Usuarios, parámetros y buzones» en A.5) y para el gerente de cartera, que ajusta las reglas de estado de la cartera: el permiso `core.companies.manage`, que `CorePermissionSeeder` da a `admin` y a `gerente_cartera`. Aparece en el menú como «Parámetros», en el grupo «Administración», después de «Equipo» (`order: 910`), así que el inicio de un administrador sigue siendo Equipo. El gerente de cartera ve «Parámetros» sin «Equipo»; mientras ningún otro módulo le registre una pantalla, `HomeController` lo lleva a Parámetros como su inicio. La pantalla muestra y edita las dos empresas, sin importar las empresas asignadas al usuario. Los demás roles (`analista_cartera`, `asesor`, `gerente_comercial`, `tesoreria`) reciben 403 en todas sus rutas y los invitados van a `/login`.
 
 | Ruta | Nombre | Hace |
 |---|---|---|
@@ -185,7 +185,7 @@ Los roles son los de `Contracts\Enums\Role` (Spatie, guard `web`, sin equipos). 
 |---|---|---|
 | `core.access` | Los seis | Usar la plataforma. Un usuario sin rol no lo tiene. |
 | `core.team.manage` | `admin` | Usar la pantalla Equipo (ver «Pantalla Equipo»). |
-| `core.companies.manage` | `admin` | Editar los días de gracia y la ventana de «Por vencer» de cada empresa: pantalla Parámetros (ver «Empresas y parámetros»). |
+| `core.companies.manage` | `admin`, `gerente_cartera` | Editar los días de gracia y la ventana de «Por vencer» de cada empresa: pantalla Parámetros (ver «Empresas y parámetros»). |
 | `core.activities.delete` | `gerente_cartera`, `analista_cartera` | Eliminar (borrado lógico) una gestión de la bitácora de un cliente (ver «Bitácora de gestiones»). |
 | `core.clients.change_status` | `gerente_cartera`, `analista_cartera` | Cambiar a mano el estado de un cliente: Kanban y ficha (ver «Cambio de estado manual»). |
 | `core.clients.delete` | `gerente_cartera` | Eliminar (borrado lógico) y restaurar clientes (ver «Borrado lógico de clientes»). Por confirmar (ver «Pendientes»). |
