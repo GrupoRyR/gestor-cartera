@@ -9,6 +9,7 @@ use App\Modules\Cartera\Http\Controllers\ClientListController;
 use App\Modules\Cartera\Http\Controllers\DashboardController;
 use App\Modules\Cartera\Http\Controllers\KanbanController;
 use App\Modules\Cartera\Http\Controllers\MoveClientController;
+use App\Modules\Cartera\Http\Controllers\StoreManagementController;
 use Illuminate\Support\Facades\Route;
 
 // Portfolio manager and analyst (cartera.view); writing and exporting add
@@ -25,4 +26,10 @@ Route::middleware(['auth', 'can:cartera.view'])->group(function () {
         ->whereNumber('client')
         ->middleware('can:core.clients.change_status')
         ->name('clientes.estado');
+
+    // Calls, notes and discounts offered: cartera.manage.
+    Route::post('clientes/{client}/gestiones', StoreManagementController::class)
+        ->whereNumber('client')
+        ->middleware('can:cartera.manage')
+        ->name('gestiones.store');
 });
