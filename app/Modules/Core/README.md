@@ -8,9 +8,9 @@ Core es la base de la plataforma: los contratos que usan los demás módulos (`C
 |---|---|
 | `Contracts/` | Interfaces, objetos de datos, enums y excepciones públicos (ver `docs/arquitectura.md` §6). No cambian sin acordarlo. |
 | `Domain/` | Reglas puras en PHP: sin Laravel, sin base de datos y sin reloj. Reciben fechas, saldos y parámetros ya resueltos. |
-| `Application/` | Casos de uso (tareas siguientes). |
-| `Infrastructure/` | Eloquent (`Persistence\*Record`), el acceso por empresa (`Access\CompanyAccess`), el catálogo de empresas y la empresa activa (`Companies\`) y la bitácora de auditoría (`Audit\`). |
-| `Http/` | Controladores, FormRequests y middleware de las rutas web (ver «Inicio y acceso»). |
+| `Application/` | Casos de uso: el ingreso con Microsoft (`Auth\`, ver «Ingreso con Microsoft»). |
+| `Infrastructure/` | Eloquent (`Persistence\*Record`), el acceso por empresa (`Access\CompanyAccess`), el catálogo de empresas y la empresa activa (`Companies\`), la bitácora de auditoría (`Audit\`) y el adaptador de Microsoft sobre Socialite (`Auth\`). |
+| `Http/` | Controladores, FormRequests y middleware de las rutas web (ver «Ingreso con Microsoft» e «Inicio y acceso»). |
 | `config/core.php` | Valores por defecto para sembrar los parámetros de cada empresa. |
 
 ## Estados del cliente
@@ -121,6 +121,65 @@ La tabla `advisors` guarda los vendedores de SAP de cada empresa (`OSLP`) y el u
 
 Core la expone como `$user->advisors()` con `User::resolveRelationUsing()`. La carga desde SAP llega con Ingesta y la pantalla de equipo vinculará asesores a mano; hoy solo el ingreso los vincula. `AdvisorRecordFactory` crea vendedores ficticios (estados `inactive()` y `linkedTo($user)`).
 
+## Ingreso con Microsoft
+
+Solo se entra con Microsoft Entra ID, en el directorio de la empresa. No hay contraseñas propias.
+
+| Ruta | Nombre | Quién | Hace |
+|---|---|---|---|
+| `GET /login` | `core.login` | Invitados | Página «Ingresa al gestor de cartera» con el botón «Ingresar con Microsoft» (`<x-layouts.guest>`). Muestra los mensajes flash `status` y `error`. |
+| `GET /auth/microsoft` | `core.auth.redirect` | Invitados | Manda a la página de ingreso de Microsoft del tenant configurado. |
+| `GET /auth/microsoft/callback` | `core.auth.callback` | Invitados | Recibe la respuesta de Microsoft. Debe coincidir con `MICROSOFT_REDIRECT_URI`. |
+| `POST /logout` | `core.logout` | Con sesión | Cierra la sesión de la app (no la de Microsoft), la invalida, genera un token CSRF nuevo y vuelve a `/login` con «Cerraste sesión.». El layout y la pantalla sin acceso muestran el botón «Salir». |
+
+Un usuario con sesión que abre una ruta de invitados vuelve a `/`.
+
+**Cómo se lee la respuesta.** `Application\Auth\IdentityProvider` es el puerto; `Infrastructure\Auth\SocialiteMicrosoftIdentityProvider` lo implementa con el driver `microsoft` de Socialite, que revisa el `state`, cambia el código por los tokens, valida el id token con las llaves del tenant y lee el perfil de Graph (`/me`, permisos `openid profile User.Read`). De ahí sale `MicrosoftIdentity`: el object id (`id`, que se guarda en `users.microsoft_id`), el tenant (el claim `tid`), el correo (`mail`, o `userPrincipalName` si la cuenta no tiene buzón; sin espacios y en minúsculas) y el nombre (`displayName`, o el correo si no viene). Las pruebas cambian el puerto por `Tests\Modules\Core\Support\FakeIdentityProvider` y nunca llaman a Microsoft.
+
+**Emparejamiento** (`Application\Auth\SignInWithMicrosoft`). Los pasos 2 a 4 van en una sola transacción.
+
+1. **Tenant.** El claim `tid` debe ser igual a `MICROSOFT_TENANT_ID` (sin distinguir mayúsculas, porque es un GUID). Si falta el claim o no hay tenant configurado, nadie entra.
+2. **Usuario por correo.** Se busca en `users`, también entre los borrados. Si no existe, se crea sin rol con `User::withTrashed()->restoreOrCreate()`, con el nombre y el object id de Microsoft. Si existe, se le guarda el object id la primera vez y se actualiza el nombre si cambió en Microsoft.
+3. **Asesor por correo.** Se vinculan los asesores activos, sin usuario, cuyo `email` es el del usuario. Un asesor inactivo o ya vinculado a otra persona no cambia.
+4. **Rol por asesor.** Si el usuario no tiene rol y **este ingreso** le vinculó al menos un asesor, recibe el rol `asesor` y las empresas de esos asesores en `company_user`, sin duplicar. Los asesores vinculados antes no devuelven un rol: si TI le quitó todos los roles para revocar el acceso, sigue sin rol. Un usuario que ya tiene rol nunca cambia de rol ni de empresas. Los demás roles los asigna TI desde la pantalla de equipo.
+
+Un usuario sin rol termina en `/sin-acceso`. El que tiene rol llega a la página que pidió antes de ingresar o a `/`.
+
+> **Desvío de `docs/arquitectura.md` §12.2.** Allí el primer ingreso usa `restoreOrCreate()`, que restauraría a un usuario borrado. El ingreso no restaura: un usuario borrado queda afuera hasta que un administrador lo restaure desde la pantalla de equipo, porque borrarlo fue una decisión de TI. `restoreOrCreate()` sigue siendo el único camino para crear usuarios; aquí solo llega cuando el correo no existe, ni siquiera borrado.
+
+**Rechazos.** Vuelven a `/login` con el flash `error`, sin sesión y sin más cambios en la base que la entrada de auditoría (la transacción se deshace antes de escribirla):
+
+| Motivo (`RejectionReason`) | Cuándo | Mensaje |
+|---|---|---|
+| `tenant` | Falta el claim `tid`, no es el tenant configurado o no hay tenant configurado. | «Esa cuenta de Microsoft no es del Grupo RYR. Ingresa con la cuenta de tu empresa.» |
+| `deleted` | El usuario del correo está borrado (borrado lógico). | «Tu cuenta fue retirada del gestor de cartera. Habla con TI si necesitas volver a entrar.» |
+| `identity_mismatch` | El correo tiene guardado otro object id, o el object id ya pertenece a otro correo (p. ej. le cambiaron el correo en Microsoft). | «Tu cuenta de Microsoft no coincide con la registrada para tu correo. Habla con TI para revisarlo.» |
+| `inactive` | El usuario está desactivado. | «Tu cuenta está desactivada. Habla con TI si crees que es un error.» |
+
+Si falla Microsoft (`state` inválido, una petición rechazada, un id token inválido o un perfil sin object id o sin correo), la excepción se reporta al log y el usuario vuelve a `/login` con «No pudimos completar el ingreso con Microsoft. Inténtalo de nuevo.».
+
+**Auditoría.** Nunca se guardan tokens.
+
+| Acción | Cuándo | Datos |
+|---|---|---|
+| `core.auth.rejected` | Cada rechazo. | `context`: `reason` y `email`. |
+| `core.user.created` | Primer ingreso de un correo nuevo. | `changes`: nombre, correo y object id; `context.source = microsoft`. |
+| `core.user.updated` | Se guardó el object id o cambió el nombre. | `changes` con `old` y `new`; `context.source = microsoft`. |
+| `core.advisor.linked` | Por cada asesor vinculado. | `changes.user_id`; `context`: `company` y `code`. |
+| `core.user.role_assigned` | El usuario recibió el rol `asesor`. | `changes`: `role` y `companies`; `context.source = microsoft`. |
+| `core.auth.signed_in` | Ingresó (ya con sesión, así que el actor es el usuario). | — |
+| `core.auth.signed_out` | Cerró sesión. | — |
+
+**Variables de `.env`** (`config('services.microsoft')`):
+
+| Variable | Valor |
+|---|---|
+| `MICROSOFT_TENANT_ID` | El id del directorio (GUID) de Entra ID, no un dominio: se compara con el claim `tid`. Nunca `common`. Sin ella, nadie ingresa. |
+| `MICROSOFT_CLIENT_ID`, `MICROSOFT_CLIENT_SECRET` | El registro de la app en Entra ID. El secreto vive solo en `.env`. |
+| `MICROSOFT_REDIRECT_URI` | La URL completa del callback: `https://<dominio>/auth/microsoft/callback`, igual a la registrada en Entra ID. |
+
+Después de editar `.env` en producción, corre `php artisan config:cache`.
+
 ## Inicio y acceso
 
 **Inicio según el rol.** `GET /` (`core.inicio`, solo con sesión iniciada) no tiene pantalla propia: Core no conoce las rutas de los demás módulos.
@@ -133,7 +192,7 @@ Core la expone como `$user->advisors()` con `User::resolveRelationUsing()`. La c
 
 > **Para los módulos:** ordena tu pantalla principal primero (`order`) para los roles que la usan. Por ejemplo, el tablero gerencial con `order: 10` y el permiso que solo tiene la gerencia, y el tablero de cartera con `order: 20`: la gerencia llega al primero y los asesores, al segundo.
 
-**Sin acceso.** `GET /sin-acceso` (`core.sin-acceso`, solo con sesión iniciada) es una pantalla neutra (`<x-layouts.guest>`, sin marca ni menú): «Todavía no tienes acceso». Le dice al usuario que su cuenta de Microsoft ya está registrada pero no tiene rol, que le pida uno a TI y con qué correo ingresó. Cuando exista `core.logout`, muestra el botón «Salir». Un usuario que sí tiene acceso y abre `/sin-acceso` vuelve a `/`.
+**Sin acceso.** `GET /sin-acceso` (`core.sin-acceso`, solo con sesión iniciada) es una pantalla neutra (`<x-layouts.guest>`, sin marca ni menú): «Todavía no tienes acceso». Le dice al usuario que su cuenta de Microsoft ya está registrada pero no tiene rol, que le pida uno a TI y con qué correo ingresó, y le ofrece el botón «Salir» (`POST /logout`). Un usuario que sí tiene acceso y abre `/sin-acceso` vuelve a `/`.
 
 **Cuentas desactivadas.** `Http\Middleware\EnsureUserIsActive` corre en todas las páginas del grupo `web`, tengan o no el middleware `auth` (Core lo agrega al grupo desde `bootModule()`, a través del kernel HTTP). Si el usuario con sesión tiene `is_active` en falso:
 

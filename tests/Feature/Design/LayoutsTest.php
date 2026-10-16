@@ -280,11 +280,11 @@ describe('<x-layouts.app>', function () {
 
         expect(strtoupper($form->getAttribute('method')))->toBe('POST')
             ->and($form->getAttribute('action'))->toBe(route('core.empresa.cambiar'))
-            ->and($html->count('//form//input[@name="_token"]'))->toBe(1)
+            ->and($html->count('//form[.//select[@name="empresa"]]//input[@name="_token"]'))->toBe(1)
             ->and($select->getAttribute('name'))->toBe('empresa')
             ->and(array_map(fn (DOMElement $o): string => $o->getAttribute('value'), $html->all('//select[@name="empresa"]/option')))->toBe(['SGX', 'SDC', 'grupo'])
             ->and($html->one('//select[@name="empresa"]/option[@selected]')->getAttribute('value'))->toBe('SGX')
-            ->and($html->text('//form//button[@type="submit"]'))->toBe('Cambiar');
+            ->and($html->text('//form[.//select[@name="empresa"]]//button[@type="submit"]'))->toBe('Cambiar');
     });
 
     it('keeps the active company name for screen readers on every screen size', function () {
@@ -320,6 +320,7 @@ describe('<x-layouts.app>', function () {
     });
 
     it('offers to sign out once Core registers the route', function () {
+        withoutRoutes('core.logout');
         $this->actingAs(User::factory()->make());
 
         $before = Html::parse((string) $this->blade('<x-layouts.app>Contenido</x-layouts.app>'));
