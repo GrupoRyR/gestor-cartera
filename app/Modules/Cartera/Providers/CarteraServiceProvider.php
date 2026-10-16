@@ -35,6 +35,17 @@ final class CarteraServiceProvider extends ModuleServiceProvider
                 order: 10,
                 mobile: true,
             ),
+            new NavItem(
+                key: 'cartera.clientes',
+                label: 'Clientes',
+                route: 'cartera.clientes.index',
+                icon: 'users',
+                permission: 'cartera.view',
+                group: 'Cartera',
+                order: 30,
+                mobile: true,
+                activePattern: 'cartera.clientes.*',
+            ),
         );
     }
 }
