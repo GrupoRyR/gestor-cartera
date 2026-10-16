@@ -138,10 +138,8 @@ def ejecutar(
         log.info("Consulta '%s': %d filas en %.1fs.", etiqueta, len(filas), segundos)
 
         if not filas:
-            log.warning(
-                "La consulta '%s' devolvio 0 filas. Se aborta la carga para no "
-                "borrar los datos buenos que ya estan publicados.", etiqueta
-            )
+            # run_etl decide si el lote admite 0 filas (esquema.Lote.permite_vacio).
+            log.warning("La consulta '%s' devolvio 0 filas.", etiqueta)
         return columnas, filas
     except HanaError:
         raise
