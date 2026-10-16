@@ -3,7 +3,9 @@
 namespace App\Modules\Core\Providers;
 
 use App\Models\User;
+use App\Modules\Core\Contracts\CurrentCompany;
 use App\Modules\Core\Infrastructure\Companies\CompanyCatalog;
+use App\Modules\Core\Infrastructure\Companies\SessionCurrentCompany;
 use App\Modules\Core\Infrastructure\Persistence\CompanyRecord;
 use App\Support\Modules\ModuleServiceProvider;
 
@@ -32,6 +34,7 @@ final class CoreServiceProvider extends ModuleServiceProvider
         // One read of the companies per request (or job), shared by every
         // caller; refresh() forgets it after an admin edits a company.
         $this->app->scoped(CompanyCatalog::class);
+        $this->app->scoped(CurrentCompany::class, SessionCurrentCompany::class);
     }
 
     protected function bootModule(): void
