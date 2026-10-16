@@ -170,7 +170,7 @@ Ingesta guarda cada lote del robot (o de una carga manual) y despacha `BatchAcce
 | Lote | Listener (`Infrastructure\Ingest\`) | Qué hace |
 |---|---|---|
 | `cartera` | `ImportReceivablesSnapshot` | Guarda la instantánea con sus partidas, crea o actualiza los clientes y recalcula el saldo y el estado de todos los clientes de la empresa. |
-| `asesores` | `ImportAdvisors` | Actualiza los asesores de SAP de la empresa y desactiva los que no llegan. |
+| `asesores` | `ImportAdvisors` | Actualiza los asesores de SAP de la empresa y desactiva los que no llegan. Un lote sin ningún asesor válido se ignora: es una extracción fallida, no una empresa sin vendedores. |
 | `contactos` | — | Pendiente: llega cuando Ingesta defina las columnas del lote. |
 
 **Cartera, paso a paso.** Todo va en una sola transacción: si algo falla, no queda nada a medias.
