@@ -6,11 +6,14 @@ use App\Models\User;
 use App\Modules\Core\Application\Auth\IdentityProvider;
 use App\Modules\Core\Contracts\AuditLogger;
 use App\Modules\Core\Contracts\CurrentCompany;
+use App\Modules\Core\Contracts\Events\BatchAccepted;
 use App\Modules\Core\Http\Middleware\EnsureUserIsActive;
 use App\Modules\Core\Infrastructure\Audit\DatabaseAuditLogger;
 use App\Modules\Core\Infrastructure\Auth\SocialiteMicrosoftIdentityProvider;
 use App\Modules\Core\Infrastructure\Companies\CompanyCatalog;
 use App\Modules\Core\Infrastructure\Companies\SessionCurrentCompany;
+use App\Modules\Core\Infrastructure\Ingest\ImportAdvisors;
+use App\Modules\Core\Infrastructure\Ingest\ImportReceivablesSnapshot;
 use App\Modules\Core\Infrastructure\Persistence\AdvisorRecord;
 use App\Modules\Core\Infrastructure\Persistence\CompanyRecord;
 use App\Support\Modules\ModuleServiceProvider;
@@ -18,6 +21,7 @@ use App\Support\Navigation\NavItem;
 use App\Support\Navigation\NavRegistry;
 use Illuminate\Contracts\Http\Kernel as HttpKernel;
 use Illuminate\Foundation\Http\Kernel as FoundationHttpKernel;
+use Illuminate\Support\Facades\Event;
 
 /**
  * Core: shared kernel: Microsoft sign-in, roles and permissions, active
@@ -63,6 +67,11 @@ final class CoreServiceProvider extends ModuleServiceProvider
 
         // $user->teamAdvisors(): the advisors in a sales manager's team.
         User::resolveRelationUsing('teamAdvisors', AdvisorRecord::teamOf(...));
+
+        // The robot batches Core consumes: cartera snapshots and SAP advisors.
+        // Both listeners are queued, and only for their own dataset.
+        Event::listen(BatchAccepted::class, ImportReceivablesSnapshot::class);
+        Event::listen(BatchAccepted::class, ImportAdvisors::class);
 
         // Every web page signs out a deactivated user, with or without auth.
         // Appended through the HTTP kernel, not only the router: resolving the
