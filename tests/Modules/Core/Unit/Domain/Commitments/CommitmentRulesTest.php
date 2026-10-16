@@ -86,4 +86,19 @@ describe('after a commitment is fulfilled or cancelled', function () {
         'payment received' => [ClientStatus::PaymentReceived, fn () => StatusDecision::keep()],
         'legal' => [ClientStatus::Legal, fn () => StatusDecision::keep()],
     ]);
+
+    it('leaves the client defaulted while another commitment is still broken', function (ClientStatus $current, StatusDecision $expected) {
+        expect(CommitmentRules::afterClose($current, hasOtherPending: false, hasOtherBroken: true))->toEqual($expected);
+    })->with([
+        'committed' => [ClientStatus::Committed, fn () => StatusDecision::set(ClientStatus::Defaulted)],
+        'defaulted' => [ClientStatus::Defaulted, fn () => StatusDecision::keep()],
+        'current' => [ClientStatus::Current, fn () => StatusDecision::keep()],
+        'in progress' => [ClientStatus::InProgress, fn () => StatusDecision::keep()],
+        'legal' => [ClientStatus::Legal, fn () => StatusDecision::keep()],
+    ]);
+
+    it('lets a pending commitment win over a broken one', function () {
+        expect(CommitmentRules::afterClose(ClientStatus::Committed, hasOtherPending: true, hasOtherBroken: true))
+            ->toEqual(StatusDecision::keep());
+    });
 });
