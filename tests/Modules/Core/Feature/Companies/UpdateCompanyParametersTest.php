@@ -83,7 +83,7 @@ it('queues one recompute of the statuses of that company', function () {
     Queue::assertCount(1);
     Queue::assertPushed(RecomputeCompanyStatuses::class, fn (RecomputeCompanyStatuses $job): bool => $job->company === CompanyCode::SDC
         && $job->timeout === 300
-        && $job->tries === 1);
+        && $job->maxExceptions === 1);
 
     // The database queue stores the job serialized.
     expect(unserialize(serialize(new RecomputeCompanyStatuses(CompanyCode::SDC)))->company)->toBe(CompanyCode::SDC);
