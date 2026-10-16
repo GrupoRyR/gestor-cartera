@@ -54,6 +54,7 @@
                 <x-ui.stat
                     :label="__('cartera::tablero.indicadores.vencido.etiqueta')"
                     :tone="$dashboard->risk->tone()"
+                    :href="route('cartera.clientes.index', ['vencidos' => 1])"
                     :hint="__('cartera::tablero.indicadores.vencido.pista', [
                         'porcentaje' => $percent($dashboard->totals->overduePercent()),
                         'riesgo' => __('cartera::tablero.riesgo.'.$dashboard->risk->value),
@@ -66,6 +67,7 @@
                 <x-ui.stat
                     :label="__('cartera::tablero.indicadores.compromisos.etiqueta')"
                     :value="(string) $dashboard->weekCommitmentsCount"
+                    :href="route('cartera.compromisos.index', ['hasta' => $dashboard->today->addDays(6)->toDateString()])"
                     :hint="trans_choice('cartera::tablero.indicadores.compromisos.pista', $dashboard->weekCommitmentsCount, ['valor' => Money::format($dashboard->weekCommitmentsAmount)])"
                 />
 
@@ -73,6 +75,7 @@
                     :label="__('cartera::tablero.indicadores.sin_gestion.etiqueta')"
                     :value="(string) $dashboard->unmanagedOverdue"
                     :tone="$dashboard->unmanagedOverdue > 0 ? 'warning' : 'success'"
+                    :href="route('cartera.clientes.index', ['sin_gestion' => 1])"
                     :hint="trans_choice('cartera::tablero.indicadores.sin_gestion.pista', $dashboard->unmanagedOverdue, ['dias' => $dashboard->unmanagedDays])"
                 />
             </div>

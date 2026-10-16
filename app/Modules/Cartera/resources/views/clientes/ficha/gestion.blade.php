@@ -1,3 +1,4 @@
+@use('App\Modules\Cartera\Domain\Commitments\CommitmentWriting')
 @use('App\Modules\Cartera\Domain\Management\CallResult')
 
 {{--
@@ -12,6 +13,9 @@
             <x-ui.button icon="phone" data-modal-open="gestion-llamada">{{ __('cartera::gestion.llamada.boton') }}</x-ui.button>
             <x-ui.button variant="secondary" icon="edit" data-modal-open="gestion-nota">{{ __('cartera::gestion.nota.boton') }}</x-ui.button>
             <x-ui.button variant="secondary" icon="money" data-modal-open="gestion-descuento">{{ __('cartera::gestion.descuento.boton') }}</x-ui.button>
+            @if (CommitmentWriting::byCollector($client->company) && auth()->user()->can('cartera.commitments.write'))
+                <x-ui.button variant="secondary" icon="calendar-check" data-modal-open="compromiso-nuevo">{{ __('cartera::compromisos.nuevo.boton') }}</x-ui.button>
+            @endif
         </div>
     </x-ui.card>
 

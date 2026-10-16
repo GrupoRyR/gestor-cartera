@@ -43,6 +43,7 @@ final class CarteraServiceProvider extends ModuleServiceProvider
                 permission: 'cartera.view',
                 group: 'Cartera',
                 order: 20,
+                mobile: true,
             ),
             new NavItem(
                 key: 'cartera.clientes',
@@ -54,6 +55,17 @@ final class CarteraServiceProvider extends ModuleServiceProvider
                 order: 30,
                 mobile: true,
                 activePattern: 'cartera.clientes.*',
+            ),
+            new NavItem(
+                key: 'cartera.compromisos',
+                label: 'Compromisos',
+                route: 'cartera.compromisos.index',
+                icon: 'calendar-check',
+                permission: 'cartera.view',
+                group: 'Cartera',
+                order: 40,
+                mobile: true,
+                activePattern: 'cartera.compromisos.*',
             ),
         );
     }

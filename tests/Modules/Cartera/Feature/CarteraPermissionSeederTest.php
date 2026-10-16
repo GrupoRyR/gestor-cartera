@@ -19,9 +19,19 @@ it('gives every Cartera permission to the portfolio manager and analyst only', f
     }
 })->with('cartera permissions');
 
+it('lets only the analyst write commitments, like the Core service', function () {
+    $this->seed(CorePermissionSeeder::class);
+    $this->seed(CarteraPermissionSeeder::class);
+
+    foreach (Role::cases() as $role) {
+        expect(SpatieRole::findByName($role->value, 'web')->hasPermissionTo('cartera.commitments.write'))
+            ->toBe($role === Role::PortfolioAnalyst, $role->value);
+    }
+});
+
 it('can be seeded twice without duplicating anything', function () {
     $this->seed(CarteraPermissionSeeder::class);
     $this->seed(CarteraPermissionSeeder::class);
 
-    expect(Permission::query()->where('name', 'like', 'cartera.%')->count())->toBe(3);
+    expect(Permission::query()->where('name', 'like', 'cartera.%')->count())->toBe(4);
 });

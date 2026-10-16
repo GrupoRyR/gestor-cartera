@@ -6,6 +6,8 @@
 
 use App\Modules\Cartera\Http\Controllers\ClientFileController;
 use App\Modules\Cartera\Http\Controllers\ClientListController;
+use App\Modules\Cartera\Http\Controllers\CommitmentController;
+use App\Modules\Cartera\Http\Controllers\CommitmentInboxController;
 use App\Modules\Cartera\Http\Controllers\DashboardController;
 use App\Modules\Cartera\Http\Controllers\KanbanController;
 use App\Modules\Cartera\Http\Controllers\MoveClientController;
@@ -32,4 +34,15 @@ Route::middleware(['auth', 'can:cartera.view'])->group(function () {
         ->whereNumber('client')
         ->middleware('can:cartera.manage')
         ->name('gestiones.store');
+
+    Route::get('compromisos', CommitmentInboxController::class)->name('compromisos.index');
+
+    // Writing commitments is the analyst's (cartera.commitments.write), and
+    // only for SDC clients: CompromisoService refuses the rest with a 403.
+    Route::middleware('can:cartera.commitments.write')->controller(CommitmentController::class)->group(function () {
+        Route::post('clientes/{client}/compromisos', 'store')->whereNumber('client')->name('compromisos.store');
+        Route::put('compromisos/{commitment}', 'update')->whereNumber('commitment')->name('compromisos.update');
+        Route::post('compromisos/{commitment}/cumplir', 'fulfil')->whereNumber('commitment')->name('compromisos.cumplir');
+        Route::post('compromisos/{commitment}/anular', 'cancel')->whereNumber('commitment')->name('compromisos.anular');
+    });
 });
