@@ -72,6 +72,28 @@ it('mails the recipients when the robot cartera of today is missing', function (
         ->and($mail->html)->toContain('href="'.route('ingesta.index').'"');
 });
 
+it('sends nothing before the deadline, even when the cartera is missing', function () {
+    config(['ingesta.alert_deadline' => '07:00']);
+    $this->travelTo(CarbonImmutable::parse('2026-10-15 06:59:59', 'America/Bogota'));
+
+    $this->artisan('ingesta:verificar-carga')
+        ->expectsOutputToContain('Aún no son las 07:00 (hora de Bogotá), la hora límite: no se revisa la carga ni se envía la alerta.')
+        ->assertSuccessful();
+
+    $this->mail->assertNothingSent();
+});
+
+it('alerts once the deadline has passed', function (string $now) {
+    config(['ingesta.alert_deadline' => '07:00']);
+    $this->travelTo(CarbonImmutable::parse($now, 'America/Bogota'));
+
+    $this->artisan('ingesta:verificar-carga')
+        ->doesntExpectOutputToContain('Aún no son las')
+        ->assertSuccessful();
+
+    expect($this->mail->sent())->toHaveCount(1);
+})->with(['at the deadline' => '2026-10-15 07:00:00', 'later that day' => '2026-10-15 15:30:00']);
+
 it('does not count what is not an accepted robot cartera of today received by now', function (Closure $load) {
     $load();
 

@@ -15,11 +15,13 @@ use Illuminate\Console\Command;
 use Illuminate\Support\Facades\Log;
 
 /**
- * ingesta:verificar-carga: for each company of ingesta.alert_companies,
- * checks that an accepted robot cartera load with today's cutoff arrived;
- * when it did not, mails ingesta.alert_recipients through MailSender
- * (category "alerta"). IngestaServiceProvider schedules it daily at
- * ingesta.alert_deadline (Bogotá); running it by hand is safe.
+ * ingesta:verificar-carga: once ingesta.alert_deadline (Bogotá) has
+ * passed, checks for each company of ingesta.alert_companies that an
+ * accepted robot cartera load with today's cutoff arrived; when it did
+ * not, mails ingesta.alert_recipients through MailSender (category
+ * "alerta"). Before the deadline it checks nothing, sends nothing and
+ * succeeds. IngestaServiceProvider schedules it daily at the deadline;
+ * running it by hand is safe.
  *
  * Without recipients the missing load is only logged as a warning. It
  * fails when MailSender has no implementation yet (Cobro provides it) or
@@ -40,6 +42,13 @@ final class CheckDailyLoadCommand extends Command
     public function handle(DailyCarteraCheck $check, IngestaSink $sink): int
     {
         $now = CarbonImmutable::now(DailyCarteraCheck::TIMEZONE);
+
+        if (! $check->deadlinePassed($now)) {
+            $this->info(__('ingesta::alerta.consola.antes_del_limite', ['hora' => $check->deadline($now)->format('H:i')]));
+
+            return self::SUCCESS;
+        }
+
         /** @var list<string> $recipients */
         $recipients = (array) config('ingesta.alert_recipients', []);
         $failed = false;

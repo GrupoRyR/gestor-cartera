@@ -115,7 +115,7 @@ Respaldo del robot, solo para el lote `cartera`. Desde el historial, «Carga man
 
 ## Alerta de carga faltante
 
-`php artisan ingesta:verificar-carga` (`Console/CheckDailyLoadCommand`) revisa, por cada empresa de `ingesta.alert_companies`, que haya una carga de cartera **del robot**, aceptada, con corte de hoy (Bogotá) y recibida hasta ese momento. Si falta:
+`php artisan ingesta:verificar-carga` (`Console/CheckDailyLoadCommand`) no hace nada antes de la hora límite (`ingesta.alert_deadline`): lo dice en la consola, no envía nada y termina bien. Desde esa hora revisa, por cada empresa de `ingesta.alert_companies`, que haya una carga de cartera **del robot**, aceptada, con corte de hoy (Bogotá) y recibida hasta ese momento. Si falta:
 
 - sin destinatarios (`INGESTA_ALERT_RECIPIENTS` vacío) solo deja una advertencia en el log y termina bien;
 - sin implementación de `MailSender` (la pone Cobro) registra «no se pudo enviar la alerta: MailSender sin implementación» y termina con falla;

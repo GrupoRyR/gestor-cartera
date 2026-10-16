@@ -23,6 +23,7 @@ return [
     ],
 
     'consola' => [
+        'antes_del_limite' => 'Aún no son las :hora (hora de Bogotá), la hora límite: no se revisa la carga ni se envía la alerta.',
         'llego' => ':empresa: la cartera del robot llegó a tiempo.',
         'sin_destinatarios' => ':empresa: falta la cartera del robot, pero no hay destinatarios configurados (INGESTA_ALERT_RECIPIENTS).',
         'enviada' => ':empresa: falta la cartera del robot; se envió la alerta a :destinatarios.',
