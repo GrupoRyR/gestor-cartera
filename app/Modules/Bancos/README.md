@@ -57,6 +57,7 @@ All three go through `MovementImporter`:
 
 - Only **credits** are stored. Debits are counted and skipped.
 - **No duplicates.** The fingerprint is company + bank + date + amount + currency + reference + description + account, plus the position of the movement among identical ones in the same file. Two real payments with the same amount, reference and date in one file are both kept; loading that file again, or an overlapping one, adds nothing. The unique index makes it safe under concurrency.
+- **Known limit:** two identical payments (same date, amount, reference and text) that arrive in *separate* loads cannot be told from the same statement loaded twice, so the second is skipped. Identical payments in the same file are kept. Real statements carry a reference or a time that tells them apart; if Treasury's files do not, the fingerprint needs the bank's own movement id.
 - Credits dated **after today** are not stored: a bank cannot post tomorrow's money, so the date was read in the wrong order. The load reports them.
 - The currency comes from the reader (COP; USD for Miami), the file's `Currency` column if it has one, or `bancos.currencies.<bank>`.
 
