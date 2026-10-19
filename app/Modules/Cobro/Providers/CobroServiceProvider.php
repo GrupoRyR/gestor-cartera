@@ -8,6 +8,8 @@ use App\Modules\Cobro\Infrastructure\Mail\GraphMailSender;
 use App\Modules\Core\Contracts\MailboxReader;
 use App\Modules\Core\Contracts\MailSender;
 use App\Support\Modules\ModuleServiceProvider;
+use App\Support\Navigation\NavItem;
+use App\Support\Navigation\NavRegistry;
 use Illuminate\Console\Scheduling\Schedule;
 
 /**
@@ -47,5 +49,24 @@ final class CobroServiceProvider extends ModuleServiceProvider
             ->everyFiveMinutes()
             ->timezone(self::TIMEZONE)
             ->withoutOverlapping(10);
+    }
+
+    /**
+     * The Cobro group of the menu, after Cartera (its entries use 10 to 40).
+     */
+    protected function navigation(NavRegistry $navigation): void
+    {
+        $navigation->add(
+            new NavItem(
+                key: 'cobro.exclusiones',
+                label: 'Lista de exclusión',
+                route: 'cobro.exclusiones.index',
+                icon: 'sliders',
+                permission: 'cobro.manage',
+                group: 'Cobro',
+                order: 140,
+                activePattern: 'cobro.exclusiones.*',
+            ),
+        );
     }
 }
