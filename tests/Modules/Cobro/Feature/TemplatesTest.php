@@ -17,6 +17,7 @@ use Tests\Fakes\ContractFakes;
 use Tests\Fakes\FakeCurrentCompany;
 use Tests\Fakes\Make;
 use Tests\Modules\Cobro\Support\CobroUsers;
+use Tests\Modules\Cobro\Support\VisibleText;
 
 beforeEach(function () {
     $this->seed(CobroPermissionSeeder::class);
@@ -24,14 +25,6 @@ beforeEach(function () {
     $this->fakes = ContractFakes::install($this->app);
     $this->analyst = CobroUsers::create(Role::PortfolioAnalyst);
 });
-
-/**
- * The visible text of an HTML mail, without tags and with collapsed spaces.
- */
-function cobroText(string $html): string
-{
-    return trim((string) preg_replace('/\s+/u', ' ', str_replace("\u{00A0}", ' ', html_entity_decode(strip_tags($html), ENT_QUOTES | ENT_HTML5))));
-}
 
 function cobroNotice(): NoticeData
 {
@@ -54,7 +47,7 @@ it('renders the weekly mail with the filled texts, the invoices and the total', 
         TemplateStore::default(RunKind::Weekly),
     );
 
-    $text = cobroText($mail->html);
+    $text = VisibleText::of($mail->html);
 
     expect($mail->subject)->toBe('Facturas vencidas de Ferretería <El Tornillo> SAS con Segurex Latam')
         ->and($text)->toContain('Hola, Ferretería <El Tornillo> SAS:')
@@ -176,7 +169,7 @@ it('previews the mail with sample data and the saved texts', function () {
     $response = $this->actingAs($this->analyst)->get('/cobro/plantillas/SGX/vista-previa')->assertOk();
 
     expect($response->headers->get('Content-Type'))->toBe('text/html; charset=UTF-8')
-        ->and(cobroText((string) $response->getContent()))->toContain('Inicio para Cliente de ejemplo SAS')
+        ->and(VisibleText::of((string) $response->getContent()))->toContain('Inicio para Cliente de ejemplo SAS')
         ->toContain('FV-1188')
         ->toContain('Total vencido $ 3.500.000');
 });

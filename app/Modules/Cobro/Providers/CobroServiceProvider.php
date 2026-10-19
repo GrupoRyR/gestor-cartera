@@ -94,6 +94,16 @@ final class CobroServiceProvider extends ModuleServiceProvider
                 activePattern: 'cobro.semanal.*',
             ),
             new NavItem(
+                key: 'cobro.lotes',
+                label: 'Informes de envío',
+                route: 'cobro.lotes.index',
+                icon: 'history',
+                permission: 'cobro.view',
+                group: 'Cobro',
+                order: 130,
+                activePattern: 'cobro.lotes.*',
+            ),
+            new NavItem(
                 key: 'cobro.exclusiones',
                 label: 'Lista de exclusión',
                 route: 'cobro.exclusiones.index',
