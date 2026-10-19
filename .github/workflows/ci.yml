@@ -2,13 +2,19 @@
 name: CI
 
 on:
+  # Only pull requests into main: a chained pull request that targets another pull request's
+  # branch runs once it is retargeted to main and synced (a new push), not on every link.
   pull_request:
+    branches: [main]
   push:
     branches: [main]
 
+# A new commit on a pull request cancels that pull request's older run. Each push to main
+# gets a group of its own (its commit), so main runs never wait for, replace or cancel
+# each other: every commit merged into main gets its own result.
 concurrency:
-  group: ci-${{ github.ref }}
-  cancel-in-progress: true
+  group: ${{ github.workflow }}-${{ github.event_name == 'pull_request' && github.ref || github.sha }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 permissions:
   contents: read
@@ -17,6 +23,8 @@ jobs:
   lint:
     name: Lint (Pint and Larastan)
     runs-on: ubuntu-latest
+    # Takes about 1 minute; a stuck run fails here instead of at GitHub's 6-hour default.
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
 
@@ -35,6 +43,8 @@ jobs:
   test:
     name: Tests (PHP 8.3, MySQL 8)
     runs-on: ubuntu-latest
+    # Takes 3 to 4 minutes; composer test has no time limit of its own, so this bounds a hung test.
+    timeout-minutes: 20
     services:
       mysql:
         image: mysql:8.0
@@ -69,10 +79,9 @@ jobs:
       - name: Install PHP dependencies
         run: composer install --no-interaction --prefer-dist --no-progress
 
+      # The test APP_KEY comes from phpunit.xml, so no key is generated here.
       - name: Prepare environment
-        run: |
-          cp .env.example .env
-          php artisan key:generate --ansi
+        run: cp .env.example .env
 
       - name: Test
         run: composer test
@@ -80,6 +89,7 @@ jobs:
   assets:
     name: Assets build (never committed)
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
 
@@ -98,6 +108,7 @@ jobs:
     name: public/build only in deploy/* pull requests
     if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
         with:
