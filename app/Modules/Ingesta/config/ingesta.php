@@ -25,6 +25,12 @@ return [
     // Time (America/Bogota) by which the robot must have published the day's load.
     'alert_deadline' => env('INGESTA_ALERT_DEADLINE', '07:00'),
 
+    // Companies whose robot cartera load is expected every day: the history
+    // warns, and ingesta:verificar-carga mails, when it is missing after the
+    // deadline. Only SGX: the robot reads the SEGUREX HANA schema only, and
+    // SDC loads its cartera by manual Excel until its SAP schema is configured.
+    'alert_companies' => ['SGX'],
+
     // Who receives the missing-load alert (IT and the receivables manager),
     // from a comma-separated list.
     'alert_recipients' => array_values(array_filter(

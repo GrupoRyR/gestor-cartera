@@ -2,6 +2,7 @@
 
 namespace App\Modules\Ingesta\Database\Seeders;
 
+use App\Modules\Core\Contracts\Enums\Role;
 use App\Support\Modules\PermissionSeeder;
 
 /**
@@ -10,14 +11,16 @@ use App\Support\Modules\PermissionSeeder;
 final class IngestaPermissionSeeder extends PermissionSeeder
 {
     /**
-     * Permission name ("ingesta.<action>") => roles that receive it, e.g.:
-     *
-     *     'ingesta.view' => ['gerente_cartera', 'analista_cartera'],
+     * ingesta.view opens the load history; ingesta.upload, the manual
+     * upload of the cartera Excel.
      *
      * @return array<string, list<string|\BackedEnum>>
      */
     public function permissions(): array
     {
-        return [];
+        return [
+            'ingesta.view' => [Role::Admin, Role::PortfolioManager, Role::PortfolioAnalyst],
+            'ingesta.upload' => [Role::Admin, Role::PortfolioManager, Role::PortfolioAnalyst],
+        ];
     }
 }

@@ -5,6 +5,8 @@ namespace App\Modules\Ingesta\Providers;
 use App\Modules\Core\Contracts\IngestaSink;
 use App\Modules\Ingesta\Infrastructure\EloquentIngestaSink;
 use App\Support\Modules\ModuleServiceProvider;
+use App\Support\Navigation\NavItem;
+use App\Support\Navigation\NavRegistry;
 use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\RateLimiter;
@@ -30,5 +32,23 @@ final class IngestaServiceProvider extends ModuleServiceProvider
         // The robot sends a handful of batches a day; this only caps a
         // runaway loop or a flood of forged requests.
         RateLimiter::for('ingesta-robot', fn (Request $request): Limit => Limit::perMinute(60)->by((string) $request->ip()));
+    }
+
+    /**
+     * Cargas de datos sits in Administración, before Core's entries (900
+     * and up).
+     */
+    protected function navigation(NavRegistry $navigation): void
+    {
+        $navigation->add(new NavItem(
+            key: 'ingesta.cargas',
+            label: 'Cargas de datos',
+            route: 'ingesta.index',
+            icon: 'history',
+            permission: 'ingesta.view',
+            group: 'Administración',
+            order: 800,
+            activePattern: 'ingesta.*',
+        ));
     }
 }
