@@ -66,6 +66,14 @@ return [
 
     'errores' => [
         'inesperado' => 'Error inesperado al preparar el correo. Revisa el registro de errores.',
+        'no_aceptado' => 'Microsoft 365 no aceptó el correo.',
+        'sin_configurar' => 'La conexión con Microsoft 365 no está configurada.',
+        'sin_respuesta' => 'Microsoft 365 no respondió a tiempo.',
+        'limite' => 'Microsoft 365 frenó el envío por demasiados correos por minuto.',
+        'permisos' => 'Microsoft 365 no dio acceso al buzón de la empresa. Revisa los permisos de la aplicación.',
+        'destinatario' => 'Microsoft 365 rechazó la dirección de correo del cliente.',
+        'codigo' => 'Microsoft 365 no aceptó el correo (código :codigo).',
+        'interrumpido' => 'El envío se interrumpió y no se sabe si salió. Revisa los elementos enviados del buzón.',
     ],
 
     'consola' => [
@@ -73,6 +81,7 @@ return [
         'ya_existe' => ':empresa: el envío de :tipo de esta fecha ya se preparó; no se envía de nuevo.',
         'iniciado' => ':empresa: :tipo en cola para :en_cola clientes; :sin_correo sin correo y :excluidos excluidos.',
         'empresa_invalida' => 'La empresa :empresa no tiene este envío. Empresas válidas: :validas.',
+        'interrumpidos' => '{0} No hay envíos interrumpidos.|{1} Se cerró 1 envío interrumpido.|[2,*] Se cerraron :total envíos interrumpidos.',
     ],
 
 ];

@@ -3,20 +3,27 @@
 use App\Modules\Cobro\Domain\Runs\ItemStatus;
 use App\Modules\Cobro\Domain\Runs\RunKind;
 use App\Modules\Cobro\Domain\Runs\RunStatus;
+use App\Modules\Cobro\Infrastructure\Graph\GraphRequestFailed;
 use App\Modules\Cobro\Infrastructure\Mail\BounceLinked;
 use App\Modules\Cobro\Infrastructure\Persistence\InboundMessage;
 use App\Modules\Cobro\Infrastructure\Persistence\Run;
 use App\Modules\Cobro\Infrastructure\Persistence\RunItem;
 use App\Modules\Cobro\Infrastructure\Persistence\SentMessage;
 use App\Modules\Cobro\Infrastructure\Runs\SendRunItem;
+use App\Modules\Core\Contracts\Data\Activity;
+use App\Modules\Core\Contracts\Data\NewActivity;
 use App\Modules\Core\Contracts\Data\OutgoingMail;
 use App\Modules\Core\Contracts\Enums\ActivityType;
 use App\Modules\Core\Contracts\Enums\CompanyCode;
 use App\Modules\Core\Contracts\Exceptions\MailNotSent;
+use App\Modules\Core\Contracts\GestionLogger;
 use Carbon\CarbonImmutable;
 use Illuminate\Console\Scheduling\Event as ScheduledEvent;
 use Illuminate\Console\Scheduling\Schedule;
+use Illuminate\Support\Facades\Exceptions;
+use Illuminate\Support\Facades\Queue;
 use Tests\Fakes\ContractFakes;
+use Tests\Fakes\Make;
 use Tests\Modules\Cobro\Support\CobroPortfolio;
 
 beforeEach(function () {
@@ -99,17 +106,106 @@ it('never runs twice for the same day', function () {
 });
 
 it('records a failed send and still closes the run', function () {
-    $this->fakes->mail->failNextWith(new MailNotSent('Graph did not send the cobro_semanal mail: HTTP 429.'));
+    $this->fakes->mail->failNextWith(new MailNotSent('Graph did not send the cobro_semanal mail.', previous: new GraphRequestFailed('Graph POST /users/x/messages failed with HTTP 429.', 429)));
 
     $this->artisan('cobro:cobro-semanal')->assertSuccessful();
 
     $item = cobroItem($this->portfolio->tornillo->summary->id);
 
     expect($item->status)->toBe(ItemStatus::Failed)
-        ->and($item->error)->toBe('Graph did not send the cobro_semanal mail: HTTP 429.')
+        ->and($item->error)->toBe('Microsoft 365 frenó el envío por demasiados correos por minuto.')
         ->and(Run::query()->sole()->status)->toBe(RunStatus::Completed);
 
     $this->fakes->gestiones->assertNothingLogged();
+});
+
+it('explains a refused mail in Spanish', function (MailNotSent $exception, string $reason) {
+    expect(SendRunItem::reason($exception))->toBe($reason);
+})->with([
+    'no answer' => [new MailNotSent('x', previous: new GraphRequestFailed('timeout')), 'Microsoft 365 no respondió a tiempo.'],
+    'permissions' => [new MailNotSent('x', previous: new GraphRequestFailed('denied', 403, 'ErrorAccessDenied')), 'Microsoft 365 no dio acceso al buzón de la empresa. Revisa los permisos de la aplicación.'],
+    'recipient' => [new MailNotSent('x', previous: new GraphRequestFailed('bad', 400, 'ErrorInvalidRecipients')), 'Microsoft 365 rechazó la dirección de correo del cliente.'],
+    'other status' => [new MailNotSent('x', previous: new GraphRequestFailed('oops', 500)), 'Microsoft 365 no aceptó el correo (código 500).'],
+    'not configured' => [new MailNotSent('x', previous: GraphRequestFailed::notConfigured()), 'La conexión con Microsoft 365 no está configurada.'],
+    'another sender' => [new MailNotSent('x'), 'Microsoft 365 no aceptó el correo.'],
+]);
+
+it('keeps a delivered mail as sent when logging the activity fails', function () {
+    $this->app->instance(GestionLogger::class, new class implements GestionLogger
+    {
+        public function log(NewActivity $activity): Activity
+        {
+            throw new RuntimeException('Lock wait timeout exceeded');
+        }
+
+        public function forClient(int $clientId, int $limit = 50): array
+        {
+            return [];
+        }
+
+        public function recent(int $limit = 20): array
+        {
+            return [];
+        }
+    });
+    Exceptions::fake();
+
+    $this->artisan('cobro:cobro-semanal')->assertSuccessful();
+
+    expect(cobroItem($this->portfolio->tornillo->summary->id)->status)->toBe(ItemStatus::Sent)
+        ->and(Run::query()->sole()->status)->toBe(RunStatus::Completed);
+    Exceptions::assertReported(RuntimeException::class);
+});
+
+it('closes the items a killed worker left sending', function () {
+    $run = Run::query()->create([
+        'company' => CompanyCode::SGX, 'kind' => RunKind::Weekly, 'status' => RunStatus::Sending,
+        'scheduled_for' => now(), 'started_at' => now(),
+    ]);
+    $item = fn (int $clientId) => RunItem::query()->create([
+        'run_id' => $run->id, 'client_id' => $clientId, 'client_code' => 'C'.$clientId, 'client_name' => 'Cliente '.$clientId,
+        'recipients' => ['a@b.example'], 'amount' => '1.00', 'invoice_count' => 1, 'status' => ItemStatus::Sending,
+    ]);
+    $stale = $item(1);
+    $this->travel(31)->minutes();
+    $recent = $item(2);
+
+    $this->artisan('cobro:cerrar-envios-interrumpidos')
+        ->expectsOutputToContain('Se cerró 1 envío interrumpido.')
+        ->assertSuccessful();
+
+    expect($stale->refresh()->status)->toBe(ItemStatus::Failed)
+        ->and($stale->error)->toBe('El envío se interrumpió y no se sabe si salió. Revisa los elementos enviados del buzón.')
+        ->and($recent->refresh()->status)->toBe(ItemStatus::Sending)
+        ->and($run->refresh()->status)->toBe(RunStatus::Sending);
+
+    $this->travel(31)->minutes();
+    $this->artisan('cobro:cerrar-envios-interrumpidos')->assertSuccessful();
+
+    expect($run->refresh()->status)->toBe(RunStatus::Completed);
+});
+
+it('spreads the send jobs at the configured rate', function () {
+    Queue::fake();
+    config(['cobro.send_per_minute' => 1]);
+    $second = Make::clientDetail(Make::client(name: 'Segundo Cliente SAS', balance: 100, overdue: 100, maxDaysOverdue: 3));
+    $this->fakes->cartera->addClient($second, Make::invoice(clientId: $second->summary->id, amount: 100, daysOverdue: 3));
+
+    $this->artisan('cobro:cobro-semanal')->assertSuccessful();
+
+    $delays = collect(Queue::pushedJobs()[SendRunItem::class] ?? [])
+        ->map(fn (array $pushed): int => (int) round(now()->diffInMinutes($pushed['job']->delay)))
+        ->sort()->values()->all();
+
+    expect($delays)->toBe([0, 1]);
+});
+
+it('closes interrupted sends every ten minutes', function () {
+    $event = collect(app(Schedule::class)->events())
+        ->first(fn (ScheduledEvent $event): bool => str_contains((string) $event->command, 'cobro:cerrar-envios-interrumpidos'));
+
+    expect($event)->toBeInstanceOf(ScheduledEvent::class)
+        ->and($event->expression)->toBe('*/10 * * * *');
 });
 
 it('skips a client with nothing overdue at send time', function () {

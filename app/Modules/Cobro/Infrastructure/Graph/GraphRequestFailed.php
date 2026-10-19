@@ -12,6 +12,11 @@ use Throwable;
  */
 final class GraphRequestFailed extends RuntimeException
 {
+    /**
+     * $graphCode of notConfigured().
+     */
+    public const string NOT_CONFIGURED = 'not_configured';
+
     public function __construct(
         string $message,
         public readonly ?int $status = null,
@@ -23,6 +28,6 @@ final class GraphRequestFailed extends RuntimeException
 
     public static function notConfigured(): self
     {
-        return new self('Microsoft Graph is not configured: set GRAPH_TENANT_ID, GRAPH_CLIENT_ID and GRAPH_CLIENT_SECRET.');
+        return new self('Microsoft Graph is not configured: set GRAPH_TENANT_ID, GRAPH_CLIENT_ID and GRAPH_CLIENT_SECRET.', graphCode: self::NOT_CONFIGURED);
     }
 }

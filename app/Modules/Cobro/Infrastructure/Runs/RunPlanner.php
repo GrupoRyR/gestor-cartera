@@ -104,9 +104,13 @@ final class RunPlanner
         }
 
         $pending = RunItem::query()->where('run_id', $run->id)->where('status', ItemStatus::Pending)->orderBy('id')->pluck('id');
+        $perMinute = max(1, (int) config('cobro.send_per_minute', 25));
 
-        foreach ($pending as $itemId) {
-            SendRunItem::dispatch((int) $itemId);
+        // Spread the jobs at the send rate, so the worker does not keep
+        // picking up and releasing jobs the rate limiter would hold back;
+        // the limiter stays as the safety net.
+        foreach ($pending->values() as $position => $itemId) {
+            SendRunItem::dispatch((int) $itemId)->delay(now()->addMinutes(intdiv((int) $position, $perMinute)));
         }
 
         $this->finisher->finishIfDone($run->id);

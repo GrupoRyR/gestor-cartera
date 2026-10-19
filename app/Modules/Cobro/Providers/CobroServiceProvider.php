@@ -4,6 +4,7 @@ namespace App\Modules\Cobro\Providers;
 
 use App\Modules\Cobro\Circularizacion\CircularizationRun;
 use App\Modules\Cobro\Circularizacion\Console\SendCircularizationCommand;
+use App\Modules\Cobro\Console\ExpireStaleSendsCommand;
 use App\Modules\Cobro\Console\SendWeeklyCollectionCommand;
 use App\Modules\Cobro\Console\SyncMailboxesCommand;
 use App\Modules\Cobro\Infrastructure\Mail\BounceLinked;
@@ -50,7 +51,12 @@ final class CobroServiceProvider extends ModuleServiceProvider
 
     protected function bootModule(): void
     {
-        $this->commands([SyncMailboxesCommand::class, SendWeeklyCollectionCommand::class, SendCircularizationCommand::class]);
+        $this->commands([
+            SyncMailboxesCommand::class,
+            SendWeeklyCollectionCommand::class,
+            SendCircularizationCommand::class,
+            ExpireStaleSendsCommand::class,
+        ]);
 
         // Exchange Online accepts 30 mails a minute per mailbox; the send
         // jobs stay below it across both mailboxes.
@@ -68,9 +74,15 @@ final class CobroServiceProvider extends ModuleServiceProvider
      *   seconds; the queue worker sends them.
      * - Monthly at close, the circularization; while its format is a draft
      *   the command sends nothing.
+     * - Every ten minutes, close the sends a killed worker left halfway.
      */
     protected function schedule(Schedule $schedule): void
     {
+        $schedule->command(ExpireStaleSendsCommand::class)
+            ->everyTenMinutes()
+            ->timezone(self::TIMEZONE)
+            ->withoutOverlapping(10);
+
         $schedule->command(SendCircularizationCommand::class)
             ->monthlyOn((int) config('cobro.circularizacion.day', 1), (string) config('cobro.circularizacion.time', '09:00'))
             ->timezone(self::TIMEZONE)
