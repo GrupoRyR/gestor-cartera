@@ -5,7 +5,10 @@ namespace App\Modules\Bancos\Providers;
 use App\Modules\Bancos\Console\ImportFolderCommand;
 use App\Modules\Bancos\Domain\Statement\Cells;
 use App\Support\Modules\ModuleServiceProvider;
+use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Console\Scheduling\Schedule;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\RateLimiter;
 
 /**
  * Bancos: bank movement importers, daily and weekly collections and the
@@ -21,6 +24,10 @@ final class BancosServiceProvider extends ModuleServiceProvider
 {
     protected function bootModule(): void
     {
+        // Treasury sends a few requests a day; this only caps a runaway loop or
+        // someone guessing tokens.
+        RateLimiter::for('bancos-api', fn (Request $request): Limit => Limit::perMinute(60)->by((string) $request->ip()));
+
         $this->commands([ImportFolderCommand::class]);
     }
 

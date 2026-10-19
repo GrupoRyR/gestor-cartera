@@ -42,6 +42,11 @@ abstract class TabularStatementReader implements StatementReader
         return $this->currency === null ? $profile : $profile->withCurrency($this->currency);
     }
 
+    public function currency(): string
+    {
+        return $this->profile()->currency;
+    }
+
     public function bank(): Bank
     {
         return $this->profile()->bank;
@@ -100,7 +105,7 @@ abstract class TabularStatementReader implements StatementReader
                     description: Cells::text($this->cell($row, $columns, Column::Description)),
                     reference: Cells::text($this->cell($row, $columns, Column::Reference)),
                     account: Cells::text($this->cell($row, $columns, Column::Account)),
-                    currency: $this->currency($row, $columns, $profile),
+                    currency: $this->rowCurrency($row, $columns, $profile),
                 );
             }
         }
@@ -209,7 +214,7 @@ abstract class TabularStatementReader implements StatementReader
      * @param  list<mixed>  $row
      * @param  array<string, int>  $columns
      */
-    private function currency(array $row, array $columns, BankProfile $profile): string
+    private function rowCurrency(array $row, array $columns, BankProfile $profile): string
     {
         $code = strtoupper((string) Cells::text($this->cell($row, $columns, Column::Currency)));
 

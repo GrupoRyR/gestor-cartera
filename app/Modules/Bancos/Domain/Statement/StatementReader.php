@@ -14,6 +14,11 @@ interface StatementReader
     public function bank(): Bank;
 
     /**
+     * ISO 4217 code of the account, for movements that do not say.
+     */
+    public function currency(): string;
+
+    /**
      * @param  list<list<mixed>>  $rows  Raw cells of the first sheet or the CSV, one list per row: strings,
      *                                   numbers, DateTimeInterface or null.
      *

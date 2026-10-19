@@ -3,7 +3,6 @@
 namespace App\Modules\Bancos\Application\Import;
 
 use App\Modules\Bancos\Domain\Movement\ImportSource;
-use App\Modules\Bancos\Domain\Statement\StatementReaders;
 use App\Modules\Bancos\Domain\Statement\UnrecognizedStatement;
 use App\Modules\Bancos\Infrastructure\Files\TabularFile;
 use App\Modules\Bancos\Infrastructure\Files\UnreadableFile;
@@ -17,7 +16,10 @@ use App\Modules\Core\Contracts\Enums\CompanyCode;
  */
 final class StatementImport
 {
-    public function __construct(private readonly MovementImporter $importer) {}
+    public function __construct(
+        private readonly MovementImporter $importer,
+        private readonly AccountReaders $readers,
+    ) {}
 
     /**
      * @param  string|null  $fileName  Name to show in the history; the base name of the path by default.
@@ -37,19 +39,8 @@ final class StatementImport
     ): ImportResult {
         $fileName ??= basename($path);
         $rows = TabularFile::rows($path, $extension ?? pathinfo($fileName, PATHINFO_EXTENSION));
-        $reading = StatementReaders::for($bank, $this->currencyOf($bank))->read($rows);
+        $reading = $this->readers->for($bank)->read($rows);
 
         return $this->importer->import($bank, $company, $reading, $source, $fileName, hash_file('sha256', $path) ?: null, $userId);
-    }
-
-    /**
-     * The account currency set in the configuration, when it differs from the
-     * one the reader of the bank assumes.
-     */
-    private function currencyOf(Bank $bank): ?string
-    {
-        $currency = config('bancos.currencies.'.$bank->value);
-
-        return is_string($currency) && $currency !== '' ? $currency : null;
     }
 }
