@@ -21,6 +21,11 @@ use RuntimeException;
 final class GraphFake
 {
     /**
+     * Status of a route that never answers (a connection timeout).
+     */
+    public const int NO_ANSWER = 0;
+
+    /**
      * @var list<array{method: string, path: string, queue: list<array{0: array<string, mixed>|null, 1: int}>}>
      */
     private array $routes = [];
@@ -135,7 +140,9 @@ final class GraphFake
                     ? array_shift($this->routes[$index]['queue'])
                     : $route['queue'][0];
 
-                return Http::response($body, $status);
+                return $status === self::NO_ANSWER
+                    ? (Http::failedConnection('Operation timed out after 30001 milliseconds'))($request)
+                    : Http::response($body, $status);
             }
         }
 

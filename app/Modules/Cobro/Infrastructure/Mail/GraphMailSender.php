@@ -25,11 +25,20 @@ use UnexpectedValueException;
  * for every accepted mail, so the mailbox sync can join replies and
  * bounces to the send and its client.
  *
- * When the send step fails, the draft is deleted (best effort) and
- * MailNotSent is thrown: nothing reached the recipients.
+ * When Graph refuses a step, the draft is deleted (best effort) and
+ * MailNotSent is thrown: nothing reached the recipients. When the send
+ * step gets no answer, the draft decides: gone (it was sent) counts as
+ * sent; still a draft is deleted and MailNotSent; unknown keeps the draft
+ * and throws MailNotSent.
  */
 final class GraphMailSender implements MailSender
 {
+    private const string DRAFT = 'draft';
+
+    private const string GONE = 'gone';
+
+    private const string UNKNOWN = 'unknown';
+
     public function __construct(
         private readonly GraphClient $graph,
         private readonly CompanyMailboxes $mailboxes,
@@ -45,6 +54,7 @@ final class GraphMailSender implements MailSender
 
         $messages = GraphClient::mailbox($mailbox).'/messages';
         $draftId = null;
+        $keepDraft = false;
 
         try {
             $draft = $this->graph->post($messages, $this->message($mail));
@@ -60,9 +70,26 @@ final class GraphMailSender implements MailSender
                 $conversationId ??= self::string($read, 'conversationId');
             }
 
-            $this->graph->postEmpty("{$messages}/".rawurlencode($draftId).'/send');
+            try {
+                $this->graph->postEmpty("{$messages}/".rawurlencode($draftId).'/send');
+            } catch (GraphRequestFailed $e) {
+                // Graph answered with an error: refused, the draft can go.
+                // No answer at all: it may have sent anyway. A sent draft
+                // stops resolving (it moved to Sent Items); one that is
+                // still a draft did not leave; otherwise nobody knows, and
+                // the draft stays for a person to check.
+                $state = $e->status === null ? $this->draftState($messages, $draftId) : self::DRAFT;
+
+                if ($state !== self::GONE) {
+                    $keepDraft = $state === self::UNKNOWN;
+
+                    throw $e;
+                }
+
+                Log::warning('Cobro: Graph did not answer the send, but the draft already left; it counts as sent.', ['mailbox' => $mailbox]);
+            }
         } catch (GraphRequestFailed $e) {
-            if ($draftId !== null) {
+            if ($draftId !== null && ! $keepDraft) {
                 $this->discardDraft($messages, $draftId);
             }
 
@@ -140,6 +167,21 @@ final class GraphMailSender implements MailSender
         }
 
         return $message;
+    }
+
+    /**
+     * Where a draft stands after an unanswered send: still a draft, gone
+     * from its id (sent), or unknown when Graph does not answer either.
+     */
+    private function draftState(string $messages, string $draftId): string
+    {
+        try {
+            $draft = $this->graph->get("{$messages}/".rawurlencode($draftId), ['$select' => 'isDraft']);
+
+            return ($draft['isDraft'] ?? true) === false ? self::GONE : self::DRAFT;
+        } catch (GraphRequestFailed $e) {
+            return $e->status === 404 ? self::GONE : self::UNKNOWN;
+        }
     }
 
     private function discardDraft(string $messages, string $draftId): void

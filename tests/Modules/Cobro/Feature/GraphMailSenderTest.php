@@ -166,6 +166,43 @@ it('throws MailNotSent and deletes the draft when Graph refuses the send', funct
         ->and(SentMessage::query()->count())->toBe(0);
 });
 
+it('counts an unanswered send as sent when the draft already left', function () {
+    $graph = GraphFake::install()
+        ->on('POST', 'users/*/messages/*/send', status: GraphFake::NO_ANSWER)
+        ->on('POST', 'users/*/messages', GraphFake::fixture('draft-created.json'), 201)
+        ->on('GET', 'users/*/messages/*', GraphFake::fixture('error-item-not-found.json'), 404);
+
+    $sent = app(GraphMailSender::class)->send(cobroOutgoing());
+
+    expect($sent->internetMessageId)->toBe(GraphFake::fixture('draft-created.json')['internetMessageId'])
+        ->and(SentMessage::query()->count())->toBe(1)
+        ->and($graph->requestsTo('DELETE', '*'))->toBe([]);
+});
+
+it('deletes the draft and throws MailNotSent when an unanswered send left it a draft', function () {
+    $graph = GraphFake::install()
+        ->on('POST', 'users/*/messages/*/send', status: GraphFake::NO_ANSWER)
+        ->on('POST', 'users/*/messages', GraphFake::fixture('draft-created.json'), 201)
+        ->on('GET', 'users/*/messages/*', ['isDraft' => true])
+        ->on('DELETE', 'users/*/messages/*', status: 204);
+
+    expect(fn () => app(GraphMailSender::class)->send(cobroOutgoing()))->toThrow(MailNotSent::class, 'did not answer');
+
+    expect($graph->requestsTo('DELETE', 'users/*/messages/*'))->toHaveCount(1)
+        ->and(SentMessage::query()->count())->toBe(0);
+});
+
+it('keeps the draft when nobody can tell whether an unanswered send left', function () {
+    $graph = GraphFake::install()
+        ->on('POST', 'users/*/messages/*/send', status: GraphFake::NO_ANSWER)
+        ->on('POST', 'users/*/messages', GraphFake::fixture('draft-created.json'), 201)
+        ->on('GET', 'users/*/messages/*', status: GraphFake::NO_ANSWER);
+
+    expect(fn () => app(GraphMailSender::class)->send(cobroOutgoing()))->toThrow(MailNotSent::class);
+
+    expect($graph->requestsTo('DELETE', '*'))->toBe([]);
+});
+
 it('throws MailNotSent without deleting anything when the mailbox is out of reach', function () {
     $graph = GraphFake::install()
         ->on('POST', 'users/*/messages', GraphFake::fixture('error-access-denied.json'), 403);
