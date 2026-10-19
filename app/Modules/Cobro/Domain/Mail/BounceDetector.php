@@ -9,7 +9,8 @@ namespace App\Modules\Cobro\Domain\Mail;
  * A message is a bounce when it comes from a delivery system mailbox
  * (postmaster, mailer-daemon, Microsoft Exchange's system sender) or its
  * subject starts like the usual failure reports, in English or Spanish.
- * Auto-replies ("fuera de la oficina") are not bounces: they stay replies.
+ * Auto-replies ("fuera de la oficina"), delay warnings and delivery
+ * receipts are not bounces: they stay replies.
  */
 final class BounceDetector
 {
@@ -18,7 +19,14 @@ final class BounceDetector
      */
     private const string SYSTEM_SENDER = '/^(postmaster|mailer-daemon|mail-daemon|microsoftexchange[0-9a-f]*|mail\.?delivery\.?(subsystem|system)?)@/i';
 
-    private const string FAILURE_SUBJECT = '/^\s*(undeliverable|undelivered mail returned to sender|delivery status notification \(failure\)|delivery status notification \(delay\)|mail delivery failed|returned mail|failure notice|delivery failure|message not delivered|no se puede entregar|no se pudo entregar|no entregable|mensaje no entregado|error de entrega|notificaci[oó]n de estado de entrega \(error\))\b/iu';
+    private const string FAILURE_SUBJECT = '/^\s*(undeliverable|undelivered mail returned to sender|delivery status notification \(failure\)|mail delivery failed|returned mail|failure notice|delivery failure|message not delivered|no se puede entregar|no se pudo entregar|no entregable|mensaje no entregado|error de entrega|notificaci[oó]n de estado de entrega \(error\))(?!\w)/iu';
+
+    /**
+     * Reports from the same system senders that are not failures: delivery
+     * still being retried, or delivered. The mail may still arrive, so they
+     * never mark a send as bounced.
+     */
+    private const string NOT_A_FAILURE_SUBJECT = '/^\s*(delivery delayed|delivery status notification \(delay\)|delayed mail|warning: message .* delayed|entrega retrasada|retraso en la entrega|delivered|relayed|entregado|retransmitido)(?!\w)/iu';
 
     /**
      * SMTP enhanced status codes (RFC 3463) of a permanent or transient failure.
@@ -34,6 +42,10 @@ final class BounceDetector
 
     public function isBounce(string $from, string $subject): bool
     {
+        if (preg_match(self::NOT_A_FAILURE_SUBJECT, $subject) === 1) {
+            return false;
+        }
+
         return preg_match(self::SYSTEM_SENDER, trim($from)) === 1
             || preg_match(self::FAILURE_SUBJECT, $subject) === 1;
     }

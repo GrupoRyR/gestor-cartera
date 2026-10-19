@@ -10,10 +10,15 @@ it('tells delivery reports from replies', function (string $from, string $subjec
     'postmaster' => ['postmaster@cliente.example', 'Aviso', true],
     'mailer-daemon' => ['MAILER-DAEMON@mx.cliente.example', 'Returned mail: see transcript for details', true],
     'English subject' => ['someone@cliente.example', 'Undelivered Mail Returned to Sender', true],
+    'failure DSN from an ordinary sender' => ['notificaciones@cliente.example', 'Delivery Status Notification (Failure)', true],
     'Gmail DSN' => ['mailer-daemon@googlemail.com', 'Delivery Status Notification (Failure)', true],
     'Spanish subject' => ['sistema@cliente.example', 'No se puede entregar: Facturas vencidas', true],
     'human reply' => ['tesoreria@cliente.example', 'RE: Facturas vencidas', false],
     'out of office' => ['tesoreria@cliente.example', 'Respuesta automática: Facturas vencidas', false],
+    'Exchange delay' => ['MicrosoftExchange329e71ec88ae4615bbc36ab6ce41109e@segurex.com', 'Delivery delayed: Facturas vencidas', false],
+    'Gmail delay' => ['mailer-daemon@googlemail.com', 'Delivery Status Notification (Delay)', false],
+    'Spanish delay' => ['MicrosoftExchange329e71ec88ae4615bbc36ab6ce41109e@segurex.com', 'Entrega retrasada: Facturas vencidas', false],
+    'delivery receipt' => ['MicrosoftExchange329e71ec88ae4615bbc36ab6ce41109e@segurex.com', 'Delivered: Facturas vencidas', false],
 ]);
 
 it('reads the SMTP status line as the reason, skipping header lines', function () {
