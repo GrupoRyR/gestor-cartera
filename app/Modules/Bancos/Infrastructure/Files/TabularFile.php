@@ -20,7 +20,7 @@ final class TabularFile
     public const array EXTENSIONS = ['csv', 'txt', 'xlsx'];
 
     /** More rows than a year of one account can have; a bigger file is not a statement. */
-    public const int MAX_ROWS = 100_000;
+    public const int MAX_ROWS = 50_000;
 
     private const array DELIMITERS = [';', ',', "\t", '|'];
 
