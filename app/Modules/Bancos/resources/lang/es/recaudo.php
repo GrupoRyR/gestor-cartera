@@ -1,0 +1,73 @@
+<?php
+
+return [
+    'api' => [
+        'formato_fecha' => 'La fecha debe escribirse como año-mes-día, por ejemplo 2026-10-15.',
+        'hasta_antes' => 'La fecha final no puede ser anterior a la inicial.',
+        'rango_largo' => 'El rango no puede pasar de :dias días.',
+    ],
+    'web' => [
+        'titulo' => 'Recaudo diario',
+        'descripcion' => 'Lo que entró a los bancos, sumado de los créditos cargados. Los movimientos llegan al día siguiente, así que hoy aún no hay cifras.',
+        'fecha_atributo' => 'fecha del informe',
+        'fecha_futura' => 'La fecha no puede ser posterior a hoy.',
+        'selector' => [
+            'etiqueta' => 'Elegir el día del informe',
+            'fecha' => 'Día del informe',
+            'ver' => 'Ver',
+            'anterior' => 'Día anterior',
+            'siguiente' => 'Día siguiente',
+            'ayer' => 'Ir a ayer',
+        ],
+        'dia' => [
+            'titulo' => 'Recaudo del :fecha',
+            'total' => 'Total recaudado',
+            'movimientos' => 'Créditos',
+            'pendientes' => 'Pendientes por aplicar',
+            'pendientes_ayuda' => 'Aún sin recibo de caja',
+            'ver_movimientos' => 'Ver los movimientos',
+            'por_banco' => 'Por banco',
+            'por_banco_descripcion' => 'Un banco sin cifras ese día puede significar que su extracto aún no llegó.',
+            'tabla' => 'Recaudo del día por banco',
+            'sin_cifras' => 'Sin créditos',
+        ],
+        'columnas' => [
+            'banco' => 'Banco',
+            'total' => 'Total',
+            'participacion' => 'Participación',
+        ],
+        'total_fila' => 'Total',
+        'vacio' => [
+            'titulo' => 'No hay créditos cargados para el :fecha',
+            'detalle_hoy' => 'Los movimientos de hoy llegan mañana: los bancos los entregan a día vencido.',
+            'detalle' => 'Si el extracto de ese día ya llegó, revisa que esté cargado.',
+            'ver_cargas' => 'Ver las cargas',
+        ],
+        'otra_moneda' => [
+            'titulo' => 'Hay créditos que no suman en pesos',
+            'detalle' => ':n crédito(s) de ese día están en otra moneda, por ejemplo dólares, y no entran en el total. Los encuentras en la lista de movimientos del banco.',
+        ],
+        'semana' => [
+            'titulo' => 'Semana del :desde al :hasta',
+            'descripcion' => 'Acumulado de lunes a domingo. Los días que aún no llegan no tienen cifra.',
+            'total' => 'Acumulado de la semana',
+            'dias' => ':n de 7 días con cifras',
+            'anterior' => 'Semana anterior, mismos días',
+            'sube' => 'Sube frente a la semana anterior',
+            'baja' => 'Baja frente a la semana anterior',
+            'igual' => 'Igual que la semana anterior',
+            'cambio' => ':cambio % frente a la semana anterior',
+            'por_dia' => 'Recaudo por día',
+            'acumulado' => 'Acumulado: :valor',
+            'aun_no' => 'Aún no llega',
+            'sin_creditos' => 'Sin créditos',
+            'tabla' => 'Ver los mismos datos en una tabla',
+            'tabla_titulo' => 'Recaudo de la semana por día',
+            'columnas' => [
+                'dia' => 'Día',
+                'recaudo' => 'Recaudo',
+                'acumulado' => 'Acumulado',
+            ],
+        ],
+    ],
+];
