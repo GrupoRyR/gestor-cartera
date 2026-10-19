@@ -184,6 +184,28 @@ it('answers 413 for a body over the size limit, before reading it', function () 
     expect(IngestaLoad::query()->count())->toBe(0);
 });
 
+it('refuses an oversized request with 413 before checking its signature', function (array $server, string $body) {
+    Log::spy();
+    config(['ingesta.max_request_bytes' => 100]);
+
+    $this->call('POST', '/api/ingesta/asesores', [], [], [], $server + ['CONTENT_TYPE' => 'application/json', 'HTTP_ACCEPT' => 'application/json'], $body)
+        ->assertStatus(413)
+        ->assertExactJson(['message' => 'El lote pesa más de 100 bytes, el máximo que se acepta.']);
+
+    // A signature check would have logged why it refused the request.
+    Log::shouldNotHaveReceived('warning');
+    Log::shouldNotHaveReceived('error');
+    expect(IngestaLoad::query()->count())->toBe(0);
+})->with([
+    'unsigned body over the limit' => fn (): array => [[], str_repeat('x', 101)],
+    'wrongly signed body over the limit' => fn (): array => [[
+        'HTTP_X_INGESTA_KEY' => RobotRequests::KEY_ID,
+        'HTTP_X_INGESTA_TIMESTAMP' => (string) now()->getTimestamp(),
+        'HTTP_X_INGESTA_SIGNATURE' => 'sha256='.str_repeat('0', 64),
+    ], str_repeat('x', 101)],
+    'Content-Length over the limit' => fn (): array => [['CONTENT_LENGTH' => '5000'], '{}'],
+]);
+
 it('answers 422 without a history entry for a malformed request', function (string $body, bool $gzip, array $headers, string $key) {
     $raw = $gzip ? RobotRequests::gzip($body) : $body;
     $server = array_merge(RobotRequests::headers('asesores', $raw, $gzip), $headers);

@@ -6,6 +6,8 @@ use App\Modules\Core\Contracts\Enums\CompanyCode;
 use App\Modules\Core\Contracts\Enums\Dataset;
 use App\Modules\Core\Contracts\Enums\LoadStatus;
 use App\Modules\Core\Contracts\IngestaSink;
+use App\Modules\Ingesta\Application\ErrorKeys;
+use App\Modules\Ingesta\Domain\Schema\DatasetSchemas;
 use App\Modules\Ingesta\Infrastructure\DailyCarteraCheck;
 use App\Modules\Ingesta\Infrastructure\Persistence\IngestaLoad;
 use Carbon\CarbonImmutable;
@@ -74,7 +76,9 @@ final class LoadHistoryController
         return view('ingesta::historial.show', [
             'load' => $load,
             // Not "errors": that name holds the session's validation errors in every view.
-            'fieldErrors' => $load->status === LoadStatus::Rejected ? ($load->errors ?? []) : [],
+            'fieldErrors' => $load->status === LoadStatus::Rejected
+                ? ErrorKeys::sort($load->errors ?? [], DatasetSchemas::for($load->dataset)->columnNames())
+                : [],
             'totals' => $load->status === LoadStatus::Accepted && $load->dataset === Dataset::Receivables,
         ]);
     }

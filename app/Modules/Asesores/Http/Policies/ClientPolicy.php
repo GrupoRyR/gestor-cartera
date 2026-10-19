@@ -40,6 +40,18 @@ final readonly class ClientPolicy
             && $client->summary->advisor?->userId === $user->getKey();
     }
 
+    /**
+     * Add notes to the log of the client: its own advisor, in any company
+     * (commitments are the ones limited to SGX). Core's GestionLogger makes
+     * the final call.
+     */
+    public function annotate(User $user, ClientDetail $client): bool
+    {
+        return $this->view($user, $client)
+            && $user->can('asesores.manage')
+            && $client->summary->advisor?->userId === $user->getKey();
+    }
+
     private function worksIn(CompanyCode $company): bool
     {
         foreach ($this->current->available() as $available) {

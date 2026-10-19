@@ -61,7 +61,7 @@ JSON por columnas, para que pese poco:
 | 200 | `batch_id` de una carga ya aceptada | `{"load": {...carga original}, "duplicate": true}` |
 | 401 | Firma inválida, llave desconocida, timestamp fuera de margen o sin llaves configuradas | `{"message": "Firma inválida."}` |
 | 404 | `{lote}` desconocido | estándar |
-| 413 | Cuerpo de más de `ingesta.max_request_bytes` (20 MB) | `{"message": ...}` |
+| 413 | Cuerpo de más de `ingesta.max_request_bytes` (20 MB). Se revisa antes que la firma: primero `Content-Length` y luego el cuerpo. | `{"message": ...}` |
 | 422 | Cuerpo mal formado: gzip o JSON inválido, sobre incompleto, fila con otro número de valores. No queda en el historial. | `{"message": ..., "errors": {...}}` |
 | 422 | El lote no cumple el esquema. Queda en el historial como rechazado y su `batch_id` se puede reenviar ya corregido. | `{"message": "El lote tiene N errores.", "errors": {"rows.3.saldo": [...]}}`, máximo 50 llaves |
 

@@ -58,7 +58,9 @@ class SerializarTest(unittest.TestCase):
             2.675: "2.68",          # el float se lee por su repr, no 2.67499...
             5: "5.00",
             Decimal("1E+3"): "1000.00",  # nunca notacion exponencial
-            Decimal("99999999999999999.99"): "99999999999999999.99",
+            # decimal(18,2): 16 digitos enteros como maximo.
+            Decimal("9999999999999999.99"): "9999999999999999.99",
+            Decimal("-9999999999999999.99"): "-9999999999999999.99",
         }
         for valor, esperado in casos.items():
             with self.subTest(valor=valor):
@@ -80,7 +82,9 @@ class SerializarTest(unittest.TestCase):
 
     def test_numeros_fuera_de_rango_o_no_finitos_fallan(self):
         for columna, valor in (
-            (Columna("V", "v", NUMERO), Decimal("1E+17")),
+            (Columna("V", "v", NUMERO), Decimal("1E+16")),
+            (Columna("V", "v", NUMERO), Decimal("99999999999999999.99")),
+            (Columna("V", "v", NUMERO), Decimal("9999999999999999.995")),
             (Columna("V", "v", NUMERO), Decimal("1E+40")),
             (Columna("T", "t", TASA), Decimal("1E+13")),
             (Columna("V", "v", NUMERO), Decimal("NaN")),

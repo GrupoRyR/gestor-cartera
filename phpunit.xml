@@ -28,6 +28,11 @@
         <ini name="memory_limit" value="512M"/>
         <!-- Local runs use SQLite in memory; CI overrides DB_* with MySQL 8 (these values are not forced). -->
         <env name="APP_ENV" value="testing"/>
+        <!-- Test-only encryption key, not a secret: it lets the suite run in a checkout without .env.
+             Set in $_SERVER, which Laravel reads first, so an APP_KEY inherited from the environment
+             (even an empty one) never changes the tests.
+             It is never used outside tests; production keys live only in .env. -->
+        <server name="APP_KEY" value="base64:nPsuHjgRztUw+Pgoz1/Yr0mEpWTQGcdH32X8myyu9sI="/>
         <env name="APP_LOCALE" value="es"/>
         <env name="APP_FALLBACK_LOCALE" value="es"/>
         <env name="APP_TIMEZONE" value="America/Bogota"/>
