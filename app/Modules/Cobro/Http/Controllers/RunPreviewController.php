@@ -28,8 +28,7 @@ use Illuminate\Support\Facades\Log;
 /**
  * The preview of the next run of a collection mail, the same for every
  * RunKind (routes cobro.semanal.* and cobro.circularizacion.*, whose "tipo"
- * route default is the RunKind value; route defaults arrive after the URL
- * parameters, so $tipo is always the last argument):
+ * route default is the RunKind value, read by name from the route):
  *
  * - GET  …/?empresa=SGX&estado=pendiente: who would get the mail now, with
  *   its status (pending, without e-mail, excluded), the next scheduled
@@ -55,9 +54,9 @@ final class RunPreviewController
         private readonly MailSender $sender,
     ) {}
 
-    public function show(Request $request, string $tipo): View
+    public function show(Request $request): View
     {
-        $definition = $this->definition($tipo);
+        $definition = $this->definition($request);
         $companies = $this->companies($definition);
 
         if ($companies === []) {
@@ -91,18 +90,18 @@ final class RunPreviewController
         ]);
     }
 
-    public function mail(string $empresa, string $cliente, string $tipo): Response
+    public function mail(Request $request, string $empresa, string $cliente): Response
     {
-        $definition = $this->definition($tipo);
+        $definition = $this->definition($request);
         $company = $this->pick($this->companies($definition), $empresa) ?? abort(404);
         $notice = $this->clientNotice($definition, $company, (int) $cliente) ?? abort(404);
 
         return response($definition->render($company, $notice)->html)->header('Content-Type', 'text/html; charset=UTF-8');
     }
 
-    public function test(Request $request, string $empresa, string $tipo): RedirectResponse
+    public function test(Request $request, string $empresa): RedirectResponse
     {
-        $definition = $this->definition($tipo);
+        $definition = $this->definition($request);
         $company = $this->pick($this->companies($definition), $empresa) ?? abort(404);
         $clientId = (int) $request->validate(['cliente' => ['required', 'integer', 'min:1']])['cliente'];
         $email = trim((string) $request->user()?->getAttribute('email'));
@@ -136,9 +135,13 @@ final class RunPreviewController
         return back()->with('status', __('cobro::envios.prueba.enviada', ['correo' => $email]));
     }
 
-    private function definition(string $tipo): RunDefinition
+    /**
+     * The definition of the route's "tipo" default.
+     */
+    private function definition(Request $request): RunDefinition
     {
-        $kind = RunKind::tryFrom($tipo) ?? abort(404);
+        $tipo = $request->route('tipo');
+        $kind = (is_string($tipo) ? RunKind::tryFrom($tipo) : null) ?? abort(404);
 
         return $this->definitions->for($kind);
     }
