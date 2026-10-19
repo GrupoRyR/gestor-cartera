@@ -3,6 +3,7 @@
 namespace App\Modules\Ingesta\Providers;
 
 use App\Modules\Core\Contracts\IngestaSink;
+use App\Modules\Ingesta\Console\CheckDailyLoadCommand;
 use App\Modules\Ingesta\Console\PruneManualUploadsCommand;
 use App\Modules\Ingesta\Infrastructure\DailyCarteraCheck;
 use App\Modules\Ingesta\Infrastructure\EloquentIngestaSink;
@@ -36,16 +37,22 @@ final class IngestaServiceProvider extends ModuleServiceProvider
         // runaway loop or a flood of forged requests.
         RateLimiter::for('ingesta-robot', fn (Request $request): Limit => Limit::perMinute(60)->by((string) $request->ip()));
 
-        $this->commands([PruneManualUploadsCommand::class]);
+        $this->commands([CheckDailyLoadCommand::class, PruneManualUploadsCommand::class]);
     }
 
     /**
-     * At 03:00 (Bogotá), delete the manual uploads nobody confirmed or
-     * discarded. The run takes seconds, so a lock left by a killed process
-     * expires after 10 minutes instead of a day.
+     * At the deadline (Bogotá), mail the alert when the robot cartera of
+     * the day is missing; at 03:00, delete the manual uploads nobody
+     * confirmed or discarded. Both take seconds, so a lock left by a killed
+     * process expires after 10 minutes instead of a day.
      */
     protected function schedule(Schedule $schedule): void
     {
+        $schedule->command(CheckDailyLoadCommand::class)
+            ->dailyAt((string) config('ingesta.alert_deadline'))
+            ->timezone(DailyCarteraCheck::TIMEZONE)
+            ->withoutOverlapping(10);
+
         $schedule->command(PruneManualUploadsCommand::class)
             ->dailyAt('03:00')
             ->timezone(DailyCarteraCheck::TIMEZONE)
@@ -53,8 +60,9 @@ final class IngestaServiceProvider extends ModuleServiceProvider
     }
 
     /**
-     * Cargas de datos sits in Administración, before Core's entries (900
-     * and up).
+     * Cargas de datos sits in Administración, after Core's entries (900
+     * and 910): the home page redirects to the first visible entry, so an
+     * admin keeps landing on Equipo.
      */
     protected function navigation(NavRegistry $navigation): void
     {
@@ -65,7 +73,7 @@ final class IngestaServiceProvider extends ModuleServiceProvider
             icon: 'history',
             permission: 'ingesta.view',
             group: 'Administración',
-            order: 800,
+            order: 920,
             activePattern: 'ingesta.*',
         ));
     }

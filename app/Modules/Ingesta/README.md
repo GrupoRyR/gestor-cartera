@@ -112,3 +112,13 @@ Respaldo del robot, solo para el lote `cartera`. Desde el historial, «Carga man
 **Columnas que el Excel no trae.** `dias` (corte menos vencimiento; positivo = vencida), `sin_vencer`, las edades `d_0_30`…`d_mas_180`, `rango` y `saldo_vencido` se recalculan siempre desde `saldo` como en `etl/queries/cartera.sql` (`Domain/Manual/ReceivablesAging`); `valor_cheques` y `valor_abonado` quedan en `0.00` si faltan; `base_gravable`, `saldo_base`, `total_plazos` y `no_plazo`, en `null`.
 
 **Código de asesor** (`Application/Manual/AdvisorCodes`). Core asigna el asesor de cada cliente con `slp_code`, así que un `null` lo dejaría sin asesor. Se llena `slp_code` y `email_asesor`, en este orden: por nombre, cruzando `asesor` («Empleado ventas / compras») con `nombre` de la última carga aceptada de `asesores` de la empresa (recortado y sin importar mayúsculas); si no, con el asesor del mismo `codigo_sn` en la última carga aceptada de `cartera` de la empresa; si no, queda `null` y la vista previa lo advierte.
+
+## Alerta de carga faltante
+
+`php artisan ingesta:verificar-carga` (`Console/CheckDailyLoadCommand`) no hace nada antes de la hora límite (`ingesta.alert_deadline`): lo dice en la consola, no envía nada y termina bien. Desde esa hora revisa, por cada empresa de `ingesta.alert_companies`, que haya una carga de cartera **del robot**, aceptada, con corte de hoy (Bogotá) y recibida hasta ese momento. Si falta:
+
+- sin destinatarios (`INGESTA_ALERT_RECIPIENTS` vacío) solo deja una advertencia en el log y termina bien;
+- sin implementación de `MailSender` (la pone Cobro) registra «no se pudo enviar la alerta: MailSender sin implementación» y termina con falla;
+- si no, envía por `MailSender` un correo de categoría `alerta` con el asunto «Alerta: el robot no publicó la cartera de {empresa} del {DD/MM/AAAA}»: la hora límite, la última cartera aceptada (corte, origen y recibida), el error del último rechazo del robot de hoy si lo hubo, si ya hay una carga manual con corte de hoy (que no apaga la alerta) y el enlace al historial. Si Graph no acepta el correo (`MailNotSent`), lo registra y termina con falla.
+
+`IngestaServiceProvider::schedule()` la programa cada día a la hora de `INGESTA_ALERT_DEADLINE` (07:00 por defecto) en `America/Bogota`, con `withoutOverlapping(10)`. Correrla a mano es seguro: solo vuelve a avisar.

@@ -83,6 +83,43 @@ final class DailyCarteraCheck
     }
 
     /**
+     * The latest rejected robot cartera load of $company received today
+     * (by $now), for the alert to say why the robot failed.
+     */
+    public function rejectedRobotToday(CompanyCode $company, ?CarbonImmutable $now = null): ?IngestaLoad
+    {
+        $now = ($now ?? CarbonImmutable::now())->setTimezone((string) config('app.timezone'));
+        $startOfDay = $now->setTimezone(self::TIMEZONE)->startOfDay()->setTimezone((string) config('app.timezone'));
+
+        return IngestaLoad::query()
+            ->where('dataset', Dataset::Receivables)
+            ->where('company', $company)
+            ->where('source', LoadSource::Robot)
+            ->where('status', LoadStatus::Rejected)
+            ->whereBetween('received_at', [$startOfDay, $now])
+            ->orderByDesc('received_at')
+            ->orderByDesc('id')
+            ->first();
+    }
+
+    /**
+     * Whether an accepted manual cartera load of $company with today's
+     * cutoff exists.
+     */
+    public function manualToday(CompanyCode $company, ?CarbonImmutable $now = null): bool
+    {
+        $now = ($now ?? CarbonImmutable::now())->setTimezone(self::TIMEZONE);
+
+        return IngestaLoad::query()
+            ->where('dataset', Dataset::Receivables)
+            ->where('company', $company)
+            ->where('source', LoadSource::Manual)
+            ->where('status', LoadStatus::Accepted)
+            ->whereDate('cutoff_date', $now->format('Y-m-d'))
+            ->exists();
+    }
+
+    /**
      * The companies still missing today's robot cartera once the deadline
      * has passed; empty before it.
      *

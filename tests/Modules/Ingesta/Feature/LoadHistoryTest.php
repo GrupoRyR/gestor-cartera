@@ -63,7 +63,7 @@ it('adds Cargas de datos to the administration menu of the cartera roles', funct
         ->and($item->icon)->toBe('history')
         ->and($item->permission)->toBe('ingesta.view')
         ->and($item->group)->toBe('Administración')
-        ->and($item->order)->toBe(800)
+        ->and($item->order)->toBe(920)
         ->and($item->activePattern)->toBe('ingesta.*')
         ->and($keys(ingestaAnalyst()))->toContain('ingesta.cargas')
         ->and($keys(IngestaUsers::create(Role::SalesAdvisor)))->not->toContain('ingesta.cargas');
