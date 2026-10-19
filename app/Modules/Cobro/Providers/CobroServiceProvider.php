@@ -2,6 +2,8 @@
 
 namespace App\Modules\Cobro\Providers;
 
+use App\Modules\Cobro\Infrastructure\Mail\GraphMailSender;
+use App\Modules\Core\Contracts\MailSender;
 use App\Support\Modules\ModuleServiceProvider;
 
 /**
@@ -17,5 +19,8 @@ use App\Support\Modules\ModuleServiceProvider;
  */
 final class CobroServiceProvider extends ModuleServiceProvider
 {
-    //
+    protected function registerModule(): void
+    {
+        $this->app->singleton(MailSender::class, GraphMailSender::class);
+    }
 }
