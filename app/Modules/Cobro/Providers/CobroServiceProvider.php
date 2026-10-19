@@ -67,6 +67,16 @@ final class CobroServiceProvider extends ModuleServiceProvider
                 order: 140,
                 activePattern: 'cobro.exclusiones.*',
             ),
+            new NavItem(
+                key: 'cobro.plantillas',
+                label: 'Plantilla de correo',
+                route: 'cobro.plantillas.edit',
+                icon: 'edit',
+                permission: 'cobro.manage',
+                group: 'Cobro',
+                order: 150,
+                activePattern: 'cobro.plantillas.*',
+            ),
         );
     }
 }
