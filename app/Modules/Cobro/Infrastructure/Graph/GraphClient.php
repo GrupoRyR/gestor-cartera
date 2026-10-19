@@ -45,9 +45,8 @@ final class GraphClient
     }
 
     /**
-     * GET a path under BASE_URL, or an absolute @odata.nextLink /
-     *
-     * @odata.deltaLink URL returned by Graph (its query already included).
+     * GET a path under BASE_URL, or an absolute next or delta link URL
+     * returned by Graph (its query already included).
      *
      * @param  array<string, scalar>  $query
      * @param  array<string, string>  $headers
