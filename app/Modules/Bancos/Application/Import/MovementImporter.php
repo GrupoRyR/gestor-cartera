@@ -118,6 +118,20 @@ final class MovementImporter
         ?string $fileSha256 = null,
         ?int $userId = null,
     ): BankLoad {
+        // The same file failing again (it could not be moved away) is one entry, not one per run.
+        if ($fileSha256 !== null) {
+            $existing = BankLoad::query()
+                ->where('failed', true)
+                ->where('file_sha256', $fileSha256)
+                ->where('company', $company->value)
+                ->where('bank', $bank->value)
+                ->first();
+
+            if ($existing !== null) {
+                return $existing;
+            }
+        }
+
         $load = BankLoad::query()->create([
             'company' => $company,
             'bank' => $bank,

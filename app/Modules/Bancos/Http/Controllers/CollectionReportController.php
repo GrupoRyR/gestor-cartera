@@ -10,6 +10,7 @@ use App\Modules\Bancos\Infrastructure\Persistence\BankMovement;
 use App\Modules\Core\Contracts\Enums\CompanyCode;
 use Carbon\CarbonImmutable;
 use Illuminate\Contracts\View\View;
+use Illuminate\Database\Eloquent\Builder;
 
 /**
  * GET /bancos/recaudo: the daily collections report (what came in on a day,
@@ -46,11 +47,9 @@ final class CollectionReportController
      */
     private function pendingOn(CarbonImmutable $date, array $companies): int
     {
-        return BankMovement::query()
-            ->whereDate('movement_date', $date->toDateString())
+        return $this->creditsOn($date, $companies)
             ->where('status', MovementStatus::Pending->value)
-            ->where('currency', strtoupper((string) config('bancos.collection_currency', 'COP')))
-            ->whereIn('company', array_map(fn ($company): string => $company->value, $companies))
+            ->where('currency', $this->currency())
             ->count();
     }
 
@@ -62,10 +61,24 @@ final class CollectionReportController
      */
     private function otherCurrency(CarbonImmutable $date, array $companies): int
     {
+        return $this->creditsOn($date, $companies)->where('currency', '!=', $this->currency())->count();
+    }
+
+    /**
+     * The credits of a day for the companies in view.
+     *
+     * @param  list<CompanyCode>  $companies
+     * @return Builder<BankMovement>
+     */
+    private function creditsOn(CarbonImmutable $date, array $companies): Builder
+    {
         return BankMovement::query()
             ->whereDate('movement_date', $date->toDateString())
-            ->where('currency', '!=', strtoupper((string) config('bancos.collection_currency', 'COP')))
-            ->whereIn('company', array_map(fn ($company): string => $company->value, $companies))
-            ->count();
+            ->whereIn('company', array_map(fn (CompanyCode $company): string => $company->value, $companies));
+    }
+
+    private function currency(): string
+    {
+        return strtoupper((string) config('bancos.collection_currency', 'COP'));
     }
 }

@@ -68,6 +68,12 @@ describe('date', function () {
             ->and(Cells::date(46310, ['d/m/Y'])?->toDateString())->toBe('2026-10-15');
     });
 
+    it('reads a date a spreadsheet stored as a plain number of digits', function () {
+        expect(Cells::date(20261015, ['Ymd'])?->toDateString())->toBe('2026-10-15')
+            ->and(Cells::date(20261015.0, ['Ymd'])?->toDateString())->toBe('2026-10-15')
+            ->and(Cells::date(20261015, ['d/m/Y']))->toBeNull();
+    });
+
     it('does not guess the order of day and month', function () {
         expect(Cells::date('10/15/2026', ['d/m/Y']))->toBeNull();
     });

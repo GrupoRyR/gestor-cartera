@@ -79,8 +79,10 @@ final class Cells
             return self::startOfDay($cell->format('Y-m-d'));
         }
 
-        if (is_int($cell) || is_float($cell)) {
-            return self::fromSerial($cell);
+        // A number is an Excel day serial; one outside that range is a date typed as digits
+        // (20261015), which goes on to be read as text with the formats of the bank.
+        if ((is_int($cell) || is_float($cell)) && ($serial = self::fromSerial($cell)) !== null) {
+            return $serial;
         }
 
         $text = self::text($cell);

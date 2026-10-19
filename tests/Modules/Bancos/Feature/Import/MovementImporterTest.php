@@ -229,3 +229,27 @@ describe('from a file', function () {
         expect(BankLoad::query()->count())->toBe(0);
     });
 });
+
+describe('recording a failure', function () {
+    it('keeps one entry for the same file however many times it fails', function () {
+        $importer = app(MovementImporter::class);
+        $sha = str_repeat('b', 64);
+
+        $first = $importer->recordFailure(Bank::Bogota, CompanyCode::SGX, ImportSource::Folder, 'No es un extracto', 'malo.csv', $sha);
+        $again = $importer->recordFailure(Bank::Bogota, CompanyCode::SGX, ImportSource::Folder, 'No es un extracto', 'malo.csv', $sha);
+
+        expect($again->id)->toBe($first->id)
+            ->and(BankLoad::query()->where('failed', true)->count())->toBe(1);
+    });
+
+    it('records the same file again for another bank or company', function () {
+        $importer = app(MovementImporter::class);
+        $sha = str_repeat('c', 64);
+
+        $importer->recordFailure(Bank::Bogota, CompanyCode::SGX, ImportSource::Folder, 'x', 'a.csv', $sha);
+        $importer->recordFailure(Bank::Davivienda, CompanyCode::SGX, ImportSource::Folder, 'x', 'a.csv', $sha);
+        $importer->recordFailure(Bank::Bogota, CompanyCode::SDC, ImportSource::Folder, 'x', 'a.csv', $sha);
+
+        expect(BankLoad::query()->where('failed', true)->count())->toBe(3);
+    });
+});
