@@ -1,6 +1,8 @@
 <?php
 
+use App\Modules\Cobro\Domain\Runs\RunKind;
 use App\Modules\Cobro\Http\Controllers\ExclusionController;
+use App\Modules\Cobro\Http\Controllers\RunPreviewController;
 use App\Modules\Cobro\Http\Controllers\TemplateController;
 use Illuminate\Support\Facades\Route;
 
@@ -8,6 +10,22 @@ use Illuminate\Support\Facades\Route;
 // the /cobro URL prefix and the "cobro." route-name prefix:
 // Route::get('/', ...)->name('index')
 // becomes GET /cobro named cobro.index.
+
+// Preview of the next run, one client's mail and the test send, for each
+// collection mail: /cobro/semanal (cobro.semanal.*). The "tipo" default is
+// the RunKind value and reaches the controller as its last argument.
+foreach ([RunKind::Weekly] as $kind) {
+    Route::middleware('auth')->prefix($kind->segment())->name($kind->segment().'.')->group(function () use ($kind) {
+        Route::middleware('can:cobro.view')->group(function () use ($kind) {
+            Route::get('/', [RunPreviewController::class, 'show'])->defaults('tipo', $kind->value)->name('show');
+            Route::get('{empresa}/correo/{cliente}', [RunPreviewController::class, 'mail'])
+                ->whereAlpha('empresa')->whereNumber('cliente')->defaults('tipo', $kind->value)->name('correo');
+        });
+
+        Route::post('{empresa}/prueba', [RunPreviewController::class, 'test'])
+            ->whereAlpha('empresa')->middleware(['can:cobro.manage', 'throttle:10,1'])->defaults('tipo', $kind->value)->name('prueba');
+    });
+}
 
 // Exclusion list: clients that receive no collection mail.
 Route::middleware(['auth', 'can:cobro.manage'])->prefix('exclusiones')->name('exclusiones.')->group(function () {

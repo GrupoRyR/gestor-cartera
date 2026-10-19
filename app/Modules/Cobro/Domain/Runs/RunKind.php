@@ -23,15 +23,22 @@ enum RunKind: string
     }
 
     /**
-     * URL segment: cobro-semanal or circularizacion.
+     * URL segment and route-name segment of its screens: /cobro/semanal
+     * (cobro.semanal.*) or /cobro/circularizacion (cobro.circularizacion.*).
      */
-    public function slug(): string
+    public function segment(): string
     {
-        return str_replace('_', '-', $this->value);
+        return match ($this) {
+            self::Weekly => 'semanal',
+            self::Circularization => 'circularizacion',
+        };
     }
 
-    public static function fromSlug(string $slug): ?self
+    /**
+     * Name of one of its routes, e.g. route('show') = cobro.semanal.show.
+     */
+    public function route(string $action): string
     {
-        return self::tryFrom(str_replace('-', '_', $slug));
+        return "cobro.{$this->segment()}.{$action}";
     }
 }

@@ -31,6 +31,10 @@ return [
         'max_pages' => 10,
     ],
 
+    // Collection mails handed to Graph per minute across both mailboxes;
+    // Exchange Online accepts 30 a minute per mailbox.
+    'send_per_minute' => 25,
+
     // Weekly collection of overdue invoices (4.1): Wednesdays at 17:00,
     // Bogotá time. Only SGX in phase 1 (Part D, item 12).
     'weekly' => [

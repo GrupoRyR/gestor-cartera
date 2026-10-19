@@ -111,7 +111,7 @@ final class TemplateController
         );
 
         return new NoticeData(
-            clientName: (string) __('cobro::semanal.ejemplo.cliente'),
+            clientName: (string) __('cobro::envios.ejemplo.cliente'),
             taxId: '900123456',
             invoices: [$invoice(1, 'FV-1188', 47, 2_350_000.0), $invoice(2, 'FV-1201', 18, 1_150_000.0)],
             cutoffDate: $today,
