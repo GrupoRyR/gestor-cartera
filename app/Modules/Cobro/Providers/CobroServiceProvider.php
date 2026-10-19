@@ -94,6 +94,18 @@ final class CobroServiceProvider extends ModuleServiceProvider
                 activePattern: 'cobro.semanal.*',
             ),
             new NavItem(
+                key: 'cobro.respuestas',
+                label: 'Respuestas de clientes',
+                route: 'cobro.respuestas.index',
+                icon: 'inbox',
+                permission: 'cobro.replies',
+                group: 'Cobro',
+                order: 120,
+                activePattern: 'cobro.respuestas.*',
+                mobile: true,
+                badge: fn (): ?int => $this->app->make(MailboxReader::class)->unreadCount() ?: null,
+            ),
+            new NavItem(
                 key: 'cobro.lotes',
                 label: 'Informes de envío',
                 route: 'cobro.lotes.index',

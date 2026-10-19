@@ -2,6 +2,7 @@
 
 use App\Modules\Cobro\Domain\Runs\RunKind;
 use App\Modules\Cobro\Http\Controllers\ExclusionController;
+use App\Modules\Cobro\Http\Controllers\ReplyInboxController;
 use App\Modules\Cobro\Http\Controllers\RunPreviewController;
 use App\Modules\Cobro\Http\Controllers\RunReportController;
 use App\Modules\Cobro\Http\Controllers\TemplateController;
@@ -27,6 +28,13 @@ foreach ([RunKind::Weekly] as $kind) {
             ->whereAlpha('empresa')->middleware(['can:cobro.manage', 'throttle:10,1'])->defaults('tipo', $kind->value)->name('prueba');
     });
 }
+
+// Client replies inbox: replies and bounces, marked read or pending.
+Route::middleware(['auth', 'can:cobro.replies'])->prefix('respuestas')->name('respuestas.')->group(function () {
+    Route::get('/', [ReplyInboxController::class, 'index'])->name('index');
+    Route::post('marcar', [ReplyInboxController::class, 'mark'])->name('mark');
+    Route::get('{message}', [ReplyInboxController::class, 'show'])->whereNumber('message')->name('show');
+});
 
 // Delivery report: every run and its clients, with bounces.
 Route::middleware(['auth', 'can:cobro.view'])->prefix('lotes')->name('lotes.')->group(function () {
