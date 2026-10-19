@@ -4,6 +4,8 @@ namespace App\Modules\Bancos\Providers;
 
 use App\Modules\Bancos\Console\ImportFolderCommand;
 use App\Modules\Bancos\Domain\Statement\Cells;
+use App\Modules\Bancos\Infrastructure\EloquentRecaudoProvider;
+use App\Modules\Core\Contracts\RecaudoProvider;
 use App\Support\Modules\ModuleServiceProvider;
 use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Console\Scheduling\Schedule;
@@ -22,6 +24,11 @@ use Illuminate\Support\Facades\RateLimiter;
  */
 final class BancosServiceProvider extends ModuleServiceProvider
 {
+    protected function registerModule(): void
+    {
+        $this->app->singleton(RecaudoProvider::class, EloquentRecaudoProvider::class);
+    }
+
     protected function bootModule(): void
     {
         // Treasury sends a few requests a day; this only caps a runaway loop or

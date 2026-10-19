@@ -1,5 +1,6 @@
 <?php
 
+use App\Modules\Bancos\Http\Controllers\Api\CollectionController;
 use App\Modules\Bancos\Http\Controllers\Api\ReceiveMovementsController;
 use App\Modules\Bancos\Http\Middleware\VerifyTreasuryToken;
 use Illuminate\Support\Facades\Route;
@@ -8,6 +9,11 @@ use Illuminate\Support\Facades\Route;
 // the /api URL prefix (no module segment) and the "bancos.api." route-name prefix:
 // Route::get('recaudo', ...)->name('recaudo')
 // becomes GET /api/recaudo named bancos.api.recaudo.
+
+// Treasury reads the collections for its cash flow (read-only, its own token).
+Route::get('recaudo', CollectionController::class)
+    ->middleware(['throttle:bancos-api', VerifyTreasuryToken::class.':api_token'])
+    ->name('recaudo');
 
 // Treasury's app pushes bank movements (contract in ReceiveMovementsRequest).
 Route::post('movimientos', ReceiveMovementsController::class)
