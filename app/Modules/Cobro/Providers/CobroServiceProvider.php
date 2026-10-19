@@ -2,6 +2,8 @@
 
 namespace App\Modules\Cobro\Providers;
 
+use App\Modules\Cobro\Circularizacion\CircularizationRun;
+use App\Modules\Cobro\Circularizacion\Console\SendCircularizationCommand;
 use App\Modules\Cobro\Console\SendWeeklyCollectionCommand;
 use App\Modules\Cobro\Console\SyncMailboxesCommand;
 use App\Modules\Cobro\Infrastructure\Mail\BounceLinked;
@@ -42,12 +44,13 @@ final class CobroServiceProvider extends ModuleServiceProvider
 
         $this->app->singleton(RunDefinitions::class, fn (): RunDefinitions => new RunDefinitions([
             $this->app->make(WeeklyCollection::class),
+            $this->app->make(CircularizationRun::class),
         ]));
     }
 
     protected function bootModule(): void
     {
-        $this->commands([SyncMailboxesCommand::class, SendWeeklyCollectionCommand::class]);
+        $this->commands([SyncMailboxesCommand::class, SendWeeklyCollectionCommand::class, SendCircularizationCommand::class]);
 
         // Exchange Online accepts 30 mails a minute per mailbox; the send
         // jobs stay below it across both mailboxes.
@@ -63,9 +66,16 @@ final class CobroServiceProvider extends ModuleServiceProvider
      * - Wednesdays at 17:00 (Bogotá), the weekly collection: the command
      *   only plans the run and queues one job per client, so it takes
      *   seconds; the queue worker sends them.
+     * - Monthly at close, the circularization; while its format is a draft
+     *   the command sends nothing.
      */
     protected function schedule(Schedule $schedule): void
     {
+        $schedule->command(SendCircularizationCommand::class)
+            ->monthlyOn((int) config('cobro.circularizacion.day', 1), (string) config('cobro.circularizacion.time', '09:00'))
+            ->timezone(self::TIMEZONE)
+            ->withoutOverlapping(30);
+
         $schedule->command(SyncMailboxesCommand::class)
             ->everyFiveMinutes()
             ->timezone(self::TIMEZONE)
@@ -114,6 +124,16 @@ final class CobroServiceProvider extends ModuleServiceProvider
                 group: 'Cobro',
                 order: 130,
                 activePattern: 'cobro.lotes.*',
+            ),
+            new NavItem(
+                key: 'cobro.circularizacion',
+                label: 'Circularización',
+                route: 'cobro.circularizacion.show',
+                icon: 'document',
+                permission: 'cobro.view',
+                group: 'Cobro',
+                order: 135,
+                activePattern: 'cobro.circularizacion.*',
             ),
             new NavItem(
                 key: 'cobro.exclusiones',

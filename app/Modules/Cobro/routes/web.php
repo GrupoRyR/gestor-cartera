@@ -14,9 +14,10 @@ use Illuminate\Support\Facades\Route;
 // becomes GET /cobro named cobro.index.
 
 // Preview of the next run, one client's mail and the test send, for each
-// collection mail: /cobro/semanal (cobro.semanal.*). The "tipo" default is
-// the RunKind value and reaches the controller as its last argument.
-foreach ([RunKind::Weekly] as $kind) {
+// collection mail: /cobro/semanal (cobro.semanal.*) and /cobro/circularizacion
+// (cobro.circularizacion.*). The "tipo" default is the RunKind value and
+// reaches the controller as its last argument.
+foreach (RunKind::cases() as $kind) {
     Route::middleware('auth')->prefix($kind->segment())->name($kind->segment().'.')->group(function () use ($kind) {
         Route::middleware('can:cobro.view')->group(function () use ($kind) {
             Route::get('/', [RunPreviewController::class, 'show'])->defaults('tipo', $kind->value)->name('show');

@@ -43,4 +43,16 @@ return [
         'time' => '17:00',
     ],
 
+    // Monthly circularization at close (4.2): the 1st at 09:00, Bogotá
+    // time, once the robot published the cartera of the closed month.
+    // While the format is a draft (the real report has not arrived), the
+    // scheduled run sends nothing; the "Circularización" session turns
+    // "draft" off together with the final format.
+    'circularizacion' => [
+        'companies' => ['SGX'],
+        'day' => 1,
+        'time' => '09:00',
+        'draft' => true,
+    ],
+
 ];
