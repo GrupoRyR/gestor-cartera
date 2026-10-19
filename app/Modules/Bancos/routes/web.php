@@ -1,5 +1,6 @@
 <?php
 
+use App\Modules\Bancos\Http\Controllers\CollectionReportController;
 use App\Modules\Bancos\Http\Controllers\LoadController;
 use App\Modules\Bancos\Http\Controllers\MovementController;
 use App\Modules\Core\Contracts\Enums\Bank;
@@ -13,7 +14,10 @@ use Illuminate\Support\Facades\Route;
 // Everything below needs a signed-in user who may see the bank movements.
 Route::middleware(['auth', 'can:bancos.view'])->group(function () {
     // Plain redirects (no closures) so the routes can be cached.
-    Route::redirect('/', '/bancos/movimientos')->name('index');
+    Route::redirect('/', '/bancos/recaudo')->name('index');
+
+    // The daily collections report and the weekly accumulated.
+    Route::get('recaudo', [CollectionReportController::class, 'index'])->name('recaudo');
 
     // Credits of each bank, one tab per bank.
     Route::redirect('movimientos', '/bancos/movimientos/'.Bank::cases()[0]->value)->name('movimientos.index');

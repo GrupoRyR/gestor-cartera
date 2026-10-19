@@ -89,7 +89,7 @@ final class ReceiveMovementsRequest extends FormRequest
         return [
             'movimientos.*.valor.regex' => 'El valor debe ser positivo, con punto para los decimales (máximo 2) y sin separador de miles.',
             'movimientos.*.valor.not_regex' => 'El valor debe ser mayor que cero.',
-            'movimientos.*.fecha.date_format' => 'La fecha debe tener el formato AAAA-MM-DD.',
+            'movimientos.*.fecha.date_format' => 'La fecha debe escribirse como año-mes-día, por ejemplo 2026-10-15.',
         ];
     }
 
