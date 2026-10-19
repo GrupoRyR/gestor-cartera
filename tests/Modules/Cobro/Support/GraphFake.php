@@ -21,7 +21,7 @@ use RuntimeException;
 final class GraphFake
 {
     /**
-     * @var list<array{method: string, path: string, body: array<string, mixed>|null, status: int}>
+     * @var list<array{method: string, path: string, queue: list<array{0: array<string, mixed>|null, 1: int}>}>
      */
     private array $routes = [];
 
@@ -78,7 +78,20 @@ final class GraphFake
      */
     public function on(string $method, string $path, ?array $body = null, int $status = 200): self
     {
-        $this->routes[] = ['method' => $method, 'path' => $path, 'body' => $body, 'status' => $status];
+        $this->routes[] = ['method' => $method, 'path' => $path, 'queue' => [[$body, $status]]];
+
+        return $this;
+    }
+
+    /**
+     * Answers successive matching requests with these [body, status] pairs
+     * in order; the last one repeats.
+     *
+     * @param  array{0: array<string, mixed>|null, 1: int}  ...$responses
+     */
+    public function onEach(string $method, string $path, array ...$responses): self
+    {
+        $this->routes[] = ['method' => $method, 'path' => $path, 'queue' => array_values($responses)];
 
         return $this;
     }
@@ -116,9 +129,13 @@ final class GraphFake
         $this->graphRequests[] = $request;
         $path = self::path($request);
 
-        foreach ($this->routes as $route) {
+        foreach ($this->routes as $index => $route) {
             if ($route['method'] === $request->method() && Str::is($route['path'], $path)) {
-                return Http::response($route['body'], $route['status']);
+                [$body, $status] = count($route['queue']) > 1
+                    ? array_shift($this->routes[$index]['queue'])
+                    : $route['queue'][0];
+
+                return Http::response($body, $status);
             }
         }
 

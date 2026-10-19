@@ -2,9 +2,13 @@
 
 namespace App\Modules\Cobro\Providers;
 
+use App\Modules\Cobro\Console\SyncMailboxesCommand;
+use App\Modules\Cobro\Infrastructure\Mail\DatabaseMailboxReader;
 use App\Modules\Cobro\Infrastructure\Mail\GraphMailSender;
+use App\Modules\Core\Contracts\MailboxReader;
 use App\Modules\Core\Contracts\MailSender;
 use App\Support\Modules\ModuleServiceProvider;
+use Illuminate\Console\Scheduling\Schedule;
 
 /**
  * Cobro: collection email through Microsoft Graph: weekly overdue notices,
@@ -19,8 +23,29 @@ use App\Support\Modules\ModuleServiceProvider;
  */
 final class CobroServiceProvider extends ModuleServiceProvider
 {
+    public const string TIMEZONE = 'America/Bogota';
+
     protected function registerModule(): void
     {
         $this->app->singleton(MailSender::class, GraphMailSender::class);
+        $this->app->singleton(MailboxReader::class, DatabaseMailboxReader::class);
+    }
+
+    protected function bootModule(): void
+    {
+        $this->commands([SyncMailboxesCommand::class]);
+    }
+
+    /**
+     * Every five minutes, the new replies and bounces of the company
+     * inboxes. A run takes seconds; a lock left by a killed process
+     * expires after 10 minutes.
+     */
+    protected function schedule(Schedule $schedule): void
+    {
+        $schedule->command(SyncMailboxesCommand::class)
+            ->everyFiveMinutes()
+            ->timezone(self::TIMEZONE)
+            ->withoutOverlapping(10);
     }
 }

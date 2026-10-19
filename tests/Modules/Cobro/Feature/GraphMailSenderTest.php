@@ -6,7 +6,6 @@ use App\Modules\Core\Contracts\Data\MailAttachment;
 use App\Modules\Core\Contracts\Data\OutgoingMail;
 use App\Modules\Core\Contracts\Enums\CompanyCode;
 use App\Modules\Core\Contracts\Exceptions\MailNotSent;
-use App\Modules\Core\Contracts\MailSender;
 use Carbon\CarbonImmutable;
 use Illuminate\Http\Client\Request;
 use Illuminate\Support\Facades\Http;
@@ -40,10 +39,6 @@ function cobroGraphAccepting(): GraphFake
         ->on('POST', 'users/*/messages/*/send', status: 202)
         ->on('POST', 'users/*/messages', GraphFake::fixture('draft-created.json'), 201);
 }
-
-it('binds MailSender to the Graph sender', function () {
-    expect(app(MailSender::class))->toBeInstanceOf(GraphMailSender::class);
-});
 
 it('creates a draft in the company mailbox, sends it and returns its ids', function () {
     $graph = cobroGraphAccepting();

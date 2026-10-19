@@ -27,6 +27,16 @@ final class GraphClient
     private const string TOKEN_CACHE_KEY = 'cobro.graph.token';
 
     /**
+     * Whether the tenant, client id and secret of config cobro.graph are set.
+     */
+    public static function configured(): bool
+    {
+        return trim((string) config('cobro.graph.tenant_id')) !== ''
+            && trim((string) config('cobro.graph.client_id')) !== ''
+            && trim((string) config('cobro.graph.client_secret')) !== '';
+    }
+
+    /**
      * Graph path of a mailbox: "users/<address>".
      */
     public static function mailbox(string $address): string
@@ -125,13 +135,13 @@ final class GraphClient
             return $cached;
         }
 
-        $tenant = (string) config('cobro.graph.tenant_id');
-        $clientId = (string) config('cobro.graph.client_id');
-        $secret = (string) config('cobro.graph.client_secret');
-
-        if ($tenant === '' || $clientId === '' || $secret === '') {
+        if (! self::configured()) {
             throw GraphRequestFailed::notConfigured();
         }
+
+        $tenant = trim((string) config('cobro.graph.tenant_id'));
+        $clientId = trim((string) config('cobro.graph.client_id'));
+        $secret = (string) config('cobro.graph.client_secret');
 
         try {
             $response = Http::asForm()
