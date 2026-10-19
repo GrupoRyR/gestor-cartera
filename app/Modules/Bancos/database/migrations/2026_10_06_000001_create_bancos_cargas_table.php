@@ -17,6 +17,7 @@ return new class extends Migration
             $table->string('company', 3);
             $table->string('bank', 20);
             $table->string('source', 10);
+            $table->boolean('failed')->default(false);
             $table->string('file_name')->nullable();
             $table->char('file_sha256', 64)->nullable();
             $table->unsignedInteger('movements_read')->default(0);

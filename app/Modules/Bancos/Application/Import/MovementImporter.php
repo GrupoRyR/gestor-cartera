@@ -106,6 +106,40 @@ final class MovementImporter
     }
 
     /**
+     * Leaves a trace in the history of a file that could not be imported, so a
+     * statement that fails unattended (the daily folder) does not go unnoticed.
+     */
+    public function recordFailure(
+        Bank $bank,
+        CompanyCode $company,
+        ImportSource $source,
+        string $message,
+        ?string $fileName = null,
+        ?string $fileSha256 = null,
+        ?int $userId = null,
+    ): BankLoad {
+        $load = BankLoad::query()->create([
+            'company' => $company,
+            'bank' => $bank,
+            'source' => $source,
+            'failed' => true,
+            'file_name' => $fileName === null ? null : mb_substr($fileName, 0, 255),
+            'file_sha256' => $fileSha256,
+            'error_count' => 1,
+            'errors' => [['row' => null, 'message' => $message]],
+            'user_id' => $userId,
+        ]);
+
+        $this->audit->record('bancos.carga.failed', 'bancos_carga', $load->id, [], [
+            'bank' => $bank->value,
+            'company' => $company->value,
+            'source' => $source->value,
+        ]);
+
+        return $load;
+    }
+
+    /**
      * @param  list<StatementMovement>  $credits
      * @return int Rows actually inserted.
      */
