@@ -33,9 +33,9 @@ return [
             'clientes' => '{0} ningún cliente vencido|{1} 1 cliente vencido|[2,*] :count clientes vencidos',
         ],
         'rotacion' => [
-            'etiqueta' => 'Rotación de cartera',
+            'etiqueta' => 'Rotación (aprox., por recaudo)',
             'valor' => ':veces veces',
-            'pista' => 'Recaudo del período ÷ cartera promedio.',
+            'pista' => 'Es aproximada: recaudo bancario del período ÷ cartera promedio, no ventas.',
             'dias' => 'Una vuelta cada :dias días.',
             'sin_vuelta' => 'No hubo recaudo en el período.',
         ],
@@ -58,8 +58,8 @@ return [
             'clientes' => 'Clientes con saldo',
             'clientes_vencidos' => 'Clientes vencidos',
             'recaudo' => 'Recaudo del período',
-            'rotacion' => 'Rotación (veces)',
-            'dias' => 'Días por vuelta',
+            'rotacion' => 'Rotación (aprox., por recaudo)',
+            'dias' => 'Días por vuelta (aprox.)',
         ],
     ],
 

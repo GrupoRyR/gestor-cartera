@@ -108,7 +108,8 @@ it('measures the rotation of the portfolio against the collections of the period
         ->get('/gerencia')
         ->assertSeeText('0,3 veces')
         ->assertSeeText('Una vuelta cada 80 días.')
-        ->assertSeeText('Recaudo del período ÷ cartera promedio.');
+        ->assertSeeText('Rotación (aprox., por recaudo)')
+        ->assertSeeText('Es aproximada: recaudo bancario del período ÷ cartera promedio, no ventas.');
 });
 
 it('compares the group with each company in the group view', function () {
