@@ -25,7 +25,7 @@
     </source>
     <php>
         <!-- The suite (with the Pest architecture tests) needs more than the 128M of a default php.ini. -->
-        <ini name="memory_limit" value="512M"/>
+        <ini name="memory_limit" value="1G"/>
         <!-- Local runs use SQLite in memory; CI overrides DB_* with MySQL 8 (these values are not forced). -->
         <env name="APP_ENV" value="testing"/>
         <!-- Test-only encryption key, not a secret: it lets the suite run in a checkout without .env.
