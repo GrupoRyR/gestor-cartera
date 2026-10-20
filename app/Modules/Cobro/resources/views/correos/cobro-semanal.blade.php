@@ -52,7 +52,7 @@
         </thead>
         <tbody>
             @foreach ($data->invoices as $invoice)
-                @php($overdue = $invoice->daysOverdue > 0)
+                @php($overdue = $data::isOverdue($invoice))
                 <tr data-overdue="{{ $overdue ? '1' : '0' }}" style="{{ $overdue ? 'background:#fde2e2;' : 'background:#ffffff;' }}">
                     @foreach ($columns as $column)
                         <td align="{{ $column['align'] }}" style="{{ $cell }}{{ in_array($column['key'], $wrapping, true) ? '' : 'white-space:nowrap;' }}">{{ $value($column['key'], $invoice) }}</td>

@@ -146,6 +146,22 @@ it('names several overdue invoices and their due dates in one sentence', functio
         ->toContain('saldo pendiente por $ 1.750.000 correspondiente a las facturas 9952, 9960 y 10010 con vencimiento el 26/09/2026 y 01/10/2026');
 });
 
+it('lists credit notes so the total is what the client owes, never as overdue invoices', function () {
+    $notice = cobroFormatNotice([
+        cobroFormatInvoice('9952', '2026-08-26', '2026-09-26', 11, 4_732_906),
+        cobroFormatInvoice('NC-77', '2026-08-01', '2026-08-31', 37, -1_000_000),
+        cobroFormatInvoice('10403', '2026-09-25', '2026-10-25', -18, 500_000),
+    ]);
+
+    $html = cobroFormatRender(CompanyCode::SGX, $notice)->html;
+
+    expect(VisibleText::of($html))
+        ->toContain('saldo pendiente por $ 4.732.906 correspondiente a la factura 9952 con vencimiento el 26/09/2026')
+        ->toContain('NC-77 01/08/2026 30 DIAS 31/08/2026 37 -$ 1.000.000')
+        ->toContain('$ 4.232.906')
+        ->and(substr_count($html, 'data-overdue="1"'))->toBe(1);
+});
+
 it('escapes the data before applying bold', function () {
     $mail = app(NoticeRenderer::class)->render(
         'cobro::correos.cobro-semanal',

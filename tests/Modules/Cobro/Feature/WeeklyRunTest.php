@@ -9,6 +9,7 @@ use App\Modules\Cobro\Infrastructure\Persistence\InboundMessage;
 use App\Modules\Cobro\Infrastructure\Persistence\Run;
 use App\Modules\Cobro\Infrastructure\Persistence\RunItem;
 use App\Modules\Cobro\Infrastructure\Persistence\SentMessage;
+use App\Modules\Cobro\Infrastructure\Runs\RunDefinitions;
 use App\Modules\Cobro\Infrastructure\Runs\SendRunItem;
 use App\Modules\Core\Contracts\Data\Activity;
 use App\Modules\Core\Contracts\Data\NewActivity;
@@ -86,6 +87,23 @@ it('mails the overdue invoices only, from the company mailbox, linked to the cli
         ->and(substr_count($html, 'data-overdue="1"'))->toBe(2)
         ->and(VisibleText::of($html))->toContain('correspondiente a las facturas FV-1188 y FV-1201 con vencimiento el')
         ->and(count($this->fakes->mail->sent()))->toBe(1);
+});
+
+it('names each invoice advisor, reading the advisor list only for advisors other than the client one', function () {
+    $own = Make::advisor(code: 41, name: 'JENNY ROCIO BUITRAGO IBAÑEZ');
+    $client = Make::clientDetail(Make::client(name: 'Cliente Con Dos Asesores SAS', balance: 300, overdue: 300, maxDaysOverdue: 5, advisor: $own));
+    $this->fakes->cartera
+        ->addAdvisor($own, Make::advisor(code: 52, name: 'CARLOS PEREZ'))
+        ->addClient(
+            $client,
+            Make::invoice(clientId: $client->summary->id, documentNumber: 'A1', amount: 100, daysOverdue: 5, advisorCode: 41),
+            Make::invoice(clientId: $client->summary->id, documentNumber: 'A2', amount: 200, daysOverdue: 5, advisorCode: 52),
+        );
+
+    $notice = app(RunDefinitions::class)->for(RunKind::Weekly)->notice($client->summary->id);
+
+    expect(array_map(fn ($invoice) => $notice->advisorLabel($invoice), $notice->invoices))
+        ->toBe(['41 JENNY ROCIO BUITRAGO IBAÑEZ', '52 CARLOS PEREZ']);
 });
 
 it('logs the sent mail in the client activity', function () {

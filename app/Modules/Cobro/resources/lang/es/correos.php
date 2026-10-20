@@ -12,13 +12,4 @@ return [
     'la_factura' => 'la factura',
     'las_facturas' => 'las facturas',
 
-    'tabla' => [
-        'titulo' => 'Facturas vencidas',
-        'documento' => 'Documento',
-        'vence' => 'Vence',
-        'dias' => 'Días de mora',
-        'saldo' => 'Saldo',
-        'total' => 'Total vencido',
-    ],
-
 ];

@@ -34,7 +34,7 @@ final readonly class NoticeData
     ) {}
 
     /**
-     * Sum of the invoice balances.
+     * Sum of the balances, credit notes included: what the client owes.
      */
     public function total(): float
     {
@@ -42,7 +42,7 @@ final readonly class NoticeData
     }
 
     /**
-     * Sum of the balances of the invoices past due (daysOverdue > 0).
+     * Sum of the balances of the overdue invoices (isOverdue()).
      */
     public function overdue(): float
     {
@@ -64,7 +64,17 @@ final readonly class NoticeData
      */
     public function overdueInvoices(): array
     {
-        return array_values(array_filter($this->invoices, fn (Invoice $invoice): bool => $invoice->daysOverdue > 0));
+        return array_values(array_filter($this->invoices, self::isOverdue(...)));
+    }
+
+    /**
+     * An invoice is overdue when it is past due and still owes money; a
+     * credit note or unapplied payment (negative balance) never is, however
+     * old.
+     */
+    public static function isOverdue(Invoice $invoice): bool
+    {
+        return $invoice->daysOverdue > 0 && $invoice->balance > 0;
     }
 
     /**

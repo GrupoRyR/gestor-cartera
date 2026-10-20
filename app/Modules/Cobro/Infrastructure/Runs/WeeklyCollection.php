@@ -80,8 +80,9 @@ final class WeeklyCollection implements RunDefinition
     }
 
     /**
-     * Every open invoice of the client (the overdue ones are highlighted
-     * in the mail), when at least one is overdue.
+     * Every open item of the client, credit notes included so the total is
+     * what the client owes (the overdue invoices are highlighted in the
+     * mail), when at least one invoice is overdue.
      */
     public function notice(int $clientId): ?NoticeData
     {
@@ -89,7 +90,7 @@ final class WeeklyCollection implements RunDefinition
         $client = $cartera->client($clientId);
         $open = $client === null ? [] : array_values(array_filter(
             $cartera->openInvoices($clientId),
-            fn (Invoice $invoice): bool => $invoice->balance > 0,
+            fn (Invoice $invoice): bool => abs($invoice->balance) >= 0.005,
         ));
 
         if ($client === null || self::overdue($open) === []) {
@@ -97,16 +98,17 @@ final class WeeklyCollection implements RunDefinition
         }
 
         $summary = $client->summary;
-        $advisorNames = [];
+        $advisorNames = $summary->advisor === null ? [] : [$summary->advisor->code => $summary->advisor->name];
+        $others = array_diff(array_filter(array_map(fn (Invoice $invoice): ?int => $invoice->advisorCode, $open)), array_keys($advisorNames));
 
-        foreach ($cartera->advisors() as $advisor) {
-            if ($advisor->company === $summary->company) {
-                $advisorNames[$advisor->code] = $advisor->name;
+        // The advisor list is read only when an invoice belongs to another
+        // advisor than the client's.
+        if ($others !== []) {
+            foreach ($cartera->advisors() as $advisor) {
+                if ($advisor->company === $summary->company) {
+                    $advisorNames[$advisor->code] ??= $advisor->name;
+                }
             }
-        }
-
-        if ($summary->advisor !== null) {
-            $advisorNames[$summary->advisor->code] ??= $summary->advisor->name;
         }
 
         return new NoticeData(
@@ -139,6 +141,6 @@ final class WeeklyCollection implements RunDefinition
      */
     private static function overdue(array $invoices): array
     {
-        return array_values(array_filter($invoices, fn (Invoice $invoice): bool => $invoice->daysOverdue > 0 && $invoice->balance > 0));
+        return array_values(array_filter($invoices, NoticeData::isOverdue(...)));
     }
 }
