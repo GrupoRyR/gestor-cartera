@@ -16,7 +16,7 @@ El tablero sigue la empresa activa del selector: con la vista de grupo muestra e
 2. Comparación del grupo con cada empresa (solo en la vista de grupo).
 3. Tendencia: línea del porcentaje vencido por mes, una serie por alcance (el grupo punteado; SGX y SDC con su color fijo), y la misma información en una tabla.
 4. Cumplimiento de compromisos por asesor.
-5. Resultados del cobro por correo.
+5. Resultados del cobro por correo: un bloque para el cobro semanal y otro para la circularización, cada uno con el total del alcance y, en la vista de grupo, una fila por empresa; al final, los mensajes sin leer.
 6. Recaudo: barras por día (períodos de hasta 45 días) o por semana (más largos), tabla semanal y tabla diaria.
 
 Si no hay ninguna carga de cartera, el tablero lo dice y oculta los indicadores, la comparación y la tendencia; las demás secciones siguen mostrando lo que tengan.
@@ -27,14 +27,7 @@ Si no hay ninguna carga de cartera, el tablero lo dice y oculta los indicadores,
 - **Rotación (aproximada):** se rotula «aprox., por recaudo» porque no usa ventas. Recaudo del período ÷ cartera promedio del período. El recaudo sale de `RecaudoProvider` (créditos bancarios por fecha de movimiento) y la cartera promedio, de la media de las fotos de `CarteraRepository::history()` cuyo corte cae en el período; sin fotos usa la cartera actual. «Días por vuelta» = días del período ÷ rotación (sin rotación, no hay valor).
 - **Tendencia:** una foto por mes calendario (la de corte más reciente), de los últimos `gerencia.trend_months` meses. Todas las series comparten los mismos meses; un mes sin foto de una empresa corta su línea.
 - **Cumplimiento:** `CompromisoService::paginate()` con los compromisos que vencen en el período, leídos por páginas hasta `gerencia.compliance_max_pages`. Cuentan los cumplidos (pagados a tiempo o tarde), los incumplidos y los vencidos sin pago; los cancelados no se cuentan y los que vencen hoy o después aparecen como próximos, sin evaluarse. Cumplimiento = cumplidos ÷ evaluados, por asesor y empresa; el color del chip es verde desde 90 %, ámbar desde 70 % y rojo por debajo. Los más incumplidos van primero. Si quedan compromisos sin leer, el tablero avisa que las cifras son parciales. En los períodos que llegan hasta hoy, «Próximos» solo trae los que vencen hoy, porque la lectura termina en la fecha de hoy.
-- **Resultados del cobro:** se cuentan en la bitácora de actividad (`GestionLogger::recent()`) solo las entradas que Cobro marca: un `EmailSent` con `cobro_run_item_id` es un envío, un `EmailReceived` con `cobro_inbound_id` es una respuesta, o un rebote si su metadato `bounce` es verdadero. «Sin leer ahora» sale de `MailboxReader::unreadCount()` y no depende del período.
-
-### Límites del correo de cobro
-
-- La bitácora no distingue el cobro semanal de la circularización: las cifras reúnen los dos. El tablero lo dice en un aviso.
-- Enviados, rebotes y respuestas se cuentan por su propia fecha, así que un rebote de un envío del período anterior cuenta en este; las respuestas y rebotes que Cobro no pudo unir a un cliente no entran en las cifras, pero sí en «Sin leer ahora». Separar el cobro de la circularización y evitar leer tantas entradas exige un contrato nuevo en `Core/Contracts`, que se hará junto con la circularización.
-- La actividad no lleva la empresa del buzón, así que los resultados del correo no se dividen por empresa; son los de las empresas del alcance del usuario.
-- Se leen las últimas `gerencia.activity_read_limit` entradas. Si el período empieza antes de la entrada más antigua leída, el tablero avisa que las cifras son parciales.
+- **Resultados del cobro:** `MailRunResultsProvider::results()` una vez por empresa del alcance (`CurrentCompany::scope()`) y por tipo (`MailRunKind`: cobro semanal y circularización), como mucho cuatro llamadas. El contrato no filtra por usuario, así que el tablero nunca pide una empresa que el usuario no ve. Entra cada lote cuya fecha programada cae en el período (día calendario en Bogotá, extremos incluidos), sin tope de lectura. Todas las cifras cuentan clientes: enviados (salió el correo, rebotara o no), entregados (enviados − rebotados), rebotados, respuestas (aunque lleguen después del período), sin correo y fallidos (el buzón no tomó el correo). Porcentaje rebotado = rebotados ÷ enviados y porcentaje de respuesta = respuestas ÷ enviados; sin enviados no hay porcentaje. El total de cada tipo suma las empresas del alcance; un tipo sin lotes en el período muestra «Sin envíos en el período». «Sin leer ahora» sale de `MailboxReader::unreadCount()` y no depende del período.
 
 ## Configuración
 
@@ -46,7 +39,6 @@ Si no hay ninguna carga de cartera, el tablero lo dice y oculta los indicadores,
 | `trend_months` | `12` | Meses de historia detrás de la tendencia. |
 | `compliance_page_size` | `200` | Compromisos por página al medir el cumplimiento. |
 | `compliance_max_pages` | `50` | Páginas que se leen como máximo; pasado el tope el cumplimiento queda marcado como parcial. |
-| `activity_read_limit` | `5000` | Entradas de la bitácora que se leen para contar el correo de cobro. |
 
 Los umbrales de color (vencido 15 % y 30 %; cumplimiento 70 % y 90 %) son constantes de `Http/Presenters/Tones.php`, no configuración.
 

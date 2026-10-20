@@ -111,33 +111,53 @@ return [
 
     'cobro' => [
         'titulo' => 'Resultados del cobro por correo',
-        'descripcion' => 'Qué pasó con los correos de cobro enviados en el período.',
-        'aviso' => 'Reúne el cobro semanal y la circularización; Cobro todavía no los separa.',
-        'parcial' => [
-            'titulo' => 'Cifras parciales',
-            'detalle' => 'Solo se leyó parte de la bitácora; los correos más antiguos del período pueden faltar.',
+        'descripcion' => 'Lotes programados en el período, por tipo y por empresa. Cada cifra cuenta clientes; las respuestas cuentan aunque lleguen después.',
+        'tabla' => ':tipo por empresa',
+        'vacio' => [
+            'titulo' => 'Sin envíos en el período',
+            'detalle' => 'No se programó ningún lote de este tipo entre estas fechas.',
         ],
         'enviados' => [
             'etiqueta' => 'Enviados',
-            'pista' => 'Correos de cobro enviados.',
+            'pista' => '{1} Clientes en 1 lote|[2,*] Clientes en :count lotes',
         ],
         'entregados' => [
             'etiqueta' => 'Entregados',
             'pista' => 'Enviados que no rebotaron.',
         ],
         'rebotes' => [
-            'etiqueta' => 'Rebotes',
+            'etiqueta' => 'Rebotados',
             'pista' => ':porcentaje de lo enviado',
         ],
         'respuestas' => [
             'etiqueta' => 'Respuestas',
             'pista' => ':porcentaje de lo enviado',
         ],
+        'sin_correo' => [
+            'etiqueta' => 'Sin correo',
+            'pista' => 'Clientes sin correo registrado; no se les envió.',
+        ],
+        'fallidos' => [
+            'etiqueta' => 'Fallidos',
+            'pista' => 'El buzón no tomó el correo.',
+        ],
         'sin_leer' => [
             'etiqueta' => 'Sin leer ahora',
             'pista' => 'Respuestas y rebotes por revisar, de cualquier fecha.',
         ],
-        'sin_envios' => 'Sin envíos en el período',
+        'nada_enviado' => 'No salió ningún correo',
+        'columnas' => [
+            'empresa' => 'Empresa',
+            'lotes' => 'Lotes',
+            'enviados' => 'Enviados',
+            'entregados' => 'Entregados',
+            'rebotados' => 'Rebotados',
+            'tasa_rebote' => '% rebotado',
+            'respuestas' => 'Respuestas',
+            'tasa_respuesta' => '% respuesta',
+            'sin_correo' => 'Sin correo',
+            'fallidos' => 'Fallidos',
+        ],
         'enlaces' => [
             'envios' => 'Ver los informes de envío',
             'respuestas' => 'Ver las respuestas',

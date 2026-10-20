@@ -6,6 +6,7 @@ use App\Modules\Core\Contracts\Data\PortfolioTotals;
 use App\Modules\Core\Contracts\Enums\ActivityType;
 use App\Modules\Core\Contracts\Enums\CommitmentStatus;
 use App\Modules\Core\Contracts\Enums\CompanyCode;
+use App\Modules\Core\Contracts\Enums\MailRunKind;
 use App\Modules\Core\Contracts\Enums\Role;
 use App\Support\Formatting\Money;
 use App\Support\Navigation\NavRegistry;
@@ -244,53 +245,83 @@ it('shows an empty state when no commitment fell due in the period', function ()
         ->assertSeeText('Sin compromisos en el período');
 });
 
-it('reports the outcome of the Cobro emails of the period from the activity log', function () {
-    $sentOn = CarbonImmutable::parse('2026-10-05 09:00:00');
-    $this->fakes->gestiones->add(
-        Make::activity(type: ActivityType::EmailSent, occurredAt: $sentOn, metadata: ['cobro_run_item_id' => 1]),
-        Make::activity(type: ActivityType::EmailSent, occurredAt: $sentOn, metadata: ['cobro_run_item_id' => 2]),
-        Make::activity(type: ActivityType::EmailSent, occurredAt: $sentOn, metadata: ['cobro_run_item_id' => 3]),
-        Make::activity(type: ActivityType::EmailReceived, occurredAt: $sentOn, metadata: ['cobro_inbound_id' => 1]),
-        Make::activity(type: ActivityType::EmailReceived, occurredAt: $sentOn, metadata: ['cobro_inbound_id' => 2, 'bounce' => true]),
-        // Not Cobro emails: no marker, and one outside the period.
-        Make::activity(type: ActivityType::EmailSent, occurredAt: $sentOn),
-        Make::activity(type: ActivityType::EmailSent, occurredAt: CarbonImmutable::parse('2026-09-05'), metadata: ['cobro_run_item_id' => 4]),
-    );
+it('reports the weekly collection and the circularization of the active company apart', function () {
+    $this->fakes->mailRuns
+        ->add(CompanyCode::SGX, MailRunKind::WeeklyCollection, CarbonImmutable::parse('2026-10-05 08:00'), sent: 40, bounced: 4, withoutEmail: 3, failed: 1, replies: 6)
+        // Another company, and a run before the period: neither shows.
+        ->add(CompanyCode::SDC, MailRunKind::WeeklyCollection, CarbonImmutable::parse('2026-10-05 08:00'), sent: 777)
+        ->add(CompanyCode::SGX, MailRunKind::Circularization, CarbonImmutable::parse('2026-09-30 08:00'), sent: 888);
     $this->fakes->mailbox->add(Make::inboundMail(company: CompanyCode::SGX, read: false));
 
     ($this->manager)()
         ->get('/gerencia')
         ->assertOk()
-        ->assertSeeText('Resultados del cobro por correo')
-        ->assertSeeText('Reúne el cobro semanal y la circularización; Cobro todavía no los separa.')
         ->assertSeeTextInOrder([
-            'Enviados', '3',
-            'Entregados', '2',
-            'Rebotes', '1', '33,3 % de lo enviado',
-            'Respuestas', '1', '33,3 % de lo enviado',
+            'Resultados del cobro por correo',
+            'Cobro semanal',
+            'Enviados', '40', 'Clientes en 1 lote',
+            'Entregados', '36',
+            'Rebotados', '4', '10,0 % de lo enviado',
+            'Respuestas', '6', '15,0 % de lo enviado',
+            'Sin correo', '3',
+            'Fallidos', '1',
+            'Circularización',
+            'Sin envíos en el período',
             'Sin leer ahora', '1',
         ])
-        ->assertDontSeeText('Solo se leyó parte de la bitácora');
+        ->assertDontSeeText('777')
+        ->assertDontSeeText('888');
 });
 
-it('warns when only part of the activity log was read', function () {
-    config(['gerencia.activity_read_limit' => 2]);
+it('shows the group total and a row per company of each kind in the group view', function () {
+    $this->fakes->currentCompany->switchTo(null);
+    $this->fakes->mailRuns
+        ->add(CompanyCode::SGX, MailRunKind::WeeklyCollection, CarbonImmutable::parse('2026-10-05 08:00'), sent: 40, bounced: 4, withoutEmail: 3, failed: 1, replies: 6)
+        ->add(CompanyCode::SDC, MailRunKind::WeeklyCollection, CarbonImmutable::parse('2026-10-06 08:00'), sent: 20, bounced: 2, withoutEmail: 1, replies: 5)
+        ->add(CompanyCode::SDC, MailRunKind::Circularization, CarbonImmutable::parse('2026-10-01 07:00'), sent: 30, bounced: 3, failed: 2, replies: 9);
+
+    ($this->manager)()
+        ->get('/gerencia')
+        ->assertOk()
+        ->assertSeeTextInOrder([
+            'Resultados del cobro por correo',
+            'Cobro semanal',
+            // Group total of the weekly collection.
+            'Enviados', '60', 'Clientes en 2 lotes',
+            'Entregados', '54',
+            'Rebotados', '6', '10,0 % de lo enviado',
+            'Respuestas', '11', '18,3 % de lo enviado',
+            'Sin correo', '4',
+            'Fallidos', '1',
+            'Segurex Latam', '1', '40', '36', '4', '10,0 %', '6', '15,0 %', '3', '1',
+            'Soluciones y Derivados', '1', '20', '18', '2', '10,0 %', '5', '25,0 %', '1', '0',
+            'Circularización',
+            'Enviados', '30', 'Clientes en 1 lote',
+            'Segurex Latam', '0', '0', '0', '0', '—', '0', '—', '0', '0',
+            'Soluciones y Derivados', '1', '30', '27', '3', '10,0 %', '9', '30,0 %', '0', '2',
+        ]);
+});
+
+it('no longer counts the Cobro entries of the activity log', function () {
     $sentOn = CarbonImmutable::parse('2026-10-05 09:00:00');
     $this->fakes->gestiones->add(
         Make::activity(type: ActivityType::EmailSent, occurredAt: $sentOn, metadata: ['cobro_run_item_id' => 1]),
-        Make::activity(type: ActivityType::EmailSent, occurredAt: $sentOn, metadata: ['cobro_run_item_id' => 2]),
-        Make::activity(type: ActivityType::EmailSent, occurredAt: $sentOn, metadata: ['cobro_run_item_id' => 3]),
+        Make::activity(type: ActivityType::EmailReceived, occurredAt: $sentOn, metadata: ['cobro_inbound_id' => 1]),
     );
 
     ($this->manager)()
         ->get('/gerencia')
-        ->assertSeeText('Solo se leyó parte de la bitácora');
+        ->assertOk()
+        ->assertDontSeeText('Cifras parciales')
+        ->assertDontSeeText('Solo se leyó parte de la bitácora')
+        ->assertDontSeeText('Cobro todavía no los separa')
+        ->assertSeeTextInOrder(['Cobro semanal', 'Sin envíos en el período', 'Circularización', 'Sin envíos en el período']);
 });
 
-it('says there were no sends instead of dividing by zero', function () {
-    ($this->manager)()
-        ->get('/gerencia')
-        ->assertSeeText('Sin envíos en el período')
+it('says there were no sends for each kind instead of dividing by zero', function () {
+    $response = ($this->manager)()->get('/gerencia');
+
+    $response->assertSeeTextInOrder(['Cobro semanal', 'Sin envíos en el período', 'Circularización', 'Sin envíos en el período'])
         ->assertDontSeeText('NAN');
 });
 
