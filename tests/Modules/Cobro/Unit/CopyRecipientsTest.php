@@ -56,14 +56,20 @@ it('drops duplicates and the To addresses, keeping the first spelling', function
         ->toBe(['Miguel.Martinez@segurex.com', 'JESSIKA.QUINTERO@segurex.com']);
 });
 
+it('splits a list written one per line or with commas', function () {
+    expect(CopyRecipients::split("a@x.example, b@x.example\r\n\r\nc@x.example;A@X.example  "))
+        ->toBe(['a@x.example', 'b@x.example', 'c@x.example']);
+});
+
 it('reads settings from their stored shape, leaving out incomplete managers', function () {
     $settings = CopySettings::fromArray([
         'fixed' => ['a@x.example', 'A@x.example'],
         'advisor' => false,
         'managers' => [['group' => ' DISTRIBUCION ', 'emails' => ['b@x.example']], ['group' => '', 'emails' => ['c@x.example']], ['group' => 'X', 'emails' => []]],
-    ]);
+    ], isDefault: true);
 
     expect($settings->fixed)->toBe(['a@x.example'])
         ->and($settings->advisor)->toBeFalse()
-        ->and($settings->managers)->toBe([['group' => 'DISTRIBUCION', 'emails' => ['b@x.example']]]);
+        ->and($settings->managers)->toBe([['group' => 'DISTRIBUCION', 'emails' => ['b@x.example']]])
+        ->and($settings->isDefault)->toBeTrue();
 });

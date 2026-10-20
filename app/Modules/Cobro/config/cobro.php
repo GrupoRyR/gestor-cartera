@@ -43,10 +43,10 @@ return [
         'time' => '17:00',
     ],
 
-    // Carbon copies (Cc) of the weekly collection mail of each company:
-    // fixed addresses, the client's advisor, and the sales managers of
-    // each SAP group (OCRG.GroupName, compared without regard to case or
-    // accents). They live here for now.
+    // Carbon copies (Cc) of the weekly collection mail of each company,
+    // until someone saves them in /cobro/copias: fixed addresses, the
+    // client's advisor, and the sales managers of each SAP group
+    // (OCRG.GroupName, compared without regard to case or accents).
     'copias' => [
         'SGX' => [
             'fixed' => ['miguel.martinez@segurex.com'],

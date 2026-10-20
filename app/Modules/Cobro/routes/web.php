@@ -1,6 +1,7 @@
 <?php
 
 use App\Modules\Cobro\Domain\Runs\RunKind;
+use App\Modules\Cobro\Http\Controllers\CopyController;
 use App\Modules\Cobro\Http\Controllers\ExclusionController;
 use App\Modules\Cobro\Http\Controllers\ReplyInboxController;
 use App\Modules\Cobro\Http\Controllers\RunPreviewController;
@@ -59,4 +60,11 @@ Route::middleware('auth')->prefix('plantillas')->name('plantillas.')->group(func
     });
 
     Route::get('{empresa}/vista-previa', [TemplateController::class, 'preview'])->whereAlpha('empresa')->middleware('can:cobro.view')->name('preview');
+});
+
+// Carbon copies of each company's weekly collection mail.
+Route::middleware(['auth', 'can:cobro.manage'])->prefix('copias')->name('copias.')->group(function () {
+    Route::get('/', [CopyController::class, 'edit'])->name('edit');
+    Route::put('{empresa}', [CopyController::class, 'update'])->whereAlpha('empresa')->name('update');
+    Route::delete('{empresa}', [CopyController::class, 'reset'])->whereAlpha('empresa')->name('reset');
 });
