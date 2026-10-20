@@ -2,6 +2,7 @@
 
 namespace App\Modules\Cobro\Database\Seeders;
 
+use App\Modules\Core\Contracts\Enums\Role;
 use App\Support\Modules\PermissionSeeder;
 
 /**
@@ -10,14 +11,20 @@ use App\Support\Modules\PermissionSeeder;
 final class CobroPermissionSeeder extends PermissionSeeder
 {
     /**
-     * Permission name ("cobro.<action>") => roles that receive it, e.g.:
-     *
-     *     'cobro.view' => ['gerente_cartera', 'analista_cartera'],
+     * - cobro.view: the weekly collection and circularization previews and
+     *   the delivery reports.
+     * - cobro.manage: the exclusion list, the mail templates and the test
+     *   sends.
+     * - cobro.replies: the client replies inbox (read and mark messages).
      *
      * @return array<string, list<string|\BackedEnum>>
      */
     public function permissions(): array
     {
-        return [];
+        return [
+            'cobro.view' => [Role::Admin, Role::PortfolioManager, Role::PortfolioAnalyst],
+            'cobro.manage' => [Role::PortfolioManager, Role::PortfolioAnalyst],
+            'cobro.replies' => [Role::PortfolioManager, Role::PortfolioAnalyst],
+        ];
     }
 }

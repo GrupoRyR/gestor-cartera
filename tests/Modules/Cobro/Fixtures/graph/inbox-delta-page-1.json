@@ -1,0 +1,66 @@
+{
+    "@odata.context": "https://graph.microsoft.com/v1.0/$metadata#Collection(message)",
+    "@odata.nextLink": "https://graph.microsoft.com/v1.0/users/segurex.info@segurex.com/mailFolders/inbox/messages/delta?$skiptoken=MSZYc3J4bmZ2T3BPZ0VhSzJ5bE9rT2hEZlBmcFI3b0FtUFhYbW",
+    "value": [
+        {
+            "@odata.type": "#microsoft.graph.message",
+            "@odata.etag": "W/\"CQAAABYAAADEqK7a2wb0TL7aFRAAAAAB\"",
+            "id": "AAMkAGVmMDEzMTM4LTZmYWUtNDdkNC1hMDZiLTU1OGY5OTZhYmY4OABGAAAAAAAiQ8W967B7TKBjgx9rVEURBwAiIsqMbYjsT5e-T7KzowPTAAAAAAEMAAAiIsqMbYjsT5e-T7KzowPTAAAa_WLAAAA=",
+            "receivedDateTime": "2026-10-22T14:12:40Z",
+            "internetMessageId": "<CY4PR19MB1527A1B2C3D4E5F6@CY4PR19MB1527.namprd19.prod.outlook.com>",
+            "subject": "RE: Facturas vencidas de Ferretería El Tornillo SAS",
+            "bodyPreview": "Buenos días, el pago de la factura FV-1201 sale el viernes. Quedamos atentos.",
+            "conversationId": "AAQkAGVmMDEzMTM4LTZmYWUtNDdkNC1hMDZiLTU1OGY5OTZhYmY4OAAQAMgYG7yRyxxIinFHsTyGfWo=",
+            "body": {
+                "contentType": "text",
+                "content": "Buenos días, el pago de la factura FV-1201 sale el viernes. Quedamos atentos.\r\n\r\nLaura Martínez\r\nTesorería\r\n\r\nDe: Segurex Latam <segurex.info@segurex.com>\r\nEnviado: martes, 21 de octubre de 2026 5:00 p. m.\r\nAsunto: Facturas vencidas de Ferretería El Tornillo SAS"
+            },
+            "from": {
+                "emailAddress": {
+                    "name": "Laura Martínez",
+                    "address": "Tesoreria@Cliente.example"
+                }
+            }
+        },
+        {
+            "@odata.type": "#microsoft.graph.message",
+            "@odata.etag": "W/\"CQAAABYAAADEqK7a2wb0TL7aFRAAAAAC\"",
+            "id": "AAMkAGVmMDEzMTM4LTZmYWUtNDdkNC1hMDZiLTU1OGY5OTZhYmY4OABGAAAAAAAiQ8W967B7TKBjgx9rVEURBwAiIsqMbYjsT5e-T7KzowPTAAAAAAEMAAAiIsqMbYjsT5e-T7KzowPTAAAa_WLBAAA=",
+            "receivedDateTime": "2026-10-21T22:00:09Z",
+            "internetMessageId": "<1a2b3c4d-5e6f-4a7b-8c9d-0e1f2a3b4c5d@SA1PR11MB8471.namprd11.prod.outlook.com>",
+            "subject": "Undeliverable: Facturas vencidas de Distribuciones Andinas SAS",
+            "bodyPreview": "Your message to pagos@andinas-inexistente.example couldn't be delivered. pagos wasn't found at andinas-inexistente.example.",
+            "conversationId": "AAQkAGVmMDEzMTM4LTZmYWUtNDdkNC1hMDZiLTU1OGY5OTZhYmY4OAAQAOTRAconversacionNDR=",
+            "body": {
+                "contentType": "text",
+                "content": "Your message to pagos@andinas-inexistente.example couldn't be delivered.\r\npagos wasn't found at andinas-inexistente.example.\r\n\r\nsegurex.info    Office 365    pagos\r\nAction Required    Recipient\r\n\r\nUnknown To address\r\n\r\nDiagnostic information for administrators:\r\n\r\nGenerating server: SA1PR11MB8471.namprd11.prod.outlook.com\r\n\r\npagos@andinas-inexistente.example\r\nRemote server returned '550 5.1.10 RESOLVER.ADR.RecipientNotFound; Recipient pagos@andinas-inexistente.example not found by SMTP address lookup'\r\n\r\nOriginal message headers:\r\n\r\nReceived: from SA1PR11MB8471.namprd11.prod.outlook.com (2603:10b6:806:3a9::14) by SA1PR11MB8471.namprd11.prod.outlook.com with HTTPS; Tue, 21 Oct 2026 22:00:06 +0000\r\nMIME-Version: 1.0\r\nDate: Tue, 21 Oct 2026 22:00:05 +0000\r\nMessage-ID: <SA1PR11MB8471ANDINAS0002@SA1PR11MB8471.namprd11.prod.outlook.com>\r\nSubject: Facturas vencidas de Distribuciones Andinas SAS\r\nFrom: Segurex Latam <segurex.info@segurex.com>\r\nTo: <pagos@andinas-inexistente.example>"
+            },
+            "from": {
+                "emailAddress": {
+                    "name": "Microsoft Outlook",
+                    "address": "MicrosoftExchange329e71ec88ae4615bbc36ab6ce41109e@segurex.com"
+                }
+            }
+        },
+        {
+            "@odata.type": "#microsoft.graph.message",
+            "@odata.etag": "W/\"CQAAABYAAADEqK7a2wb0TL7aFRAAAAAD\"",
+            "id": "AAMkAGVmMDEzMTM4LTZmYWUtNDdkNC1hMDZiLTU1OGY5OTZhYmY4OABGAAAAAAAiQ8W967B7TKBjgx9rVEURBwAiIsqMbYjsT5e-T7KzowPTAAAAAAEMAAAiIsqMbYjsT5e-T7KzowPTAAAa_WLCAAA=",
+            "receivedDateTime": "2026-10-22T09:30:00Z",
+            "internetMessageId": "<boletin-2026-10-22@proveedor.example>",
+            "subject": "Boletín de novedades de octubre",
+            "bodyPreview": "Conoce nuestras novedades de este mes.",
+            "conversationId": "AAQkAGVmMDEzMTM4LTZmYWUtNDdkNC1hMDZiLTU1OGY5OTZhYmY4OAAQABOLETIN=",
+            "body": {
+                "contentType": "text",
+                "content": "Conoce nuestras novedades de este mes."
+            },
+            "from": {
+                "emailAddress": {
+                    "name": "Proveedor",
+                    "address": "noticias@proveedor.example"
+                }
+            }
+        }
+    ]
+}

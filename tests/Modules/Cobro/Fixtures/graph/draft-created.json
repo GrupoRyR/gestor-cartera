@@ -1,0 +1,45 @@
+{
+    "@odata.context": "https://graph.microsoft.com/v1.0/$metadata#users('segurex.info%40segurex.com')/messages/$entity",
+    "@odata.etag": "W/\"CQAAABYAAADEqK7a2wb0TL7aFRAAAAAA\"",
+    "id": "AAMkAGVmMDEzMTM4LTZmYWUtNDdkNC1hMDZiLTU1OGY5OTZhYmY4OABGAAAAAAAiQ8W967B7TKBjgx9rVEURBwAiIsqMbYjsT5e-T7KzowPTAAAAAAEPAAAiIsqMbYjsT5e-T7KzowPTAAAa_WKzAAA=",
+    "createdDateTime": "2026-10-21T22:00:03Z",
+    "lastModifiedDateTime": "2026-10-21T22:00:03Z",
+    "changeKey": "CQAAABYAAADEqK7a2wb0TL7aFRAAAAAA",
+    "categories": [],
+    "receivedDateTime": "2026-10-21T22:00:03Z",
+    "sentDateTime": "2026-10-21T22:00:03Z",
+    "hasAttachments": false,
+    "internetMessageId": "<SA1PR11MB8471E2C1A6B0D3F94C2E7A11D2B12@SA1PR11MB8471.namprd11.prod.outlook.com>",
+    "subject": "Facturas vencidas de Ferretería El Tornillo SAS",
+    "bodyPreview": "Hola, Ferretería El Tornillo SAS:",
+    "importance": "normal",
+    "parentFolderId": "AQMkAGVmMDEzMTM4LTZmYWUtNDdkNC1hMDZiLTU1OGY5OTZhYmY4OAAuAAADIkPFvesw",
+    "conversationId": "AAQkAGVmMDEzMTM4LTZmYWUtNDdkNC1hMDZiLTU1OGY5OTZhYmY4OAAQAMgYG7yRyxxIinFHsTyGfWo=",
+    "conversationIndex": "AQHbRT8mGvbSZbP2YEe2mF0o1nYk3g==",
+    "isDeliveryReceiptRequested": false,
+    "isReadReceiptRequested": false,
+    "isRead": true,
+    "isDraft": true,
+    "webLink": "https://outlook.office365.com/owa/?ItemID=AAMkAGVm&exvsurl=1&viewmodel=ReadMessageItem",
+    "inferenceClassification": "focused",
+    "body": {
+        "contentType": "html",
+        "content": "<html><body><p>Hola</p></body></html>"
+    },
+    "sender": null,
+    "from": null,
+    "toRecipients": [
+        {
+            "emailAddress": {
+                "name": "tesoreria@cliente.example",
+                "address": "tesoreria@cliente.example"
+            }
+        }
+    ],
+    "ccRecipients": [],
+    "bccRecipients": [],
+    "replyTo": [],
+    "flag": {
+        "flagStatus": "notFlagged"
+    }
+}

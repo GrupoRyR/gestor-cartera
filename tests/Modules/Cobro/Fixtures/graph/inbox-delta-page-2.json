@@ -1,0 +1,33 @@
+{
+    "@odata.context": "https://graph.microsoft.com/v1.0/$metadata#Collection(message)",
+    "@odata.deltaLink": "https://graph.microsoft.com/v1.0/users/segurex.info@segurex.com/mailFolders/inbox/messages/delta?$deltatoken=LztZwWjo5IivWBhyxw5rACKxf7mPm0oW6JZZ7fvKxYPS_67JnEYmfQQMPccy6FRun0DWJF5775dvuXxlZnMYhBubC1v4SBVT9ZjO8f7acZI",
+    "value": [
+        {
+            "@odata.type": "#microsoft.graph.message",
+            "@odata.etag": "W/\"CQAAABYAAADEqK7a2wb0TL7aFRAAAAAE\"",
+            "id": "AAMkAGVmMDEzMTM4LTZmYWUtNDdkNC1hMDZiLTU1OGY5OTZhYmY4OABGAAAAAAAiQ8W967B7TKBjgx9rVEURBwAiIsqMbYjsT5e-T7KzowPTAAAAAAEMAAAiIsqMbYjsT5e-T7KzowPTAAAa_WLDAAA=",
+            "receivedDateTime": "2026-10-23T16:45:10Z",
+            "internetMessageId": "<CAKx7nueva-consulta@mail.gmail.com>",
+            "subject": "Consulta sobre el estado de cuenta",
+            "bodyPreview": "Hola, ¿me pueden enviar el detalle de la factura FV-1188?",
+            "conversationId": "AAQkAGVmMDEzMTM4LTZmYWUtNDdkNC1hMDZiLTU1OGY5OTZhYmY4OAAQANUEVACONSULTA=",
+            "body": {
+                "contentType": "text",
+                "content": "Hola, ¿me pueden enviar el detalle de la factura FV-1188?\r\nGracias."
+            },
+            "from": {
+                "emailAddress": {
+                    "name": "Laura Martínez",
+                    "address": "tesoreria@cliente.example"
+                }
+            }
+        },
+        {
+            "@odata.type": "#microsoft.graph.message",
+            "id": "AAMkAGVmMDEzMTM4LTZmYWUtNDdkNC1hMDZiLTU1OGY5OTZhYmY4OABGAAAAAAAiQ8W967B7TKBjgx9rVEURBwAiIsqMbYjsT5e-T7KzowPTAAAAAAEMAAAiIsqMbYjsT5e-T7KzowPTAAAa_WLEAAA=",
+            "@removed": {
+                "reason": "deleted"
+            }
+        }
+    ]
+}

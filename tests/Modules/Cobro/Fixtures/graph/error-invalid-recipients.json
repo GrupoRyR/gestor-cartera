@@ -1,0 +1,11 @@
+{
+    "error": {
+        "code": "ErrorInvalidRecipients",
+        "message": "At least one recipient isn't valid., A message can't be sent because it contains no recipients.",
+        "innerError": {
+            "date": "2026-10-21T22:00:05",
+            "request-id": "0b6f8a71-6c2e-4f0a-9d7c-1e5b4a3c2d10",
+            "client-request-id": "0b6f8a71-6c2e-4f0a-9d7c-1e5b4a3c2d10"
+        }
+    }
+}
