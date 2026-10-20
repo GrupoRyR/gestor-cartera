@@ -23,6 +23,7 @@ use Carbon\CarbonImmutable;
 use Closure;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use InvalidArgumentException;
 use Throwable;
 
 /**
@@ -143,8 +144,11 @@ final class SettlementActionController
             throw $exception;
         }
 
-        // A corrupt stored result needs IT; the other refusals are expected answers.
-        if ($exception instanceof CorruptSettlement) {
+        // A corrupt stored result needs IT. An InvalidArgumentException is either a
+        // user input the engine refused or a bug (a malformed amount or date), and
+        // they look the same here, so it is logged too. The other refusals are
+        // expected answers of the flow.
+        if ($exception instanceof CorruptSettlement || $exception instanceof InvalidArgumentException) {
             report($exception);
         }
 
