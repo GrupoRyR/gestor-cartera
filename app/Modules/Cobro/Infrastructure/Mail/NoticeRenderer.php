@@ -11,6 +11,7 @@ use App\Modules\Core\Contracts\Data\Company;
 use App\Modules\Core\Contracts\Data\Invoice;
 use App\Support\Formatting\DateFormat;
 use App\Support\Formatting\Money;
+use Carbon\CarbonImmutable;
 
 /**
  * Renders a collection mail: fills the template placeholders with the
@@ -23,7 +24,7 @@ final class NoticeRenderer
     /**
      * @param  string  $view  Mail view, e.g. cobro::correos.cobro-semanal.
      * @param  bool  $test  A test send: "[Prueba]" subject and banner.
-     * @param  bool  $draft  A provisional format: "[Borrador]" subject and banner.
+     * @param  bool  $draft  A format under review: "[Borrador]" subject and banner.
      */
     public function render(string $view, Company $company, NoticeData $data, TemplateContent $template, bool $test = false, bool $draft = false): RenderedMail
     {
@@ -77,7 +78,20 @@ final class NoticeRenderer
             'numeros_facturas' => SpanishList::join(array_map(fn (Invoice $invoice): string => $invoice->documentNumber, $overdue)),
             'vencimientos' => SpanishList::join(array_values(array_unique(array_map(fn (Invoice $invoice): string => DateFormat::date($invoice->dueAt), $overdue)))),
             'fecha_corte' => $data->cutoffDate === null ? '—' : DateFormat::date($data->cutoffDate),
+            'fecha_cierre' => $data->cutoffDate === null ? '—' : self::dateInWords($data->cutoffDate),
         ];
+    }
+
+    /**
+     * The date in Spanish words, month in lowercase: "31 de mayo de 2026".
+     * Read in the application timezone, like DateFormat, so it names the
+     * same day as {fecha_corte}.
+     */
+    public static function dateInWords(CarbonImmutable $date): string
+    {
+        $local = $date->setTimezone(config()->string('app.timezone'))->locale('es');
+
+        return "{$local->day} de {$local->monthName} de {$local->year}";
     }
 
     /**
