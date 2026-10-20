@@ -15,8 +15,9 @@ use Carbon\CarbonImmutable;
  * configured day of the current month at the configured time (Bogotá), so
  * the scheduled run and any manual run of the month are the same run.
  *
- * While the format is a draft it sends nothing, unless --aun-en-borrador
- * asks for it (to exercise the engine; the mails say "Borrador").
+ * Only if cobro.circularizacion.draft is turned on again (a future format
+ * under review) does it send nothing, unless --aun-en-borrador asks for it
+ * (to exercise the engine; the mails then say "Borrador").
  */
 final class SendCircularizationCommand extends StartRunCommand
 {
@@ -30,7 +31,7 @@ final class SendCircularizationCommand extends StartRunCommand
     /**
      * @var string
      */
-    protected $description = 'Envía a cada cliente con saldo el estado de su cartera al cierre (formato provisional)';
+    protected $description = 'Envía a cada cliente con saldo el estado de su cartera al cierre del mes';
 
     protected function definition(): RunDefinition
     {

@@ -1,6 +1,6 @@
 # Cobro
 
-Correo de cobro por Microsoft Graph desde el buzón de cada empresa: cobro semanal de facturas vencidas (4.1), motor de la circularización mensual (4.2, formato provisional), lista de exclusión, plantilla editable, informe de entrega y bandeja de respuestas. Implementa los contratos `MailSender` y `MailboxReader` (`docs/arquitectura.md` §6.10 y §6.11).
+Correo de cobro por Microsoft Graph desde el buzón de cada empresa: cobro semanal de facturas vencidas (4.1), circularización mensual al cierre (4.2), lista de exclusión, plantilla editable, informe de entrega y bandeja de respuestas. Implementa los contratos `MailSender` y `MailboxReader` (`docs/arquitectura.md` §6.10 y §6.11).
 
 ## Pantallas
 
@@ -15,7 +15,7 @@ Correo de cobro por Microsoft Graph desde el buzón de cada empresa: cobro seman
 | `GET /cobro/lotes/{run}` | `cobro.lotes.show` | `cobro.view` | Un envío cliente por cliente, con el motivo del rebote leído del buzón. |
 | `GET /cobro/exclusiones` | `cobro.exclusiones.index` | `cobro.manage` | Lista de exclusión con casillas, motivo y fecha de vencimiento opcional. |
 | `GET /cobro/plantillas` | `cobro.plantillas.edit` | `cobro.manage` | Asunto y textos del cobro semanal por empresa, con datos como `{cliente}`. |
-| `GET /cobro/copias` | `cobro.copias.edit` | `cobro.manage` | Copias (CC) del cobro semanal por empresa: correos fijos, el asesor del cliente y los gerentes de cada grupo de SAP. |
+| `GET /cobro/copias` | `cobro.copias.edit` | `cobro.manage` | Copias (CC) del cobro semanal y de la circularización por empresa: correos fijos, el asesor del cliente y los gerentes de cada grupo de SAP. |
 
 Permisos (`CobroPermissionSeeder`): `cobro.view` para administrador, gerente y analista de cartera; `cobro.manage` y `cobro.replies` para gerente y analista.
 
@@ -25,7 +25,7 @@ Permisos (`CobroPermissionSeeder`): `cobro.view` para administrador, gerente y a
 |---|---|---|
 | `cobro:sincronizar-buzones` | Cada 5 minutos | Lee con una consulta delta de Graph los correos nuevos de la bandeja de entrada de cada buzón, los une al envío y al cliente, y registra la respuesta en la bitácora. Sin credenciales de Graph solo avisa. |
 | `cobro:cobro-semanal` | Miércoles 17:00 (`cobro.weekly`) | Prepara el envío y pone en cola un trabajo `SendRunItem` por cliente. Correrlo de nuevo el mismo día no envía nada. |
-| `cobro:circularizacion` | Día 1 a las 09:00 (`cobro.circularizacion`) | Igual, una vez al mes. Mientras el formato sea borrador no envía nada; `--aun-en-borrador` permite probar el motor. |
+| `cobro:circularizacion` | Día 1 a las 09:00 (`cobro.circularizacion`) | Igual, una vez al mes, para Segurex y Derivados: **envía de verdad** (ver «Circularización»). Solo si se vuelve a poner `cobro.circularizacion.draft` en `true` deja de enviar; entonces `--aun-en-borrador` permite probar el motor. |
 | `cobro:cerrar-envios-interrumpidos` | Cada 10 minutos | Marca «No se pudo enviar» a los clientes que un proceso interrumpido dejó «enviando» más de 30 minutos, para que el envío se cierre y el informe lo muestre. |
 
 Cada trabajo reclama su cliente antes de enviar (pendiente → enviando), así que un reintento nunca le manda dos correos al mismo cliente. Los trabajos salen escalonados a `cobro.send_per_minute` correos por minuto (25 por defecto; Exchange Online acepta 30 por minuto por buzón) y el limitador `cobro-mail` queda de respaldo: 300 clientes tardan unos 12 minutos en salir. El informe muestra en español por qué no salió un correo; el detalle técnico queda en el registro.
@@ -40,9 +40,9 @@ Cada trabajo reclama su cliente antes de enviar (pendiente → enviando), así q
 
 Un rebote unido marca su cliente como «Rebotado» en el informe, con el código SMTP y la dirección que falló. Si el informe nombra varias direcciones del envío, cuenta primero la del cliente (Para) y después las copias. Si la dirección que falló es una copia (CC), el cliente sí recibió el correo: queda «Enviado» y la dirección queda en el registro.
 
-## Copias del cobro semanal
+## Copias del cobro semanal y de la circularización
 
-Cada correo del cobro semanal lleva en copia (CC), en este orden y sin repetir direcciones ni repetir las del cliente:
+Cada correo del cobro semanal y de la circularización mensual lleva en copia (CC), en este orden y sin repetir direcciones ni repetir las del cliente:
 
 1. los correos fijos de la empresa;
 2. el asesor del cliente (su correo en SAP, `OSLP.Email`), si la casilla está marcada y SAP lo tiene activo;
@@ -55,7 +55,7 @@ Se editan en `/cobro/copias` y se guardan en `cobro_copias`, una fila por empres
 | Segurex | Miguel Martínez | Sí | `DISTRIBUCION`: Jessika Quintero; `CONS. RESIDENCIAL`: Andrea Hincapié |
 | Derivados | Miguel Martínez, Diana Mora y Servicio al Cliente | No (la única asesora, Diana Mora, ya va fija) | Ninguno |
 
-La vista previa del envío muestra las copias de cada cliente; la prueba que se envía el usuario y la circularización no llevan copias.
+Las dos clases de correo usan las mismas copias de la empresa: lo que se guarde en `/cobro/copias` aplica a ambas. La vista previa del envío muestra las copias de cada cliente; la prueba que se envía el usuario no lleva copias.
 
 ## Microsoft Graph: lo que TI debe configurar
 
@@ -91,7 +91,21 @@ Variables de `.env` (`docs/arquitectura.md` §15): `GRAPH_TENANT_ID`, `GRAPH_CLI
 
 ## Circularización (4.2)
 
-`Circularizacion/CircularizationRun.php` es el motor: programación mensual, lote, envío e informe, con la misma lista de exclusión y la misma bandeja de respuestas. La plantilla `resources/views/circularizacion/borrador.blade.php` es **provisional** y se marca «Borrador» en el asunto y en el cuerpo. Cuando llegue el informe que hoy reciben los clientes, la sesión «Circularización» reemplaza esa vista y pone `cobro.circularizacion.draft` en `false`.
+**El envío programado sale de verdad**: el día 1 de cada mes a las 9:00 a. m. (hora de Bogotá), para Segurex y Derivados (`cobro.circularizacion`, con `draft` en `false`). **Antes del primer envío real, envíate una prueba desde `/cobro/circularizacion` a un buzón interno** y revisa el correo de cada empresa.
+
+`Circularizacion/CircularizationRun.php` define el envío: programación mensual, lote, envío e informe, con la misma lista de exclusión, el mismo informe de entrega y la misma bandeja de respuestas del cobro semanal. Cada cliente con saldo recibe todas sus partidas abiertas (las notas crédito incluidas, como en el cobro semanal) con el total que debe. El robot fecha cada corte con el día en que lo extrae (hacia las 19:00), así que el día 1 a las 9:00 el último corte es el último día del mes cerrado.
+
+El correo (`resources/views/circularizacion/estado-cartera.blade.php`) copia el formato que cada empresa envía hoy, sin el marco de la marca, como el cobro semanal:
+
+- Asunto `Circularización de Cartera – Corte al {fecha_cierre}`. `{fecha_cierre}` es la fecha de corte en letras, por ejemplo «31 de mayo de 2026» («—» si no hay corte); `{fecha_corte}` sigue siendo DD/MM/AAAA.
+- Textos de cada empresa, palabra por palabra (con «usted», como los escriben), en `resources/lang/es/plantillas.php` (`por_defecto.circularizacion.SGX` y `.SDC`). La pantalla de plantillas todavía edita solo el cobro semanal.
+- La tabla de cada empresa (`Circularizacion/CircularizationTable.php`) con sus columnas en el orden del original y el nombre de la empresa donde el original lleva el logo.
+- Solo Segurex: el aviso en rojo bajo la tabla («…corresponde al cierre del 31 de mayo…», `Circularizacion/ClosingNotice.php`) y el pie de firma con la dirección, los teléfonos y el aviso legal (`resources/lang/es/circularizacion.php`).
+- Copias (CC): las mismas del cobro semanal de la empresa (ver «Copias del cobro semanal y de la circularización»).
+
+Quedan por fuera las columnas Mora y Moneda, la marca de importancia alta, los logos y los íconos de redes: la cartera no trae esos datos y el contrato de envío no admite importancia ni imágenes. No se escribe un «COP» fijo ni se deduce «Corriente».
+
+`cobro.circularizacion.draft` se conserva para un formato futuro en revisión: en `true` el envío programado no sale y los correos dicen «Borrador»; `--aun-en-borrador` permite probar el motor.
 
 ## Pruebas
 
