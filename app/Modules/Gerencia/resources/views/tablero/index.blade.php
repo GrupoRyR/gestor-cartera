@@ -29,8 +29,8 @@
     ], PeriodKey::cases());
 
     $rows = $board->compliance->rows;
-    $evaluated = array_sum(array_map(fn ($row): int => $row->compliance->evaluated(), $rows));
-    $fulfilled = array_sum(array_map(fn ($row): int => $row->compliance->fulfilled, $rows));
+    $evaluated = $board->compliance->evaluated();
+    $fulfilled = $board->compliance->fulfilled();
     $complianceRate = $board->compliance->overallRate();
 
     $mail = $board->mail->results;

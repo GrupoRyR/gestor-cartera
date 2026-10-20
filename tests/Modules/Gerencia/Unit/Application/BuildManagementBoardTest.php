@@ -29,7 +29,6 @@ it('wires the readers for the group view', function () {
         ->and($board->period->key)->toBe(PeriodKey::Month)
         ->and($board->period->from->toDateString())->toBe('2026-10-01')
         ->and($board->scopeName)->toBe('Grupo RYR')
-        ->and($board->isGroup)->toBeTrue()
         ->and(array_map(fn ($scope) => $scope->company?->value, $board->scopes))->toBe([null, 'SGX', 'SDC'])
         ->and($board->collections->total())->toBe(250.0)
         ->and($board->compliance->rows)->toHaveCount(1)
@@ -43,7 +42,6 @@ it('names the active company and keeps only its figures', function () {
     $board = $this->app->make(BuildManagementBoard::class)->handle(PeriodKey::Year);
 
     expect($board->scopeName)->toBe('Soluciones y Derivados')
-        ->and($board->isGroup)->toBeFalse()
         ->and($board->period->key)->toBe(PeriodKey::Year)
         ->and($board->period->from->toDateString())->toBe('2026-01-01')
         ->and(array_map(fn ($scope) => $scope->company?->value, $board->scopes))->toBe(['SDC']);

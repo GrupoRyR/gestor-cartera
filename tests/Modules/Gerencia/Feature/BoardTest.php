@@ -142,7 +142,7 @@ it('selects the period with the periodo parameter and keeps the month for anythi
 })->with([
     'default' => ['', 'Este mes', '01/10/2026 al 20/10/2026'],
     'previous month' => ['?periodo=mes_anterior', 'Mes anterior', '01/09/2026 al 30/09/2026'],
-    'quarter' => ['?periodo=trimestre', 'Últimos 3 meses', '01/08/2026 al 20/10/2026'],
+    'quarter' => ['?periodo=trimestre', 'Trimestre móvil', '01/08/2026 al 20/10/2026'],
     'year' => ['?periodo=anio', 'Este año', '01/01/2026 al 20/10/2026'],
     'unknown value' => ['?periodo=nunca', 'Este mes', '01/10/2026 al 20/10/2026'],
     'not a text' => ['?periodo[]=anio', 'Este mes', '01/10/2026 al 20/10/2026'],

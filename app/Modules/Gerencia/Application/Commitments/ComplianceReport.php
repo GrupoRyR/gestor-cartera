@@ -20,6 +20,23 @@ final readonly class ComplianceReport
     ) {}
 
     /**
+     * Commitments evaluated across every advisor: fulfilled, broken and
+     * overdue without payment.
+     */
+    public function evaluated(): int
+    {
+        return array_sum(array_map(fn (ComplianceRow $row): int => $row->compliance->evaluated(), $this->rows));
+    }
+
+    /**
+     * Commitments fulfilled across every advisor, on time or late.
+     */
+    public function fulfilled(): int
+    {
+        return array_sum(array_map(fn (ComplianceRow $row): int => $row->compliance->fulfilled, $this->rows));
+    }
+
+    /**
      * Fulfilled share of everything evaluated, from 0 to 100; null when
      * nothing was evaluated.
      */

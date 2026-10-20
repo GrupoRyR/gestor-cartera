@@ -35,7 +35,6 @@ final class BuildManagementBoard
             today: $today,
             period: $period,
             scopeName: $this->company->active()->name ?? (string) config('gerencia.group_name', 'Grupo RYR'),
-            isGroup: $this->company->isGroup(),
             scopes: $this->portfolio->handle($period, $today, $collections),
             compliance: $this->compliance->handle($period, $today),
             mail: $this->mail->handle($period),

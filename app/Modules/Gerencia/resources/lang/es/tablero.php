@@ -9,7 +9,7 @@ return [
         'etiqueta' => 'Período del tablero',
         'mes' => 'Este mes',
         'mes_anterior' => 'Mes anterior',
-        'trimestre' => 'Últimos 3 meses',
+        'trimestre' => 'Trimestre móvil',
         'anio' => 'Este año',
         'fechas' => ':desde al :hasta',
     ],

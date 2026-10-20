@@ -22,7 +22,6 @@ final readonly class ManagementBoard
         public CarbonImmutable $today,
         public ReportPeriod $period,
         public string $scopeName,
-        public bool $isGroup,
         public array $scopes,
         public ComplianceReport $compliance,
         public MailResultsReport $mail,

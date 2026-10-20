@@ -76,8 +76,8 @@ final class CollectionsChart
             $bars[] = [
                 'label' => Figures::dayShort($start),
                 'title' => __('gerencia::tablero.recaudo.semanal.titulo_barra', [
-                    'desde' => DateFormat::date($start),
-                    'hasta' => DateFormat::date($start->addDays(6)),
+                    'desde' => DateFormat::date($start->max($period->from)),
+                    'hasta' => DateFormat::date($start->addDays(6)->min($period->to)),
                 ]),
                 'value' => $value,
                 'text' => Money::format($value),

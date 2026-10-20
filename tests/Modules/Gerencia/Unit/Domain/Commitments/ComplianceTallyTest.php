@@ -60,8 +60,7 @@ it('evaluates fulfilled, broken and overdue pending commitments only', function 
     expect($rows[0]->evaluated())->toBe(3)
         ->and($rows[0]->rate())->toEqualWithDelta(100 / 3, 0.0001)
         ->and($rows[0]->amountEvaluated)->toBe(600.0)
-        ->and($rows[0]->amountFulfilled)->toBe(100.0)
-        ->and($rows[0]->amountRate())->toEqualWithDelta(100 / 6, 0.0001);
+        ->and($rows[0]->amountFulfilled)->toBe(100.0);
 });
 
 it('has no rate while nothing has been evaluated', function () {
@@ -71,8 +70,7 @@ it('has no rate while nothing has been evaluated', function () {
     ], $this->today);
 
     expect($rows[0]->evaluated())->toBe(0)
-        ->and($rows[0]->rate())->toBeNull()
-        ->and($rows[0]->amountRate())->toBeNull();
+        ->and($rows[0]->rate())->toBeNull();
 });
 
 it('groups by company and advisor, keeping advisors without a code apart', function () {

@@ -53,13 +53,4 @@ final readonly class AdvisorCompliance
 
         return $evaluated === 0 ? null : $this->fulfilled / $evaluated * 100;
     }
-
-    /**
-     * Share of the evaluated amount that was fulfilled, from 0 to 100; null
-     * when no amount was evaluated.
-     */
-    public function amountRate(): ?float
-    {
-        return $this->amountEvaluated <= 0 ? null : $this->amountFulfilled / $this->amountEvaluated * 100;
-    }
 }
