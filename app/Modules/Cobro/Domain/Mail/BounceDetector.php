@@ -54,8 +54,9 @@ final class BounceDetector
      * The reason and failed address of a bounce.
      *
      * @param  string  $body  Plain-text body of the report.
-     * @param  list<string>  $recipients  Addresses of the original mail, when known: the failed
-     *                                    address is the first of them the report names.
+     * @param  list<string>  $recipients  Addresses of the original mail, when known (To before Cc):
+     *                                    the failed address is the first of them, in this order,
+     *                                    that the report names.
      * @param  list<string>  $ignore  Addresses that are never the failed one (the company mailbox).
      */
     public function read(string $body, string $preview = '', array $recipients = [], array $ignore = []): Bounce
@@ -101,8 +102,11 @@ final class BounceDetector
 
         $known = array_map(fn (string $address): string => mb_strtolower(trim($address)), $recipients);
 
-        foreach ($found as $address) {
-            if (in_array($address, $known, true)) {
+        // The original recipients in their stored order (To before Cc),
+        // not the order the report names them in: a report quoting the
+        // original headers names the copies too.
+        foreach ($known as $address) {
+            if (in_array($address, $found, true)) {
                 return $address;
             }
         }

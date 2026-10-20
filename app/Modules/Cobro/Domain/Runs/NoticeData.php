@@ -20,6 +20,8 @@ final readonly class NoticeData
      * @param  string|null  $paymentTerms  Payment terms as named in SAP, e.g. "30 DIAS".
      * @param  array<int, string>  $advisorNames  Advisor code => name, for the advisor of each invoice.
      * @param  int|null  $advisorCode  The client's advisor, for invoices without one.
+     * @param  string|null  $advisorEmail  E-mail of the client's advisor (OSLP.Email), for the carbon copies;
+     *                                     null when SAP lists the advisor as inactive.
      */
     public function __construct(
         public string $clientName,
@@ -31,6 +33,7 @@ final readonly class NoticeData
         public ?string $paymentTerms = null,
         public array $advisorNames = [],
         public ?int $advisorCode = null,
+        public ?string $advisorEmail = null,
     ) {}
 
     /**

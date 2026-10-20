@@ -2,6 +2,7 @@
 
 namespace App\Modules\Cobro\Infrastructure\Runs;
 
+use App\Modules\Cobro\Domain\Copies\CopyRecipients;
 use App\Modules\Cobro\Domain\Runs\ItemStatus;
 use App\Modules\Cobro\Infrastructure\Graph\GraphRequestFailed;
 use App\Modules\Cobro\Infrastructure\Persistence\RunItem;
@@ -24,7 +25,8 @@ use Throwable;
 
 /**
  * Sends the mail of one run item: renders it with the client's data at
- * send time and hands it to MailSender, then records the outcome on the
+ * send time and hands it to MailSender (with the carbon copies the
+ * definition rendered, minus the item's own recipients), then records the outcome on the
  * item and the EmailSent activity of the client.
  *
  * The job first claims the item (pending → enviando in one UPDATE), so a
@@ -115,6 +117,7 @@ final class SendRunItem implements ShouldQueue
                 to: $item->recipients,
                 subject: $mail->subject,
                 html: $mail->html,
+                cc: CopyRecipients::excluding($mail->cc, $item->recipients),
                 clientId: $item->client_id,
                 category: $run->kind->value,
             ));

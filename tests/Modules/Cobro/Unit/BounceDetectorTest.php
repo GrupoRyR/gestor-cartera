@@ -48,6 +48,12 @@ it('names the failed address among the original recipients', function () {
         ->and((new BounceDetector)->read($body, recipients: ['otro@cliente.example'])->recipient)->toBeNull();
 });
 
+it('prefers the recipients in their stored order (To before Cc) over the order of the report', function () {
+    $body = "Delivery has failed to these recipients: copia@segurex.com\r\nOriginal message:\r\nTo: pagos@cliente.example\r\nCc: copia@segurex.com";
+
+    expect((new BounceDetector)->read($body, recipients: ['pagos@cliente.example', 'copia@segurex.com'])->recipient)->toBe('pagos@cliente.example');
+});
+
 it('guesses the failed address when the recipients are unknown', function () {
     $body = 'From segurex.info@segurex.com to pagos@cliente.example: 550 5.1.1 via postmaster@cliente.example';
 
