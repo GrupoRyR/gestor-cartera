@@ -2,7 +2,12 @@
 
 namespace App\Modules\Comisiones\Providers;
 
+use App\Modules\Comisiones\Application\Ports\SettlementInputs;
+use App\Modules\Comisiones\Infrastructure\Ingest\ImportCommissionBatch;
+use App\Modules\Comisiones\Infrastructure\Settlement\EloquentSettlementInputs;
+use App\Modules\Core\Contracts\Events\BatchAccepted;
 use App\Support\Modules\ModuleServiceProvider;
+use Illuminate\Support\Facades\Event;
 
 /**
  * Comisiones: sales commission settlement, SGX only (rules in
@@ -17,5 +22,14 @@ use App\Support\Modules\ModuleServiceProvider;
  */
 final class ComisionesServiceProvider extends ModuleServiceProvider
 {
-    //
+    protected function registerModule(): void
+    {
+        $this->app->singleton(SettlementInputs::class, EloquentSettlementInputs::class);
+    }
+
+    protected function bootModule(): void
+    {
+        // Stages the ventas, recaudos, cruces and master batches of SGX.
+        Event::listen(BatchAccepted::class, ImportCommissionBatch::class);
+    }
 }
