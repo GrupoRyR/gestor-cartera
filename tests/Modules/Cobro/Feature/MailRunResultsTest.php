@@ -72,9 +72,10 @@ function mailResultsRun(CompanyCode $company, RunKind $kind, string $scheduledFo
 }
 
 /**
- * A reply (or bounce) read from the inbox, linked to the item's send.
+ * A reply (or bounce) read from the inbox, linked to the item's send, or
+ * to $sentMessageId when given.
  */
-function mailResultsReply(RunItem $item, bool $bounce = false): InboundMessage
+function mailResultsReply(RunItem $item, bool $bounce = false, ?int $sentMessageId = null): InboundMessage
 {
     static $sequence = 0;
     $sequence++;
@@ -88,7 +89,7 @@ function mailResultsReply(RunItem $item, bool $bounce = false): InboundMessage
         'preview' => $bounce ? 'Delivery has failed.' : 'Pagamos el viernes.',
         'received_at' => CarbonImmutable::parse('2026-10-22 08:00:00', 'America/Bogota'),
         'is_bounce' => $bounce,
-        'sent_message_id' => $item->sent_message_id,
+        'sent_message_id' => $sentMessageId ?? $item->sent_message_id,
     ]);
 }
 
@@ -124,6 +125,7 @@ it('counts the clients mailed, bounced and without e-mail of the run', function 
         ->and($results->sent)->toBe(4)
         ->and($results->bounced)->toBe(1)
         ->and($results->withoutEmail)->toBe(1)
+        ->and($results->failed)->toBe(1)
         ->and($results->replies)->toBe(0)
         ->and($results->delivered())->toBe(3);
 });
@@ -136,6 +138,22 @@ it('counts the clients who answered, not the messages, and ignores bounces', fun
     mailResultsReply($this->items[3]);
 
     expect(mailResults(CompanyCode::SGX, MailRunKind::WeeklyCollection, '2026-10-01', '2026-10-31')->replies)->toBe(2);
+});
+
+it('finds the reply by Message-ID when the item kept no link to its send', function () {
+    // SendRunItem links the send after marking the item sent; that second
+    // update can fail and leave only the Message-ID on the item.
+    $item = $this->items[2];
+    $send = $item->sent_message_id;
+    $item->update(['sent_message_id' => null]);
+
+    mailResultsReply($item, sentMessageId: $send);
+    mailResultsReply($item, sentMessageId: $send);
+    mailResultsReply($item, bounce: true, sentMessageId: $send);
+
+    expect($item->refresh()->sent_message_id)->toBeNull()
+        ->and($item->internet_message_id)->not->toBeNull()
+        ->and(mailResults(CompanyCode::SGX, MailRunKind::WeeklyCollection, '2026-10-01', '2026-10-31')->replies)->toBe(1);
 });
 
 it('ignores the replies to runs outside the period and the unlinked replies', function () {
@@ -176,14 +194,14 @@ it('keeps each company and each kind apart', function () {
 
 it('sums every run scheduled in the period, both ends included', function () {
     mailResultsRun(CompanyCode::SGX, RunKind::Weekly, '2026-10-01 00:00:00', [ItemStatus::Sent]);
-    mailResultsRun(CompanyCode::SGX, RunKind::Weekly, '2026-10-31 23:59:00', [ItemStatus::Bounced, ItemStatus::NoEmail]);
-    mailResultsRun(CompanyCode::SGX, RunKind::Weekly, '2026-11-01 09:00:00', [ItemStatus::Sent]);
+    mailResultsRun(CompanyCode::SGX, RunKind::Weekly, '2026-10-31 23:59:00', [ItemStatus::Bounced, ItemStatus::NoEmail, ItemStatus::Failed]);
+    mailResultsRun(CompanyCode::SGX, RunKind::Weekly, '2026-11-01 09:00:00', [ItemStatus::Sent, ItemStatus::Failed]);
 
     $october = mailResults(CompanyCode::SGX, MailRunKind::WeeklyCollection, '2026-10-01', '2026-10-31');
     $november = mailResults(CompanyCode::SGX, MailRunKind::WeeklyCollection, '2026-11-01', '2026-11-30');
 
-    expect([$october->runs, $october->sent, $october->bounced, $october->withoutEmail])->toBe([3, 6, 2, 2])
-        ->and([$november->runs, $november->sent])->toBe([1, 1]);
+    expect([$october->runs, $october->sent, $october->bounced, $october->withoutEmail, $october->failed])->toBe([3, 6, 2, 2, 2])
+        ->and([$november->runs, $november->sent, $november->failed])->toBe([1, 1, 1]);
 });
 
 it('compares the scheduled date as a Bogotá calendar day whatever the app timezone', function () {

@@ -479,7 +479,7 @@ Todos son `final readonly`. Los campos van en el orden del constructor; los que 
 | `InboundMail` | `id: string`, `company: CompanyCode`, `clientId: ?int`, `from: string`, `subject: string`, `preview: string`, `receivedAt: CarbonImmutable`, `isBounce: bool = false`, `bounceReason: ?string = null`, `conversationId: ?string = null`, `read: bool = false`, `url: ?string = null` |
 | `DailyCollection` | `date: CarbonImmutable`, `company: CompanyCode`, `total: float`, `byBank: array<string, float>` (llave = valor de `Bank`), `movementCount: int` |
 | `WeeklyCollection` | `weekStart: CarbonImmutable` (lunes), `weekEnd: CarbonImmutable` (domingo), `company: CompanyCode`, `total: float`, `byBank: array<string, float>` |
-| `MailRunResults` | `company: CompanyCode`, `kind: MailRunKind`, `from: CarbonImmutable`, `to: CarbonImmutable` (solo fecha, inclusivas), `runs: int` (lotes programados en el período), `sent: int` (clientes cuyo correo recibió el buzón: `enviado` o `rebotado`), `bounced: int` (rebotó en un destinatario propio; la copia que rebota no cuenta), `withoutEmail: int` (clientes sin correo), `replies: int` (clientes enviados que respondieron al menos una vez; un rebote no es respuesta). Métodos: `empty(CompanyCode, MailRunKind, from, to)` y `delivered(): int` (`sent − bounced`). Lanza `InvalidArgumentException` con un conteo negativo o con más rebotes o respuestas que envíos. |
+| `MailRunResults` | `company: CompanyCode`, `kind: MailRunKind`, `from: CarbonImmutable`, `to: CarbonImmutable` (solo fecha, inclusivas), `runs: int` (lotes programados en el período), `sent: int` (clientes cuyo correo recibió el buzón: `enviado` o `rebotado`), `bounced: int` (rebotó en un destinatario propio; la copia que rebota no cuenta), `withoutEmail: int` (clientes sin correo), `failed: int` (clientes cuyo envío falló: `fallido`), `replies: int` (clientes enviados que respondieron al menos una vez; un rebote no es respuesta). Métodos: `empty(CompanyCode, MailRunKind, from, to)` y `delivered(): int` (`sent − bounced`). Lanza `InvalidArgumentException` con un conteo negativo o con más rebotes o respuestas que envíos. |
 
 ### 6.14 Enums (`Contracts\Enums`)
 
@@ -523,7 +523,7 @@ Los contratos también lanzan `InvalidArgumentException`, `DomainException` e `I
 
 ### 6.17 `MailRunResultsProvider`
 
-Resultados de los lotes de correo de Cobro (cobro semanal y circularización) por empresa, tipo y período: clientes enviados, rebotados, sin correo y que respondieron. Lo implementa Cobro con las tablas del informe de entrega. No filtra por usuario: autoriza quien llama (p. ej. el tablero de gerencia).
+Resultados de los lotes de correo de Cobro (cobro semanal y circularización) por empresa, tipo y período: clientes enviados, rebotados, sin correo, con envío fallido y que respondieron. Lo implementa Cobro con las tablas del informe de entrega; una respuesta se une al envío del cliente por su id o, si el cliente no lo guardó, por su Message-ID. No filtra por usuario: autoriza quien llama (p. ej. el tablero de gerencia).
 
 Un lote entra en el período cuando su fecha programada, como día calendario en America/Bogota, cae en el rango; los dos extremos son inclusivos y de `$from` y `$to` solo cuenta la fecha. Los correos de prueba nunca son lotes, así que nunca cuentan. Las respuestas cuentan cuando lleguen, aunque sea después del período.
 
@@ -582,7 +582,7 @@ Enlaza los diez fakes como instancias del contenedor y devuelve un `ContractFake
 | `FakeMailSender` | `failNextWith(MailNotSent)`; constante `MAILBOXES` | `sent()`, `receipts()`, `assertSent(?callable $filter = null, ?int $times = null)`, `assertSentTo(string $email)`, `assertNothingSent()` |
 | `FakeMailboxReader` | `add(InboundMail ...)` | Métodos del contrato |
 | `FakeRecaudoProvider` | `addDaily(DailyCollection ...)` (`weekly()` se calcula de ahí) | Métodos del contrato |
-| `FakeMailRunResultsProvider` | `add(CompanyCode $company, MailRunKind $kind, CarbonImmutable $scheduledFor, int $sent = 0, int $bounced = 0, int $withoutEmail = 0, int $replies = 0)`, una llamada por lote (`results()` suma los del período, por día calendario de Bogotá) | Métodos del contrato |
+| `FakeMailRunResultsProvider` | `add(CompanyCode $company, MailRunKind $kind, CarbonImmutable $scheduledFor, int $sent = 0, int $bounced = 0, int $withoutEmail = 0, int $failed = 0, int $replies = 0)`, una llamada por lote (`results()` suma los del período, por día calendario de Bogotá) | Métodos del contrato |
 
 Diferencias con las implementaciones reales que conviene saber:
 

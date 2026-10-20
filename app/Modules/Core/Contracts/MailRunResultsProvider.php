@@ -10,8 +10,8 @@ use InvalidArgumentException;
 
 /**
  * Results of the collection-mail runs (weekly collection and
- * circularization): clients mailed, bounced, without e-mail and who
- * answered, per company, kind and period.
+ * circularization): clients mailed, bounced, without e-mail, whose send
+ * failed and who answered, per company, kind and period.
  *
  * Implemented by Cobro (phase 2); tests use
  * Tests\Fakes\FakeMailRunResultsProvider.

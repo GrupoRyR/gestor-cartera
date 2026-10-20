@@ -21,9 +21,10 @@ use InvalidArgumentException;
  *
  * A client counts as sent while its item is enviado or rebotado (the
  * mailbox accepted the mail; MarkItemBounced turns it rebotado only when
- * one of its own recipients failed). A client answered when a message that
- * is not a bounce is linked to the item's send. Three queries, whatever the
- * number of runs.
+ * one of its own recipients failed); failed counts the items fallido. A
+ * client answered when a message that is not a bounce is linked to the
+ * item's send, found by its id or, failing that, by its Message-ID. Three
+ * queries, whatever the number of runs.
  */
 final class DatabaseMailRunResults implements MailRunResultsProvider
 {
@@ -64,15 +65,26 @@ final class DatabaseMailRunResults implements MailRunResultsProvider
             ->map(fn (mixed $total): int => (int) $total)
             ->all();
 
+        // An item normally links its send through sent_message_id;
+        // SendRunItem fills it after marking the item sent, so when that
+        // update failed only the Message-ID is left (MarkItemBounced falls
+        // back the same way).
         $replies = RunItem::query()
             ->whereIn('run_id', $runIds)
             ->whereIn('status', [ItemStatus::Sent, ItemStatus::Bounced])
-            ->whereNotNull('sent_message_id')
             ->whereExists(fn (QueryBuilder $inbound) => $inbound
                 ->selectRaw('1')
                 ->from('cobro_inbound_messages')
-                ->whereColumn('cobro_inbound_messages.sent_message_id', 'cobro_run_items.sent_message_id')
-                ->where('cobro_inbound_messages.is_bounce', false))
+                ->where('cobro_inbound_messages.is_bounce', false)
+                ->where(fn (QueryBuilder $link) => $link
+                    ->whereColumn('cobro_inbound_messages.sent_message_id', 'cobro_run_items.sent_message_id')
+                    ->orWhere(fn (QueryBuilder $byMessageId) => $byMessageId
+                        ->whereNull('cobro_run_items.sent_message_id')
+                        ->whereNotNull('cobro_run_items.internet_message_id')
+                        ->whereIn('cobro_inbound_messages.sent_message_id', fn (QueryBuilder $sends) => $sends
+                            ->select('cobro_sent_messages.id')
+                            ->from('cobro_sent_messages')
+                            ->whereColumn('cobro_sent_messages.internet_message_id', 'cobro_run_items.internet_message_id')))))
             ->count();
 
         $bounced = $counts[ItemStatus::Bounced->value] ?? 0;
@@ -86,6 +98,7 @@ final class DatabaseMailRunResults implements MailRunResultsProvider
             sent: ($counts[ItemStatus::Sent->value] ?? 0) + $bounced,
             bounced: $bounced,
             withoutEmail: $counts[ItemStatus::NoEmail->value] ?? 0,
+            failed: $counts[ItemStatus::Failed->value] ?? 0,
             replies: $replies,
         );
     }

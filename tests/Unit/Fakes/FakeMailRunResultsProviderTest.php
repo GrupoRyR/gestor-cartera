@@ -15,8 +15,8 @@ function fakeMailRunDay(string $date): CarbonImmutable
 
 beforeEach(function () {
     $this->provider = (new FakeMailRunResultsProvider)
-        ->add(CompanyCode::SGX, MailRunKind::WeeklyCollection, fakeMailRunDay('2026-10-07 17:00'), sent: 10, bounced: 1, withoutEmail: 2, replies: 3)
-        ->add(CompanyCode::SGX, MailRunKind::WeeklyCollection, fakeMailRunDay('2026-10-31 23:30'), sent: 5, replies: 1)
+        ->add(CompanyCode::SGX, MailRunKind::WeeklyCollection, fakeMailRunDay('2026-10-07 17:00'), sent: 10, bounced: 1, withoutEmail: 2, failed: 1, replies: 3)
+        ->add(CompanyCode::SGX, MailRunKind::WeeklyCollection, fakeMailRunDay('2026-10-31 23:30'), sent: 5, failed: 2, replies: 1)
         ->add(CompanyCode::SGX, MailRunKind::WeeklyCollection, fakeMailRunDay('2026-11-01 09:00'), sent: 7)
         ->add(CompanyCode::SGX, MailRunKind::Circularization, fakeMailRunDay('2026-10-01 09:00'), sent: 40, withoutEmail: 4)
         ->add(CompanyCode::SDC, MailRunKind::WeeklyCollection, fakeMailRunDay('2026-10-07 17:00'), sent: 3, bounced: 3);
@@ -34,6 +34,7 @@ it('sums the runs of the company and kind scheduled in the period', function () 
         sent: 15,
         bounced: 1,
         withoutEmail: 2,
+        failed: 3,
         replies: 4,
     ))->and($results->delivered())->toBe(14);
 });
@@ -62,7 +63,7 @@ it('rejects a period that ends before it starts', function () {
         ->toThrow(InvalidArgumentException::class);
 });
 
-it('rejects a run with impossible counts', function (int $sent, int $bounced, int $withoutEmail, int $replies) {
+it('rejects a run with impossible counts', function (int $sent, int $bounced, int $withoutEmail, int $failed, int $replies) {
     expect(fn () => (new FakeMailRunResultsProvider)->add(
         CompanyCode::SGX,
         MailRunKind::WeeklyCollection,
@@ -70,13 +71,15 @@ it('rejects a run with impossible counts', function (int $sent, int $bounced, in
         sent: $sent,
         bounced: $bounced,
         withoutEmail: $withoutEmail,
+        failed: $failed,
         replies: $replies,
     ))->toThrow(InvalidArgumentException::class);
 })->with([
-    'negative count' => [-1, 0, 0, 0],
-    'more bounces than sends' => [1, 2, 0, 0],
-    'more replies than sends' => [1, 0, 0, 2],
-    'negative clients without e-mail' => [0, 0, -1, 0],
+    'negative count' => [-1, 0, 0, 0, 0],
+    'more bounces than sends' => [1, 2, 0, 0, 0],
+    'more replies than sends' => [1, 0, 0, 0, 2],
+    'negative clients without e-mail' => [0, 0, -1, 0, 0],
+    'negative failed sends' => [0, 0, 0, -1, 0],
 ]);
 
 it('is bound by ContractFakes::install()', function () {

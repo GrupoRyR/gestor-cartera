@@ -21,6 +21,7 @@ final readonly class MailRunResults
      * @param  int  $bounced  Those of them whose mail bounced at one of their own
      *                        recipients; a bounced carbon copy does not count.
      * @param  int  $withoutEmail  Clients left out because they have no e-mail address.
+     * @param  int  $failed  Clients whose send failed: the mailbox did not take the mail.
      * @param  int  $replies  Clients mailed who answered at least once (a bounce is not
      *                        an answer), whenever the answer arrived.
      *
@@ -36,9 +37,10 @@ final readonly class MailRunResults
         public int $sent,
         public int $bounced,
         public int $withoutEmail,
+        public int $failed,
         public int $replies,
     ) {
-        if (min($runs, $sent, $bounced, $withoutEmail, $replies) < 0) {
+        if (min($runs, $sent, $bounced, $withoutEmail, $failed, $replies) < 0) {
             throw new InvalidArgumentException('Mail run counts cannot be negative.');
         }
 
@@ -61,6 +63,7 @@ final readonly class MailRunResults
             sent: 0,
             bounced: 0,
             withoutEmail: 0,
+            failed: 0,
             replies: 0,
         );
     }

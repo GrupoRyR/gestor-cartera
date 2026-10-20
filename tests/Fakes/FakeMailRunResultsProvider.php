@@ -36,13 +36,14 @@ final class FakeMailRunResultsProvider implements MailRunResultsProvider
         int $sent = 0,
         int $bounced = 0,
         int $withoutEmail = 0,
+        int $failed = 0,
         int $replies = 0,
     ): self {
         $day = self::day($scheduledFor->setTimezone(self::TIMEZONE));
 
         $this->runs[] = [
             'day' => $day->toDateString(),
-            'results' => new MailRunResults($company, $kind, $day, $day, 1, $sent, $bounced, $withoutEmail, $replies),
+            'results' => new MailRunResults($company, $kind, $day, $day, 1, $sent, $bounced, $withoutEmail, $failed, $replies),
         ];
 
         return $this;
@@ -76,6 +77,7 @@ final class FakeMailRunResultsProvider implements MailRunResultsProvider
                 sent: $total->sent + $results->sent,
                 bounced: $total->bounced + $results->bounced,
                 withoutEmail: $total->withoutEmail + $results->withoutEmail,
+                failed: $total->failed + $results->failed,
                 replies: $total->replies + $results->replies,
             );
         }
