@@ -92,7 +92,8 @@ final class TemplateController
     }
 
     /**
-     * Sample client with two overdue invoices, for the preview.
+     * Sample client for the preview: two overdue invoices and one not due
+     * yet, with the data the company's table shows.
      */
     public static function sample(CompanyCode $company): NoticeData
     {
@@ -112,9 +113,18 @@ final class TemplateController
 
         return new NoticeData(
             clientName: (string) __('cobro::envios.ejemplo.cliente'),
-            taxId: '900123456',
-            invoices: [$invoice(1, 'FV-1188', 47, 2_350_000.0), $invoice(2, 'FV-1201', 18, 1_150_000.0)],
+            taxId: '900123456-1',
+            invoices: [
+                $invoice(1, '1188', 47, 2_350_000.0),
+                $invoice(2, '1201', 18, 1_150_000.0),
+                $invoice(3, '1250', -12, 980_000.0),
+            ],
             cutoffDate: $today,
+            clientCode: 'CN0001',
+            group: (string) __('cobro::envios.ejemplo.unidad'),
+            paymentTerms: '30 DIAS',
+            advisorNames: [41 => (string) __('cobro::envios.ejemplo.asesor')],
+            advisorCode: 41,
         );
     }
 

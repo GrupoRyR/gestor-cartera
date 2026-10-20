@@ -4,7 +4,9 @@
 return [
 
     'ejemplo' => [
-        'cliente' => 'Cliente de ejemplo SAS',
+        'cliente' => 'CLIENTE DE EJEMPLO SAS',
+        'unidad' => 'DISTRIBUCION',
+        'asesor' => 'ASESOR DE EJEMPLO',
     ],
 
     'vista' => [
