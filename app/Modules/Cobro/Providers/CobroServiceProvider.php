@@ -167,6 +167,16 @@ final class CobroServiceProvider extends ModuleServiceProvider
                 order: 150,
                 activePattern: 'cobro.plantillas.*',
             ),
+            new NavItem(
+                key: 'cobro.copias',
+                label: 'Copias del correo',
+                route: 'cobro.copias.edit',
+                icon: 'users',
+                permission: 'cobro.manage',
+                group: 'Cobro',
+                order: 155,
+                activePattern: 'cobro.copias.*',
+            ),
         );
     }
 }

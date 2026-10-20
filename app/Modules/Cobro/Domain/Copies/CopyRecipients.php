@@ -79,6 +79,17 @@ final class CopyRecipients
     }
 
     /**
+     * The addresses of a text with one per line or separated by commas or
+     * semicolons, unique.
+     *
+     * @return list<string>
+     */
+    public static function split(string $text): array
+    {
+        return self::unique(preg_split('/[\s,;]+/u', $text) ?: []);
+    }
+
+    /**
      * A group as compared: ASCII, uppercase, single spaces.
      */
     public static function groupKey(string $group): string

@@ -1,10 +1,12 @@
 <?php
 
 use App\Modules\Cobro\Database\Seeders\CobroPermissionSeeder;
+use App\Modules\Cobro\Domain\Copies\CopySettings;
 use App\Modules\Cobro\Domain\Mail\BounceDetector;
 use App\Modules\Cobro\Domain\Runs\ItemStatus;
 use App\Modules\Cobro\Domain\Runs\RunKind;
 use App\Modules\Cobro\Domain\Runs\RunStatus;
+use App\Modules\Cobro\Infrastructure\Copies\CopyStore;
 use App\Modules\Cobro\Infrastructure\Mail\BounceLinked;
 use App\Modules\Cobro\Infrastructure\Persistence\InboundMessage;
 use App\Modules\Cobro\Infrastructure\Persistence\Run;
@@ -101,6 +103,18 @@ it('never copies an advisor SAP lists as inactive', function () {
     $this->artisan('cobro:cobro-semanal')->assertSuccessful();
 
     expect(cobroMailFor($client->summary->id)->cc)->toBe(['miguel.martinez@segurex.com', 'PAGOS@central.example']);
+});
+
+it('copies what the company saved instead of the configuration', function () {
+    app(CopyStore::class)->save(CompanyCode::SGX, new CopySettings(
+        fixed: ['cartera@segurex.com'],
+        advisor: false,
+        managers: [['group' => 'distribucion', 'emails' => ['nueva.gerente@segurex.com']]],
+    ), null);
+
+    $this->artisan('cobro:cobro-semanal')->assertSuccessful();
+
+    expect(cobroMailFor($this->distribuidor->summary->id)->cc)->toBe(['cartera@segurex.com', 'nueva.gerente@segurex.com']);
 });
 
 it('copies nobody on the test send', function () {

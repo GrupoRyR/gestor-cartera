@@ -15,6 +15,7 @@ Correo de cobro por Microsoft Graph desde el buzón de cada empresa: cobro seman
 | `GET /cobro/lotes/{run}` | `cobro.lotes.show` | `cobro.view` | Un envío cliente por cliente, con el motivo del rebote leído del buzón. |
 | `GET /cobro/exclusiones` | `cobro.exclusiones.index` | `cobro.manage` | Lista de exclusión con casillas, motivo y fecha de vencimiento opcional. |
 | `GET /cobro/plantillas` | `cobro.plantillas.edit` | `cobro.manage` | Asunto y textos del cobro semanal por empresa, con datos como `{cliente}`. |
+| `GET /cobro/copias` | `cobro.copias.edit` | `cobro.manage` | Copias (CC) del cobro semanal por empresa: correos fijos, el asesor del cliente y los gerentes de cada grupo de SAP. |
 
 Permisos (`CobroPermissionSeeder`): `cobro.view` para administrador, gerente y analista de cartera; `cobro.manage` y `cobro.replies` para gerente y analista.
 
@@ -44,10 +45,10 @@ Un rebote unido marca su cliente como «Rebotado» en el informe, con el código
 Cada correo del cobro semanal lleva en copia (CC), en este orden y sin repetir direcciones ni repetir las del cliente:
 
 1. los correos fijos de la empresa;
-2. el asesor del cliente (su correo en SAP, `OSLP.Email`), si `advisor` es `true` y SAP lo tiene activo;
+2. el asesor del cliente (su correo en SAP, `OSLP.Email`), si la casilla está marcada y SAP lo tiene activo;
 3. los gerentes del grupo de SAP del cliente (`OCRG.GroupName`, por ejemplo `DISTRIBUCION` o `CONS. RESIDENCIAL`). El grupo se compara sin importar mayúsculas, tildes ni espacios; un cliente sin grupo no copia a ningún gerente.
 
-Por ahora se definen en `config('cobro.copias')`, una entrada por empresa:
+Se editan en `/cobro/copias` y se guardan en `cobro_copias`, una fila por empresa (cada cambio queda en la auditoría como `cobro.copies.updated`; «Volver a las copias por defecto» borra la fila y queda como `cobro.copies.reset`). Mientras una empresa no guarde las suyas se usan las de `config('cobro.copias')`:
 
 | Empresa | Fijas | Asesor | Gerentes por grupo |
 |---|---|---|---|
