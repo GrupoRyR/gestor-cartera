@@ -59,6 +59,20 @@ it('is bound to the staging tables', function () {
     expect(app(SettlementInputs::class))->toBeInstanceOf(EloquentSettlementInputs::class);
 });
 
+it('nets in its own month the cancellation of a sale of an earlier month', function () {
+    $this->sap->send(Dataset::Sales, [
+        SapBatches::sale(['doc_entry' => 7001, 'fecha_documento' => '2026-07-20', 'estado_documento' => 'anulado', 'total' => '1000000.00']),
+        SapBatches::sale(['doc_entry' => 7002, 'fecha_documento' => '2026-08-05', 'estado_documento' => 'anulacion', 'total' => '-1000000.00']),
+    ]);
+
+    $august = app(SettlementInputs::class)->forPeriod(Period::of(2026, 8))->sales;
+
+    expect($august)->toHaveCount(1)
+        ->and($august[0]->key)->toBe('13-7002-0')
+        ->and($august[0]->annulled)->toBeFalse()
+        ->and($august[0]->total->amount())->toBe('-1000000');
+});
+
 it('maps the sales of the period: annulments, credit notes, seller and currency', function () {
     $this->sap->send(Dataset::Sales, [
         SapBatches::sale(),
@@ -86,8 +100,9 @@ it('maps the sales of the period: annulments, credit notes, seller and currency'
         ->and($invoice->currency)->toBe('COP')
         ->and($invoice->exchangeRate)->toBe('1')
         ->and($invoice->annulled)->toBeFalse()
-        ->and($sales['13-5001-1']->annulled)->toBeTrue()
-        ->and($sales['13-5001-2']->annulled)->toBeTrue()
+        // An original and its cancellation both count, signed, so they net to zero (§14.2 "netear").
+        ->and($sales['13-5001-1']->annulled)->toBeFalse()
+        ->and($sales['13-5001-2']->annulled)->toBeFalse()
         ->and($sales['14-600-0']->documentType)->toBe(DocumentType::CreditNote)
         ->and($sales['14-600-0']->total->amount())->toBe('-50000')
         ->and($sales['14-600-0']->currency)->toBe('USD')

@@ -1,10 +1,11 @@
 <?php
 
-// Carbon copies of the weekly collection mail, per company.
+// Carbon copies of the weekly collection and the monthly circularization
+// mails, per company.
 return [
 
-    'titulo' => 'Copias del cobro semanal',
-    'descripcion' => 'Elige a quién se le envía copia de cada correo de cobro semanal de la empresa. La prueba que te envías no lleva copias.',
+    'titulo' => 'Copias del cobro semanal y la circularización',
+    'descripcion' => 'Elige a quién se le envía copia de cada correo de cobro semanal y de la circularización mensual de la empresa. La prueba que te envías no lleva copias.',
     'empresas' => 'Empresas',
 
     'estado' => [

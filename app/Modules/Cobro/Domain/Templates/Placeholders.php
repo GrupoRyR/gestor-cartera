@@ -24,6 +24,7 @@ final class Placeholders
         'numeros_facturas' => 'Números de las facturas vencidas, p. ej. 9952 y 10403',
         'vencimientos' => 'Fechas de vencimiento de las facturas vencidas, p. ej. 26/09/2026 y 25/10/2026',
         'fecha_corte' => 'Fecha de corte de la cartera, DD/MM/AAAA',
+        'fecha_cierre' => 'Fecha de corte de la cartera en letras, p. ej. 31 de mayo de 2026',
     ];
 
     /**
