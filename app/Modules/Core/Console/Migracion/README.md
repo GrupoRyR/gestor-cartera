@@ -7,6 +7,29 @@ Comandos de Artisan que traen a esta app el histórico de los dos sistemas anter
 
 Los comandos no se conectan a ninguna de las dos bases. Leen archivos CSV que tú exportas y dejas en una carpeta, y esa carpeta se les pasa con `--dir`.
 
+## Orden de ejecución
+
+1. [ ] Confirma que Ingesta ya cargó los clientes, las facturas y los asesores de SAP de las dos empresas.
+2. [ ] Exporta los seis archivos (ver «Cómo exportar») y déjalos en una carpeta del servidor, p. ej. `$HOME/migracion`.
+3. [ ] Para cada comando, en este orden, córrelo primero en modo de prueba, revisa su reporte y solo entonces córrelo de verdad. No pases al siguiente hasta terminar el anterior: cada uno necesita lo que el anterior guardó (por ejemplo, compromisos necesita a los autores que trae usuarios).
+
+   ```bash
+   php artisan core:migrar-usuarios --dir="$HOME/migracion" --dry-run
+   php artisan core:migrar-usuarios --dir="$HOME/migracion"
+
+   php artisan core:migrar-gestiones --dir="$HOME/migracion" --dry-run
+   php artisan core:migrar-gestiones --dir="$HOME/migracion"
+
+   php artisan core:migrar-compromisos --dir="$HOME/migracion" --dry-run
+   php artisan core:migrar-compromisos --dir="$HOME/migracion"
+
+   php artisan core:migrar-estados --dir="$HOME/migracion" --dry-run
+   php artisan core:migrar-estados --dir="$HOME/migracion"
+   ```
+
+   Si el modo de prueba muestra rechazos que puedes corregir (clientes, fechas, valores, columnas), corrige el archivo y repite la prueba antes de la corrida real.
+4. [ ] Si después corriges filas rechazadas, vuelve a correr el comando: lo que ya entró queda omitido.
+
 ## Orden
 
 Corre los comandos en este orden; cada uno usa lo que dejó el anterior.
@@ -258,3 +281,27 @@ La gestión de cada compromiso guarda su origen en `metadata.legacy_key` (`fase1
 - «compromiso sin valor»: sin valor, o con valor cero o negativo.
 - «el autor no existe en la app: <correo o usuario Fase 1 #N>; corre primero core:migrar-usuarios»: el autor no es un usuario de la app.
 - Si no se encuentra el cliente, si la empresa no es la del cliente o si una fecha no es válida, como en las gestiones.
+
+## Estados manuales (`core:migrar-estados`)
+
+Lee `fase1_clients.csv` (con `fase1_client_codes.csv` si está, para encontrar los clientes) y lleva a la app los estados manuales de Fase 1: en gestión, compromiso, incumplido y jurídico. Los estados automáticos (al día, por vencer, vencida, pago recibido) no se migran: la app los calcula con cada carga de cartera.
+
+Para cada cliente de Fase 1, en este orden:
+
+| Caso | Resultado |
+|---|---|
+| `estado` no es un estado de la app | Rechazada: «estado desconocido: <estado>» |
+| `estado_manual` no es 1, o el estado no es manual | Omitida: «no es estado manual» |
+| El cliente no se encuentra en la app (como en las gestiones) | Rechazada, con el motivo |
+| El cliente no tiene saldo pendiente en la app | Omitida: «sin saldo pendiente en la app» (la próxima carga lo devolvería a su estado automático) |
+| Ya se aplicó en una corrida anterior, o el cliente ya tiene ese estado | Omitida: «ya aplicado» |
+| El cliente ya tiene otro estado manual en la app | Omitida: «ya tiene estado manual en la app: <estado>». La migración nunca pisa lo que alguien decidió en la app. |
+| Cualquier otro | Se aplica |
+
+Aplicar un estado hace lo mismo que el cambio manual de la app, pero como el sistema:
+
+- Cambia el estado del cliente y guarda la fecha del cambio.
+- Deja en la bitácora una gestión «Cambio de estado» («De «Vencida» a «Jurídico»») sin autor, con el detalle «Importado de Cartera Fase 1» y `metadata` `from`, `to` y `legacy_key` (`fase1:estado:<id del cliente en Fase 1>`). Como no tiene autor, no mueve la última actividad del cliente.
+- Audita `core.client.status_changed`, con el origen «migracion», el archivo y la línea.
+
+Volver a correrlo no aplica dos veces el mismo estado, aunque en la app lo hayan cambiado después.
