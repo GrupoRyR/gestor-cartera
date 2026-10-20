@@ -6,7 +6,8 @@
 
 {{--
     GET /comisiones/periodos/{periodo}/informes (comisiones.periodos.informes.index):
-    the reports of a closed version (§7.7, §8.2). $selected: SelectedSettlement;
+    the reports of a closed version (§7.7, §8.2) and its payroll file (§8.1 annex).
+    $selected: SelectedSettlement;
     $closed: whether the version shown is closed; $reports: list<CollectionReport>;
     $stored: array<"tipo:referencia", DocumentRecord>; $lastClosed: the last
     closed version of the period when the one shown is not closed.
@@ -57,7 +58,7 @@
                 <x-ui.table :caption="__('comisiones::informes.recaudo.tabla')" :caption-hidden="true" :columns="$columns" :empty-message="__('comisiones::informes.recaudo.vacio')">
                     @foreach ($reports as $report)
                         @php($document = $stored[ReportArchive::key(ReportArchive::COLLECTION, $report->reference)] ?? null)
-                        <tr data-report="{{ $report->reference }}">
+                        <tr data-report="{{ $report->reference }}" data-state="{{ $document !== null ? 'generado' : 'pendiente' }}">
                             <td class="font-semibold">{{ $report->reference }}</td>
                             <td class="min-w-40">{{ $report->seller }}</td>
                             <td data-align="end">{{ $report->transactions() }}</td>
@@ -88,6 +89,21 @@
                         </tr>
                     @endforeach
                 </x-ui.table>
+            </x-ui.card>
+
+            @php($payroll = $stored[ReportArchive::key(ReportArchive::PAYROLL, ReportArchive::PAYROLL)] ?? null)
+            <x-ui.card :title="__('comisiones::informes.nomina.titulo_tarjeta')" :description="__('comisiones::informes.nomina.descripcion')" data-document="nomina">
+                <x-slot:actions>
+                    <x-ui.link-button :href="route('comisiones.periodos.informes.nomina', $query)" variant="secondary" icon="download">{{ __('comisiones::informes.nomina.descargar') }}</x-ui.link-button>
+                </x-slot:actions>
+                <div class="px-5 pt-3 pb-5 text-[0.9375rem]">
+                    @if ($payroll !== null)
+                        <p>{{ __('comisiones::informes.recaudo.generado', ['fecha' => DateFormat::dateTime($payroll->created_at), 'nombre' => $payroll->generator?->name ?? AuditTrail::SYSTEM]) }}</p>
+                        <p class="text-sm text-fg-muted [overflow-wrap:anywhere]">{{ $payroll->archivo }} · {{ __('comisiones::informes.recaudo.huella', ['huella' => substr($payroll->sha256, 0, 12)]) }}</p>
+                    @else
+                        <x-ui.chip tone="neutral">{{ __('comisiones::informes.recaudo.pendiente') }}</x-ui.chip>
+                    @endif
+                </div>
             </x-ui.card>
         </div>
     @endif

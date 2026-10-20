@@ -8,6 +8,7 @@ use App\Modules\Comisiones\Domain\Settlement\SettlementStatus;
 use App\Modules\Comisiones\Domain\Shared\Period;
 use App\Modules\Comisiones\Http\Support\PeriodRoute;
 use App\Modules\Comisiones\Http\Support\SelectedSettlement;
+use App\Modules\Comisiones\Infrastructure\Export\SpreadsheetDownload;
 use App\Modules\Comisiones\Infrastructure\Persistence\DocumentRecord;
 use App\Modules\Comisiones\Infrastructure\Persistence\SettlementRecord;
 use App\Modules\Comisiones\Infrastructure\Report\CollectionReport;
@@ -35,7 +36,9 @@ use Symfony\Component\HttpFoundation\StreamedResponse;
  * - POST …/informes/generar: stores every report not stored yet;
  * - GET …/informes/{referencia}.pdf: one stored report, generated first
  *   when missing;
- * - GET …/informes.zip: every report of the version in one ZIP.
+ * - GET …/informes.zip: every report of the version in one ZIP;
+ * - GET …/informes/nomina.xlsx: the payroll file (§8.1 annex), stored on
+ *   its first download and served from the stored copy after that.
  *
  * A stored report is never generated again; a download checks its sha256.
  */
@@ -159,6 +162,28 @@ final class ReportsController
         }
 
         return response()->download($path, $fileName, ['Content-Type' => 'application/zip'])->deleteFileAfterSend(true);
+    }
+
+    public function payroll(Request $request, string $periodo): StreamedResponse|RedirectResponse
+    {
+        $settlement = $this->closed($request, PeriodRoute::period($periodo));
+
+        if (! $settlement instanceof Settlement) {
+            return $settlement;
+        }
+
+        $user = self::user($request);
+
+        try {
+            $document = $this->archive->payroll($settlement, $user);
+            $bytes = $this->archive->download($settlement, $document, $user);
+        } catch (DocumentTampered $tampered) {
+            return $this->tampered($request, $settlement, $tampered->document);
+        }
+
+        return response()->streamDownload(function () use ($bytes): void {
+            echo $bytes;
+        }, $document->archivo, ['Content-Type' => SpreadsheetDownload::MIME_TYPE]);
     }
 
     /**

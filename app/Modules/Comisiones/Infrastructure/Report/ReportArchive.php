@@ -6,6 +6,7 @@ use App\Models\User;
 use App\Modules\Comisiones\Domain\Settlement\Settlement;
 use App\Modules\Comisiones\Domain\Settlement\SettlementStatus;
 use App\Modules\Comisiones\Infrastructure\Audit\AuditTrail;
+use App\Modules\Comisiones\Infrastructure\Export\PayrollSpreadsheet;
 use App\Modules\Comisiones\Infrastructure\Persistence\DocumentRecord;
 use App\Modules\Comisiones\Infrastructure\Persistence\SettlementRecord;
 use App\Modules\Comisiones\Infrastructure\Settlement\EloquentSettlements;
@@ -21,8 +22,8 @@ use RuntimeException;
 use ZipArchive;
 
 /**
- * The reports of closed settlement versions, stored once and never changed
- * (§8.2, §10):
+ * The reports of closed settlement versions, the collection PDFs and the
+ * payroll file, stored once and never changed (§8.1, §8.2, §10):
  *
  * - a report is generated only from a closed version, rendered, written to
  *   the documents disk under <directory>/<periodo>/v<N>/<archivo> and
@@ -48,6 +49,7 @@ final class ReportArchive
     public function __construct(
         private readonly EloquentSettlements $settlements,
         private readonly PdfRenderer $renderer,
+        private readonly PayrollSpreadsheet $payroll,
         private readonly CurrentCompany $companies,
         private readonly AuditTrail $audit,
     ) {}
@@ -98,6 +100,31 @@ final class ReportArchive
             'comisiones::pdf.recaudo',
             ['report' => $report, 'palette' => $this->palette(), 'generatedAt' => CarbonImmutable::now()],
         ));
+    }
+
+    /**
+     * The stored payroll file of the version (§8.1 annex), written and
+     * stored first when missing.
+     *
+     * @throws ReportsUnavailable when the version is not closed.
+     */
+    public function payroll(Settlement $settlement, ?User $user): DocumentRecord
+    {
+        return $this->store($settlement, self::PAYROLL, self::PAYROLL, PayrollSpreadsheet::fileName($settlement), $user, function () use ($settlement): string {
+            $path = tempnam(sys_get_temp_dir(), 'comisiones-nomina-');
+
+            if ($path === false) {
+                throw new RuntimeException('The server could not create a temporary file for the payroll file.');
+            }
+
+            try {
+                $this->payroll->write($path, $settlement);
+
+                return (string) file_get_contents($path);
+            } finally {
+                @unlink($path);
+            }
+        });
     }
 
     /**

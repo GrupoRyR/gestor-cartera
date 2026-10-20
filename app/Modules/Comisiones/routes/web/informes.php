@@ -16,6 +16,7 @@ Route::middleware(['auth', 'can:comisiones.reports'])
         Route::get('informes', [ReportsController::class, 'index'])->name('index');
         Route::post('informes/generar', [ReportsController::class, 'generate'])->name('generar');
         Route::get('informes.zip', [ReportsController::class, 'zip'])->name('zip');
+        Route::get('informes/nomina.xlsx', [ReportsController::class, 'payroll'])->name('nomina');
         // A code ("14") or a derived commission ("85.1").
         Route::get('informes/{referencia}.pdf', [ReportsController::class, 'pdf'])->where('referencia', '\d+(\.\d+)?')->name('pdf');
     });

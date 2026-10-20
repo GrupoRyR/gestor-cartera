@@ -49,6 +49,24 @@ return [
         'alterado' => 'El archivo guardado del informe :referencia no coincide con su huella o ya no está. No lo entregamos; avísale a TI.',
     ],
 
+    // The payroll file (§8.1 annex, §6 step 6).
+    'nomina' => [
+        'titulo_tarjeta' => 'Archivo para nómina',
+        'descripcion' => 'Cada persona con los roles por los que cobra y su valor pago nómina. Se genera la primera vez que lo descargas y después se entrega la misma copia.',
+        'descargar' => 'Descargar el archivo de nómina',
+        'hoja' => 'Nómina',
+        'titulo' => 'Archivo de nómina — :mes',
+        'columnas' => [
+            'persona' => 'Persona',
+            'tipo' => 'Tipo',
+            'referencia' => 'Referencia',
+            'concepto' => 'Concepto',
+            'valor' => 'Valor',
+        ],
+        'valor_pago' => 'Valor pago nómina',
+        'total' => 'Total nómina',
+    ],
+
     // The collection PDF (§8.2).
     'pdf' => [
         'titulo' => 'Informe de comisión por recaudo',

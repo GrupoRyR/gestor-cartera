@@ -152,7 +152,7 @@ it('lists one report per code with collections and 85.1, pending until generated
         ->assertSeeText(Money::format('83231'))
         ->assertSeeText(Money::format('55487'))
         ->assertSeeText('Cuadra')
-        ->assertSeeText('Pendiente');
+        ->assertSee('data-report="14" data-state="pendiente"', false);
 
     expect(preg_match('/\p{Lu}{4,}/u', strip_tags($response->getContent())))->toBe(0);
 });
@@ -203,7 +203,8 @@ it('generates and stores every missing report of the closed version, once', func
     $this->actingAs($this->approver)->get(augustReports())->assertOk()
         ->assertSeeText('Beto Ruiz')
         ->assertSeeText(substr($documents->first()->sha256, 0, 12))
-        ->assertDontSeeText('Pendiente');
+        ->assertSee('data-report="14" data-state="generado"', false)
+        ->assertDontSee('data-state="pendiente"', false);
 });
 
 it('downloads a stored report and audits the download', function () {
