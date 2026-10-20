@@ -20,8 +20,10 @@ use Carbon\CarbonImmutable;
 
 /**
  * 4.1: every Wednesday at 17:00 (config cobro.weekly), each client with
- * overdue invoices (daysOverdue > 0 in the latest snapshot) gets the list
- * of those invoices, with the company's editable template.
+ * overdue invoices (daysOverdue > 0 in the latest snapshot) gets the
+ * statement of its open invoices, the overdue ones highlighted, with the
+ * company's editable template. The run's amount and invoice count are the
+ * overdue ones.
  */
 final class WeeklyCollection implements RunDefinition
 {
@@ -77,21 +79,46 @@ final class WeeklyCollection implements RunDefinition
         }
     }
 
+    /**
+     * Every open invoice of the client (the overdue ones are highlighted
+     * in the mail), when at least one is overdue.
+     */
     public function notice(int $clientId): ?NoticeData
     {
         $cartera = $this->cartera->asSystem();
         $client = $cartera->client($clientId);
-        $invoices = $client === null ? [] : self::overdue($cartera->openInvoices($clientId));
+        $open = $client === null ? [] : array_values(array_filter(
+            $cartera->openInvoices($clientId),
+            fn (Invoice $invoice): bool => $invoice->balance > 0,
+        ));
 
-        if ($client === null || $invoices === []) {
+        if ($client === null || self::overdue($open) === []) {
             return null;
         }
 
+        $summary = $client->summary;
+        $advisorNames = [];
+
+        foreach ($cartera->advisors() as $advisor) {
+            if ($advisor->company === $summary->company) {
+                $advisorNames[$advisor->code] = $advisor->name;
+            }
+        }
+
+        if ($summary->advisor !== null) {
+            $advisorNames[$summary->advisor->code] ??= $summary->advisor->name;
+        }
+
         return new NoticeData(
-            $client->summary->name,
-            $client->summary->taxId,
-            $invoices,
-            $cartera->totals(new ClientQuery(companies: [$client->summary->company]))->cutoffDate,
+            clientName: $summary->name,
+            taxId: $summary->taxId,
+            invoices: $open,
+            cutoffDate: $cartera->totals(new ClientQuery(companies: [$summary->company]))->cutoffDate,
+            clientCode: $summary->code,
+            group: $client->group,
+            paymentTerms: $client->paymentTerms,
+            advisorNames: $advisorNames,
+            advisorCode: $summary->advisor?->code,
         );
     }
 

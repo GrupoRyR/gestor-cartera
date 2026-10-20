@@ -1,52 +1,74 @@
+@use('App\Modules\Cobro\Domain\Runs\WeeklyTable')
 @use('App\Support\Formatting\DateFormat')
 @use('App\Support\Formatting\Money')
 
 {{--
-    The weekly collection mail (4.1): the company's opening text, the table
-    of overdue invoices with their total, and its closing text. $company:
-    Company; $data: NoticeData (overdue invoices only); $subject; $intro
-    and $closing: list of plain-text paragraphs, placeholders already
-    filled (escaped here); $test: a test send.
+    The weekly collection mail (4.1), in the format each company sends
+    today: its opening text, the table of every open invoice of the client
+    (WeeklyTable: the company's columns; overdue invoices highlighted; the
+    company name where the original has its logo) with the total, and its
+    closing text. $company: Company; $data: NoticeData; $subject;
+    $introHtml and $closingHtml: paragraphs as safe HTML (NoticeRenderer
+    escaped them); $test; $draft.
 --}}
-@php($palette = $company->palette)
-<x-cobro::correo :company="$company" :title="$subject" :test="$test" :draft="$draft">
-    @foreach ($intro as $paragraph)
-        <p style="margin:0 0 16px;">{!! nl2br(e($paragraph)) !!}</p>
+@php
+    $palette = $company->palette;
+    $columns = WeeklyTable::columns($company->code);
+    $brandHeader = WeeklyTable::headerStyle($company->code) === WeeklyTable::HEADER_BRAND;
+    $head = $brandHeader
+        ? "background:{$palette->button};color:#ffffff;"
+        : 'background:#d9d9d9;color:#111111;';
+    $cell = 'padding:4px 6px;border:1px solid #d9d9d9;font-size:12px;';
+    // Only names may wrap; codes, dates, days and amounts stay on one line.
+    $wrapping = ['comercial', 'razon_social', 'unidad_negocio'];
+    $value = fn (string $key, $invoice): string => match ($key) {
+        'comercial' => $data->advisorLabel($invoice),
+        'cod_cliente' => $data->clientCode,
+        'razon_social' => $data->clientName,
+        'nit' => $data->taxId,
+        'unidad_negocio' => (string) $data->group,
+        'documento' => $invoice->documentNumber,
+        'fecha_factura' => DateFormat::date($invoice->issuedAt),
+        'condiciones_pago' => (string) $data->paymentTerms,
+        'fecha_vencimiento' => DateFormat::date($invoice->dueAt),
+        'dias' => (string) $invoice->daysOverdue,
+        'total' => Money::format($invoice->balance),
+        default => '',
+    };
+@endphp
+<x-cobro::correo :company="$company" :title="$subject" :test="$test" :draft="$draft" :framed="false">
+    @foreach ($introHtml as $paragraph)
+        <p style="margin:0 0 14px;">{!! $paragraph !!}</p>
     @endforeach
 
-    <table role="table" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;margin:8px 0 20px;font-size:14px;">
-        <caption style="text-align:left;padding:0 0 8px;font-weight:bold;">{{ __('cobro::correos.tabla.titulo') }}</caption>
+    <table role="table" cellpadding="0" cellspacing="0" style="border-collapse:collapse;margin:8px 0 18px;max-width:1000px;">
+        <caption style="caption-side:top;text-align:left;padding:10px 6px;font-size:22px;font-weight:bold;color:{{ $palette->button }};">{{ $company->name }}</caption>
         <thead>
             <tr>
-                <th scope="col" align="left" style="padding:8px;background:{{ $palette->tint }};color:{{ $palette->ink }};">{{ __('cobro::correos.tabla.documento') }}</th>
-                <th scope="col" align="left" style="padding:8px;background:{{ $palette->tint }};color:{{ $palette->ink }};">{{ __('cobro::correos.tabla.vence') }}</th>
-                <th scope="col" align="right" style="padding:8px;background:{{ $palette->tint }};color:{{ $palette->ink }};">{{ __('cobro::correos.tabla.dias') }}</th>
-                <th scope="col" align="right" style="padding:8px;background:{{ $palette->tint }};color:{{ $palette->ink }};">{{ __('cobro::correos.tabla.saldo') }}</th>
+                @foreach ($columns as $column)
+                    <th scope="col" align="center" style="{{ $cell }}{{ $head }}font-weight:bold;">{{ $column['label'] }}</th>
+                @endforeach
             </tr>
         </thead>
         <tbody>
             @foreach ($data->invoices as $invoice)
-                <tr>
-                    <td style="padding:8px;border-bottom:1px solid #e5e7eb;">{{ $invoice->documentType }} {{ $invoice->documentNumber }}</td>
-                    <td style="padding:8px;border-bottom:1px solid #e5e7eb;">{{ DateFormat::date($invoice->dueAt) }}</td>
-                    <td align="right" style="padding:8px;border-bottom:1px solid #e5e7eb;">{{ number_format($invoice->daysOverdue, 0, ',', '.') }}</td>
-                    <td align="right" style="padding:8px;border-bottom:1px solid #e5e7eb;white-space:nowrap;">{{ Money::format($invoice->balance) }}</td>
+                @php($overdue = $invoice->daysOverdue > 0)
+                <tr data-overdue="{{ $overdue ? '1' : '0' }}" style="{{ $overdue ? 'background:#fde2e2;' : 'background:#ffffff;' }}">
+                    @foreach ($columns as $column)
+                        <td align="{{ $column['align'] }}" style="{{ $cell }}{{ in_array($column['key'], $wrapping, true) ? '' : 'white-space:nowrap;' }}">{{ $value($column['key'], $invoice) }}</td>
+                    @endforeach
                 </tr>
             @endforeach
         </tbody>
         <tfoot>
             <tr>
-                <th scope="row" colspan="3" align="right" style="padding:8px;">{{ __('cobro::correos.tabla.total') }}</th>
-                <td align="right" style="padding:8px;font-weight:bold;white-space:nowrap;">{{ Money::format($data->overdue()) }}</td>
+                <td colspan="{{ count($columns) - 1 }}" style="padding:4px 6px;"></td>
+                <td align="right" style="{{ $cell }}{{ $head }}font-weight:bold;white-space:nowrap;">{{ Money::format($data->total()) }}</td>
             </tr>
         </tfoot>
     </table>
 
-    @if ($data->cutoffDate !== null)
-        <p style="margin:0 0 16px;color:#6b7280;font-size:13px;">{{ __('cobro::correos.corte', ['fecha' => DateFormat::date($data->cutoffDate)]) }}</p>
-    @endif
-
-    @foreach ($closing as $paragraph)
-        <p style="margin:0 0 16px;">{!! nl2br(e($paragraph)) !!}</p>
+    @foreach ($closingHtml as $paragraph)
+        <p style="margin:0 0 14px;">{!! $paragraph !!}</p>
     @endforeach
 </x-cobro::correo>

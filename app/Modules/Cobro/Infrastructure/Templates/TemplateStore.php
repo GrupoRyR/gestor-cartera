@@ -7,6 +7,7 @@ use App\Modules\Cobro\Domain\Templates\TemplateContent;
 use App\Modules\Cobro\Infrastructure\Persistence\Template;
 use App\Modules\Core\Contracts\AuditLogger;
 use App\Modules\Core\Contracts\Enums\CompanyCode;
+use Illuminate\Support\Facades\Lang;
 
 /**
  * The texts of each company's mail: the saved ones (cobro_templates) or
@@ -24,16 +25,27 @@ final class TemplateStore
         $saved = Template::query()->where('company', $company)->where('kind', $kind)->first();
 
         return $saved === null
-            ? self::default($kind)
+            ? self::default($kind, $company)
             : new TemplateContent($saved->subject, $saved->intro, $saved->closing);
     }
 
-    public static function default(RunKind $kind): TemplateContent
+    /**
+     * The default texts of a mail: the company's own
+     * (cobro::plantillas.por_defecto.<kind>.<company>) when it has them,
+     * else the ones shared by every company (…por_defecto.<kind>).
+     */
+    public static function default(RunKind $kind, CompanyCode $company): TemplateContent
     {
+        $key = "cobro::plantillas.por_defecto.{$kind->value}";
+
+        if (Lang::has("{$key}.{$company->value}.asunto")) {
+            $key .= ".{$company->value}";
+        }
+
         return new TemplateContent(
-            subject: (string) __("cobro::plantillas.por_defecto.{$kind->value}.asunto"),
-            intro: (string) __("cobro::plantillas.por_defecto.{$kind->value}.inicio"),
-            closing: (string) __("cobro::plantillas.por_defecto.{$kind->value}.cierre"),
+            subject: (string) __("{$key}.asunto"),
+            intro: (string) __("{$key}.inicio"),
+            closing: (string) __("{$key}.cierre"),
             isDefault: true,
         );
     }

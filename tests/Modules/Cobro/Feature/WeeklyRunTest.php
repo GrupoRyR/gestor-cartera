@@ -25,6 +25,7 @@ use Illuminate\Support\Facades\Queue;
 use Tests\Fakes\ContractFakes;
 use Tests\Fakes\Make;
 use Tests\Modules\Cobro\Support\CobroPortfolio;
+use Tests\Modules\Cobro\Support\VisibleText;
 
 beforeEach(function () {
     // Wednesday, the scheduled moment.
@@ -75,13 +76,15 @@ it('mails the overdue invoices only, from the company mailbox, linked to the cli
 
     $this->fakes->mail->assertSent(fn (OutgoingMail $mail): bool => $mail->company === CompanyCode::SGX
         && $mail->to === ['tesoreria@tornillo.example', 'pagos@tornillo.example']
-        && $mail->subject === 'Facturas vencidas de Ferretería El Tornillo SAS con Segurex Latam'
+        && $mail->subject === 'Cobro de cartera - Segurex LATAM SAS'
         && $mail->clientId === $this->portfolio->tornillo->summary->id
         && $mail->category === 'cobro_semanal', times: 1);
 
     $html = $this->fakes->mail->sent()[0]->html;
 
-    expect($html)->toContain('FV-1188')->toContain('FV-1201')->not->toContain('FV-1250')
+    expect($html)->toContain('FV-1188')->toContain('FV-1201')->toContain('FV-1250')
+        ->and(substr_count($html, 'data-overdue="1"'))->toBe(2)
+        ->and(VisibleText::of($html))->toContain('correspondiente a las facturas FV-1188 y FV-1201 con vencimiento el')
         ->and(count($this->fakes->mail->sent()))->toBe(1);
 });
 
