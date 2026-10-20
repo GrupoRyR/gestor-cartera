@@ -101,6 +101,8 @@ select id, email, nombre, rol, slp_codes, activo from usuarios;
 
 Cada corrida es una sola transacción: o se guarda todo lo que el reporte cuenta como importado, o nada (si algo falla a mitad de camino, el comando lo dice y no deja nada a medias).
 
+**Córrelo fuera del horario de trabajo**, o con la app en mantenimiento (`php artisan down` antes y `php artisan up` al terminar). Por ser una sola transacción, el comando deja bloqueados los usuarios y clientes que toca hasta que termina: mientras tanto, quien intente cambiarlos en la app espera o recibe un error.
+
 ## Cómo leer el reporte
 
 Al final, el comando muestra una tabla por archivo:
@@ -152,5 +154,6 @@ Lee `fase1_users.csv` y después `supabase_usuarios.csv`.
 - **Usuario eliminado en la app**: la fila se rechaza con «el usuario está eliminado en la app». La migración nunca lo restaura; si debe volver, restáuralo en la pantalla Equipo y corre el comando otra vez.
 - **Asesores**: a un asesor de Supabase se le vinculan los asesores de SAP de SGX cuyos códigos están en `slp_codes` (acepta `{84,85}`, `[84,85]`, `84,85` o vacío). Un código que no existe en la app, o que ya está vinculado a otra persona, sale como aviso y no se toca.
 - **Equipo de un gerente**: los asesores de SAP de SGX cuyos códigos están en `slp_codes` se agregan a su equipo; los que ya tenía se quedan. Un código que no existe en la app sale como aviso.
+- **Los códigos siguen al rol que queda**: los de un asesor solo se vinculan si el usuario queda como asesor comercial, y los de un gerente solo van a su equipo si queda como gerente comercial. Si conserva otro rol, no se vinculan y sale un aviso («no se vinculan los códigos 84, 85: el usuario conserva el rol analista_cartera»).
 - **Se rechaza la fila** si el correo está vacío o no es válido, si el nombre está vacío, o si el rol, la empresa o el estado no son de los valores esperados.
 - Cada usuario creado o cambiado (rol, empresas o equipo) y cada asesor vinculado queda en la auditoría, como en la pantalla Equipo, con el origen «migracion».

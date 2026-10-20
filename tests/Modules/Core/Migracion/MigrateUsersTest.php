@@ -63,14 +63,14 @@ it('imports the users of both sources, maps roles, companies and teams and merge
         ])
         ->expectsTable(MIGRACION_WARNINGS, [
             ['supabase_usuarios.csv', 2, '7f1c', 'ya tiene el rol analista_cartera; Supabase dice gerente_comercial, se conserva el actual'],
-            ['supabase_usuarios.csv', 2, '7f1c', 'el código de asesor 99 no existe en la app (SGX)'],
+            ['supabase_usuarios.csv', 2, '7f1c', 'no se vinculan los códigos 84, 99: el usuario conserva el rol analista_cartera'],
             ['supabase_usuarios.csv', 3, '8a2d', 'el código de asesor 85 ya está vinculado a otro usuario'],
             ['supabase_usuarios.csv', 3, '8a2d', 'el código de asesor 99 no existe en la app (SGX)'],
         ])
         ->assertSuccessful();
 
     expect(migracionUser('laura.restrepo@segurex.com'))->toBe(['name' => 'Laura Restrepo', 'active' => true, 'roles' => ['admin'], 'companies' => ['SDC', 'SGX'], 'team' => []])
-        ->and(migracionUser('andres.ospina@segurex.com'))->toBe(['name' => 'Andrés Ospina', 'active' => true, 'roles' => ['analista_cartera'], 'companies' => ['SDC', 'SGX'], 'team' => [84]])
+        ->and(migracionUser('andres.ospina@segurex.com'))->toBe(['name' => 'Andrés Ospina', 'active' => true, 'roles' => ['analista_cartera'], 'companies' => ['SDC', 'SGX'], 'team' => []])
         ->and(migracionUser('paola.zuluaga@segurex.com'))->toBe(['name' => 'Paola Zuluaga', 'active' => false, 'roles' => ['analista_cartera'], 'companies' => ['SDC', 'SGX'], 'team' => []])
         ->and(migracionUser('camilo.duque@segurex.com'))->toBe(['name' => 'Camilo Duque', 'active' => true, 'roles' => ['asesor'], 'companies' => ['SGX'], 'team' => []])
         ->and(migracionUser('diana.velez@segurex.com'))->toBe(['name' => 'Diana Vélez', 'active' => false, 'roles' => ['admin'], 'companies' => ['SGX'], 'team' => []])
@@ -97,7 +97,7 @@ it('leaves everything as it was when it runs again', function () {
 
     expect(User::query()->count())->toBe($users)
         ->and(migracionUser('andres.ospina@segurex.com')['roles'])->toBe(['analista_cartera'])
-        ->and(migracionUser('andres.ospina@segurex.com')['team'])->toBe([84])
+        ->and(migracionUser('andres.ospina@segurex.com')['team'])->toBe([])
         ->and(AdvisorRecord::query()->where('user_id', '!=', $this->owner->id)->count())->toBe(1);
 });
 
@@ -129,7 +129,7 @@ it('only adds what an existing user lacks and keeps their name, activation, role
         ])
         ->assertSuccessful();
 
-    expect(migracionUser('andres.ospina@segurex.com'))->toBe(['name' => 'Andrés Felipe Ospina', 'active' => false, 'roles' => ['analista_cartera'], 'companies' => ['SDC', 'SGX'], 'team' => [84]])
+    expect(migracionUser('andres.ospina@segurex.com'))->toBe(['name' => 'Andrés Felipe Ospina', 'active' => false, 'roles' => ['analista_cartera'], 'companies' => ['SDC', 'SGX'], 'team' => []])
         ->and($andres->refresh()->microsoft_id)->toBe($microsoftId);
 });
 
@@ -173,7 +173,6 @@ it('records each created or changed user and each linked advisor in the audit tr
         ->and(AuditLogRecord::query()->where('action', 'core.advisor.linked')->where('subject_id', (string) $this->free->id)->exists())->toBeTrue()
         ->and($updated->changes)->toEqual([
             'companies' => ['old' => ['SDC'], 'new' => ['SDC', 'SGX']],
-            'team' => ['old' => [], 'new' => ['SGX-84']],
         ])
         ->and($updated->context)->toEqual(['source' => 'migracion', 'file' => 'supabase_usuarios.csv', 'line' => 2]);
 });
