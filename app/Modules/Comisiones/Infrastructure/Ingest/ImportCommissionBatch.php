@@ -2,6 +2,7 @@
 
 namespace App\Modules\Comisiones\Infrastructure\Ingest;
 
+use App\Modules\Comisiones\Infrastructure\Audit\AuditTrail;
 use App\Modules\Comisiones\Infrastructure\Persistence\ClientRecord;
 use App\Modules\Comisiones\Infrastructure\Persistence\CommissionLoad;
 use App\Modules\Comisiones\Infrastructure\Persistence\CrossingRecord;
@@ -22,7 +23,8 @@ use Illuminate\Database\Eloquent\Model;
  * Stages a Comisiones batch accepted by Ingesta (SGX only): ventas,
  * recaudos and cruces by their natural key, the client master (with the
  * history of each client's seller) and the seller master. Each load leaves
- * one row in comisiones_cargas with its counts.
+ * one row in comisiones_cargas with its counts and a comisiones.load.imported
+ * event in the audit trail (by the system).
  *
  * Idempotent: the same rows again leave the same staging rows; a row that
  * comes back with new values replaces the staged one.
@@ -44,6 +46,7 @@ final class ImportCommissionBatch implements ShouldQueue
         private readonly IngestaSink $sink,
         private readonly ConnectionInterface $db,
         private readonly AssignmentHistory $assignments,
+        private readonly AuditTrail $audit,
     ) {}
 
     /**
@@ -72,16 +75,23 @@ final class ImportCommissionBatch implements ShouldQueue
                 default => $this->stage($load, StagingRows::seller(...), SellerRecord::class, 'slp_code'),
             };
 
-            CommissionLoad::query()->updateOrCreate(['load_id' => $load->id], [
+            $counts = [
                 'dataset' => $load->dataset->value,
-                'fuente' => $load->source->value,
+                'load_id' => $load->id,
                 'corte' => $load->cutoffDate->format('Y-m-d'),
                 'filas' => $rows,
                 'insertadas' => $inserted,
                 'actualizadas' => $rows - $inserted,
+            ];
+
+            $staged = CommissionLoad::query()->updateOrCreate(['load_id' => $load->id], [
+                ...$counts,
+                'fuente' => $load->source->value,
                 'recibida_en' => $load->receivedAt,
                 'estado' => CommissionLoad::ACCEPTED,
             ]);
+
+            $this->audit->record('comisiones.load.imported', 'comisiones_carga', $staged->id, context: $counts);
         });
     }
 

@@ -3,6 +3,7 @@
 namespace App\Modules\Comisiones\Providers;
 
 use App\Modules\Comisiones\Application\Ports\SettlementInputs;
+use App\Modules\Comisiones\Infrastructure\Console\AssignModuleRoleCommand;
 use App\Modules\Comisiones\Infrastructure\Ingest\ImportCommissionBatch;
 use App\Modules\Comisiones\Infrastructure\Settlement\EloquentSettlementInputs;
 use App\Modules\Core\Contracts\Events\BatchAccepted;
@@ -31,5 +32,7 @@ final class ComisionesServiceProvider extends ModuleServiceProvider
     {
         // Stages the ventas, recaudos, cruces and master batches of SGX.
         Event::listen(BatchAccepted::class, ImportCommissionBatch::class);
+
+        $this->commands([AssignModuleRoleCommand::class]);
     }
 }
