@@ -9,6 +9,7 @@ use App\Modules\Core\Contracts\CurrentCompany;
 use App\Modules\Core\Contracts\GestionLogger;
 use App\Modules\Core\Contracts\IngestaSink;
 use App\Modules\Core\Contracts\MailboxReader;
+use App\Modules\Core\Contracts\MailRunResultsProvider;
 use App\Modules\Core\Contracts\MailSender;
 use App\Modules\Core\Contracts\RecaudoProvider;
 use Illuminate\Contracts\Foundation\Application;
@@ -37,6 +38,7 @@ final readonly class ContractFakes
         public FakeMailSender $mail,
         public FakeMailboxReader $mailbox,
         public FakeRecaudoProvider $recaudo,
+        public FakeMailRunResultsProvider $mailRuns,
     ) {}
 
     /**
@@ -57,6 +59,7 @@ final readonly class ContractFakes
             mail: new FakeMailSender,
             mailbox: new FakeMailboxReader($currentCompany),
             recaudo: new FakeRecaudoProvider,
+            mailRuns: new FakeMailRunResultsProvider,
         );
 
         $app->instance(CurrentCompany::class, $fakes->currentCompany);
@@ -68,6 +71,7 @@ final readonly class ContractFakes
         $app->instance(MailSender::class, $fakes->mail);
         $app->instance(MailboxReader::class, $fakes->mailbox);
         $app->instance(RecaudoProvider::class, $fakes->recaudo);
+        $app->instance(MailRunResultsProvider::class, $fakes->mailRuns);
 
         return $fakes;
     }
