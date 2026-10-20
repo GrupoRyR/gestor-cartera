@@ -4,8 +4,8 @@ namespace App\Modules\Cobro\Domain\Templates;
 
 /**
  * The {placeholders} a template text may use and their replacement. Texts
- * are plain: the renderer escapes the result, so a value can never inject
- * HTML into the mail.
+ * are plain (only **bold** is markup): the renderer escapes the result, so
+ * a value can never inject HTML into the mail.
  */
 final class Placeholders
 {
@@ -20,6 +20,9 @@ final class Placeholders
         'empresa' => 'Nombre de tu empresa',
         'total_vencido' => 'Total vencido, p. ej. $ 4.500.000',
         'facturas' => 'Número de facturas vencidas',
+        'factura_o_facturas' => '«la factura» o «las facturas», según cuántas estén vencidas',
+        'numeros_facturas' => 'Números de las facturas vencidas, p. ej. 9952 y 10403',
+        'vencimientos' => 'Fechas de vencimiento de las facturas vencidas, p. ej. 26/09/2026 y 25/10/2026',
         'fecha_corte' => 'Fecha de corte de la cartera, DD/MM/AAAA',
     ];
 

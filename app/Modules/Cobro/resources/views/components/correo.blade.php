@@ -1,12 +1,14 @@
 {{--
-    <x-cobro::correo>: the brand frame of every Cobro mail. Mail clients
-    ignore stylesheets and CSS variables, so the frame uses inline styles
-    with the company's BrandPalette values (button behind white text, tint
-    behind ink text: the AA pairs of ryr-design) and neutral greys; nothing
-    else sets a color. $company: Company; $title: the <title>; $draft: shows
-    the draft banner; $test: shows the test banner.
+    <x-cobro::correo>: the frame of every Cobro mail. Mail clients ignore
+    stylesheets and CSS variables, so it uses inline styles with the
+    company's BrandPalette values (button behind white text, tint behind
+    ink text: the AA pairs of ryr-design) and neutral greys; nothing else
+    sets a color. $company: Company; $title: the <title>; $draft: shows the
+    draft banner; $test: shows the test banner; $framed: false drops the
+    brand header and footer, for mails that copy a company's own format
+    (the weekly collection reads like the mails the team writes in Outlook).
 --}}
-@props(['company', 'title', 'draft' => false, 'test' => false])
+@props(['company', 'title', 'draft' => false, 'test' => false, 'framed' => true])
 
 @php($palette = $company->palette)
 <!DOCTYPE html>
@@ -16,6 +18,17 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>{{ $title }}</title>
 </head>
+@if (! $framed)
+<body style="margin:0;padding:16px;background:#ffffff;font-family:Arial,Helvetica,sans-serif;font-size:14px;line-height:1.45;color:#1f2937;">
+    @if ($test)
+        <p data-banner="prueba" style="margin:0 0 16px;padding:10px 12px;background:{{ $palette->tint }};color:{{ $palette->ink }};font-size:13px;font-weight:bold;">{{ __('cobro::correos.prueba') }}</p>
+    @endif
+    @if ($draft)
+        <p data-banner="borrador" style="margin:0 0 16px;padding:10px 12px;background:{{ $palette->tint }};color:{{ $palette->ink }};font-size:13px;font-weight:bold;">{{ __('cobro::correos.borrador') }}</p>
+    @endif
+    {{ $slot }}
+</body>
+@else
 <body style="margin:0;padding:0;background:#f4f5f7;font-family:Arial,Helvetica,sans-serif;font-size:15px;line-height:1.5;color:#1f2937;">
     <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f4f5f7;">
         <tr>
@@ -55,4 +68,5 @@
         </tr>
     </table>
 </body>
+@endif
 </html>

@@ -64,7 +64,9 @@ it('shows the mail of one client as it would leave', function () {
         ->get('/cobro/semanal/SGX/correo/'.$this->portfolio->tornillo->summary->id)
         ->assertOk();
 
-    expect((string) $response->getContent())->toContain('FV-1188')->toContain('Ferretería El Tornillo SAS')->not->toContain('FV-1250');
+    // Every open invoice, the overdue ones highlighted.
+    expect((string) $response->getContent())->toContain('FV-1188')->toContain('Ferretería El Tornillo SAS')->toContain('FV-1250')
+        ->and(substr_count((string) $response->getContent(), 'data-overdue="1"'))->toBe(2);
 });
 
 it('answers 404 for the mail of a client of another company or without overdue invoices', function () {
@@ -81,7 +83,7 @@ it('sends a test of a client mail to the signed-in user only', function () {
         ->assertSessionHas('status', 'Te enviamos la prueba a maria.rojas@segurex.com.');
 
     $this->fakes->mail->assertSent(fn (OutgoingMail $mail): bool => $mail->to === ['maria.rojas@segurex.com']
-        && $mail->subject === '[Prueba] Facturas vencidas de Ferretería El Tornillo SAS con Segurex Latam'
+        && $mail->subject === '[Prueba] Cobro de cartera - Segurex LATAM SAS'
         && $mail->category === 'prueba'
         && $mail->clientId === null
         && str_contains($mail->html, 'data-banner="prueba"'), times: 1);

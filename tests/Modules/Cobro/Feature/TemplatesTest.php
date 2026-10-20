@@ -1,21 +1,17 @@
 <?php
 
 use App\Modules\Cobro\Database\Seeders\CobroPermissionSeeder;
-use App\Modules\Cobro\Domain\Runs\NoticeData;
 use App\Modules\Cobro\Domain\Runs\RunKind;
 use App\Modules\Cobro\Domain\Templates\TemplateContent;
-use App\Modules\Cobro\Infrastructure\Mail\NoticeRenderer;
 use App\Modules\Cobro\Infrastructure\Persistence\Template;
 use App\Modules\Cobro\Infrastructure\Templates\TemplateStore;
 use App\Modules\Core\Contracts\CurrentCompany;
-use App\Modules\Core\Contracts\Data\BrandPalette;
 use App\Modules\Core\Contracts\Enums\CompanyCode;
 use App\Modules\Core\Contracts\Enums\Role;
 use Carbon\CarbonImmutable;
 use Tests\Fakes\AuditEntry;
 use Tests\Fakes\ContractFakes;
 use Tests\Fakes\FakeCurrentCompany;
-use Tests\Fakes\Make;
 use Tests\Modules\Cobro\Support\CobroUsers;
 use Tests\Modules\Cobro\Support\VisibleText;
 
@@ -26,82 +22,19 @@ beforeEach(function () {
     $this->analyst = CobroUsers::create(Role::PortfolioAnalyst);
 });
 
-function cobroNotice(): NoticeData
-{
-    return new NoticeData(
-        clientName: 'Ferretería <El Tornillo> SAS',
-        taxId: '900123456',
-        invoices: [
-            Make::invoice(documentNumber: 'FV-1188', amount: 2_350_000, daysOverdue: 47),
-            Make::invoice(documentNumber: 'FV-1201', amount: 1_150_000, daysOverdue: 18),
-        ],
-        cutoffDate: CarbonImmutable::parse('2026-10-20', 'America/Bogota'),
-    );
-}
-
-it('renders the weekly mail with the filled texts, the invoices and the total', function () {
-    $mail = app(NoticeRenderer::class)->render(
-        'cobro::correos.cobro-semanal',
-        Make::company(),
-        cobroNotice(),
-        TemplateStore::default(RunKind::Weekly),
-    );
-
-    $text = VisibleText::of($mail->html);
-
-    expect($mail->subject)->toBe('Facturas vencidas de Ferretería <El Tornillo> SAS con Segurex Latam')
-        ->and($text)->toContain('Hola, Ferretería <El Tornillo> SAS:')
-        ->toContain('Con corte al 20/10/2026, el saldo vencido de tus facturas es $ 3.500.000.')
-        ->toContain('Factura FV-1188 '.now()->subDays(47)->format('d/m/Y').' 47 $ 2.350.000')
-        ->toContain('Total vencido $ 3.500.000')
-        ->toContain('Área de cartera de Segurex Latam')
-        ->and($mail->html)->not->toContain('<El Tornillo>')
-        ->toContain('&lt;El Tornillo&gt;');
-});
-
-it('frames the mail with the company palette', function () {
-    $company = Make::company(code: CompanyCode::SDC);
-    $palette = BrandPalette::official(CompanyCode::SDC);
-
-    $mail = app(NoticeRenderer::class)->render('cobro::correos.cobro-semanal', $company, cobroNotice(), TemplateStore::default(RunKind::Weekly));
-
-    expect($mail->html)->toContain('background:'.$palette->button)
-        ->toContain('background:'.$palette->tint.';color:'.$palette->ink)
-        ->toContain($company->name);
-});
-
-it('marks test and draft mails in the subject and the body', function () {
-    $renderer = app(NoticeRenderer::class);
-    $template = new TemplateContent('Cartera de {cliente}', 'Hola', 'Chao');
-
-    $test = $renderer->render('cobro::correos.cobro-semanal', Make::company(), cobroNotice(), $template, test: true);
-    $draft = $renderer->render('cobro::correos.cobro-semanal', Make::company(), cobroNotice(), $template, draft: true);
-
-    expect($test->subject)->toBe('[Prueba] Cartera de Ferretería <El Tornillo> SAS')
-        ->and($test->html)->toContain('data-banner="prueba"')
-        ->and($draft->subject)->toBe('[Borrador] Cartera de Ferretería <El Tornillo> SAS')
-        ->and($draft->html)->toContain('data-banner="borrador"');
-});
-
-it('splits the texts in paragraphs at blank lines', function () {
-    $mail = app(NoticeRenderer::class)->render(
-        'cobro::correos.cobro-semanal',
-        Make::company(),
-        cobroNotice(),
-        new TemplateContent('Asunto', "Uno\nsigue\n\n\nDos", 'Fin'),
-    );
-
-    expect($mail->html)->toContain('<p style="margin:0 0 16px;">Uno<br />'."\nsigue</p>")
-        ->toContain('<p style="margin:0 0 16px;">Dos</p>');
-});
-
-it('opens the editor with the default texts', function () {
+it('opens the editor with the default texts of each company', function () {
     $this->actingAs($this->analyst)->get('/cobro/plantillas')
         ->assertOk()
         ->assertSeeText('Plantilla del cobro semanal')
         ->assertSeeText('Usa los textos por defecto')
-        ->assertSee('Facturas vencidas de {cliente} con {empresa}', false)
-        ->assertSeeText('{total_vencido}');
+        ->assertSee('Cobro de cartera - Segurex LATAM SAS', false)
+        ->assertSee('Estimado cliente **{cliente}**', false)
+        ->assertSeeText('{numeros_facturas}');
+
+    $this->actingAs($this->analyst)->get('/cobro/plantillas?empresa=SDC')
+        ->assertOk()
+        ->assertSee('Cobro de cartera - Soluciones y Derivados de Colombia S.A.S', false)
+        ->assertSee('Auxiliar de Crédito y Cobranza', false);
 });
 
 it('forbids the editor to roles without cobro.manage', function (?Role $role) {
@@ -128,7 +61,7 @@ it('saves the texts of a company and audits the change', function () {
         ->and(app(TemplateStore::class)->for(CompanyCode::SDC, RunKind::Weekly)->isDefault)->toBeTrue();
 
     $this->fakes->audit->assertRecorded('cobro.template.updated', fn (AuditEntry $entry): bool => $entry->changes['subject'] === [
-        'old' => 'Facturas vencidas de {cliente} con {empresa}',
+        'old' => 'Cobro de cartera - Segurex LATAM SAS',
         'new' => 'Cartera pendiente de {cliente}',
     ]);
 
@@ -169,7 +102,8 @@ it('previews the mail with sample data and the saved texts', function () {
     $response = $this->actingAs($this->analyst)->get('/cobro/plantillas/SGX/vista-previa')->assertOk();
 
     expect($response->headers->get('Content-Type'))->toBe('text/html; charset=UTF-8')
-        ->and(VisibleText::of((string) $response->getContent()))->toContain('Inicio para Cliente de ejemplo SAS')
-        ->toContain('FV-1188')
-        ->toContain('Total vencido $ 3.500.000');
+        ->and(VisibleText::of((string) $response->getContent()))->toContain('Inicio para CLIENTE DE EJEMPLO SAS')
+        ->toContain('41 ASESOR DE EJEMPLO CN0001 CLIENTE DE EJEMPLO SAS 900123456-1 1188')
+        ->toContain('1250')
+        ->toContain('$ 4.480.000');
 });

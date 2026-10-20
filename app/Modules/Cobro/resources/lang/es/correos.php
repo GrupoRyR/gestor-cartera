@@ -9,14 +9,7 @@ return [
     'borrador_asunto' => '[Borrador] :asunto',
     'pie' => 'Este correo lo envía el área de cartera de :empresa. Responde a este mensaje para comunicarte con nosotros.',
     'corte' => 'Información con corte al :fecha.',
-
-    'tabla' => [
-        'titulo' => 'Facturas vencidas',
-        'documento' => 'Documento',
-        'vence' => 'Vence',
-        'dias' => 'Días de mora',
-        'saldo' => 'Saldo',
-        'total' => 'Total vencido',
-    ],
+    'la_factura' => 'la factura',
+    'las_facturas' => 'las facturas',
 
 ];

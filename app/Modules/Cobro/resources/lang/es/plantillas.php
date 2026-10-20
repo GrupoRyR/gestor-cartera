@@ -4,14 +4,14 @@
 return [
 
     'titulo' => 'Plantilla del cobro semanal',
-    'descripcion' => 'Edita el asunto y los textos del correo de cobro de cada empresa. La tabla de facturas y la marca de la empresa se agregan solas.',
+    'descripcion' => 'Edita el asunto y los textos del correo de cobro de cada empresa. La tabla con las facturas abiertas del cliente se agrega sola.',
     'empresas' => 'Empresas',
 
     'campos' => [
         'asunto' => 'Asunto',
         'inicio' => 'Texto antes de la tabla de facturas',
         'cierre' => 'Texto después de la tabla de facturas',
-        'ayuda_parrafos' => 'Deja una línea en blanco para separar párrafos.',
+        'ayuda_parrafos' => 'Deja una línea en blanco para separar párrafos. Escribe **así** para poner un texto en negrita.',
     ],
 
     'variables' => [
@@ -47,12 +47,50 @@ return [
         'cierre' => 'texto después de la tabla',
     ],
 
-    // Default texts of each RunKind, with {placeholders}.
+    // Default texts of each RunKind, with {placeholders} and **bold**: per
+    // company (<kind>.<company>) or shared by every company (<kind>).
+    // The weekly collection texts are the ones each company sends today,
+    // word for word (client-facing: they keep "usted" as written).
     'por_defecto' => [
         'cobro_semanal' => [
-            'asunto' => 'Facturas vencidas de {cliente} con {empresa}',
-            'inicio' => "Hola, {cliente}:\n\nTe escribimos del área de cartera de {empresa}. Con corte al {fecha_corte}, el saldo vencido de tus facturas es {total_vencido}. Este es el detalle:",
-            'cierre' => "Si ya hiciste el pago, responde a este correo con el soporte para aplicarlo. Si tienes alguna duda sobre estas facturas, también puedes responder a este mensaje.\n\nGracias,\nÁrea de cartera de {empresa}",
+            'SGX' => [
+                'asunto' => 'Cobro de cartera - Segurex LATAM SAS',
+                'inicio' => "Buen día\n\n"
+                    ."Estimado cliente **{cliente}**\n\n"
+                    ."Espero que se encuentre bien.\n\n"
+                    .'Nos dirigimos a usted para recordarte que su cuenta con **corte a {fecha_corte}** presenta un saldo pendiente por **{total_vencido}** '
+                    ."correspondiente a {factura_o_facturas} **{numeros_facturas}** con **vencimiento el {vencimientos}**\n\n"
+                    .'El saldo aún no ha sido abonado, y agradecemos su atención para normalización de su cuenta. Le solicitamos amablemente realizar el pago '
+                    .'lo más pronto posible para evitar cargos adicionales o interrupciones en el servicio, si fuera aplicable. A continuación, le proporcionamos '
+                    .'los detalles del estado de su cartera a la fecha:',
+                'cierre' => 'Si ya realizó el pago, por favor ignore este cobro de cartera y envíenos el comprobante de pago a vuelta de correo. De igual manera, '
+                    .'si presenta dudas o necesita información adicional, no dude en contactarnos a través de los medios autorizados como lo son los correos '
+                    ."cartera@segurex.com y miguel.martinez@segurex.com o a la línea celular y WhatsApp 3176490246.\n\n"
+                    ."Agradecemos su pronta atención a este asunto.\n\n"
+                    ."**Cordialmente,**\n\n"
+                    ."**María Paula Alvarez**\n"
+                    .'**Auxiliar de Cartera**',
+            ],
+            'SDC' => [
+                'asunto' => 'Cobro de cartera - Soluciones y Derivados de Colombia S.A.S',
+                'inicio' => "Buen día\n\n"
+                    ."Estimado cliente {cliente}\n\n"
+                    ."Espero que se encuentre bien.\n\n"
+                    .'**Nos dirigimos a usted para recordarte que su cuenta con corte a {fecha_corte} presenta un saldo pendiente por {total_vencido} '
+                    ."correspondiente a {factura_o_facturas} {numeros_facturas} con vencimiento el {vencimientos}.**\n\n"
+                    .'El saldo aún no ha sido abonado, y agradecemos su atención para normalización de su cuenta. Le solicitamos amablemente realizar el pago '
+                    .'lo más pronto posible para evitar cargos adicionales o interrupciones en el servicio, si fuera aplicable. A continuación, le proporcionamos '
+                    .'los detalles del estado de su cartera a la fecha:',
+                'cierre' => 'Si ya realizó el pago, por favor ignore este cobro de cartera y envíenos el comprobante de pago a vuelta de correo. De igual manera, '
+                    .'si presenta dudas o necesita información adicional, no dude en contactarnos a través de los medios autorizados como lo son los correos '
+                    ."cartera@derivadoscol.com y miguel.martinez@derivadoscol.com o a la línea celular y WhatsApp 3176490246 o 3153654788.\n\n"
+                    ."Agradecemos su pronta atención a este asunto.\n\n"
+                    ."Cordialmente,\n\n"
+                    ."**María Paula Alvarez**\n"
+                    ."**Auxiliar de Crédito y Cobranza**\n"
+                    ."Celular: +57 3153654788\n"
+                    .'E-mail: cartera@derivadoscol.com',
+            ],
         ],
         'circularizacion' => [
             'asunto' => 'Estado de cartera de {cliente} con {empresa}',
