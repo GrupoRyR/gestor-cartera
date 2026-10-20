@@ -209,3 +209,52 @@ Cada gestión importada guarda su origen en `metadata.legacy_key` (`fase1:action
 - Si `empresa`, `tipo`, `created_at` o `creado_en` están vacíos, o el tipo no es de los esperados.
 - Si una fecha no es válida (`compromiso_fecha` incluida).
 - Si no se encuentra el cliente, como se explica arriba.
+
+## Compromisos (`core:migrar-compromisos`)
+
+Lee los mismos archivos que `core:migrar-gestiones` y crea un compromiso de pago por cada compromiso de los sistemas anteriores. Corre antes `core:migrar-usuarios`: cada compromiso necesita un autor que exista en la app.
+
+### Qué filas son compromisos
+
+- **Fase 1** (`fase1_actions.csv`): las filas con `compromiso_fecha`, de cualquier tipo (una llamada que dejó compromiso queda como llamada en la bitácora y, además, como compromiso), y las de `tipo` compromiso.
+- **Supabase** (`supabase_gestiones.csv`): las filas de `tipo` compromiso.
+- Las demás filas quedan como omitidas («no es un compromiso»), para que «Leídos» siga siendo el número de filas del archivo.
+
+### Cómo queda cada compromiso
+
+| Campo | Fase 1 | Supabase |
+|---|---|---|
+| Cliente | Como en las gestiones (código SAP o NIT) | El cliente de SGX con `codigo_sn` |
+| Asesor | El asesor actual del cliente en la app | `slp_code` |
+| Valor | `compromiso_valor` | `valor_compromiso` |
+| Fecha | `compromiso_fecha` | `fecha_compromiso` |
+| Notas | `detalle`; en una llamada con resultado, «Llamada: <resultado>» y debajo el detalle | `nota` |
+| Autor | El usuario de `user_id` | El usuario de `creado_por` |
+| Creado | `created_at` (hora de Bogotá) | `creado_en` |
+
+### Estado
+
+| Origen | Situación | Estado en la app |
+|---|---|---|
+| Fase 1 | Vence hoy o después (calendario de Bogotá) | Pendiente |
+| Fase 1 | Ya venció | Anulado, con la fecha de la importación y el motivo «Importado de Cartera Fase 1 sin estado de cierre.» (Fase 1 no guardaba si se cumplió) |
+| Supabase | `abierto` y vence hoy o después | Pendiente |
+| Supabase | `abierto` y ya venció | Incumplido, con la fecha de la importación, como lo hace la tarea diaria de incumplidos |
+| Supabase | `cumplido` | Cumplido, con la fecha de `actualizado_en` |
+| Supabase | `cancelado` | Anulado, con la fecha de `actualizado_en` y el motivo «Anulado en el portal de asesores.» |
+
+### Bitácora y efectos
+
+- Cada compromiso deja en la bitácora del cliente la misma gestión que escribe la app al crear uno («Compromiso de pago por $ … para el …», con las notas como detalle), escrita por su autor y con la fecha de creación del compromiso. Mueve la última actividad del cliente con la regla de las gestiones.
+- **No cambia el estado del cliente** ni envía nada. Los estados manuales los trae `core:migrar-estados`.
+
+### Volver a correrlo
+
+La gestión de cada compromiso guarda su origen en `metadata.legacy_key` (`fase1:compromiso:<id>` o `supabase:compromiso:<id>`, distinto del de la gestión, así que una llamada con compromiso no choca). Una fila cuyo origen ya está en la bitácora queda como omitida («ya importado»).
+
+### Se rechaza la fila
+
+- «compromiso sin fecha»: un compromiso sin fecha.
+- «compromiso sin valor»: sin valor, o con valor cero o negativo.
+- «el autor no existe en la app: <correo o usuario Fase 1 #N>; corre primero core:migrar-usuarios»: el autor no es un usuario de la app.
+- Si no se encuentra el cliente, si la empresa no es la del cliente o si una fecha no es válida, como en las gestiones.

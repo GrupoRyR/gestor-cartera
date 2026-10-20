@@ -5,7 +5,6 @@ namespace App\Modules\Core\Console\Migracion;
 use App\Modules\Core\Application\Activity\StatusChangeSummary;
 use App\Modules\Core\Contracts\Enums\ActivityType;
 use App\Modules\Core\Contracts\Enums\ClientStatus;
-use App\Modules\Core\Contracts\Enums\CompanyCode;
 
 /**
  * core:migrar-gestiones: imports the activity log of Cartera Fase 1
@@ -125,14 +124,8 @@ final class MigrateActivitiesCommand extends MigrationCommand
         $key = LegacyKeys::key(LegacySource::Fase1, 'actions', (string) $row->int('id'));
         $this->skipImported($key);
 
-        $company = CompanyCode::from($row->oneOf('empresa', ['SGX', 'SDC']));
         $occurredAt = $row->timestamp('created_at');
-        $client = $this->clients->fase1($row->int('client_id'));
-
-        if ($client->company !== $company) {
-            throw new RowRejected("la empresa de la gestión ({$company->value}) no coincide con la del cliente ({$client->company->value})");
-        }
-
+        $client = $this->clients->ofAction($row);
         $author = $this->authors->fase1($row->optionalInt('user_id'));
         $result = $row->optionalString('resultado');
         $detail = $row->optionalString('detalle');

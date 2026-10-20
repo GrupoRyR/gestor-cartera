@@ -9,9 +9,13 @@ use App\Modules\Core\Contracts\Enums\CompanyCode;
  */
 final readonly class TargetClient
 {
+    /**
+     * @param  int|null  $advisorCode  The client's current OSLP.SlpCode.
+     */
     public function __construct(
         public int $id,
         public CompanyCode $company,
         public string $code,
+        public ?int $advisorCode = null,
     ) {}
 }
