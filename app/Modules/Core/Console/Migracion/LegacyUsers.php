@@ -5,6 +5,7 @@ namespace App\Modules\Core\Console\Migracion;
 use App\Models\User;
 use App\Modules\Core\Contracts\AuditLogger;
 use App\Modules\Core\Contracts\Enums\CompanyCode;
+use App\Modules\Core\Contracts\Enums\Role;
 use App\Modules\Core\Infrastructure\Persistence\AdvisorRecord;
 use App\Modules\Core\Infrastructure\Persistence\CompanyRecord;
 use Spatie\Permission\Models\Role as SpatieRole;
@@ -48,11 +49,17 @@ final class LegacyUsers
             ['name' => $legacy->name, 'is_active' => $legacy->active],
         );
         $context = ['source' => 'migracion', 'file' => $row->file, 'line' => $row->line];
+        $role = $this->setRole($user, $legacy, $row, $report);
+
+        // The codes belong to the source's role: an advisor's own codes, a
+        // manager's team. A user who kept another role gets neither.
+        $advisorCodes = $this->codesFor(Role::SalesAdvisor, $role['new'], $legacy->advisorCodes, $row, $report);
+        $teamCodes = $this->codesFor(Role::SalesManager, $role['new'], $legacy->teamCodes, $row, $report);
 
         $changes = array_filter([
-            'role' => $this->setRole($user, $legacy, $row, $report),
+            'role' => $role,
             'companies' => $this->addCompanies($user, $legacy->companies),
-            'team' => $this->addTeam($user, $legacy->teamCodes, $row, $report),
+            'team' => $this->addTeam($user, $teamCodes, $row, $report),
         ], fn (array $change): bool => $change['old'] !== $change['new']);
 
         if ($existing === null) {
@@ -68,7 +75,7 @@ final class LegacyUsers
             $this->audit->record('core.user.updated', 'user', $user->id, $changes, $context);
         }
 
-        $linked = $this->linkAdvisors($user, $legacy->advisorCodes, $row, $report, $context);
+        $linked = $this->linkAdvisors($user, $advisorCodes, $row, $report, $context);
 
         return $existing === null || $changes !== [] || $linked;
     }
@@ -95,6 +102,24 @@ final class LegacyUsers
         }
 
         return ['old' => $current, 'new' => $current];
+    }
+
+    /**
+     * $codes when the user's role (after setRole()) is $role; otherwise
+     * none, with a warning when there were codes to link.
+     *
+     * @param  list<int>  $codes
+     * @return list<int>
+     */
+    private function codesFor(Role $role, ?string $kept, array $codes, CsvRow $row, ImportReport $report): array
+    {
+        if ($codes === [] || $kept === $role->value) {
+            return $codes;
+        }
+
+        $report->warn($row, 'no se vinculan los códigos '.implode(', ', $codes).': el usuario conserva el rol '.($kept ?? 'ninguno'));
+
+        return [];
     }
 
     /**
