@@ -1,0 +1,6 @@
+id,nombre,email,pass_hash,rol,empresa,activo
+1,Laura Restrepo,Laura.Restrepo@Segurex.com,$2y$10$invented1,admin,SGX,1
+2,Andrés Ospina,andres.ospina@segurex.com,$2y$10$invented2,gestor,SDC,1
+3,Paola Zuluaga,paola.zuluaga@segurex.com,$2y$10$invented3,gestor,ALL,0
+4,Sin Correo,,$2y$10$invented4,gestor,SGX,1
+5,Rol Raro,rol.raro@segurex.com,$2y$10$invented5,jefe,SGX,1
