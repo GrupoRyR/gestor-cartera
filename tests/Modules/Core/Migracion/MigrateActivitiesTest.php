@@ -232,3 +232,68 @@ it('imports Supabase alone, without the Fase 1 files', function () {
         ])
         ->assertSuccessful();
 });
+
+/**
+ * Replaces the Fase 1 clients and actions of $folder (no SAP codes, no
+ * Supabase file) with $clients and $actions rows under the export headers.
+ */
+function migracionFase1Only(string $folder, string $clients, string $actions): void
+{
+    MigrationFolder::put($folder, 'fase1_clients.csv', "id,empresa,nit\n{$clients}");
+    MigrationFolder::put($folder, 'fase1_client_codes.csv', "client_id,codigo_sn\n");
+    MigrationFolder::put($folder, 'fase1_actions.csv', "id,client_id,empresa,user_id,tipo,resultado,detalle,compromiso_fecha,compromiso_valor,descuento,adjunto,adjunto_nombre,created_at\n{$actions}");
+    unlink($folder.DIRECTORY_SEPARATOR.'supabase_gestiones.csv');
+}
+
+it('matches a NIT only with or without its written check digit', function () {
+    $dotted = migracionClient(CompanyCode::SGX, 'X1', '900123456-7');
+    $compact = migracionClient(CompanyCode::SGX, 'X2', '8001234567');
+    migracionClient(CompanyCode::SGX, 'X3', '12345678');
+
+    migracionFase1Only($this->folder, <<<'CSV'
+        1,SGX,900.123.456
+        2,SGX,800123456-7
+        3,SGX,1234567
+        4,SGX,900400400
+
+        CSV, <<<'CSV'
+        1,1,SGX,1,nota,,Con puntos,NULL,NULL,NULL,,,2025-03-01 09:00:00
+        2,2,SGX,1,nota,,Con dígito,NULL,NULL,NULL,,,2025-03-01 09:00:00
+        3,3,SGX,1,nota,,Un dígito de más,NULL,NULL,NULL,,,2025-03-01 09:00:00
+        4,4,SGX,1,nota,,Ambiguo,NULL,NULL,NULL,,,2025-03-01 09:00:00
+
+        CSV);
+
+    migracionRun($this->folder)
+        ->expectsTable(MigrationFolder::REJECTIONS, [
+            ['fase1_actions.csv', 4, '3', 'cliente no existe en la app (SGX, NIT 1234567)'],
+            ['fase1_actions.csv', 5, '4', 'NIT ambiguo: 900400400 coincide con varios clientes de la app (SGX)'],
+        ])
+        ->assertSuccessful();
+
+    expect(migracionActivity('fase1:actions:1')->client_id)->toBe($dotted->id)
+        ->and(migracionActivity('fase1:actions:2')->client_id)->toBe($compact->id);
+});
+
+it('keeps an entry whose discount or commitment cannot be read, as text', function () {
+    migracionFase1Only($this->folder, "1,SGX,900100100\n", "5,1,SGX,1,llamada,Promete pagar,,31/02/2025,1.500.000,abc,,,2025-03-02 09:00:00\n");
+
+    migracionRun($this->folder)
+        ->expectsTable(MigrationFolder::TOTALS, [
+            ['Fase 1', 'fase1_actions.csv', 1, 1, 0, 0],
+        ])
+        ->expectsTable(MigrationFolder::WARNINGS, [
+            ['fase1_users.csv', 5, '4', 'se ignora la fila: campo vacío: email'],
+            ['fase1_actions.csv', 2, '5', 'descuento no es un número (abc); se guarda como texto'],
+            ['fase1_actions.csv', 2, '5', 'compromiso_fecha no es una fecha válida (31/02/2025); se guarda como texto'],
+            ['fase1_actions.csv', 2, '5', 'compromiso_valor no es un número (1.500.000); se guarda como texto'],
+        ])
+        ->assertSuccessful();
+
+    expect(migracionActivity('fase1:actions:5')->metadata)->toEqual([
+        'legacy_key' => 'fase1:actions:5',
+        'discount_amount' => 'abc',
+        'commitment_due_date' => '31/02/2025',
+        'commitment_amount' => '1.500.000',
+    ]);
+});

@@ -183,13 +183,14 @@ Los compromisos de pago no se importan aquí: las filas con `tipo` compromiso qu
 - El resumen se corta en 255 caracteres con «…». El detalle no se guarda si es igual al resumen.
 - La fecha de la gestión es `created_at` (Fase 1, hora de Bogotá) o `creado_en` (Supabase, con su zona, pasada a hora de Bogotá).
 - En los datos extra de la gestión (`metadata`) quedan, cuando vienen: `descuento`, `compromiso_fecha` y `compromiso_valor`; el nombre del adjunto; el `documento` de Supabase; los estados de un cambio de estado; el `resultado` que no quedó en el resumen ni como resultado de la llamada; y el autor que la app no tiene.
+- `descuento`, `compromiso_fecha` y `compromiso_valor` nunca rechazan la gestión: si uno no se puede leer (p. ej. `1.500.000` o `31/02/2025`), se guarda tal como viene, como texto, y sale un aviso.
 - **Los archivos adjuntos no se migran.** De un documento de Fase 1 solo queda el nombre del archivo y su descripción; el archivo sigue en el servidor de Fase 1.
 
 ### Cómo se encuentra el cliente
 
 - **Fase 1**: el cliente de la gestión (`client_id`) se busca en `fase1_clients.csv`; si no está, la fila se rechaza. Luego se busca en la app, en la misma empresa y sin clientes eliminados:
   1. Por código SAP: los `codigo_sn` de ese cliente en `fase1_client_codes.csv` que existen en la app. Si coincide uno, ese es. Si coinciden varios clientes, la fila se rechaza («el cliente 6 tiene varios códigos SAP en la app: C600, C601»).
-  2. Si no hay código, por NIT: se comparan solo los dígitos (`900.123.456`, `900123456` y `900123456-7` son el mismo) y se acepta que uno de los dos tenga el dígito de verificación y el otro no. Si coincide un cliente, ese es; si coinciden varios, se rechaza («NIT ambiguo…»); si ninguno, se rechaza («cliente no existe en la app (SGX, NIT 900123456)»).
+  2. Si no hay código, por NIT. De cada NIT se toman todos sus dígitos y, si termina en un guion seguido de un solo dígito (el dígito de verificación, como en `900123456-7`), también los dígitos de antes del guion. Dos NIT coinciden si tienen los mismos dígitos, o si los dígitos de uno son los del otro sin su dígito de verificación: `900.123.456` coincide con `900123456-7`, y `900123456-7` con `9001234567`. Un dígito de más sin guion no basta: `1234567` no coincide con `12345678`. Si coincide un cliente, ese es; si coinciden varios, se rechaza («NIT ambiguo…»); si ninguno, se rechaza («cliente no existe en la app (SGX, NIT 900123456)»).
 - **Supabase**: el cliente de SGX con el código `codigo_sn`; si no existe, la fila se rechaza.
 - Si la empresa de la gestión no es la del cliente, la fila se rechaza.
 
@@ -210,5 +211,5 @@ Cada gestión importada guarda su origen en `metadata.legacy_key` (`fase1:action
 ### Se rechaza la fila
 
 - Si `empresa`, `tipo`, `created_at` o `creado_en` están vacíos, o el tipo no es de los esperados.
-- Si una fecha no es válida (`compromiso_fecha` incluida).
+- Si `created_at` o `creado_en` no son una fecha válida.
 - Si no se encuentra el cliente, como se explica arriba.
