@@ -96,7 +96,7 @@
                 <x-slot:actions>
                     <x-ui.link-button :href="route('comisiones.periodos.informes.nomina', $query)" variant="secondary" icon="download">{{ __('comisiones::informes.nomina.descargar') }}</x-ui.link-button>
                 </x-slot:actions>
-                <div class="px-5 pt-3 pb-5 text-[0.9375rem]">
+                <div class="text-[0.9375rem]">
                     @if ($payroll !== null)
                         <p>{{ __('comisiones::informes.recaudo.generado', ['fecha' => DateFormat::dateTime($payroll->created_at), 'nombre' => $payroll->generator?->name ?? AuditTrail::SYSTEM]) }}</p>
                         <p class="text-sm text-fg-muted [overflow-wrap:anywhere]">{{ $payroll->archivo }} · {{ __('comisiones::informes.recaudo.huella', ['huella' => substr($payroll->sha256, 0, 12)]) }}</p>

@@ -1,12 +1,22 @@
 <?php
 
+use App\Modules\Comisiones\Http\Controllers\ControlsController;
 use App\Modules\Comisiones\Http\Controllers\ReportsController;
 use App\Modules\Comisiones\Http\Support\PeriodRoute;
 use Illuminate\Support\Facades\Route;
 
-// The reports of a period (§7.7, §8.2): the period tab «Informes».
-// {periodo} is a month, YYYY-MM (PeriodRoute::PATTERN); ?version=N picks
-// an older version. Only a closed version produces reports.
+// The controls and the reports of a period (§7.7, §7.8, §8.2, §9): the
+// period tabs «Controles» and «Informes», both read from the stored
+// settlement. {periodo} is a month, YYYY-MM (PeriodRoute::PATTERN);
+// ?version=N picks an older version. Only a closed version produces reports.
+
+Route::middleware(['auth', 'can:comisiones.view'])
+    ->prefix('periodos/{periodo}')
+    ->where(['periodo' => PeriodRoute::PATTERN])
+    ->name('periodos.')
+    ->group(function () {
+        Route::get('controles', ControlsController::class)->name('controles');
+    });
 
 Route::middleware(['auth', 'can:comisiones.reports'])
     ->prefix('periodos/{periodo}')
