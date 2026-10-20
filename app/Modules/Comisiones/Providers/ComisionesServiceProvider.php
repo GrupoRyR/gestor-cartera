@@ -2,10 +2,12 @@
 
 namespace App\Modules\Comisiones\Providers;
 
+use App\Modules\Comisiones\Application\Ports\CommissionParameters;
 use App\Modules\Comisiones\Application\Ports\SettlementInputs;
 use App\Modules\Comisiones\Application\Ports\Settlements;
 use App\Modules\Comisiones\Infrastructure\Console\AssignModuleRoleCommand;
 use App\Modules\Comisiones\Infrastructure\Ingest\ImportCommissionBatch;
+use App\Modules\Comisiones\Infrastructure\Parameters\EloquentCommissionParameters;
 use App\Modules\Comisiones\Infrastructure\Settlement\EloquentSettlementInputs;
 use App\Modules\Comisiones\Infrastructure\Settlement\EloquentSettlements;
 use App\Modules\Core\Contracts\Events\BatchAccepted;
@@ -28,6 +30,7 @@ final class ComisionesServiceProvider extends ModuleServiceProvider
     protected function registerModule(): void
     {
         $this->app->singleton(SettlementInputs::class, EloquentSettlementInputs::class);
+        $this->app->singleton(CommissionParameters::class, EloquentCommissionParameters::class);
         $this->app->singleton(Settlements::class, EloquentSettlements::class);
     }
 
