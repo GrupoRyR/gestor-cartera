@@ -325,6 +325,12 @@ it('says there were no sends for each kind instead of dividing by zero', functio
         ->assertDontSeeText('NAN');
 });
 
+it('says the circularization of a month shows the close of the month before', function () {
+    ($this->manager)()
+        ->get('/gerencia')
+        ->assertSeeTextInOrder(['Circularización', 'Sale el día 1 con la cartera al cierre del mes anterior', 'Sin envíos en el período']);
+});
+
 it('links to the Cobro reports the manager may open', function () {
     ($this->manager)()
         ->get('/gerencia')

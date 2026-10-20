@@ -279,6 +279,9 @@
                     @endphp
                     <section class="grid gap-3" aria-labelledby="cobro-{{ $kindResults->kind->value }}">
                         <h3 id="cobro-{{ $kindResults->kind->value }}" class="text-base font-bold">{{ $kindLabel }}</h3>
+                        @if ($kindResults->kind === \App\Modules\Core\Contracts\Enums\MailRunKind::Circularization)
+                            <p data-nota="circularizacion" class="text-sm text-fg-muted">{{ __('gerencia::tablero.cobro.nota_circularizacion') }}</p>
+                        @endif
 
                         @if (! $kindResults->hasRuns())
                             <x-ui.empty icon="send" :title="__('gerencia::tablero.cobro.vacio.titulo')" :description="__('gerencia::tablero.cobro.vacio.detalle')" />

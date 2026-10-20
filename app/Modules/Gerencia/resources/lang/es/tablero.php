@@ -113,6 +113,7 @@ return [
         'titulo' => 'Resultados del cobro por correo',
         'descripcion' => 'Lotes programados en el período, por tipo y por empresa. Cada cifra cuenta clientes; las respuestas cuentan aunque lleguen después.',
         'tabla' => ':tipo por empresa',
+        'nota_circularizacion' => 'Sale el día 1 con la cartera al cierre del mes anterior: el envío de un mes muestra el cierre del mes previo.',
         'vacio' => [
             'titulo' => 'Sin envíos en el período',
             'detalle' => 'No se programó ningún lote de este tipo entre estas fechas.',
