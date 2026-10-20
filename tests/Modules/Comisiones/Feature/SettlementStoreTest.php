@@ -137,6 +137,30 @@ it('keeps the complementary version apart from the closed one', function () {
         ->and($this->store->record($this->july, 2)?->motivo)->toBe('Nota crédito tardía de SAP');
 });
 
+it('refuses a new version that another request stored meanwhile instead of overwriting it', function () {
+    $approved = $this->draft->approve('beto@segurex.com', new DateTimeImmutable('2026-08-05 10:00'), 1, ['codigo_desconocido:99' => 'Venta de prueba.']);
+    $closed = $approved->close('beto@segurex.com', new DateTimeImmutable('2026-08-05 11:00'));
+    $this->store->save($this->draft);
+    $this->store->save($approved);
+    $this->store->save($closed);
+
+    $mine = $closed->complement('Nota crédito tardía', ($this->result)(-1_000_000), 'ana@segurex.com', new DateTimeImmutable('2026-09-02 08:00'));
+    $theirs = $closed->complement('Ajuste de presupuesto', ($this->result)(), 'carla@segurex.com', new DateTimeImmutable('2026-09-02 08:00'));
+
+    // The other request stores its version 2 between our read and our insert.
+    $raced = false;
+    SettlementRecord::creating(function () use (&$raced, $theirs): void {
+        if (! $raced) {
+            $raced = true;
+            $this->store->save($theirs);
+        }
+    });
+
+    expect(fn () => $this->store->save($mine))->toThrow(StaleSettlement::class)
+        ->and($this->store->record($this->july, 2)?->motivo)->toBe('Ajuste de presupuesto')
+        ->and($this->store->record($this->july, 2)?->calculado_por)->toBe('carla@segurex.com');
+});
+
 it('refuses a stored result whose fingerprint does not match', function () {
     $this->store->save($this->draft);
     SettlementRecord::query()->update(['resultado_sha256' => str_repeat('0', 64)]);

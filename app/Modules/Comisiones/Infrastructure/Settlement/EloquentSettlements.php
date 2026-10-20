@@ -55,12 +55,15 @@ final class EloquentSettlements implements Settlements
 
                 return;
             } catch (UniqueConstraintViolationException) {
-                // Another request stored this version meanwhile: go through the check below.
-                $stored = $this->find($settlement->period, $settlement->version);
+                // Another request stored this new version between our read and our
+                // insert: it was never ours to replace, so the user reloads it.
+                $current = $this->find($settlement->period, $settlement->version);
+
+                throw new StaleSettlement($settlement->period, $settlement->version, $settlement->revision, $current->revision ?? 0);
             }
         }
 
-        $updated = $stored === null ? 0 : SettlementRecord::query()
+        $updated = SettlementRecord::query()
             ->whereKey($stored->id)
             ->where('revision', '<=', $settlement->revision)
             ->where('estado', '!=', SettlementStatus::Closed->value)
