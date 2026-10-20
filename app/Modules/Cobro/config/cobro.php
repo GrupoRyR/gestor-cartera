@@ -43,6 +43,28 @@ return [
         'time' => '17:00',
     ],
 
+    // Carbon copies (Cc) of the weekly collection mail of each company:
+    // fixed addresses, the client's advisor, and the sales managers of
+    // each SAP group (OCRG.GroupName, compared without regard to case or
+    // accents). They live here for now.
+    'copias' => [
+        'SGX' => [
+            'fixed' => ['miguel.martinez@segurex.com'],
+            'advisor' => true,
+            'managers' => [
+                ['group' => 'DISTRIBUCION', 'emails' => ['jessika.quintero@segurex.com']],
+                ['group' => 'CONS. RESIDENCIAL', 'emails' => ['andrea.hincapie@segurex.com']],
+            ],
+        ],
+        // SDC has a single advisor (Diana Mora), already a fixed copy, and
+        // no sales managers by group.
+        'SDC' => [
+            'fixed' => ['miguel.martinez@derivadoscol.com', 'diana.mora@derivadoscol.com', 'servicioalcliente@derivadoscol.com'],
+            'advisor' => false,
+            'managers' => [],
+        ],
+    ],
+
     // Monthly circularization at close (4.2): the 1st at 09:00, Bogotá
     // time, once the robot published the cartera of the closed month.
     // While the format is a draft (the real report has not arrived), the

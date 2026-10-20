@@ -3,15 +3,18 @@
 namespace App\Modules\Cobro\Infrastructure\Runs;
 
 use App\Modules\Cobro\Application\Runs\RunDefinition;
+use App\Modules\Cobro\Domain\Copies\CopyRecipients;
 use App\Modules\Cobro\Domain\Runs\Candidate;
 use App\Modules\Cobro\Domain\Runs\NoticeData;
 use App\Modules\Cobro\Domain\Runs\RenderedMail;
 use App\Modules\Cobro\Domain\Runs\RunCalendar;
 use App\Modules\Cobro\Domain\Runs\RunKind;
+use App\Modules\Cobro\Infrastructure\Copies\CopyStore;
 use App\Modules\Cobro\Infrastructure\Mail\NoticeRenderer;
 use App\Modules\Cobro\Infrastructure\Templates\TemplateStore;
 use App\Modules\Cobro\Providers\CobroServiceProvider;
 use App\Modules\Core\Contracts\CarteraRepository;
+use App\Modules\Core\Contracts\Data\Advisor;
 use App\Modules\Core\Contracts\Data\ClientQuery;
 use App\Modules\Core\Contracts\Data\Company;
 use App\Modules\Core\Contracts\Data\Invoice;
@@ -23,7 +26,8 @@ use Carbon\CarbonImmutable;
  * overdue invoices (daysOverdue > 0 in the latest snapshot) gets the
  * statement of its open invoices, the overdue ones highlighted, with the
  * company's editable template. The run's amount and invoice count are the
- * overdue ones.
+ * overdue ones. The mail copies (Cc) the company's CopyStore recipients;
+ * a test send copies nobody.
  */
 final class WeeklyCollection implements RunDefinition
 {
@@ -31,6 +35,7 @@ final class WeeklyCollection implements RunDefinition
         private readonly CarteraRepository $cartera,
         private readonly TemplateStore $templates,
         private readonly NoticeRenderer $renderer,
+        private readonly CopyStore $copies,
     ) {}
 
     public function kind(): RunKind
@@ -62,6 +67,7 @@ final class WeeklyCollection implements RunDefinition
     public function candidates(CompanyCode $company): iterable
     {
         $cartera = $this->cartera->asSystem();
+        $copies = $this->copies->for($company);
 
         foreach ($cartera->allClients(new ClientQuery(companies: [$company], onlyOverdue: true)) as $client) {
             $invoices = self::overdue($cartera->openInvoices($client->id));
@@ -70,11 +76,15 @@ final class WeeklyCollection implements RunDefinition
                 continue;
             }
 
+            $detail = $cartera->client($client->id);
+            $emails = $detail?->emails() ?? [];
+
             yield new Candidate(
                 $client,
-                $cartera->client($client->id)?->emails() ?? [],
+                $emails,
                 array_sum(array_map(fn (Invoice $invoice): float => $invoice->balance, $invoices)),
                 count($invoices),
+                CopyRecipients::resolve($copies, self::advisorEmail($client->advisor), $detail?->group, $emails),
             );
         }
     }
@@ -121,18 +131,42 @@ final class WeeklyCollection implements RunDefinition
             paymentTerms: $client->paymentTerms,
             advisorNames: $advisorNames,
             advisorCode: $summary->advisor?->code,
+            advisorEmail: self::advisorEmail($summary->advisor),
         );
     }
 
+    /**
+     * The mail with its carbon copies; a test send goes to the user only,
+     * so it copies nobody.
+     */
     public function render(Company $company, NoticeData $notice, bool $test = false): RenderedMail
     {
-        return $this->renderer->render(
+        $mail = $this->renderer->render(
             'cobro::correos.cobro-semanal',
             $company,
             $notice,
             $this->templates->for($company->code, RunKind::Weekly),
             test: $test,
         );
+
+        if ($test) {
+            return $mail;
+        }
+
+        return new RenderedMail(
+            $mail->subject,
+            $mail->html,
+            CopyRecipients::resolve($this->copies->for($company->code), $notice->advisorEmail, $notice->group),
+        );
+    }
+
+    /**
+     * The e-mail the advisor is copied at: none when SAP lists the advisor
+     * as inactive (someone who left the company).
+     */
+    private static function advisorEmail(?Advisor $advisor): ?string
+    {
+        return $advisor !== null && $advisor->active ? $advisor->email : null;
     }
 
     /**

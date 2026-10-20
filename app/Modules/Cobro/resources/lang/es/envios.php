@@ -37,6 +37,7 @@ return [
             'estado' => 'Estado',
             'acciones' => 'Acciones',
         ],
+        'con_copia' => 'Con copia a: :correos',
         'ver_correo' => 'Ver correo',
         'ver_correo_de' => 'de :cliente',
         'vacio' => [

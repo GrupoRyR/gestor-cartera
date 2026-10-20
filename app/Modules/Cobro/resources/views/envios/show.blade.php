@@ -88,7 +88,12 @@
                                     <span class="font-semibold">{{ $client->name }}</span>
                                     <span class="block text-sm">{{ $client->taxId }}</span>
                                 </td>
-                                <td class="[overflow-wrap:anywhere]">{{ $item->candidate->emails === [] ? '—' : implode(', ', $item->candidate->emails) }}</td>
+                                <td class="[overflow-wrap:anywhere]">
+                                    {{ $item->candidate->emails === [] ? '—' : implode(', ', $item->candidate->emails) }}
+                                    @if ($item->candidate->emails !== [] && $item->candidate->cc !== [])
+                                        <span class="mt-1 block text-sm">{{ __('cobro::envios.vista.con_copia', ['correos' => implode(', ', $item->candidate->cc)]) }}</span>
+                                    @endif
+                                </td>
                                 <td data-align="end">{{ number_format($item->candidate->invoiceCount, 0, ',', '.') }}</td>
                                 <td data-align="end"><x-ui.money :value="$item->candidate->amount" /></td>
                                 <td>

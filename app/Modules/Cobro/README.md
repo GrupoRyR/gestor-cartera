@@ -37,7 +37,24 @@ Cada trabajo reclama su cliente antes de enviar (pendiente → enviando), así q
 2. si es un rebote, por el `Message-ID` del envío que cita en su texto;
 3. si es una respuesta, por el remitente, al último envío a esa dirección en los últimos 90 días.
 
-Un rebote unido marca su cliente como «Rebotado» en el informe, con el código SMTP y la dirección que falló.
+Un rebote unido marca su cliente como «Rebotado» en el informe, con el código SMTP y la dirección que falló. Si el informe nombra varias direcciones del envío, cuenta primero la del cliente (Para) y después las copias. Si la dirección que falló es una copia (CC), el cliente sí recibió el correo: queda «Enviado» y la dirección queda en el registro.
+
+## Copias del cobro semanal
+
+Cada correo del cobro semanal lleva en copia (CC), en este orden y sin repetir direcciones ni repetir las del cliente:
+
+1. los correos fijos de la empresa;
+2. el asesor del cliente (su correo en SAP, `OSLP.Email`), si `advisor` es `true` y SAP lo tiene activo;
+3. los gerentes del grupo de SAP del cliente (`OCRG.GroupName`, por ejemplo `DISTRIBUCION` o `CONS. RESIDENCIAL`). El grupo se compara sin importar mayúsculas, tildes ni espacios; un cliente sin grupo no copia a ningún gerente.
+
+Por ahora se definen en `config('cobro.copias')`, una entrada por empresa:
+
+| Empresa | Fijas | Asesor | Gerentes por grupo |
+|---|---|---|---|
+| Segurex | Miguel Martínez | Sí | `DISTRIBUCION`: Jessika Quintero; `CONS. RESIDENCIAL`: Andrea Hincapié |
+| Derivados | Miguel Martínez, Diana Mora y Servicio al Cliente | No (la única asesora, Diana Mora, ya va fija) | Ninguno |
+
+La vista previa del envío muestra las copias de cada cliente; la prueba que se envía el usuario y la circularización no llevan copias.
 
 ## Microsoft Graph: lo que TI debe configurar
 
