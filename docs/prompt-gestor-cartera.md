@@ -436,6 +436,7 @@ En la app de escritorio, el modelo se elige en el selector junto al botón de en
 | `MailSender` | Cobro | Enviar correo por Graph desde el buzón de una empresa. |
 | `MailboxReader` | Cobro | Leer respuestas y rebotes y unirlos al cliente. |
 | `RecaudoProvider` | Bancos | Recaudo diario y semanal por empresa. |
+| `MailRunResultsProvider` | Cobro | Resultados de los envíos de cobro y circularización por empresa y período. |
 
 ## C.5 Contrato de componentes Blade (los crea la Fase 0a como stubs; los diseña la Fase 0b)
 

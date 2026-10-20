@@ -10,10 +10,12 @@ use App\Modules\Cobro\Console\SyncMailboxesCommand;
 use App\Modules\Cobro\Infrastructure\Mail\BounceLinked;
 use App\Modules\Cobro\Infrastructure\Mail\DatabaseMailboxReader;
 use App\Modules\Cobro\Infrastructure\Mail\GraphMailSender;
+use App\Modules\Cobro\Infrastructure\Results\DatabaseMailRunResults;
 use App\Modules\Cobro\Infrastructure\Runs\MarkItemBounced;
 use App\Modules\Cobro\Infrastructure\Runs\RunDefinitions;
 use App\Modules\Cobro\Infrastructure\Runs\WeeklyCollection;
 use App\Modules\Core\Contracts\MailboxReader;
+use App\Modules\Core\Contracts\MailRunResultsProvider;
 use App\Modules\Core\Contracts\MailSender;
 use App\Support\Modules\ModuleServiceProvider;
 use App\Support\Navigation\NavItem;
@@ -42,6 +44,7 @@ final class CobroServiceProvider extends ModuleServiceProvider
     {
         $this->app->singleton(MailSender::class, GraphMailSender::class);
         $this->app->singleton(MailboxReader::class, DatabaseMailboxReader::class);
+        $this->app->singleton(MailRunResultsProvider::class, DatabaseMailRunResults::class);
 
         $this->app->singleton(RunDefinitions::class, fn (): RunDefinitions => new RunDefinitions([
             $this->app->make(WeeklyCollection::class),

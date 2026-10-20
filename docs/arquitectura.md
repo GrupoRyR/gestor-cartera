@@ -264,6 +264,7 @@ Todos viven en `App\Modules\Core\Contracts`. Son PHP sin base de datos, sin HTTP
 | `MailSender` | Cobro | 1 | `FakeMailSender` | No |
 | `MailboxReader` | Cobro | 1 | `FakeMailboxReader` | Sí |
 | `RecaudoProvider` | Bancos | 1 | `FakeRecaudoProvider` | No; autoriza quien llama |
+| `MailRunResultsProvider` | Cobro | 2 | `FakeMailRunResultsProvider` | No; autoriza quien llama |
 
 Mientras el dueño de un contrato no esté en `main`, la interfaz no tiene binding: pruébala con su fake. El código de `app/` nunca importa `Tests\Fakes` (en producción ese namespace no existe: `composer install --no-dev`).
 
@@ -478,6 +479,7 @@ Todos son `final readonly`. Los campos van en el orden del constructor; los que 
 | `InboundMail` | `id: string`, `company: CompanyCode`, `clientId: ?int`, `from: string`, `subject: string`, `preview: string`, `receivedAt: CarbonImmutable`, `isBounce: bool = false`, `bounceReason: ?string = null`, `conversationId: ?string = null`, `read: bool = false`, `url: ?string = null` |
 | `DailyCollection` | `date: CarbonImmutable`, `company: CompanyCode`, `total: float`, `byBank: array<string, float>` (llave = valor de `Bank`), `movementCount: int` |
 | `WeeklyCollection` | `weekStart: CarbonImmutable` (lunes), `weekEnd: CarbonImmutable` (domingo), `company: CompanyCode`, `total: float`, `byBank: array<string, float>` |
+| `MailRunResults` | `company: CompanyCode`, `kind: MailRunKind`, `from: CarbonImmutable`, `to: CarbonImmutable` (solo fecha, inclusivas), `runs: int` (lotes programados en el período), `sent: int` (clientes cuyo correo recibió el buzón: `enviado` o `rebotado`), `bounced: int` (rebotó en un destinatario propio; la copia que rebota no cuenta), `withoutEmail: int` (clientes sin correo), `failed: int` (clientes cuyo envío falló: `fallido`), `replies: int` (clientes enviados que respondieron al menos una vez; un rebote no es respuesta). Métodos: `empty(CompanyCode, MailRunKind, from, to)` y `delivered(): int` (`sent − bounced`). Lanza `InvalidArgumentException` con un conteo negativo o con más rebotes o respuestas que envíos. |
 
 ### 6.14 Enums (`Contracts\Enums`)
 
@@ -493,6 +495,7 @@ Todos son `string` y usan el trait `HasOptions`: `label()` da el texto en españ
 | `LoadSource` | `Robot` → `robot` («Robot»), `Manual` → `manual` («Carga manual») |
 | `LoadStatus` | `Accepted` → `aceptada` («Aceptada»), `Rejected` → `rechazada` («Rechazada») |
 | `Bank` | `Bogota` → `bogota` («Banco de Bogotá»), `Davivienda` → `davivienda` («Davivienda»), `Bancolombia` → `bancolombia` («Bancolombia»), `Miami` → `miami` («Miami») |
+| `MailRunKind` (valor = tipo de lote de Cobro y categoría de `OutgoingMail`) | `WeeklyCollection` → `cobro_semanal` («Cobro semanal»), `Circularization` → `circularizacion` («Circularización») |
 | `Role` (valor = rol de Spatie) | `Admin` → `admin` («Administrador»), `PortfolioManager` → `gerente_cartera` («Gerente de cartera»), `PortfolioAnalyst` → `analista_cartera` («Analista de cartera»), `SalesAdvisor` → `asesor` («Asesor comercial»), `SalesManager` → `gerente_comercial` («Gerente comercial»), `Treasury` → `tesoreria` («Tesorería») |
 
 En `ClientStatus`, los estados automáticos (`Current`, `DueSoon`, `Overdue`, `PaymentReceived`) se recalculan con cada instantánea y los días de gracia; los manuales (`InProgress`, `Committed`, `Defaulted`, `Legal`) sobreviven a nuevas instantáneas mientras el cliente tenga saldo. Las reglas son de Core.
@@ -518,6 +521,16 @@ Los contratos también lanzan `InvalidArgumentException`, `DomainException` e `I
 - **Listas:** `list<…>` en orden documentado; las páginas son `Illuminate\Contracts\Pagination\LengthAwarePaginator` que leen `?page=`. `<x-ui.pagination>` conserva en sus enlaces la búsqueda, los filtros y el orden de la URL actual.
 - **Ids:** los de cliente, compromiso, factura y carga son ids de la plataforma, no de SAP (`ClientSummary::$code` es el código de SAP).
 
+### 6.17 `MailRunResultsProvider`
+
+Resultados de los lotes de correo de Cobro (cobro semanal y circularización) por empresa, tipo y período: clientes enviados, rebotados, sin correo, con envío fallido y que respondieron. Lo implementa Cobro con las tablas del informe de entrega; una respuesta se une al envío del cliente por su id o, si el cliente no lo guardó, por su Message-ID. No filtra por usuario: autoriza quien llama (p. ej. el tablero de gerencia).
+
+Un lote entra en el período cuando su fecha programada, como día calendario en America/Bogota, cae en el rango; los dos extremos son inclusivos y de `$from` y `$to` solo cuenta la fecha. Los correos de prueba nunca son lotes, así que nunca cuentan. Las respuestas cuentan cuando lleguen, aunque sea después del período.
+
+| Método | Qué hace | Lanza |
+|---|---|---|
+| `results(CompanyCode $company, MailRunKind $kind, CarbonImmutable $from, CarbonImmutable $to): MailRunResults` | Suma los lotes de la empresa y el tipo programados en el período; todo en cero si no hay ninguno. | `InvalidArgumentException` (`$from` posterior a `$to`) |
+
 ---
 
 ## 7. Fakes para pruebas
@@ -532,7 +545,7 @@ use Tests\Fakes\ContractFakes;
 $fakes = ContractFakes::install($this->app);
 ```
 
-Enlaza los nueve fakes como instancias del contenedor y devuelve un `ContractFakes` con las propiedades `currentCompany`, `cartera`, `compromisos`, `gestiones`, `audit`, `ingesta`, `mail`, `mailbox` y `recaudo`. Los fakes vienen conectados: cartera, compromisos y buzón siguen a `currentCompany`; compromisos y bitácora conocen los clientes de `cartera` y respetan su alcance.
+Enlaza los diez fakes como instancias del contenedor y devuelve un `ContractFakes` con las propiedades `currentCompany`, `cartera`, `compromisos`, `gestiones`, `audit`, `ingesta`, `mail`, `mailbox`, `recaudo` y `mailRuns`. Los fakes vienen conectados: cartera, compromisos y buzón siguen a `currentCompany`; compromisos y bitácora conocen los clientes de `cartera` y respetan su alcance.
 
 > **Ojo:** `currentCompany` arranca con SGX activa y SGX y SDC disponibles. Un cliente SDC no aparece hasta que cambies de empresa: `$fakes->currentCompany->switchTo(CompanyCode::SDC)` o `switchTo(null)` para la vista de grupo.
 
@@ -569,6 +582,7 @@ Enlaza los nueve fakes como instancias del contenedor y devuelve un `ContractFak
 | `FakeMailSender` | `failNextWith(MailNotSent)`; constante `MAILBOXES` | `sent()`, `receipts()`, `assertSent(?callable $filter = null, ?int $times = null)`, `assertSentTo(string $email)`, `assertNothingSent()` |
 | `FakeMailboxReader` | `add(InboundMail ...)` | Métodos del contrato |
 | `FakeRecaudoProvider` | `addDaily(DailyCollection ...)` (`weekly()` se calcula de ahí) | Métodos del contrato |
+| `FakeMailRunResultsProvider` | `add(CompanyCode $company, MailRunKind $kind, CarbonImmutable $scheduledFor, int $sent = 0, int $bounced = 0, int $withoutEmail = 0, int $failed = 0, int $replies = 0)`, una llamada por lote (`results()` suma los del período, por día calendario de Bogotá) | Métodos del contrato |
 
 Diferencias con las implementaciones reales que conviene saber:
 
@@ -962,7 +976,7 @@ Larastan nivel 6 pide arreglos e iterables tipados (`list<Invoice>`, `array<stri
 
 - Los contratos no usan `Illuminate\Database`, `Illuminate\Http` ni `Illuminate\Support\Facades`, ni nada del resto de la app.
 - Las clases de `Data` son `final` y `readonly`; los enums, de tipo `string`; las excepciones extienden `RuntimeException`.
-- Los nueve contratos de C.4 son interfaces.
+- Los diez contratos de C.4 son interfaces.
 
 `tests/Architecture/ModulesTest.php`:
 

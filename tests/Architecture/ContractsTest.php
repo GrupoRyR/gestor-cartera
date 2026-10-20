@@ -7,6 +7,7 @@ use App\Modules\Core\Contracts\CurrentCompany;
 use App\Modules\Core\Contracts\GestionLogger;
 use App\Modules\Core\Contracts\IngestaSink;
 use App\Modules\Core\Contracts\MailboxReader;
+use App\Modules\Core\Contracts\MailRunResultsProvider;
 use App\Modules\Core\Contracts\MailSender;
 use App\Modules\Core\Contracts\RecaudoProvider;
 
@@ -80,7 +81,7 @@ arch('contract exceptions are runtime exceptions')
     ->classes()
     ->toExtend(RuntimeException::class);
 
-arch('the nine C.4 contracts are interfaces')
+arch('the ten C.4 contracts are interfaces')
     ->expect([
         CurrentCompany::class,
         CarteraRepository::class,
@@ -91,5 +92,6 @@ arch('the nine C.4 contracts are interfaces')
         MailSender::class,
         MailboxReader::class,
         RecaudoProvider::class,
+        MailRunResultsProvider::class,
     ])
     ->toBeInterfaces();
