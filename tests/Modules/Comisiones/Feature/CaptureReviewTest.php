@@ -116,7 +116,8 @@ it('approves a pending capture by another user, records the reviewer and audits 
     expect($approved->sujeto_tipo)->toBe('obr')
         ->and($approved->user_id)->toBe($this->approver->id)
         ->and($approved->periodo)->toBe('2026-07')
-        ->and($approved->cambios['estado'])->toBe(['old' => 'pendiente', 'new' => 'aprobado']);
+        // MySQL's JSON columns reorder keys: compare the pair, not its order.
+        ->and($approved->cambios['estado'])->toEqual(['old' => 'pendiente', 'new' => 'aprobado']);
 
     $this->actingAs($this->analyst)->get('/comisiones/ajustes?periodo=2026-07')->assertOk()
         ->assertSee('data-estado="aprobado"', false)
