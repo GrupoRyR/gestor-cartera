@@ -29,10 +29,6 @@ afterEach(function () {
     MigrationFolder::remove($this->folder);
 });
 
-const MIGRACION_TOTALS = ['Origen', 'Archivo', 'Leídos', 'Importados', 'Omitidos', 'Rechazados'];
-const MIGRACION_REJECTIONS = ['Archivo', 'Línea', 'Id legado', 'Motivo'];
-const MIGRACION_WARNINGS = ['Archivo', 'Línea', 'Id legado', 'Aviso'];
-
 /**
  * @return array{name: string, active: bool, roles: list<string>, companies: list<string>, team: list<int>}
  */
@@ -53,15 +49,15 @@ function migracionUser(string $email): array
 
 it('imports the users of both sources, maps roles, companies and teams and merges the same e-mail', function () {
     $this->artisan('core:migrar-usuarios', ['--dir' => $this->folder])
-        ->expectsTable(MIGRACION_TOTALS, [
+        ->expectsTable(MigrationFolder::TOTALS, [
             ['Fase 1', 'fase1_users.csv', 5, 3, 0, 2],
             ['Supabase', 'supabase_usuarios.csv', 3, 3, 0, 0],
         ])
-        ->expectsTable(MIGRACION_REJECTIONS, [
+        ->expectsTable(MigrationFolder::REJECTIONS, [
             ['fase1_users.csv', 5, '4', 'campo vacío: email'],
             ['fase1_users.csv', 6, '5', 'valor no reconocido en rol: jefe (se espera admin, gestor)'],
         ])
-        ->expectsTable(MIGRACION_WARNINGS, [
+        ->expectsTable(MigrationFolder::WARNINGS, [
             ['supabase_usuarios.csv', 2, '7f1c', 'ya tiene el rol analista_cartera; Supabase dice gerente_comercial, se conserva el actual'],
             ['supabase_usuarios.csv', 2, '7f1c', 'el código de asesor 99 no existe en la app (SGX)'],
             ['supabase_usuarios.csv', 3, '8a2d', 'el código de asesor 85 ya está vinculado a otro usuario'],
@@ -89,9 +85,13 @@ it('leaves everything as it was when it runs again', function () {
     $users = User::query()->count();
 
     $this->artisan('core:migrar-usuarios', ['--dir' => $this->folder])
-        ->expectsTable(MIGRACION_TOTALS, [
+        ->expectsTable(MigrationFolder::TOTALS, [
             ['Fase 1', 'fase1_users.csv', 5, 0, 3, 2],
             ['Supabase', 'supabase_usuarios.csv', 3, 0, 3, 0],
+        ])
+        ->expectsTable(MigrationFolder::SKIPPED, [
+            ['fase1_users.csv', 'ya existe', 3],
+            ['supabase_usuarios.csv', 'ya existe', 3],
         ])
         ->assertSuccessful();
 
@@ -105,7 +105,7 @@ it('saves nothing in a dry run but reports the same counts', function () {
     $users = User::query()->count();
 
     $this->artisan('core:migrar-usuarios', ['--dir' => $this->folder, '--dry-run' => true])
-        ->expectsTable(MIGRACION_TOTALS, [
+        ->expectsTable(MigrationFolder::TOTALS, [
             ['Fase 1', 'fase1_users.csv', 5, 3, 0, 2],
             ['Supabase', 'supabase_usuarios.csv', 3, 3, 0, 0],
         ])
@@ -123,7 +123,7 @@ it('only adds what an existing user lacks and keeps their name, activation, role
     $microsoftId = $andres->microsoft_id;
 
     $this->artisan('core:migrar-usuarios', ['--dir' => $this->folder])
-        ->expectsTable(MIGRACION_TOTALS, [
+        ->expectsTable(MigrationFolder::TOTALS, [
             ['Fase 1', 'fase1_users.csv', 5, 2, 1, 2],
             ['Supabase', 'supabase_usuarios.csv', 3, 3, 0, 0],
         ])
@@ -139,7 +139,7 @@ it('rejects a user who is deleted in the app and does not restore them', functio
     $laura->delete();
 
     $this->artisan('core:migrar-usuarios', ['--dir' => $this->folder])
-        ->expectsTable(MIGRACION_REJECTIONS, [
+        ->expectsTable(MigrationFolder::REJECTIONS, [
             ['fase1_users.csv', 2, '1', 'el usuario está eliminado en la app'],
             ['fase1_users.csv', 5, '4', 'campo vacío: email'],
             ['fase1_users.csv', 6, '5', 'valor no reconocido en rol: jefe (se espera admin, gestor)'],
@@ -154,7 +154,7 @@ it('rejects a row that is not UTF-8 and imports the rest', function () {
     MigrationFolder::put($this->folder, 'fase1_users.csv', "id,nombre,email,rol,empresa,activo\n1,Jos\xE9 Duque,jose@segurex.com,gestor,SGX,1\n2,Ana Vélez,ana@segurex.com,gestor,SGX,1\n");
 
     $this->artisan('core:migrar-usuarios', ['--dir' => $this->folder])
-        ->expectsTable(MIGRACION_REJECTIONS, [
+        ->expectsTable(MigrationFolder::REJECTIONS, [
             ['fase1_users.csv', 2, '1', 'la fila no está en UTF-8: revisa que el archivo se exportó en utf-8'],
         ])
         ->assertSuccessful();
@@ -184,7 +184,7 @@ it('adds the advisors of a sales manager to their team without dropping the ones
     AdvisorRecord::teamOf($andres)->attach($this->taken->id);
 
     $this->artisan('core:migrar-usuarios', ['--dir' => $this->folder])
-        ->expectsTable(MIGRACION_WARNINGS, [
+        ->expectsTable(MigrationFolder::WARNINGS, [
             ['fase1_users.csv', 3, '2', 'ya tiene el rol gerente_comercial; Fase 1 dice analista_cartera, se conserva el actual'],
             ['supabase_usuarios.csv', 2, '7f1c', 'el código de asesor 99 no existe en la app (SGX)'],
             ['supabase_usuarios.csv', 3, '8a2d', 'el código de asesor 85 ya está vinculado a otro usuario'],
@@ -211,7 +211,7 @@ it('imports the source it finds and says which file is missing', function () {
 
     $this->artisan('core:migrar-usuarios', ['--dir' => $this->folder])
         ->expectsOutputToContain('No encontré supabase_usuarios.csv')
-        ->expectsTable(MIGRACION_TOTALS, [
+        ->expectsTable(MigrationFolder::TOTALS, [
             ['Fase 1', 'fase1_users.csv', 5, 3, 0, 2],
         ])
         ->assertSuccessful();

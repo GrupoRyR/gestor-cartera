@@ -11,7 +11,8 @@ use Generator;
  * them. Backslashes are plain characters.
  *
  * Header names are trimmed and lowercased. Only the columns asked for in
- * open() are kept, so other columns (a password hash, say) are never read.
+ * open() are kept, so other columns (a password hash, say) are never read;
+ * an optional column the file lacks reads as empty.
  * Problems with the whole file throw InvalidCsvFile; problems with one row
  * travel with that row (CsvRow::assertReadable()).
  */
@@ -21,7 +22,7 @@ final class CsvFile
 
     /**
      * @param  int  $width  The number of columns in the header.
-     * @param  array<string, int>  $positions  The index of each kept column.
+     * @param  array<string, int|null>  $positions  The index of each kept column; null for an optional one the file lacks.
      */
     private function __construct(
         public readonly string $name,
@@ -33,13 +34,15 @@ final class CsvFile
 
     /**
      * Reads the header of the file at $path and checks it has $columns
-     * (lowercase names); extra columns are ignored.
+     * (lowercase names); $optional columns are kept when the file has them,
+     * and other columns are ignored.
      *
      * @param  list<string>  $columns
+     * @param  list<string>  $optional
      *
      * @throws InvalidCsvFile When the file cannot be read, is empty, is not UTF-8 or lacks a column.
      */
-    public static function open(string $path, array $columns): self
+    public static function open(string $path, array $columns, array $optional = []): self
     {
         $name = basename($path);
         $handle = self::handle($path);
@@ -68,7 +71,12 @@ final class CsvFile
             throw new InvalidCsvFile("Al archivo {$name} le faltan columnas: ".implode(', ', $missing).'.');
         }
 
-        $positions = array_intersect_key(array_flip($header), array_flip($columns));
+        $indexes = array_flip($header);
+        $positions = [];
+
+        foreach ([...$columns, ...$optional] as $column) {
+            $positions[$column] = $indexes[$column] ?? null;
+        }
 
         return new self($name, $path, $delimiter, count($header), $positions);
     }
@@ -120,7 +128,7 @@ final class CsvFile
         $values = [];
 
         foreach ($this->positions as $column => $index) {
-            $values[$column] = (string) $fields[$index];
+            $values[$column] = $index === null ? '' : (string) $fields[$index];
         }
 
         return new CsvRow($this->name, $line, $values);

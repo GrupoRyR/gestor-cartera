@@ -46,11 +46,13 @@ final class MigrateUsersCommand extends MigrationCommand
         $users = $this->laravel->make(LegacyUsers::class);
 
         if (isset($files[self::FASE1])) {
-            $this->eachRow($files[self::FASE1], $report, fn (CsvRow $row): bool => $users->save($this->fromFase1($row), $row, $report));
+            $this->eachRow($files[self::FASE1], $report, fn (CsvRow $row): bool => $users->save($this->fromFase1($row), $row, $report)
+                || throw new RowSkipped('ya existe'));
         }
 
         if (isset($files[self::SUPABASE])) {
-            $this->eachRow($files[self::SUPABASE], $report, fn (CsvRow $row): bool => $users->save($this->fromSupabase($row), $row, $report));
+            $this->eachRow($files[self::SUPABASE], $report, fn (CsvRow $row): bool => $users->save($this->fromSupabase($row), $row, $report)
+                || throw new RowSkipped('ya existe'));
         }
     }
 

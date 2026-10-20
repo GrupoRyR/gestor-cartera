@@ -11,6 +11,17 @@ use Illuminate\Support\Facades\File;
 final class MigrationFolder
 {
     /**
+     * The headers of the tables of the import report.
+     */
+    public const array TOTALS = ['Origen', 'Archivo', 'Leídos', 'Importados', 'Omitidos', 'Rechazados'];
+
+    public const array SKIPPED = ['Archivo', 'Motivo', 'Filas'];
+
+    public const array REJECTIONS = ['Archivo', 'Línea', 'Id legado', 'Motivo'];
+
+    public const array WARNINGS = ['Archivo', 'Línea', 'Id legado', 'Aviso'];
+
+    /**
      * A new folder with a copy of each fixture in $fixtures (file names in
      * tests/Modules/Core/Migracion/fixtures).
      */
