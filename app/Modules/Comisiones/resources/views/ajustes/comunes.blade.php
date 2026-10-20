@@ -40,5 +40,5 @@
     @endif
 </td>
 <td>
-    @includeIf('comisiones::ajustes.acciones', ['capture' => $capture, 'kind' => $kind, 'period' => $period, 'locked' => $locked])
+    @include('comisiones::ajustes.acciones', ['capture' => $capture, 'kind' => $kind, 'period' => $period, 'locked' => $locked])
 </td>

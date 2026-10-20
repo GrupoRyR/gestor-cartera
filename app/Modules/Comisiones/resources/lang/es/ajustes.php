@@ -138,6 +138,7 @@ return [
         'cruce_elige' => 'Elige el cruce',
         'sin_cruces' => 'No hay cruces vigentes en :periodo para reasignar.',
         'opcion' => 'Factura :factura · :cliente · :fecha · vendedor :vendedor',
+        'etiqueta' => 'Factura :factura · :cliente · :fecha',
         'sin_vendedor' => 'sin asignar',
         'codigo' => 'Nuevo vendedor',
         'codigo_elige' => 'Elige el vendedor',
@@ -150,8 +151,27 @@ return [
         ],
     ],
 
+    'revision' => [
+        'aprobar' => 'Aprobar',
+        'aprobar_de' => 'Aprobar el registro :id',
+        'rechazar' => 'Rechazar',
+        'rechazar_de' => 'Rechazar el registro :id',
+        'rechazar_titulo' => 'Rechazar el registro :id',
+        'rechazar_ayuda' => 'Quien lo registró verá el motivo en la lista.',
+        'motivo' => 'Motivo del rechazo',
+        'eliminar' => 'Eliminar el registro :id',
+        'propio' => 'Lo registraste tú: otra persona debe revisarlo.',
+        'cancelar' => 'Cancelar',
+    ],
+
     'mensajes' => [
         'creado' => 'Registraste :que de :periodo. Queda pendiente hasta que otra persona lo apruebe.',
+        'aprobado' => 'Aprobaste :que. Ya entra en la liquidación de :periodo.',
+        'rechazado' => 'Rechazaste :que.',
+        'eliminado' => 'Eliminaste :que.',
+        'ya_revisado' => 'Ese registro ya no está pendiente: solo se aprueba, rechaza o elimina mientras está pendiente.',
+        'propio' => 'Tú registraste este ajuste: otra persona debe aprobarlo o rechazarlo.',
+        'solo_creador' => 'Solo quien registró el ajuste puede eliminarlo.',
         'que' => [
             'obr' => 'la venta OBR',
             'ajuste' => 'el ajuste',
@@ -191,5 +211,6 @@ return [
         'cruce_no_disponible' => 'Elige un cruce vigente del período.',
         'mismo_vendedor' => 'El cruce ya es del vendedor :codigo.',
         'motivo' => 'motivo',
+        'motivo_rechazo' => 'motivo del rechazo',
     ],
 ];
