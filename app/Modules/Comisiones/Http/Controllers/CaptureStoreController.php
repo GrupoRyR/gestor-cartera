@@ -5,7 +5,9 @@ namespace App\Modules\Comisiones\Http\Controllers;
 use App\Models\User;
 use App\Modules\Comisiones\Domain\Shared\Period;
 use App\Modules\Comisiones\Http\Requests\StoreAdjustmentRequest;
+use App\Modules\Comisiones\Http\Requests\StoreManualCrossingRequest;
 use App\Modules\Comisiones\Http\Requests\StoreObrRequest;
+use App\Modules\Comisiones\Http\Requests\StoreReassignmentRequest;
 use App\Modules\Comisiones\Infrastructure\Captures\CaptureKind;
 use App\Modules\Comisiones\Infrastructure\Captures\ManualCaptures;
 use App\Modules\Comisiones\Infrastructure\Captures\PeriodLock;
@@ -33,6 +35,18 @@ final class CaptureStoreController
     public function adjustment(StoreAdjustmentRequest $request): RedirectResponse
     {
         return $this->store($request, CaptureKind::Adjustment, $request->period(), $request->columns(), $request->support());
+    }
+
+    /** A manual crossing goes to the period of its crossing date. */
+    public function crossing(StoreManualCrossingRequest $request): RedirectResponse
+    {
+        return $this->store($request, CaptureKind::Crossing, $request->period(), $request->columns(), $request->support());
+    }
+
+    /** A reassignment goes to the period of the crossing it moves. */
+    public function reassignment(StoreReassignmentRequest $request): RedirectResponse
+    {
+        return $this->store($request, CaptureKind::Reassignment, $request->period(), $request->columns(), $request->support());
     }
 
     /**

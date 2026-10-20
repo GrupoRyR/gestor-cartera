@@ -7,7 +7,9 @@
     the manual captures of a period (§7.4). $period; $kind: CaptureKind of
     the tab; $captures: its captures of the period, newest first; $pending:
     tab => pending count; $locked: the period is closed (PeriodLock);
-    $codes: code => label of the codes in force; $canCapture. The tab's
+    $codes: code => label of the codes in force; $canCapture; $choices:
+    crossings to reassign (clave => label) and $crossings: clave =>
+    CrossingRecord named by the rows, both for the reassignments tab. The tab's
     columns come from ajustes/celdas/<tab> and its form from
     ajustes/formularios/<tab>, shown once its store route exists.
 --}}
@@ -15,7 +17,8 @@
     $title = __('comisiones::ajustes.titulo');
     $tab = $kind->tab();
     $storeRoute = "comisiones.ajustes.{$tab}.store";
-    $editable = $canCapture && ! $locked && $codes !== [] && Route::has($storeRoute);
+    $noCrossings = $kind === CaptureKind::Reassignment && $choices === [];
+    $editable = $canCapture && ! $locked && $codes !== [] && ! $noCrossings && Route::has($storeRoute);
     $modalId = "nuevo-{$tab}";
 
     $tabs = [];
@@ -64,11 +67,15 @@
             <x-ui.alert tone="danger">{{ __('comisiones::ajustes.sin_codigos', ['periodo' => $period->key()]) }}</x-ui.alert>
         @endif
 
+        @if ($noCrossings && $canCapture && ! $locked)
+            <x-ui.alert tone="info">{{ __('comisiones::ajustes.reasignaciones.sin_cruces', ['periodo' => $period->key()]) }}</x-ui.alert>
+        @endif
+
         <x-ui.card :title="__('comisiones::ajustes.'.$tab.'.titulo')">
             <x-ui.table :caption="__('comisiones::ajustes.'.$tab.'.caption')" :caption-hidden="true" :columns="$columns" :empty-message="__('comisiones::ajustes.lista.vacio', ['periodo' => $period->key()])">
                 @foreach ($captures as $capture)
                     <tr data-capture="{{ $capture->id }}" data-estado="{{ $capture->estado->value }}">
-                        @include('comisiones::ajustes.celdas.'.$tab, ['capture' => $capture])
+                        @include('comisiones::ajustes.celdas.'.$tab, ['capture' => $capture, 'crossings' => $crossings])
                         @include('comisiones::ajustes.comunes', ['capture' => $capture, 'kind' => $kind, 'period' => $period, 'locked' => $locked])
                     </tr>
                 @endforeach
@@ -82,7 +89,7 @@
                 @csrf
                 <input type="hidden" name="formulario" value="{{ $tab }}">
                 <input type="hidden" name="periodo" value="{{ $period->key() }}">
-                @include('comisiones::ajustes.formularios.'.$tab, ['period' => $period, 'codes' => $codes])
+                @include('comisiones::ajustes.formularios.'.$tab, ['period' => $period, 'codes' => $codes, 'choices' => $choices])
                 <x-ui.input
                     name="soporte"
                     type="file"
