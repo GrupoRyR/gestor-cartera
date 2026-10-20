@@ -4,7 +4,7 @@
 // mails, per company.
 return [
 
-    'titulo' => 'Copias del cobro semanal',
+    'titulo' => 'Copias del cobro semanal y la circularización',
     'descripcion' => 'Elige a quién se le envía copia de cada correo de cobro semanal y de la circularización mensual de la empresa. La prueba que te envías no lleva copias.',
     'empresas' => 'Empresas',
 

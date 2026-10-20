@@ -174,7 +174,7 @@ it('still holds the scheduled run back if the draft flag is turned on again', fu
     config(['cobro.circularizacion.draft' => true]);
 
     $this->artisan('cobro:circularizacion')
-        ->expectsOutputToContain('Circularización: el formato aún es un borrador, no se envía nada.')
+        ->expectsOutputToContain('Circularización: el envío está en borrador, no se envía nada.')
         ->assertSuccessful();
 
     expect(Run::query()->count())->toBe(0);
@@ -186,8 +186,10 @@ it('previews the next circularization with its copies and no draft notice', func
 
     $this->actingAs($analyst)->get('/cobro/circularizacion')->assertOk()
         ->assertSeeText('Circularización')
-        ->assertDontSeeText('Formato en borrador')
-        ->assertDontSeeText('Pausado mientras el formato sea un borrador')
+        ->assertSeeText('en el formato de cada empresa')
+        ->assertDontSeeText('Envío en borrador')
+        ->assertDontSeeText('Pausado mientras el envío esté en borrador')
+        ->assertDontSeeText('provisional')
         ->assertSeeText('Comercial Al Día SAS')
         ->assertSeeText('Con copia a: miguel.martinez@segurex.com');
 

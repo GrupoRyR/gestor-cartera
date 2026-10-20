@@ -24,7 +24,7 @@ final class NoticeRenderer
     /**
      * @param  string  $view  Mail view, e.g. cobro::correos.cobro-semanal.
      * @param  bool  $test  A test send: "[Prueba]" subject and banner.
-     * @param  bool  $draft  A provisional format: "[Borrador]" subject and banner.
+     * @param  bool  $draft  A format under review: "[Borrador]" subject and banner.
      */
     public function render(string $view, Company $company, NoticeData $data, TemplateContent $template, bool $test = false, bool $draft = false): RenderedMail
     {
