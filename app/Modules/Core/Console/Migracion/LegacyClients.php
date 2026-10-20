@@ -11,8 +11,9 @@ use App\Modules\Core\Infrastructure\Persistence\ClientRecord;
  *
  * - Fase 1 (fase1(), by clients.id of Fase 1): first by the SAP codes the
  *   client had on its invoices (fase1_client_codes.csv) that exist in its
- *   company; then by NIT, comparing digits only and allowing one trailing
- *   check digit on either side (900.123.456 matches 900123456-7).
+ *   company; then by NIT (see nit()): the same digits, or one side's
+ *   digits equal to the other's NIT without its written check digit
+ *   (900.123.456 matches 900123456-7, and 900123456-7 matches 9001234567).
  * - Supabase (supabase(), by codigo_sn): the SGX client with that code.
  *
  * A client that cannot be told apart, or is not in the app, throws
@@ -26,9 +27,14 @@ final class LegacyClients
     private array $byCode = [];
 
     /**
-     * @var array<string, array<string, list<TargetClient>>> Company => NIT digits => clients.
+     * @var array<string, array<string, list<TargetClient>>> Company => every digit of the NIT => clients.
      */
-    private array $byTaxId = [];
+    private array $byFullNit = [];
+
+    /**
+     * @var array<string, array<string, list<TargetClient>>> Company => digits of the NIT without its written check digit => clients.
+     */
+    private array $byBaseNit = [];
 
     /**
      * @var array<int, array{company: CompanyCode, taxId: string}> The clients of fase1_clients.csv, by their id.
@@ -58,7 +64,12 @@ final class LegacyClients
         foreach (ClientRecord::query()->get(['id', 'company', 'code', 'tax_id', 'advisor_code']) as $record) {
             $client = new TargetClient($record->id, $record->company, $record->code, $record->advisor_code);
             $clients->byCode[$client->company->value][$client->code] = $client;
-            $clients->byTaxId[$client->company->value][self::digits($record->tax_id)][] = $client;
+            ['full' => $full, 'base' => $base] = self::nit($record->tax_id);
+
+            if ($full !== '') {
+                $clients->byFullNit[$client->company->value][$full][] = $client;
+                $clients->byBaseNit[$client->company->value][$base][] = $client;
+            }
         }
 
         $report->lookup($fase1Clients, function (CsvRow $row) use ($clients): void {
@@ -145,41 +156,55 @@ final class LegacyClients
             return array_values($byCode)[0];
         }
 
-        $digits = self::digits($legacy['taxId']);
-        $matches = $digits === '' ? [] : $this->byNit($company, $digits);
+        $nit = self::nit($legacy['taxId']);
+        $matches = $nit['full'] === '' ? [] : $this->byNit($company, $nit['full'], $nit['base']);
 
         return match (count($matches)) {
             1 => array_values($matches)[0],
-            0 => $digits === ''
+            0 => $nit['full'] === ''
                 ? "cliente no existe en la app ({$company}, sin NIT)"
-                : "cliente no existe en la app ({$company}, NIT {$digits})",
-            default => "NIT ambiguo: {$digits} coincide con varios clientes de la app ({$company})",
+                : "cliente no existe en la app ({$company}, NIT {$nit['full']})",
+            default => "NIT ambiguo: {$nit['full']} coincide con varios clientes de la app ({$company})",
         };
     }
 
     /**
-     * The clients of $company whose NIT has the digits $digits, or those
-     * digits plus or minus one trailing check digit.
+     * The clients of $company whose NIT matches a legacy NIT with digits
+     * $full ($base without its check digit): legacy full = app full, legacy
+     * full = app base, or legacy base = app full. Nothing looser.
      *
      * @return array<int, TargetClient>
      */
-    private function byNit(string $company, string $digits): array
+    private function byNit(string $company, string $full, string $base): array
     {
-        $candidates = [$digits, ...array_map(fn (int $check): string => $digits.$check, range(0, 9))];
-
-        if (strlen($digits) > 1) {
-            $candidates[] = substr($digits, 0, -1);
-        }
-
         $matches = [];
 
-        foreach ($candidates as $candidate) {
-            foreach ($this->byTaxId[$company][$candidate] ?? [] as $client) {
+        foreach ([
+            $this->byFullNit[$company][$full] ?? [],
+            $this->byBaseNit[$company][$full] ?? [],
+            $this->byFullNit[$company][$base] ?? [],
+        ] as $clients) {
+            foreach ($clients as $client) {
                 $matches[$client->id] = $client;
             }
         }
 
         return $matches;
+    }
+
+    /**
+     * A NIT as digits: "full" is every digit; "base" drops the check digit
+     * when the text writes one after a dash (900.123.456-7 → 900123456),
+     * and otherwise equals "full".
+     *
+     * @return array{full: string, base: string}
+     */
+    private static function nit(string $taxId): array
+    {
+        $full = self::digits($taxId);
+        $base = preg_match('/^(.*\d)\s*-\s*\d$/', trim($taxId), $parts) === 1 ? self::digits($parts[1]) : $full;
+
+        return ['full' => $full, 'base' => $base];
     }
 
     private static function digits(string $taxId): string

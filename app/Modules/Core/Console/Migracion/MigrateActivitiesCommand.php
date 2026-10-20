@@ -131,9 +131,9 @@ final class MigrateActivitiesCommand extends MigrationCommand
         $detail = $row->optionalString('detalle');
         $metadata = [
             'legacy_author' => $author->legacy,
-            'discount_amount' => self::amount($row->optionalDecimal('descuento')),
-            'commitment_due_date' => $row->optionalDate('compromiso_fecha')?->toDateString(),
-            'commitment_amount' => self::amount($row->optionalDecimal('compromiso_valor')),
+            'discount_amount' => $this->extra($row, 'descuento', fn (): ?float => self::amount($row->optionalDecimal('descuento'))),
+            'commitment_due_date' => $this->extra($row, 'compromiso_fecha', fn (): ?string => $row->optionalDate('compromiso_fecha')?->toDateString()),
+            'commitment_amount' => $this->extra($row, 'compromiso_valor', fn (): ?float => self::amount($row->optionalDecimal('compromiso_valor'))),
         ];
 
         [$activityType, $summary, $details, $callResult, $extra] = match ($type) {
@@ -264,6 +264,26 @@ final class MigrateActivitiesCommand extends MigrationCommand
     private static function prefixed(string $prefix, ?string $text): string
     {
         return $text === null ? $prefix : "{$prefix}: {$text}";
+    }
+
+    /**
+     * An extra of the entry (discount, commitment date or amount): only
+     * metadata here, so a value $read cannot parse never rejects the
+     * entry. It is kept as the text written, with a warning.
+     *
+     * @param  callable(): (float|string|null)  $read
+     */
+    private function extra(CsvRow $row, string $column, callable $read): float|string|null
+    {
+        try {
+            return $read();
+        } catch (RowRejected) {
+            $raw = (string) $row->optionalString($column);
+            $what = $column === 'compromiso_fecha' ? 'una fecha válida' : 'un número';
+            $this->report->warn($row, "{$column} no es {$what} ({$raw}); se guarda como texto");
+
+            return $raw;
+        }
     }
 
     private static function amount(?string $decimal): ?float

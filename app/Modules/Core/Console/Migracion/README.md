@@ -124,6 +124,8 @@ select id, email, nombre, rol, slp_codes, activo from usuarios;
 
 Cada corrida es una sola transacción: o se guarda todo lo que el reporte cuenta como importado, o nada (si algo falla a mitad de camino, el comando lo dice y no deja nada a medias).
 
+**Córrelo fuera del horario de trabajo**, o con la app en mantenimiento (`php artisan down` antes y `php artisan up` al terminar). Por ser una sola transacción, el comando deja bloqueados los usuarios y clientes que toca hasta que termina: mientras tanto, quien intente cambiarlos en la app espera o recibe un error.
+
 ## Cómo leer el reporte
 
 Al final, el comando muestra una tabla por archivo:
@@ -175,6 +177,7 @@ Lee `fase1_users.csv` y después `supabase_usuarios.csv`.
 - **Usuario eliminado en la app**: la fila se rechaza con «el usuario está eliminado en la app». La migración nunca lo restaura; si debe volver, restáuralo en la pantalla Equipo y corre el comando otra vez.
 - **Asesores**: a un asesor de Supabase se le vinculan los asesores de SAP de SGX cuyos códigos están en `slp_codes` (acepta `{84,85}`, `[84,85]`, `84,85` o vacío). Un código que no existe en la app, o que ya está vinculado a otra persona, sale como aviso y no se toca.
 - **Equipo de un gerente**: los asesores de SAP de SGX cuyos códigos están en `slp_codes` se agregan a su equipo; los que ya tenía se quedan. Un código que no existe en la app sale como aviso.
+- **Los códigos siguen al rol que queda**: los de un asesor solo se vinculan si el usuario queda como asesor comercial, y los de un gerente solo van a su equipo si queda como gerente comercial. Si conserva otro rol, no se vinculan y sale un aviso («no se vinculan los códigos 84, 85: el usuario conserva el rol analista_cartera»).
 - **Se rechaza la fila** si el correo está vacío o no es válido, si el nombre está vacío, o si el rol, la empresa o el estado no son de los valores esperados.
 - Cada usuario creado o cambiado (rol, empresas o equipo) y cada asesor vinculado queda en la auditoría, como en la pantalla Equipo, con el origen «migracion».
 
@@ -203,13 +206,14 @@ Los compromisos de pago no se importan aquí: las filas con `tipo` compromiso qu
 - El resumen se corta en 255 caracteres con «…». El detalle no se guarda si es igual al resumen.
 - La fecha de la gestión es `created_at` (Fase 1, hora de Bogotá) o `creado_en` (Supabase, con su zona, pasada a hora de Bogotá).
 - En los datos extra de la gestión (`metadata`) quedan, cuando vienen: `descuento`, `compromiso_fecha` y `compromiso_valor`; el nombre del adjunto; el `documento` de Supabase; los estados de un cambio de estado; el `resultado` que no quedó en el resumen ni como resultado de la llamada; y el autor que la app no tiene.
+- `descuento`, `compromiso_fecha` y `compromiso_valor` nunca rechazan la gestión: si uno no se puede leer (p. ej. `1.500.000` o `31/02/2025`), se guarda tal como viene, como texto, y sale un aviso.
 - **Los archivos adjuntos no se migran.** De un documento de Fase 1 solo queda el nombre del archivo y su descripción; el archivo sigue en el servidor de Fase 1.
 
 ### Cómo se encuentra el cliente
 
 - **Fase 1**: el cliente de la gestión (`client_id`) se busca en `fase1_clients.csv`; si no está, la fila se rechaza. Luego se busca en la app, en la misma empresa y sin clientes eliminados:
   1. Por código SAP: los `codigo_sn` de ese cliente en `fase1_client_codes.csv` que existen en la app. Si coincide uno, ese es. Si coinciden varios clientes, la fila se rechaza («el cliente 6 tiene varios códigos SAP en la app: C600, C601»).
-  2. Si no hay código, por NIT: se comparan solo los dígitos (`900.123.456`, `900123456` y `900123456-7` son el mismo) y se acepta que uno de los dos tenga el dígito de verificación y el otro no. Si coincide un cliente, ese es; si coinciden varios, se rechaza («NIT ambiguo…»); si ninguno, se rechaza («cliente no existe en la app (SGX, NIT 900123456)»).
+  2. Si no hay código, por NIT. De cada NIT se toman todos sus dígitos y, si termina en un guion seguido de un solo dígito (el dígito de verificación, como en `900123456-7`), también los dígitos de antes del guion. Dos NIT coinciden si tienen los mismos dígitos, o si los dígitos de uno son los del otro sin su dígito de verificación: `900.123.456` coincide con `900123456-7`, y `900123456-7` con `9001234567`. Un dígito de más sin guion no basta: `1234567` no coincide con `12345678`. Si coincide un cliente, ese es; si coinciden varios, se rechaza («NIT ambiguo…»); si ninguno, se rechaza («cliente no existe en la app (SGX, NIT 900123456)»).
 - **Supabase**: el cliente de SGX con el código `codigo_sn`; si no existe, la fila se rechaza.
 - Si la empresa de la gestión no es la del cliente, la fila se rechaza.
 
@@ -230,7 +234,7 @@ Cada gestión importada guarda su origen en `metadata.legacy_key` (`fase1:action
 ### Se rechaza la fila
 
 - Si `empresa`, `tipo`, `created_at` o `creado_en` están vacíos, o el tipo no es de los esperados.
-- Si una fecha no es válida (`compromiso_fecha` incluida).
+- Si `created_at` o `creado_en` no son una fecha válida.
 - Si no se encuentra el cliente, como se explica arriba.
 
 ## Compromisos (`core:migrar-compromisos`)
