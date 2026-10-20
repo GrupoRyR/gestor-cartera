@@ -1,13 +1,16 @@
 <?php
 
+use App\Models\User;
 use App\Modules\Core\Contracts\Enums\ActivityType;
 use App\Modules\Core\Contracts\Enums\ClientStatus;
+use App\Modules\Core\Contracts\Enums\CommitmentStatus;
 use App\Modules\Core\Contracts\Enums\CompanyCode;
 use App\Modules\Core\Infrastructure\Persistence\ActivityRecord;
 use App\Modules\Core\Infrastructure\Persistence\AuditLogRecord;
 use App\Modules\Core\Infrastructure\Persistence\ClientRecord;
 use Carbon\CarbonImmutable;
 use Tests\Modules\Core\Migracion\MigrationFolder;
+use Tests\Modules\Core\Support\CommitmentRecords;
 
 /*
  * core:migrar-estados on 12/03/2025 at 10:00 in Bogotá, with one Fase 1
@@ -128,4 +131,27 @@ it('saves nothing in a dry run', function () {
     expect($this->applies->refresh()->status)->toBe(ClientStatus::Overdue)
         ->and(ActivityRecord::query()->count())->toBe(0)
         ->and(AuditLogRecord::query()->count())->toBe(0);
+});
+
+it('applies the status compromiso only to a client with a pending commitment', function () {
+    MigrationFolder::put($this->folder, 'fase1_clients.csv', <<<'CSV'
+        id,empresa,nit,nombre,estado,estado_manual
+        1,SGX,900100100,Con compromiso,compromiso,1
+        2,SGX,900200200,Sin compromiso,compromiso,1
+        3,SGX,900300300,Compromiso cumplido,compromiso,1
+
+        CSV);
+    $creator = User::factory()->create();
+    CommitmentRecords::commitment($this->applies, $creator, '2025-03-20');
+    CommitmentRecords::commitment($this->others[1], $creator, '2025-03-01', attributes: ['status' => CommitmentStatus::Fulfilled]);
+
+    estadosRun($this->folder)
+        ->expectsTable(MigrationFolder::SKIPPED, [
+            ['fase1_clients.csv', 'sin compromiso pendiente en la app', 2],
+        ])
+        ->assertSuccessful();
+
+    expect($this->applies->refresh()->status)->toBe(ClientStatus::Committed)
+        ->and($this->others[0]->refresh()->status)->toBe(ClientStatus::Overdue)
+        ->and($this->others[1]->refresh()->status)->toBe(ClientStatus::Overdue);
 });

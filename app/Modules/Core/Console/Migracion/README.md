@@ -11,7 +11,8 @@ Los comandos no se conectan a ninguna de las dos bases. Leen archivos CSV que t�
 
 1. [ ] Confirma que Ingesta ya cargó los clientes, las facturas y los asesores de SAP de las dos empresas.
 2. [ ] Exporta los seis archivos (ver «Cómo exportar») y déjalos en una carpeta del servidor, p. ej. `$HOME/migracion`.
-3. [ ] Para cada comando, en este orden, córrelo primero en modo de prueba, revisa su reporte y solo entonces córrelo de verdad. No pases al siguiente hasta terminar el anterior: cada uno necesita lo que el anterior guardó (por ejemplo, compromisos necesita a los autores que trae usuarios).
+3. [ ] Escoge un horario fuera de la jornada de trabajo, o pon la app en mantenimiento con `php artisan down` (y al terminar, `php artisan up`). Cada comando es una sola transacción y deja bloqueados los usuarios y clientes que toca hasta que termina: mientras corre, quien intente cambiarlos en la app espera o recibe un error.
+4. [ ] Para cada comando, en este orden, córrelo primero en modo de prueba, revisa su reporte y solo entonces córrelo de verdad. No pases al siguiente hasta terminar el anterior: cada uno necesita lo que el anterior guardó (por ejemplo, compromisos necesita a los autores que trae usuarios).
 
    ```bash
    php artisan core:migrar-usuarios --dir="$HOME/migracion" --dry-run
@@ -28,7 +29,7 @@ Los comandos no se conectan a ninguna de las dos bases. Leen archivos CSV que t�
    ```
 
    Si el modo de prueba muestra rechazos que puedes corregir (clientes, fechas, valores, columnas), corrige el archivo y repite la prueba antes de la corrida real.
-4. [ ] Si después corriges filas rechazadas, vuelve a correr el comando: lo que ya entró queda omitido.
+5. [ ] Si después corriges filas rechazadas, vuelve a correr el comando: lo que ya entró queda omitido.
 
 ## Orden
 
@@ -263,12 +264,15 @@ Lee los mismos archivos que `core:migrar-gestiones` y crea un compromiso de pago
 
 | Origen | Situación | Estado en la app |
 |---|---|---|
-| Fase 1 | Vence hoy o después (calendario de Bogotá) | Pendiente |
+| Fase 1 | Vence hoy o después (calendario de Bogotá) y es la promesa más reciente del cliente | Pendiente |
+| Fase 1 | Vence hoy o después, pero el cliente hizo después otra promesa que también vence hoy o después | Anulado, con la fecha de la importación y el motivo «Reemplazado por un compromiso posterior en Cartera Fase 1.» (Fase 1 solo tenía en cuenta la última promesa de cada cliente) |
 | Fase 1 | Ya venció | Anulado, con la fecha de la importación y el motivo «Importado de Cartera Fase 1 sin estado de cierre.» (Fase 1 no guardaba si se cumplió) |
 | Supabase | `abierto` y vence hoy o después | Pendiente |
 | Supabase | `abierto` y ya venció | Incumplido, con la fecha de la importación, como lo hace la tarea diaria de incumplidos |
 | Supabase | `cumplido` | Cumplido, con la fecha de `actualizado_en` |
 | Supabase | `cancelado` | Anulado, con la fecha de `actualizado_en` y el motivo «Anulado en el portal de asesores.» |
+
+La promesa más reciente de un cliente de Fase 1 es, entre sus compromisos que vencen hoy o después y que se pueden importar, el de `created_at` más reciente (si empatan, el de `id` más alto). Las filas que se rechazan no cuentan.
 
 ### Bitácora y efectos
 
@@ -300,6 +304,7 @@ Para cada cliente de Fase 1, en este orden:
 | El cliente no tiene saldo pendiente en la app | Omitida: «sin saldo pendiente en la app» (la próxima carga lo devolvería a su estado automático) |
 | Ya se aplicó en una corrida anterior, o el cliente ya tiene ese estado | Omitida: «ya aplicado» |
 | El cliente ya tiene otro estado manual en la app | Omitida: «ya tiene estado manual en la app: <estado>». La migración nunca pisa lo que alguien decidió en la app. |
+| El estado es «compromiso» y el cliente no tiene ningún compromiso pendiente en la app | Omitida: «sin compromiso pendiente en la app». Corre antes `core:migrar-compromisos`. |
 | Cualquier otro | Se aplica |
 
 Aplicar un estado hace lo mismo que el cambio manual de la app, pero como el sistema:

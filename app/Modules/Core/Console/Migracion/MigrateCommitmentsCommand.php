@@ -39,6 +39,8 @@ final class MigrateCommitmentsCommand extends MigrationCommand
 
     private const string FASE1_CANCELLATION = 'Importado de Cartera Fase 1 sin estado de cierre.';
 
+    private const string SUPERSEDED = 'Reemplazado por un compromiso posterior en Cartera Fase 1.';
+
     private const string PORTAL_CANCELLATION = 'Anulado en el portal de asesores.';
 
     /**
@@ -61,6 +63,11 @@ final class MigrateCommitmentsCommand extends MigrationCommand
      * Today in the calendar of the due dates, at the start of the run.
      */
     private CarbonImmutable $today;
+
+    /**
+     * @var array<int, int> The live Fase 1 promise of each Fase 1 client (latestPromises()).
+     */
+    private array $latestPromises = [];
 
     protected function files(): array
     {
@@ -92,6 +99,7 @@ final class MigrateCommitmentsCommand extends MigrationCommand
         $this->activities = new LegacyActivities(LegacyKeys::ofActivities());
 
         if (isset($files[self::ACTIONS])) {
+            $this->latestPromises = $this->latestPromises($files[self::ACTIONS]);
             $this->eachRow($files[self::ACTIONS], $report, fn (CsvRow $row): bool => $this->fromAction($row));
         }
 
@@ -103,20 +111,91 @@ final class MigrateCommitmentsCommand extends MigrationCommand
     }
 
     /**
+     * The Fase 1 promise of each Fase 1 client that is still alive: Fase 1
+     * only honoured a client's latest promise, so among the commitment rows
+     * due today or later only the one created last (then the highest id)
+     * stays pending. Rows that cannot be imported do not count.
+     *
+     * @return array<int, int> Fase 1 client id => Fase 1 action id.
+     */
+    private function latestPromises(CsvFile $actions): array
+    {
+        $latest = [];
+
+        foreach ($actions->rows() as $row) {
+            try {
+                $row->assertReadable();
+                $action = $this->parseAction($row);
+            } catch (RowRejected|RowSkipped) {
+                continue;
+            }
+
+            if (CommitmentRules::isBroken(CommitmentStatus::Pending, $action['dueDate'], $this->today)) {
+                continue;
+            }
+
+            $current = $latest[$action['legacyClient']] ?? null;
+            $later = $current === null
+                || $action['createdAt']->greaterThan($current['createdAt'])
+                || ($action['createdAt']->equalTo($current['createdAt']) && $action['id'] > $current['id']);
+
+            if ($later) {
+                $latest[$action['legacyClient']] = ['createdAt' => $action['createdAt'], 'id' => $action['id']];
+            }
+        }
+
+        return array_map(fn (array $promise): int => $promise['id'], $latest);
+    }
+
+    /**
      * @throws RowRejected
      * @throws RowSkipped
      */
     private function fromAction(CsvRow $row): bool
     {
+        $action = $this->parseAction($row);
+        $key = LegacyKeys::key(LegacySource::Fase1, 'compromiso', (string) $action['id']);
+        $this->skipImported($key);
+
+        $closing = match (true) {
+            CommitmentRules::isBroken(CommitmentStatus::Pending, $action['dueDate'], $this->today) => self::FASE1_CANCELLATION,
+            ($this->latestPromises[$action['legacyClient']] ?? null) !== $action['id'] => self::SUPERSEDED,
+            default => null,
+        };
+
+        $this->save($key, $action['client'], $action['author'], $action['createdAt'], [
+            'advisor_code' => $action['client']->advisorCode,
+            'amount' => $action['amount'],
+            'due_date' => $action['dueDate']->toDateString(),
+            'status' => $closing === null ? CommitmentStatus::Pending : CommitmentStatus::Cancelled,
+            'notes' => $action['notes'],
+            'cancelled_at' => $closing === null ? null : now(),
+            'cancellation_reason' => $closing,
+        ], $action['discount']);
+
+        return true;
+    }
+
+    /**
+     * Reads a fase1_actions.csv row as a commitment, without writing.
+     *
+     * @return array{id: int, legacyClient: int, client: TargetClient, author: int, createdAt: CarbonImmutable, dueDate: CarbonImmutable, amount: string, notes: string|null, discount: float|null}
+     *
+     * @throws RowRejected
+     * @throws RowSkipped When the row is not a commitment.
+     */
+    private function parseAction(CsvRow $row): array
+    {
         $type = mb_strtolower($row->optionalString('tipo') ?? '');
+        // In Fase 1 a compromiso_fecha means a commitment, so here a date that
+        // cannot be read rejects the row (core:migrar-gestiones keeps it as text).
         $dueDate = $row->optionalDate('compromiso_fecha');
 
         if ($type !== 'compromiso' && $dueDate === null) {
             throw new RowSkipped(self::NOT_A_COMMITMENT);
         }
 
-        $key = LegacyKeys::key(LegacySource::Fase1, 'compromiso', (string) $row->int('id'));
-        $this->skipImported($key);
+        $id = $row->int('id');
 
         if ($dueDate === null) {
             throw new RowRejected('compromiso sin fecha');
@@ -126,24 +205,21 @@ final class MigrateCommitmentsCommand extends MigrationCommand
         $createdAt = $row->timestamp('created_at');
         $client = $this->clients->ofAction($row);
         $author = self::person($this->authors->fase1($row->optionalInt('user_id')));
-
         $result = $row->optionalString('resultado');
-        $notes = $type === 'llamada' && $result !== null
-            ? implode("\n", array_filter(["Llamada: {$result}", $row->optionalString('detalle')]))
-            : $row->optionalString('detalle');
-        $pending = ! CommitmentRules::isBroken(CommitmentStatus::Pending, $dueDate, $this->today);
 
-        $this->save($key, $client, $author, $createdAt, [
-            'advisor_code' => $client->advisorCode,
+        return [
+            'id' => $id,
+            'legacyClient' => $row->int('client_id'),
+            'client' => $client,
+            'author' => $author,
+            'createdAt' => $createdAt,
+            'dueDate' => $dueDate,
             'amount' => $amount,
-            'due_date' => $dueDate->toDateString(),
-            'status' => $pending ? CommitmentStatus::Pending : CommitmentStatus::Cancelled,
-            'notes' => $notes,
-            'cancelled_at' => $pending ? null : now(),
-            'cancellation_reason' => $pending ? null : self::FASE1_CANCELLATION,
-        ], self::discount($row->optionalDecimal('descuento')));
-
-        return true;
+            'notes' => $type === 'llamada' && $result !== null
+                ? implode("\n", array_filter(["Llamada: {$result}", $row->optionalString('detalle')]))
+                : $row->optionalString('detalle'),
+            'discount' => self::discount($row->optionalDecimal('descuento')),
+        ];
     }
 
     /**

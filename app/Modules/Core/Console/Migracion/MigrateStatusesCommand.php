@@ -6,8 +6,10 @@ use App\Modules\Core\Application\Activity\StatusChangeSummary;
 use App\Modules\Core\Contracts\AuditLogger;
 use App\Modules\Core\Contracts\Enums\ActivityType;
 use App\Modules\Core\Contracts\Enums\ClientStatus;
+use App\Modules\Core\Contracts\Enums\CommitmentStatus;
 use App\Modules\Core\Domain\Status\ClientStatusRules;
 use App\Modules\Core\Infrastructure\Persistence\ClientRecord;
+use App\Modules\Core\Infrastructure\Persistence\CommitmentRecord;
 
 /**
  * core:migrar-estados: brings the manual statuses of the Cartera Fase 1
@@ -101,6 +103,17 @@ final class MigrateStatusesCommand extends MigrationCommand
 
         if (ClientStatusRules::isManual($previous)) {
             throw new RowSkipped("ya tiene estado manual en la app: {$previous->label()}");
+        }
+
+        // «Compromiso» means a promise to pay is open; without a pending
+        // commitment in the app the client would show a promise nobody can see.
+        $unpromised = $status === ClientStatus::Committed && ! CommitmentRecord::query()
+            ->where('client_id', $client->id)
+            ->where('status', CommitmentStatus::Pending)
+            ->exists();
+
+        if ($unpromised) {
+            throw new RowSkipped('sin compromiso pendiente en la app');
         }
 
         $client->update(['status' => $status, 'status_changed_at' => now()]);

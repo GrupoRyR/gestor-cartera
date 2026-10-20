@@ -247,3 +247,33 @@ it('imports a call with a commitment date as a call and as a commitment', functi
         // Fase 1 action 9, the plain commitment, is imported too.
         ->and(compromisosCommitment('fase1:compromiso:9')->amount)->toBe('800000.00');
 });
+
+it('keeps only the latest Fase 1 promise of a client pending', function () {
+    MigrationFolder::put($this->folder, 'fase1_actions.csv', <<<'CSV'
+        id,client_id,empresa,user_id,tipo,resultado,detalle,compromiso_fecha,compromiso_valor,descuento,adjunto,adjunto_nombre,created_at
+        1,1,SGX,1,compromiso,,Primera promesa,2025-03-20,100000.00,NULL,,,2025-03-01 10:00:00
+        2,1,SGX,2,compromiso,,Segunda promesa,2025-03-25,200000.00,NULL,,,2025-03-05 10:00:00
+        3,1,SGX,1,compromiso,,Ya vencida,2025-03-01,50000.00,NULL,,,2025-03-08 10:00:00
+        4,1,SGX,1,compromiso,,Sin valor,2025-03-30,NULL,NULL,,,2025-03-09 10:00:00
+
+        CSV);
+    unlink($this->folder.DIRECTORY_SEPARATOR.'supabase_gestiones.csv');
+
+    compromisosRun($this->folder)
+        ->expectsTable(MigrationFolder::TOTALS, [
+            ['Fase 1', 'fase1_actions.csv', 4, 3, 0, 1],
+        ])
+        ->assertSuccessful();
+
+    expect(compromisosFields(compromisosCommitment('fase1:compromiso:1')))->toMatchArray([
+        'status' => CommitmentStatus::Cancelled,
+        'cancelled' => '2025-03-12 10:00:00',
+        'reason' => 'Reemplazado por un compromiso posterior en Cartera Fase 1.',
+    ])
+        ->and(compromisosFields(compromisosCommitment('fase1:compromiso:2')))->toMatchArray([
+            'status' => CommitmentStatus::Pending, 'cancelled' => null, 'reason' => null,
+        ])
+        ->and(compromisosFields(compromisosCommitment('fase1:compromiso:3')))->toMatchArray([
+            'status' => CommitmentStatus::Cancelled, 'reason' => 'Importado de Cartera Fase 1 sin estado de cierre.',
+        ]);
+});
