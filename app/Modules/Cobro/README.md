@@ -25,7 +25,7 @@ Permisos (`CobroPermissionSeeder`): `cobro.view` para administrador, gerente y a
 |---|---|---|
 | `cobro:sincronizar-buzones` | Cada 5 minutos | Lee con una consulta delta de Graph los correos nuevos de la bandeja de entrada de cada buzón, los une al envío y al cliente, y registra la respuesta en la bitácora. Sin credenciales de Graph solo avisa. |
 | `cobro:cobro-semanal` | Miércoles 17:00 (`cobro.weekly`) | Prepara el envío y pone en cola un trabajo `SendRunItem` por cliente. Correrlo de nuevo el mismo día no envía nada. |
-| `cobro:circularizacion` | Día 1 a las 09:00 (`cobro.circularizacion`) | Igual, una vez al mes, para Segurex y Derivados: **envía de verdad** (ver «Circularización»). Solo si se vuelve a poner `cobro.circularizacion.draft` en `true` deja de enviar; entonces `--aun-en-borrador` permite probar el motor. |
+| `cobro:circularizacion` | Día 1 a las 09:00 (`cobro.circularizacion`) | Igual, una vez al mes, para Segurex y Derivados: **envía de verdad** (ver «Circularización»), pero no envía una empresa cuya cartera cargada no sea la del cierre del mes; `--con-corte-actual` la envía con el último corte. Solo si se vuelve a poner `cobro.circularizacion.draft` en `true` deja de enviar; entonces `--aun-en-borrador` permite probar el motor. |
 | `cobro:cerrar-envios-interrumpidos` | Cada 10 minutos | Marca «No se pudo enviar» a los clientes que un proceso interrumpido dejó «enviando» más de 30 minutos, para que el envío se cierre y el informe lo muestre. |
 
 Cada trabajo reclama su cliente antes de enviar (pendiente → enviando), así que un reintento nunca le manda dos correos al mismo cliente. Los trabajos salen escalonados a `cobro.send_per_minute` correos por minuto (25 por defecto; Exchange Online acepta 30 por minuto por buzón) y el limitador `cobro-mail` queda de respaldo: 300 clientes tardan unos 12 minutos en salir. El informe muestra en español por qué no salió un correo; el detalle técnico queda en el registro.
@@ -94,6 +94,11 @@ Variables de `.env` (`docs/arquitectura.md` §15): `GRAPH_TENANT_ID`, `GRAPH_CLI
 **El envío programado sale de verdad**: el día 1 de cada mes a las 9:00 a. m. (hora de Bogotá), para Segurex y Derivados (`cobro.circularizacion`, con `draft` en `false`). **Antes del primer envío real, envíate una prueba desde `/cobro/circularizacion` a un buzón interno** y revisa el correo de cada empresa.
 
 `Circularizacion/CircularizationRun.php` define el envío: programación mensual, lote, envío e informe, con la misma lista de exclusión, el mismo informe de entrega y la misma bandeja de respuestas del cobro semanal. Cada cliente con saldo recibe todas sus partidas abiertas (las notas crédito incluidas, como en el cobro semanal) con el total que debe. El robot fecha cada corte con el día en que lo extrae (hacia las 19:00), así que el día 1 a las 9:00 el último corte es el último día del mes cerrado.
+
+**Espera el cierre del mes.** Antes de enviar, el comando revisa el último corte cargado de cada empresa (día calendario de Bogotá). Si no es el último día del mes anterior (por ejemplo, el robot no corrió la noche del 31) o no hay cartera cargada, esa empresa no se envía: no se guarda el envío, así que el mes queda libre para enviarlo a mano después, y queda un aviso en la consola y en el registro (`Log::warning` con la empresa, el corte y el cierre esperado). Las demás empresas salen normalmente; si ninguna sale, el comando termina con error.
+
+- Cuando el cierre ya esté cargado: `php artisan cobro:circularizacion --empresa=SGX` (o `SDC`). Usa el mismo envío del mes, así que el informe y la regla de una vez al mes no cambian.
+- Si ya no hay una carga del cierre: agrega `--con-corte-actual` para enviarla con el último corte; el correo dice ese corte («Corte al 30 de mayo de 2026»). La circularización siempre lee la última carga de cada empresa, así que cuando el robot carga un día posterior al cierre ya no se puede enviar con el cierre.
 
 El correo (`resources/views/circularizacion/estado-cartera.blade.php`) copia el formato que cada empresa envía hoy, sin el marco de la marca, como el cobro semanal:
 

@@ -1,9 +1,19 @@
 <?php
 
-// Circularization (4.2): the fixed blocks of the Segurex statement mail,
-// word for word as the company sends it today (client-facing: they keep
-// "usted" and the capitals of the original).
+// Circularization (4.2): console messages of cobro:circularizacion, and the
+// fixed blocks of the Segurex statement mail, word for word as the company
+// sends it today (client-facing: they keep "usted" and the capitals of the
+// original).
 return [
+
+    // A company held back because its loaded cartera is not the month close.
+    'consola' => [
+        'sin_cierre' => 'La circularización de :empresa no se envió: la cartera cargada es del :corte y el cierre del mes es el :cierre. '
+            .'Cuando cargues el cierre, ejecuta php artisan cobro:circularizacion --empresa=:codigo. '
+            .'Si ya no hay una carga del cierre, agrega --con-corte-actual para enviarla con el último corte.',
+        'sin_cartera' => 'La circularización de :empresa no se envió: no hay cartera cargada y el cierre del mes es el :cierre. '
+            .'Cuando cargues el cierre, ejecuta php artisan cobro:circularizacion --empresa=:codigo.',
+    ],
 
     'segurex' => [
         // Under the invoice table. :DIA_MES, :MES_SIGUIENTE and :MES_CORTE

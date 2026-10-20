@@ -128,6 +128,8 @@ it('copies nobody on the test send', function () {
 
 it('copies the same recipients on the circularization', function () {
     $this->travelTo(CarbonImmutable::parse('2026-11-01 09:00:00', 'America/Bogota'));
+    // The circularization waits for the cartera of the month close.
+    $this->fakes->cartera->cutoffDate = CarbonImmutable::parse('2026-10-31', 'America/Bogota');
 
     $this->artisan('cobro:circularizacion --empresa=SGX')->assertSuccessful();
 
