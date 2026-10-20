@@ -1,5 +1,6 @@
 <?php
 
+use App\Modules\Comisiones\Infrastructure\Ingest\ImportCommissionBatch;
 use App\Modules\Comisiones\Infrastructure\Persistence\ClientAssignmentRecord;
 use App\Modules\Comisiones\Infrastructure\Persistence\ClientRecord;
 use App\Modules\Comisiones\Infrastructure\Persistence\CommissionLoad;
@@ -10,6 +11,8 @@ use App\Modules\Comisiones\Infrastructure\Persistence\SellerRecord;
 use App\Modules\Core\Contracts\Enums\CompanyCode;
 use App\Modules\Core\Contracts\Enums\Dataset;
 use Carbon\CarbonImmutable;
+use Illuminate\Events\CallQueuedListener;
+use Illuminate\Support\Facades\Queue;
 use Tests\Fakes\ContractFakes;
 use Tests\Modules\Comisiones\Feature\Concerns\SapBatches;
 
@@ -130,4 +133,23 @@ it('ignores the batches of SDC and of the datasets of other modules', function (
     expect(SaleRecord::query()->count())->toBe(0)
         ->and(ClientAssignmentRecord::query()->count())->toBe(0)
         ->and(CommissionLoad::query()->count())->toBe(0);
+});
+
+it('queues nothing for an empty batch', function () {
+    Queue::fake();
+
+    $this->sap->send(Dataset::Sales, []);
+
+    Queue::assertNothingPushed();
+
+    $this->sap->send(Dataset::Collections, [SapBatches::payment()]);
+
+    Queue::assertPushed(CallQueuedListener::class, fn (CallQueuedListener $job): bool => $job->class === ImportCommissionBatch::class);
+});
+
+it('skips the rows that lack their natural key', function () {
+    $this->sap->send(Dataset::Sales, [SapBatches::sale(), ['saldo' => '10.00']]);
+
+    expect(SaleRecord::query()->pluck('clave')->all())->toBe(['13-5001-0'])
+        ->and(CommissionLoad::query()->sole()->filas)->toBe(1);
 });

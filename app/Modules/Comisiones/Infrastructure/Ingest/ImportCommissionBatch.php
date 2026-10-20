@@ -42,6 +42,15 @@ final class ImportCommissionBatch implements ShouldQueue
         Dataset::SalesRepMaster,
     ];
 
+    /** The natural key columns of each dataset (Ingesta's DatasetSchemas); a row without them is skipped. */
+    private const array KEYS = [
+        'ventas' => ['tipo_objeto', 'doc_entry', 'linea'],
+        'recaudos' => ['doc_entry_pago', 'linea'],
+        'cruces' => ['numero_cruce', 'linea'],
+        'maestro_clientes' => ['codigo_cliente'],
+        'maestro_vendedores' => ['slp_code'],
+    ];
+
     public function __construct(
         private readonly IngestaSink $sink,
         private readonly ConnectionInterface $db,
@@ -50,12 +59,15 @@ final class ImportCommissionBatch implements ShouldQueue
     ) {}
 
     /**
-     * Only the Comisiones datasets of SGX are queued.
+     * Only the Comisiones datasets of SGX are queued, and only when they
+     * have rows: an empty batch (a day without sales) stages nothing, and
+     * Ingesta's own load history already shows it.
      */
     public function shouldQueue(BatchAccepted $event): bool
     {
         return $event->load->company === CompanyCode::SGX
-            && in_array($event->load->dataset, self::DATASETS, true);
+            && in_array($event->load->dataset, self::DATASETS, true)
+            && $event->load->rowCount > 0;
     }
 
     public function handle(BatchAccepted $event): void
@@ -109,7 +121,16 @@ final class ImportCommissionBatch implements ShouldQueue
         $inserted = 0;
         $chunk = [];
 
+        $keys = self::KEYS[$load->dataset->value];
+
         foreach ($this->sink->rows($load->id) as $row) {
+            // Ingesta validates every row; one without its natural key is not ours to guess.
+            foreach ($keys as $column) {
+                if (($row[$column] ?? null) === null || $row[$column] === '') {
+                    continue 2;
+                }
+            }
+
             $record = $map($row, $load->id);
             // A key repeated in the batch is staged once: the last row wins.
             $chunk[(string) $record[$key]] = $record;
