@@ -1,6 +1,7 @@
 <?php
 
 use App\Modules\Comisiones\Http\Controllers\CodeSettlementController;
+use App\Modules\Comisiones\Http\Controllers\ConsolidatedController;
 use App\Modules\Comisiones\Http\Controllers\SettlementActionController;
 use App\Modules\Comisiones\Http\Controllers\SettlementController;
 use App\Modules\Comisiones\Http\Support\PeriodRoute;
@@ -15,6 +16,9 @@ Route::middleware(['auth', 'can:comisiones.view'])->group(function () {
     Route::prefix('periodos/{periodo}')->where(['periodo' => PeriodRoute::PATTERN])->name('periodos.')->group(function () {
         Route::get('/', [SettlementController::class, 'show'])->name('show');
         Route::get('codigos/{codigo}', [CodeSettlementController::class, 'show'])->whereNumber('codigo')->name('codigo');
+        Route::get('consolidado', [ConsolidatedController::class, 'show'])->name('consolidado');
+        Route::get('consolidado.xlsx', [ConsolidatedController::class, 'spreadsheet'])->name('consolidado.xlsx');
+        Route::get('consolidado.pdf', [ConsolidatedController::class, 'pdf'])->name('consolidado.pdf');
     });
 });
 
