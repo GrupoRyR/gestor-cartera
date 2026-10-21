@@ -2,6 +2,7 @@
 
 use App\Modules\Comisiones\Http\Controllers\CodeSettlementController;
 use App\Modules\Comisiones\Http\Controllers\ConsolidatedController;
+use App\Modules\Comisiones\Http\Controllers\DashboardController;
 use App\Modules\Comisiones\Http\Controllers\SettlementActionController;
 use App\Modules\Comisiones\Http\Controllers\SettlementController;
 use App\Modules\Comisiones\Http\Support\PeriodRoute;
@@ -11,6 +12,7 @@ use Illuminate\Support\Facades\Route;
 // {periodo} is a month, YYYY-MM (PeriodRoute::PATTERN).
 
 Route::middleware(['auth', 'can:comisiones.view'])->group(function () {
+    Route::get('/', DashboardController::class)->name('tablero');
     Route::get('liquidacion', [SettlementController::class, 'current'])->name('liquidacion');
 
     Route::prefix('periodos/{periodo}')->where(['periodo' => PeriodRoute::PATTERN])->name('periodos.')->group(function () {

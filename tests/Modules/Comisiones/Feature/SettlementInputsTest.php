@@ -1,7 +1,10 @@
 <?php
 
 use App\Models\User;
+use App\Modules\Comisiones\Application\DefaultParameters;
 use App\Modules\Comisiones\Application\Ports\SettlementInputs;
+use App\Modules\Comisiones\Domain\Calculation\AlertKind;
+use App\Modules\Comisiones\Domain\Calculation\SettlementCalculator;
 use App\Modules\Comisiones\Domain\Input\AdjustmentKind;
 use App\Modules\Comisiones\Domain\Input\ClientAssignment;
 use App\Modules\Comisiones\Domain\Input\CrossingLine;
@@ -10,7 +13,12 @@ use App\Modules\Comisiones\Domain\Input\CrossingType;
 use App\Modules\Comisiones\Domain\Input\DocumentType;
 use App\Modules\Comisiones\Domain\Input\PaymentLine;
 use App\Modules\Comisiones\Domain\Input\SaleLine;
+use App\Modules\Comisiones\Domain\Parameters\Options\CurrencyTreatment;
+use App\Modules\Comisiones\Domain\Parameters\OptionsVersion;
+use App\Modules\Comisiones\Domain\Parameters\ParameterBook;
+use App\Modules\Comisiones\Domain\Parameters\SettlementOptions;
 use App\Modules\Comisiones\Domain\Shared\Period;
+use App\Modules\Comisiones\Domain\Shared\Validity;
 use App\Modules\Comisiones\Infrastructure\Persistence\AdjustmentRecord;
 use App\Modules\Comisiones\Infrastructure\Persistence\BudgetRecord;
 use App\Modules\Comisiones\Infrastructure\Persistence\CaptureStatus;
@@ -105,11 +113,26 @@ it('maps the sales of the period: annulments, credit notes, seller and currency'
         ->and($sales['13-5001-2']->annulled)->toBeFalse()
         ->and($sales['14-600-0']->documentType)->toBe(DocumentType::CreditNote)
         ->and($sales['14-600-0']->total->amount())->toBe('-50000')
-        ->and($sales['14-600-0']->currency)->toBe('USD')
-        ->and($sales['14-600-0']->exchangeRate)->toBe('4000')
+        // A USD invoice: the robot already sends its amounts in pesos (etl/queries/ventas.sql).
+        ->and($sales['14-600-0']->currency)->toBe('COP')
+        ->and($sales['14-600-0']->exchangeRate)->toBe('1')
         ->and($sales['13-5001-3']->sellerCode)->toBeNull()
         ->and($sales['13-5001-3']->sellerText)->toBe('0 OFICINA')
         ->and($sales['13-5001-3']->currency)->toBe('COP');
+});
+
+it('never converts a peso amount again when the options ask to convert foreign currency', function () {
+    // SAP's document currency and rate stay in staging for reference only.
+    $this->sap->send(Dataset::Sales, [SapBatches::sale(['doc_entry' => 5400, 'total' => '40000000.00', 'moneda' => 'USD', 'trm' => '4000.000000'])]);
+
+    $book = DefaultParameters::book();
+    $book = new ParameterBook($book->codes, $book->trancheTables, $book->teams, $book->derived, [
+        new OptionsVersion(Validity::from('2026-01-01'), new SettlementOptions(currency: CurrencyTreatment::Convert)),
+    ]);
+    $result = (new SettlementCalculator)->calculate(($this->inputs)(), $book->forPeriod($this->july));
+
+    expect($result->code(14)?->sales->amount())->toBe('40000000')
+        ->and($result->alertsOf(AlertKind::ForeignCurrency))->toBe([]);
 });
 
 it('maps the payments of the period and finds the invoice date', function () {
@@ -194,9 +217,9 @@ it('maps the crossings of the period with their type, counterparty and approved 
         ->and($crossings['sap-9001-2']->counterparty)->toBe('')
         ->and($crossings['sap-9001-2']->sellerOverride)->toBeNull()
         ->and($crossings['sap-9001-2']->invoiceTaxBase)->toBeNull()
-        // The invoice's currency, and its date when the crossing has none.
-        ->and($crossings['sap-9001-2']->currency)->toBe('USD')
-        ->and($crossings['sap-9001-2']->exchangeRate)->toBe('3950.5')
+        // In pesos even for a USD invoice, and the invoice's date when the crossing has none.
+        ->and($crossings['sap-9001-2']->currency)->toBe('COP')
+        ->and($crossings['sap-9001-2']->exchangeRate)->toBe('1')
         ->and($crossings['sap-9001-2']->invoiceDate->format('Y-m-d'))->toBe('2026-07-15');
 });
 

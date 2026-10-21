@@ -43,4 +43,7 @@ return [
     'viendo_version' => 'Estás viendo la versión :version. La vigente es la :vigente.',
     'ver_vigente' => 'Ver la versión vigente',
     'sin_dato' => '—',
+
+    // Captures of a period whose latest settlement version is closed (PeriodLock).
+    'periodo_cerrado' => 'El período está cerrado. Para corregirlo registra una liquidación complementaria.',
 ];
