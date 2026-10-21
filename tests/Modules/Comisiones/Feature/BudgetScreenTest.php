@@ -303,6 +303,19 @@ it('downloads the template prefilled with the period, the codes and what is load
     ])->assertSessionHas('status', 'Cargaste el presupuesto de 2026-07: 0 nuevos, 0 actualizados y 1 sin cambios.');
 });
 
+it('writes text from SAP into the template so that Excel never runs it as a formula', function () {
+    $this->sap->send(Dataset::SalesRepMaster, [
+        SapBatches::seller(['slp_code' => 15, 'nombre' => 'CODIGO 15', 'canal' => '=1+1']),
+        SapBatches::seller(['slp_code' => 17, 'nombre' => 'CODIGO 17', 'canal' => '@SUMA(A1)']),
+    ]);
+
+    $content = $this->actingAs($this->analyst)->get('/comisiones/presupuesto/2026-07/plantilla')->assertOk()->streamedContent();
+    $lines = preg_split('/\r\n/', trim(substr($content, 3)));
+
+    expect($lines)->toContain("2026-07;15;;'=1+1")
+        ->and($lines)->toContain("2026-07;17;;'@SUMA(A1)");
+});
+
 it('refuses every budget change in a closed period, and allows it again after a complementary settlement', function () {
     $approver = ComisionesUsers::approver();
     ClosedPeriods::close($this, $this->sap, $this->analyst, $approver);
