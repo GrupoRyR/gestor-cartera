@@ -19,6 +19,7 @@ use Tests\Fakes\AuditEntry;
 use Tests\Fakes\ContractFakes;
 use Tests\Modules\Comisiones\Feature\Concerns\ComisionesUsers;
 use Tests\Modules\Comisiones\Feature\Concerns\SapBatches;
+use Tests\Modules\Comisiones\Feature\Concerns\SettlementRows;
 
 /*
 | The settlement of a period on screen (§6, §9.7, §10): calculate, approve
@@ -47,27 +48,6 @@ function julySales(SapBatches $sap, int $budgetBy, bool $unknownCode = false): v
         $unknownCode ? SapBatches::sale(['doc_entry' => 5002, 'numero_documento' => 8002, 'slp_code' => 99, 'vendedor' => 'VENDEDOR NUEVO', 'total' => '100000.00']) : null,
     ])));
     BudgetRecord::query()->create(['periodo' => '2026-07', 'slp_code' => 14, 'valor' => '77241857.00', 'created_by' => $budgetBy]);
-}
-
-/**
- * A version row with a placeholder result, for the screens that never
- * read the result back.
- */
-function menuVersionRow(string $period, SettlementStatus $status): SettlementRecord
-{
-    return SettlementRecord::query()->create([
-        'periodo' => $period,
-        'version' => 1,
-        'revision' => 1,
-        'estado' => $status->value,
-        'calculado_por' => 'ana@segurex.com',
-        'calculado_en' => CarbonImmutable::parse('2026-08-01 08:00:00'),
-        'justificaciones' => [],
-        'resultado' => 'placeholder',
-        'resultado_sha256' => hash('sha256', 'placeholder'),
-        'total_nomina' => '0.00',
-        'alertas_bloqueantes' => 0,
-    ]);
 }
 
 it('serves the settlement of a period under /comisiones/periodos', function () {
@@ -112,15 +92,21 @@ it('opens the month being settled from the menu entry', function () {
 });
 
 it('keeps the menu entry on the month being settled when an older draft was left open', function () {
-    menuVersionRow('2026-03', SettlementStatus::Draft);
-    menuVersionRow('2026-06', SettlementStatus::Approved);
+    SettlementRows::placeholder('2026-03', SettlementStatus::Draft);
+    SettlementRows::placeholder('2026-06', SettlementStatus::Approved);
+
+    $this->actingAs($this->analyst)->get('/comisiones/liquidacion')->assertRedirect('/comisiones/periodos/2026-07');
+});
+
+it('never holds the menu entry on a future month calculated by mistake', function () {
+    SettlementRows::placeholder('2026-12', SettlementStatus::Draft);
 
     $this->actingAs($this->analyst)->get('/comisiones/liquidacion')->assertRedirect('/comisiones/periodos/2026-07');
 });
 
 it('opens a later period from the menu entry while it is open', function () {
-    menuVersionRow('2026-07', SettlementStatus::Closed);
-    menuVersionRow('2026-08', SettlementStatus::Draft);
+    SettlementRows::placeholder('2026-07', SettlementStatus::Closed);
+    SettlementRows::placeholder('2026-08', SettlementStatus::Draft);
 
     $this->actingAs($this->analyst)->get('/comisiones/liquidacion')->assertRedirect('/comisiones/periodos/2026-08');
 

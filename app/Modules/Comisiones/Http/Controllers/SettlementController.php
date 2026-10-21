@@ -4,7 +4,6 @@ namespace App\Modules\Comisiones\Http\Controllers;
 
 use App\Models\User;
 use App\Modules\Comisiones\Domain\Settlement\SettlementStatus;
-use App\Modules\Comisiones\Domain\Shared\Period;
 use App\Modules\Comisiones\Http\Support\PeriodRoute;
 use App\Modules\Comisiones\Http\Support\SelectedSettlement;
 use App\Modules\Comisiones\Infrastructure\Persistence\SettlementRecord;
@@ -21,8 +20,8 @@ use Illuminate\Http\Request;
  *
  * - GET /comisiones/liquidacion: the menu entry "Liquidación del mes"; goes
  *   to the month before the current one (the month being settled once it
- *   ends), unless a later period is still open. An older draft left open
- *   never holds the entry on a past month;
+ *   ends), unless the month in course is already open. A draft left open
+ *   in another month never holds the entry;
  * - GET /comisiones/periodos/{periodo}?version=N: status, version and
  *   revision, who calculated, approved and closed it, totals, alerts with
  *   their justifications, the approval form and the versions of the period.
@@ -36,13 +35,13 @@ final class SettlementController
 
     public function current(): RedirectResponse
     {
-        $settling = PeriodRoute::current()->previous();
-        $later = SettlementRecord::query()
+        $current = PeriodRoute::current();
+        $currentOpen = SettlementRecord::query()
+            ->where('periodo', $current->key())
             ->where('estado', '!=', SettlementStatus::Closed->value)
-            ->where('periodo', '>', $settling->key())
-            ->max('periodo');
+            ->exists();
 
-        $period = is_string($later) ? Period::fromString($later) : $settling;
+        $period = $currentOpen ? $current : $current->previous();
 
         return redirect()->route('comisiones.periodos.show', $period->key());
     }

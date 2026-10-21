@@ -1,10 +1,8 @@
 <?php
 
 use App\Modules\Comisiones\Database\Seeders\ComisionesPermissionSeeder;
-use App\Modules\Comisiones\Domain\Settlement\SettlementStatus;
 use App\Modules\Comisiones\Domain\Shared\Period;
 use App\Modules\Comisiones\Http\Support\SelectedSettlement;
-use App\Modules\Comisiones\Infrastructure\Persistence\SettlementRecord;
 use App\Modules\Comisiones\Infrastructure\Settlement\CorruptSettlement;
 use App\Modules\Comisiones\Infrastructure\Settlement\EloquentSettlements;
 use Carbon\CarbonImmutable;
@@ -13,6 +11,7 @@ use Illuminate\Support\Facades\Exceptions;
 use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
 use Tests\Fakes\ContractFakes;
 use Tests\Modules\Comisiones\Feature\Concerns\ComisionesUsers;
+use Tests\Modules\Comisiones\Feature\Concerns\SettlementRows;
 
 /*
 | The version a screen of a period shows (?version= or the latest): a
@@ -30,27 +29,9 @@ beforeEach(function () {
     $this->settlements = app(EloquentSettlements::class);
 });
 
-/** A version of July 2026 whose stored result fails its fingerprint. */
-function corruptJulyVersion(): void
-{
-    SettlementRecord::query()->create([
-        'periodo' => '2026-07',
-        'version' => 1,
-        'revision' => 1,
-        'estado' => SettlementStatus::Draft->value,
-        'calculado_por' => 'ana@segurex.com',
-        'calculado_en' => CarbonImmutable::parse('2026-08-01 08:00:00'),
-        'justificaciones' => [],
-        'resultado' => 'tampered',
-        'resultado_sha256' => str_repeat('0', 64),
-        'total_nomina' => '0.00',
-        'alertas_bloqueantes' => 0,
-    ]);
-}
-
 it('reports a corrupt version and gives no selection', function () {
     Exceptions::fake();
-    corruptJulyVersion();
+    SettlementRows::corrupt('2026-07');
 
     expect(SelectedSettlement::readable(Request::create('/'), $this->july, $this->settlements))->toBeNull()
         ->and(SelectedSettlement::calculated(Request::create('/'), $this->july, $this->settlements))->toBeNull();
@@ -68,7 +49,7 @@ it('selects nothing for a period never calculated, and refuses it where a settle
 
 it('says a version is corrupt on the period screen and sends the other screens there', function () {
     Exceptions::fake();
-    corruptJulyVersion();
+    SettlementRows::corrupt('2026-07');
 
     $this->actingAs($this->analyst)->get('/comisiones/periodos/2026-07')->assertOk()
         ->assertSeeText('La liquidación guardada no pasó la verificación de integridad');
