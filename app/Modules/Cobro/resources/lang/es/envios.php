@@ -12,19 +12,19 @@ return [
     'vista' => [
         'descripcion' => [
             'cobro_semanal' => 'Así queda el próximo envío a los clientes con facturas vencidas. Revisa quién lo recibe, abre el correo de cada cliente y envíate una prueba.',
-            'circularizacion' => 'Así queda la circularización del próximo cierre. El formato es provisional: se reemplazará por el informe que hoy reciben los clientes.',
+            'circularizacion' => 'Así queda la circularización del próximo cierre, en el formato de cada empresa. Revisa quién la recibe, abre el correo de cada cliente y envíate una prueba.',
         ],
         'empresas' => 'Empresas',
         'proximo' => 'Próximo envío',
         'proximo_detalle' => ':fecha a las :hora (hora de Colombia)',
-        'pausado' => 'Pausado mientras el formato sea un borrador',
+        'pausado' => 'Pausado mientras el envío esté en borrador',
         'a_enviar' => 'Recibirán el correo',
         'sin_correo' => 'Sin dirección de correo',
         'excluidos' => 'Excluidos',
         'valor' => 'Valor a cobrar',
         'borrador' => [
-            'titulo' => 'Formato en borrador',
-            'detalle' => 'Este envío no sale en su fecha programada hasta que llegue el formato definitivo. Puedes revisarlo y enviarte una prueba.',
+            'titulo' => 'Envío en borrador',
+            'detalle' => 'Este envío no sale en su fecha programada mientras esté en borrador. Puedes revisarlo y enviarte una prueba.',
         ],
         'filtros' => 'Filtrar clientes del envío',
         'todos' => 'Todos',
@@ -80,7 +80,7 @@ return [
     ],
 
     'consola' => [
-        'borrador' => ':tipo: el formato aún es un borrador, no se envía nada. Usa --aun-en-borrador para probar el motor.',
+        'borrador' => ':tipo: el envío está en borrador, no se envía nada. Usa --aun-en-borrador para probar el motor.',
         'ya_existe' => ':empresa: el envío de :tipo de esta fecha ya se preparó; no se envía de nuevo.',
         'iniciado' => ':empresa: :tipo en cola para :en_cola clientes; :sin_correo sin correo y :excluidos excluidos.',
         'empresa_invalida' => 'La empresa :empresa no tiene este envío. Empresas válidas: :validas.',

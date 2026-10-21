@@ -33,7 +33,18 @@
     $fulfilled = $board->compliance->fulfilled();
     $complianceRate = $board->compliance->overallRate();
 
-    $mail = $board->mail->results;
+    $mailColumns = [
+        ['key' => 'company', 'label' => __('gerencia::tablero.cobro.columnas.empresa')],
+        ['key' => 'runs', 'label' => __('gerencia::tablero.cobro.columnas.lotes'), 'align' => 'end'],
+        ['key' => 'sent', 'label' => __('gerencia::tablero.cobro.columnas.enviados'), 'align' => 'end'],
+        ['key' => 'delivered', 'label' => __('gerencia::tablero.cobro.columnas.entregados'), 'align' => 'end'],
+        ['key' => 'bounced', 'label' => __('gerencia::tablero.cobro.columnas.rebotados'), 'align' => 'end'],
+        ['key' => 'bounce_rate', 'label' => __('gerencia::tablero.cobro.columnas.tasa_rebote'), 'align' => 'end'],
+        ['key' => 'replies', 'label' => __('gerencia::tablero.cobro.columnas.respuestas'), 'align' => 'end'],
+        ['key' => 'reply_rate', 'label' => __('gerencia::tablero.cobro.columnas.tasa_respuesta'), 'align' => 'end'],
+        ['key' => 'without_email', 'label' => __('gerencia::tablero.cobro.columnas.sin_correo'), 'align' => 'end'],
+        ['key' => 'failed', 'label' => __('gerencia::tablero.cobro.columnas.fallidos'), 'align' => 'end'],
+    ];
     $collections = $board->collections;
     $collectionsChart = CollectionsChart::from($collections, $period);
     $collectionsTone = TrendChart::tone($isGroup ? null : $scope?->company);
@@ -260,40 +271,82 @@
         </x-ui.card>
 
         <x-ui.card :title="__('gerencia::tablero.cobro.titulo')" :description="__('gerencia::tablero.cobro.descripcion')">
-            <div class="grid gap-4">
-                <x-ui.alert tone="info">{{ __('gerencia::tablero.cobro.aviso') }}</x-ui.alert>
+            <div class="grid gap-6">
+                @foreach ($board->mail->kinds as $kindResults)
+                    @php
+                        $mail = $kindResults->total;
+                        $kindLabel = $kindResults->kind->label();
+                    @endphp
+                    <section class="grid gap-3" aria-labelledby="cobro-{{ $kindResults->kind->value }}">
+                        <h3 id="cobro-{{ $kindResults->kind->value }}" class="text-base font-bold">{{ $kindLabel }}</h3>
+                        @if ($kindResults->kind === \App\Modules\Core\Contracts\Enums\MailRunKind::Circularization)
+                            <p data-nota="circularizacion" class="text-sm text-fg-muted">{{ __('gerencia::tablero.cobro.nota_circularizacion') }}</p>
+                        @endif
 
-                @if ($mail->truncated)
-                    <x-ui.alert tone="warning" :title="__('gerencia::tablero.cobro.parcial.titulo')">{{ __('gerencia::tablero.cobro.parcial.detalle') }}</x-ui.alert>
-                @endif
+                        @if (! $kindResults->hasRuns())
+                            <x-ui.empty icon="send" :title="__('gerencia::tablero.cobro.vacio.titulo')" :description="__('gerencia::tablero.cobro.vacio.detalle')" />
+                        @else
+                            <div class="grid grid-cols-1 gap-3 min-[22rem]:grid-cols-2 md:grid-cols-3 md:gap-4 xl:grid-cols-6">
+                                <x-ui.stat
+                                    :label="__('gerencia::tablero.cobro.enviados.etiqueta')"
+                                    :value="Figures::count($mail->sent)"
+                                    :hint="trans_choice('gerencia::tablero.cobro.enviados.pista', $mail->runs)"
+                                />
+                                <x-ui.stat
+                                    :label="__('gerencia::tablero.cobro.entregados.etiqueta')"
+                                    :value="Figures::count($mail->delivered())"
+                                    :hint="__('gerencia::tablero.cobro.entregados.pista')"
+                                />
+                                <x-ui.stat
+                                    :label="__('gerencia::tablero.cobro.rebotes.etiqueta')"
+                                    :value="Figures::count($mail->bounced)"
+                                    :hint="$mail->bounceRate() === null ? __('gerencia::tablero.cobro.nada_enviado') : __('gerencia::tablero.cobro.rebotes.pista', ['porcentaje' => Figures::percent($mail->bounceRate())])"
+                                />
+                                <x-ui.stat
+                                    :label="__('gerencia::tablero.cobro.respuestas.etiqueta')"
+                                    :value="Figures::count($mail->replies)"
+                                    :hint="$mail->replyRate() === null ? __('gerencia::tablero.cobro.nada_enviado') : __('gerencia::tablero.cobro.respuestas.pista', ['porcentaje' => Figures::percent($mail->replyRate())])"
+                                />
+                                <x-ui.stat
+                                    :label="__('gerencia::tablero.cobro.sin_correo.etiqueta')"
+                                    :value="Figures::count($mail->withoutEmail)"
+                                    :hint="__('gerencia::tablero.cobro.sin_correo.pista')"
+                                />
+                                <x-ui.stat
+                                    :label="__('gerencia::tablero.cobro.fallidos.etiqueta')"
+                                    :value="Figures::count($mail->failed)"
+                                    :hint="__('gerencia::tablero.cobro.fallidos.pista')"
+                                />
+                            </div>
 
-                <div class="grid grid-cols-1 gap-3 min-[22rem]:grid-cols-2 md:gap-4 lg:grid-cols-5">
-                    <x-ui.stat
-                        :label="__('gerencia::tablero.cobro.enviados.etiqueta')"
-                        :value="Figures::count($mail->sent)"
-                        :hint="__('gerencia::tablero.cobro.enviados.pista')"
-                    />
-                    <x-ui.stat
-                        :label="__('gerencia::tablero.cobro.entregados.etiqueta')"
-                        :value="Figures::count($mail->delivered())"
-                        :hint="__('gerencia::tablero.cobro.entregados.pista')"
-                    />
-                    <x-ui.stat
-                        :label="__('gerencia::tablero.cobro.rebotes.etiqueta')"
-                        :value="Figures::count($mail->bounces)"
-                        :hint="$mail->bounceRate() === null ? __('gerencia::tablero.cobro.sin_envios') : __('gerencia::tablero.cobro.rebotes.pista', ['porcentaje' => Figures::percent($mail->bounceRate())])"
-                    />
-                    <x-ui.stat
-                        :label="__('gerencia::tablero.cobro.respuestas.etiqueta')"
-                        :value="Figures::count($mail->replies)"
-                        :hint="$mail->replyRate() === null ? __('gerencia::tablero.cobro.sin_envios') : __('gerencia::tablero.cobro.respuestas.pista', ['porcentaje' => Figures::percent($mail->replyRate())])"
-                    />
-                    <x-ui.stat
-                        :label="__('gerencia::tablero.cobro.sin_leer.etiqueta')"
-                        :value="Figures::count($board->mail->unread)"
-                        :hint="__('gerencia::tablero.cobro.sin_leer.pista')"
-                    />
-                </div>
+                            @if (count($kindResults->companies) > 1)
+                                <x-ui.table :caption="__('gerencia::tablero.cobro.tabla', ['tipo' => $kindLabel])" :caption-hidden="true" :columns="$mailColumns">
+                                    @foreach ($kindResults->companies as $row)
+                                        <tr>
+                                            <th scope="row">{{ $row->company->label() }}</th>
+                                            <td data-align="end">{{ Figures::count($row->runs) }}</td>
+                                            <td data-align="end">{{ Figures::count($row->sent) }}</td>
+                                            <td data-align="end">{{ Figures::count($row->delivered()) }}</td>
+                                            <td data-align="end">{{ Figures::count($row->bounced) }}</td>
+                                            <td data-align="end">{{ $row->bounceRate() === null ? '—' : Figures::percent($row->bounceRate()) }}</td>
+                                            <td data-align="end">{{ Figures::count($row->replies) }}</td>
+                                            <td data-align="end">{{ $row->replyRate() === null ? '—' : Figures::percent($row->replyRate()) }}</td>
+                                            <td data-align="end">{{ Figures::count($row->withoutEmail) }}</td>
+                                            <td data-align="end">{{ Figures::count($row->failed) }}</td>
+                                        </tr>
+                                    @endforeach
+                                </x-ui.table>
+                            @endif
+                        @endif
+                    </section>
+                @endforeach
+
+                <x-ui.stat
+                    class="max-w-sm"
+                    :label="__('gerencia::tablero.cobro.sin_leer.etiqueta')"
+                    :value="Figures::count($board->mail->unread)"
+                    :hint="__('gerencia::tablero.cobro.sin_leer.pista')"
+                />
 
                 @php
                     $canSeeRuns = Route::has('cobro.lotes.index') && auth()->user()?->can('cobro.view');

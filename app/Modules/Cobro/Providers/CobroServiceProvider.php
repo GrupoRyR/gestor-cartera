@@ -75,8 +75,9 @@ final class CobroServiceProvider extends ModuleServiceProvider
      * - Wednesdays at 17:00 (Bogotá), the weekly collection: the command
      *   only plans the run and queues one job per client, so it takes
      *   seconds; the queue worker sends them.
-     * - Monthly at close, the circularization; while its format is a draft
-     *   the command sends nothing.
+     * - Monthly at close, the circularization of each company whose loaded
+     *   cartera is the month close; nothing while cobro.circularizacion.draft
+     *   is on.
      * - Every ten minutes, close the sends a killed worker left halfway.
      */
     protected function schedule(Schedule $schedule): void

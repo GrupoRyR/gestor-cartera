@@ -140,10 +140,11 @@ it('edits the budget of a code on screen, creating and then updating it, and aud
 
     $updates = AuditRecord::query()->where('evento', 'comisiones.budget.updated')->orderBy('id')->get();
 
+    // MySQL's JSON columns reorder keys: the audit changes are compared as pairs, not in order.
     expect($updates)->toHaveCount(2)
-        ->and($updates[0]->cambios['valor'])->toBe(['old' => null, 'new' => '77241857.00'])
-        ->and($updates[1]->cambios['valor'])->toBe(['old' => '77241857.00', 'new' => '80000000.50'])
-        ->and($updates[1]->cambios['canal'])->toBe(['old' => 'Distribución', 'new' => null])
+        ->and($updates[0]->cambios['valor'])->toEqual(['old' => null, 'new' => '77241857.00'])
+        ->and($updates[1]->cambios['valor'])->toEqual(['old' => '77241857.00', 'new' => '80000000.50'])
+        ->and($updates[1]->cambios['canal'])->toEqual(['old' => 'Distribución', 'new' => null])
         ->and($updates[1]->periodo)->toBe('2026-07');
     $this->fakes->audit->assertRecorded('comisiones.budget.updated', fn (AuditEntry $entry) => $entry->context['codigo'] === 14);
 
@@ -183,7 +184,7 @@ it('deletes the budget of a code and audits the old value', function () {
     expect(BudgetRecord::query()->count())->toBe(0);
     $deleted = AuditRecord::query()->where('evento', 'comisiones.budget.deleted')->sole();
     expect($deleted->sujeto_id)->toBe((string) $budget->id)
-        ->and($deleted->cambios['valor'])->toBe(['old' => '77241857.00', 'new' => null]);
+        ->and($deleted->cambios['valor'])->toEqual(['old' => '77241857.00', 'new' => null]);
 });
 
 it('loads a CSV template with Colombian amounts, both periods formats and both delimiters', function () {
@@ -209,8 +210,8 @@ it('loads a CSV template with Colombian amounts, both periods formats and both d
     $imported = AuditRecord::query()->where('evento', 'comisiones.budget.imported')->sole();
     expect($imported->periodo)->toBe('2026-07')
         ->and($imported->contexto['archivo'])->toBe('presupuesto.csv')
-        ->and($imported->cambios['codigo_14'])->toBe(['old' => null, 'new' => ['valor' => '77241857.00', 'canal' => 'Distribución']])
-        ->and($imported->cambios['codigo_15']['old'])->toBe(['valor' => '1000.00', 'canal' => null])
+        ->and($imported->cambios['codigo_14'])->toEqual(['old' => null, 'new' => ['valor' => '77241857.00', 'canal' => 'Distribución']])
+        ->and($imported->cambios['codigo_15']['old'])->toEqual(['valor' => '1000.00', 'canal' => null])
         ->and($imported->cambios)->not->toHaveKey('codigo_16');
 
     $this->actingAs($this->analyst)->post('/comisiones/presupuesto/2026-07/carga', [
@@ -300,6 +301,19 @@ it('downloads the template prefilled with the period, the codes and what is load
     $this->actingAs($this->analyst)->post('/comisiones/presupuesto/2026-07/carga', [
         'archivo' => budgetCsv("Período;Código de vendedor;Presupuesto;Canal\r\n2026-07;14;77.241.857;Distribución\r\n"),
     ])->assertSessionHas('status', 'Cargaste el presupuesto de 2026-07: 0 nuevos, 0 actualizados y 1 sin cambios.');
+});
+
+it('writes text from SAP into the template so that Excel never runs it as a formula', function () {
+    $this->sap->send(Dataset::SalesRepMaster, [
+        SapBatches::seller(['slp_code' => 15, 'nombre' => 'CODIGO 15', 'canal' => '=1+1']),
+        SapBatches::seller(['slp_code' => 17, 'nombre' => 'CODIGO 17', 'canal' => '@SUMA(A1)']),
+    ]);
+
+    $content = $this->actingAs($this->analyst)->get('/comisiones/presupuesto/2026-07/plantilla')->assertOk()->streamedContent();
+    $lines = preg_split('/\r\n/', trim(substr($content, 3)));
+
+    expect($lines)->toContain("2026-07;15;;'=1+1")
+        ->and($lines)->toContain("2026-07;17;;'@SUMA(A1)");
 });
 
 it('refuses every budget change in a closed period, and allows it again after a complementary settlement', function () {

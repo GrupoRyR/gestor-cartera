@@ -15,8 +15,4 @@ return [
     'compliance_page_size' => 200,
     'compliance_max_pages' => 50,
 
-    // Newest activity-log entries read to count the Cobro emails of a period;
-    // when the log is longer, the report is flagged as partial.
-    'activity_read_limit' => 5000,
-
 ];
