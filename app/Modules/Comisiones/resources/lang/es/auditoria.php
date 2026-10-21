@@ -42,6 +42,9 @@ return [
         'load' => [
             'imported' => 'Carga de SAP importada',
         ],
+        'assignment' => [
+            'start_moved' => 'Cambio de vendedor con fecha ajustada',
+        ],
         'parameter' => [
             'version_added' => 'Versión de parámetro guardada',
         ],
@@ -88,6 +91,7 @@ return [
         'cruce' => 'Cruce manual',
         'reasignacion' => 'Reasignación',
         'comisiones_carga' => 'Carga de SAP',
+        'cliente' => 'Cliente',
         'comisiones_parametro' => 'Parámetro',
         'user' => 'Usuario',
     ],

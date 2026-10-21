@@ -1,6 +1,9 @@
 <?php
 
+use App\Modules\Comisiones\Infrastructure\Audit\AuditLabels;
+use App\Modules\Comisiones\Infrastructure\Audit\AuditTrail;
 use App\Modules\Comisiones\Infrastructure\Ingest\ImportCommissionBatch;
+use App\Modules\Comisiones\Infrastructure\Persistence\AuditRecord;
 use App\Modules\Comisiones\Infrastructure\Persistence\ClientAssignmentRecord;
 use App\Modules\Comisiones\Infrastructure\Persistence\ClientRecord;
 use App\Modules\Comisiones\Infrastructure\Persistence\CommissionLoad;
@@ -114,15 +117,43 @@ it('keeps the clients, the sellers and the history of each client assignment', f
         ->toBe([14 => 'MONICA RIVERA AREVALO', 15 => 'PAOLA VARGAS']);
 });
 
-it('never moves an assignment before the start of the one in force', function () {
+it('never rewrites the assignment in force, and audits a change dated before its start', function (string $sapDate, string $cutoff, string $applied) {
     $this->sap->send(Dataset::CustomerMaster, [SapBatches::client()], cutoff: '2026-07-01');
     $this->sap->send(Dataset::CustomerMaster, [SapBatches::client(['slp_code' => 15, 'fecha_modificacion' => '2026-07-10'])], cutoff: '2026-07-10');
-    // A stale modification date, older than the assignment in force: it corrects that assignment.
-    $this->sap->send(Dataset::CustomerMaster, [SapBatches::client(['slp_code' => 41, 'fecha_modificacion' => '2026-07-05'])], cutoff: '2026-07-11');
+    // A modification date on or before the start of the assignment in force: seller 15
+    // keeps what it had up to the load that brings the change, and never less than its
+    // first day; seller 41 starts at the later of the next day and that load's cutoff.
+    $this->sap->send(Dataset::CustomerMaster, [SapBatches::client(['slp_code' => 41, 'fecha_modificacion' => $sapDate])], cutoff: $cutoff);
 
     expect(ClientAssignmentRecord::query()->orderBy('vigente_desde')->get()
         ->map(fn (ClientAssignmentRecord $row) => [$row->slp_code, $row->vigente_desde->format('Y-m-d')])->all())
-        ->toBe([[14, '2000-01-01'], [41, '2026-07-10']]);
+        ->toBe([[14, '2000-01-01'], [15, '2026-07-10'], [41, $applied]]);
+
+    $entry = AuditRecord::query()->where('evento', 'comisiones.assignment.start_moved')->sole();
+
+    expect($entry->sujeto_tipo)->toBe('cliente')
+        ->and($entry->sujeto_id)->toBe('C900123456')
+        ->and($entry->periodo)->toBe(substr($applied, 0, 7))
+        ->and($entry->usuario)->toBe(AuditTrail::SYSTEM)
+        ->and($entry->cambios['slp_code'])->toEqual(['old' => 15, 'new' => 41])
+        ->and($entry->contexto['fecha_sap'])->toBe($sapDate)
+        ->and($entry->contexto['vigente_desde'])->toBe($applied)
+        ->and($entry->contexto['load_id'])->toEqual(CommissionLoad::query()->max('load_id'));
+    $this->fakes->audit->assertRecorded('comisiones.assignment.start_moved');
+
+    expect(AuditLabels::event($entry->evento))->toBe('Cambio de vendedor con fecha ajustada')
+        ->and(AuditLabels::subject($entry->sujeto_tipo, $entry->sujeto_id))->toBe('Cliente #C900123456');
+})->with([
+    'before the start, loaded the next day' => ['2026-07-05', '2026-07-11', '2026-07-11'],
+    'on the start, loaded the same day' => ['2026-07-10', '2026-07-10', '2026-07-11'],
+    'before the start, loaded months later' => ['2026-07-05', '2026-10-01', '2026-10-01'],
+]);
+
+it('audits nothing for a change dated after the start of the assignment in force', function () {
+    $this->sap->send(Dataset::CustomerMaster, [SapBatches::client()], cutoff: '2026-07-01');
+    $this->sap->send(Dataset::CustomerMaster, [SapBatches::client(['slp_code' => 15, 'fecha_modificacion' => '2026-07-10'])], cutoff: '2026-07-10');
+
+    expect(AuditRecord::query()->where('evento', 'comisiones.assignment.start_moved')->exists())->toBeFalse();
 });
 
 it('ignores the batches of SDC and of the datasets of other modules', function () {

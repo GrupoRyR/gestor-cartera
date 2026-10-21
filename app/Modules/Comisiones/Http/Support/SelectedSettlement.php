@@ -42,6 +42,34 @@ final readonly class SelectedSettlement
         return new self($period, $settlement, $latest);
     }
 
+    /**
+     * The version asked for, or null when its stored result fails its
+     * check: the error is reported and the caller sends the user to the
+     * period screen, which says so.
+     */
+    public static function readable(Request $request, Period $period, EloquentSettlements $settlements): ?self
+    {
+        try {
+            return self::from($request, $period, $settlements);
+        } catch (CorruptSettlement $corrupt) {
+            report($corrupt);
+
+            return null;
+        }
+    }
+
+    /**
+     * readable() for the screens that need a settlement: a period never
+     * calculated answers 404.
+     */
+    public static function calculated(Request $request, Period $period, EloquentSettlements $settlements): ?self
+    {
+        $selected = self::readable($request, $period, $settlements);
+        abort_if($selected !== null && $selected->settlement === null, 404);
+
+        return $selected;
+    }
+
     /** Whether the version shown is the latest one, the one the flow moves. */
     public function isLatest(): bool
     {

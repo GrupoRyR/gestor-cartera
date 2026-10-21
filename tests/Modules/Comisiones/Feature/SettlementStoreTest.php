@@ -126,15 +126,29 @@ it('keeps the complementary version apart from the closed one', function () {
 
     $versions = $this->store->versions($this->july);
 
-    expect(array_map(fn (Settlement $s) => [$s->version, $s->status, $s->previousVersion, $s->reason], $versions))->toBe([
-        [1, SettlementStatus::Closed, null, null],
-        [2, SettlementStatus::Draft, 1, 'Nota crédito tardía de SAP'],
+    expect(array_map(fn (SettlementRecord $row) => [$row->version, $row->estado, $row->version_anterior, $row->motivo], $versions))->toBe([
+        [1, SettlementStatus::Closed->value, null, null],
+        [2, SettlementStatus::Draft->value, 1, 'Nota crédito tardía de SAP'],
     ])
         ->and($this->store->latest($this->july)?->version)->toBe(2)
         ->and(($this->saleOf14)($this->store->version($this->july, 1)))->toBe('524364')
         ->and(($this->saleOf14)($this->store->version($this->july, 2)))->toBe('0')
         ->and($this->store->version($this->july, 3))->toBeNull()
         ->and($this->store->record($this->july, 2)?->motivo)->toBe('Nota crédito tardía de SAP');
+});
+
+it('lists the versions of a period without reading their results', function () {
+    $approved = $this->draft->approve('beto@segurex.com', new DateTimeImmutable('2026-08-05 10:00'), 1, ['codigo_desconocido:99' => 'Venta de prueba.']);
+    $this->store->save($approved->close('beto@segurex.com', new DateTimeImmutable('2026-08-05 11:00')));
+    SettlementRecord::query()->update(['resultado_sha256' => str_repeat('0', 64)]);
+
+    $versions = $this->store->versions($this->july);
+
+    expect($versions)->toHaveCount(1)
+        ->and($versions[0]->version)->toBe(1)
+        ->and($versions[0]->estado)->toBe(SettlementStatus::Closed->value)
+        ->and($versions[0]->calculado_por)->toBe('ana@segurex.com')
+        ->and(array_key_exists('resultado', $versions[0]->getAttributes()))->toBeFalse();
 });
 
 it('refuses a new version that another request stored meanwhile instead of overwriting it', function () {
