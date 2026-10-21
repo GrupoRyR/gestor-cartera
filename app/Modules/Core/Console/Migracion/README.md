@@ -7,6 +7,30 @@ Comandos de Artisan que traen a esta app el histórico de los dos sistemas anter
 
 Los comandos no se conectan a ninguna de las dos bases. Leen archivos CSV que tú exportas y dejas en una carpeta, y esa carpeta se les pasa con `--dir`.
 
+## Orden de ejecución
+
+1. [ ] Confirma que Ingesta ya cargó los clientes, las facturas y los asesores de SAP de las dos empresas.
+2. [ ] Exporta los seis archivos (ver «Cómo exportar») y déjalos en una carpeta del servidor, p. ej. `$HOME/migracion`.
+3. [ ] Escoge un horario fuera de la jornada de trabajo, o pon la app en mantenimiento con `php artisan down` (y al terminar, `php artisan up`). Cada comando es una sola transacción y deja bloqueados los usuarios y clientes que toca hasta que termina: mientras corre, quien intente cambiarlos en la app espera o recibe un error.
+4. [ ] Para cada comando, en este orden, córrelo primero en modo de prueba, revisa su reporte y solo entonces córrelo de verdad. No pases al siguiente hasta terminar el anterior: cada uno necesita lo que el anterior guardó (por ejemplo, compromisos necesita a los autores que trae usuarios).
+
+   ```bash
+   php artisan core:migrar-usuarios --dir="$HOME/migracion" --dry-run
+   php artisan core:migrar-usuarios --dir="$HOME/migracion"
+
+   php artisan core:migrar-gestiones --dir="$HOME/migracion" --dry-run
+   php artisan core:migrar-gestiones --dir="$HOME/migracion"
+
+   php artisan core:migrar-compromisos --dir="$HOME/migracion" --dry-run
+   php artisan core:migrar-compromisos --dir="$HOME/migracion"
+
+   php artisan core:migrar-estados --dir="$HOME/migracion" --dry-run
+   php artisan core:migrar-estados --dir="$HOME/migracion"
+   ```
+
+   Si el modo de prueba muestra rechazos que puedes corregir (clientes, fechas, valores, columnas), corrige el archivo y repite la prueba antes de la corrida real.
+5. [ ] Si después corriges filas rechazadas, vuelve a correr el comando: lo que ya entró queda omitido.
+
 ## Orden
 
 Corre los comandos en este orden; cada uno usa lo que dejó el anterior.
@@ -213,3 +237,80 @@ Cada gestión importada guarda su origen en `metadata.legacy_key` (`fase1:action
 - Si `empresa`, `tipo`, `created_at` o `creado_en` están vacíos, o el tipo no es de los esperados.
 - Si `created_at` o `creado_en` no son una fecha válida.
 - Si no se encuentra el cliente, como se explica arriba.
+
+## Compromisos (`core:migrar-compromisos`)
+
+Lee los mismos archivos que `core:migrar-gestiones` y crea un compromiso de pago por cada compromiso de los sistemas anteriores. Corre antes `core:migrar-usuarios`: cada compromiso necesita un autor que exista en la app.
+
+### Qué filas son compromisos
+
+- **Fase 1** (`fase1_actions.csv`): las filas con `compromiso_fecha`, de cualquier tipo (una llamada que dejó compromiso queda como llamada en la bitácora y, además, como compromiso), y las de `tipo` compromiso.
+- **Supabase** (`supabase_gestiones.csv`): las filas de `tipo` compromiso.
+- Las demás filas quedan como omitidas («no es un compromiso»), para que «Leídos» siga siendo el número de filas del archivo.
+
+### Cómo queda cada compromiso
+
+| Campo | Fase 1 | Supabase |
+|---|---|---|
+| Cliente | Como en las gestiones (código SAP o NIT) | El cliente de SGX con `codigo_sn` |
+| Asesor | El asesor actual del cliente en la app | `slp_code` |
+| Valor | `compromiso_valor` | `valor_compromiso` |
+| Fecha | `compromiso_fecha` | `fecha_compromiso` |
+| Notas | `detalle`; en una llamada con resultado, «Llamada: <resultado>» y debajo el detalle | `nota` |
+| Autor | El usuario de `user_id` | El usuario de `creado_por` |
+| Creado | `created_at` (hora de Bogotá) | `creado_en` |
+
+### Estado
+
+| Origen | Situación | Estado en la app |
+|---|---|---|
+| Fase 1 | Vence hoy o después (calendario de Bogotá) y es la promesa más reciente del cliente | Pendiente |
+| Fase 1 | Vence hoy o después, pero el cliente hizo después otra promesa que también vence hoy o después | Anulado, con la fecha de la importación y el motivo «Reemplazado por un compromiso posterior en Cartera Fase 1.» (Fase 1 solo tenía en cuenta la última promesa de cada cliente) |
+| Fase 1 | Ya venció | Anulado, con la fecha de la importación y el motivo «Importado de Cartera Fase 1 sin estado de cierre.» (Fase 1 no guardaba si se cumplió) |
+| Supabase | `abierto` y vence hoy o después | Pendiente |
+| Supabase | `abierto` y ya venció | Incumplido, con la fecha de la importación, como lo hace la tarea diaria de incumplidos |
+| Supabase | `cumplido` | Cumplido, con la fecha de `actualizado_en` |
+| Supabase | `cancelado` | Anulado, con la fecha de `actualizado_en` y el motivo «Anulado en el portal de asesores.» |
+
+La promesa más reciente de un cliente de Fase 1 es, entre sus compromisos que vencen hoy o después y que se pueden importar, el de `created_at` más reciente (si empatan, el de `id` más alto). Las filas que se rechazan no cuentan.
+
+### Bitácora y efectos
+
+- Cada compromiso deja en la bitácora del cliente la misma gestión que escribe la app al crear uno («Compromiso de pago por $ … para el …», con las notas como detalle), escrita por su autor y con la fecha de creación del compromiso. Mueve la última actividad del cliente con la regla de las gestiones.
+- **No cambia el estado del cliente** ni envía nada. Los estados manuales los trae `core:migrar-estados`.
+
+### Volver a correrlo
+
+La gestión de cada compromiso guarda su origen en `metadata.legacy_key` (`fase1:compromiso:<id>` o `supabase:compromiso:<id>`, distinto del de la gestión, así que una llamada con compromiso no choca). Una fila cuyo origen ya está en la bitácora queda como omitida («ya importado»).
+
+### Se rechaza la fila
+
+- «compromiso sin fecha»: un compromiso sin fecha.
+- «compromiso sin valor»: sin valor, o con valor cero o negativo.
+- «el autor no existe en la app: <correo o usuario Fase 1 #N>; corre primero core:migrar-usuarios»: el autor no es un usuario de la app.
+- Si no se encuentra el cliente, si la empresa no es la del cliente o si una fecha no es válida, como en las gestiones.
+
+## Estados manuales (`core:migrar-estados`)
+
+Lee `fase1_clients.csv` (con `fase1_client_codes.csv` si está, para encontrar los clientes) y lleva a la app los estados manuales de Fase 1: en gestión, compromiso, incumplido y jurídico. Los estados automáticos (al día, por vencer, vencida, pago recibido) no se migran: la app los calcula con cada carga de cartera.
+
+Para cada cliente de Fase 1, en este orden:
+
+| Caso | Resultado |
+|---|---|
+| `estado` no es un estado de la app | Rechazada: «estado desconocido: <estado>» |
+| `estado_manual` no es 1, o el estado no es manual | Omitida: «no es estado manual» |
+| El cliente no se encuentra en la app (como en las gestiones) | Rechazada, con el motivo |
+| El cliente no tiene saldo pendiente en la app | Omitida: «sin saldo pendiente en la app» (la próxima carga lo devolvería a su estado automático) |
+| Ya se aplicó en una corrida anterior, o el cliente ya tiene ese estado | Omitida: «ya aplicado» |
+| El cliente ya tiene otro estado manual en la app | Omitida: «ya tiene estado manual en la app: <estado>». La migración nunca pisa lo que alguien decidió en la app. |
+| El estado es «compromiso» y el cliente no tiene ningún compromiso pendiente en la app | Omitida: «sin compromiso pendiente en la app». Corre antes `core:migrar-compromisos`. |
+| Cualquier otro | Se aplica |
+
+Aplicar un estado hace lo mismo que el cambio manual de la app, pero como el sistema:
+
+- Cambia el estado del cliente y guarda la fecha del cambio.
+- Deja en la bitácora una gestión «Cambio de estado» («De «Vencida» a «Jurídico»») sin autor, con el detalle «Importado de Cartera Fase 1» y `metadata` `from`, `to` y `legacy_key` (`fase1:estado:<id del cliente en Fase 1>`). Como no tiene autor, no mueve la última actividad del cliente.
+- Audita `core.client.status_changed`, con el origen «migracion», el archivo y la línea.
+
+Volver a correrlo no aplica dos veces el mismo estado, aunque en la app lo hayan cambiado después.
