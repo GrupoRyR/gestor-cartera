@@ -21,8 +21,9 @@ use Illuminate\Http\Request;
  * The settlement of a period (§6, §7, §9.7), comisiones.periodos.*:
  *
  * - GET /comisiones/liquidacion: the menu entry "Liquidación del mes"; goes
- *   to the latest period still open, or else to the month before the
- *   current one (the month being settled once it ends);
+ *   to the month before the current one (the month being settled once it
+ *   ends), unless a later period is still open. An older draft left open
+ *   never holds the entry on a past month;
  * - GET /comisiones/periodos/{periodo}?version=N: status, version and
  *   revision, who calculated, approved and closed it, totals, alerts with
  *   their justifications, the approval form and the versions of the period.
@@ -36,11 +37,13 @@ final class SettlementController
 
     public function current(): RedirectResponse
     {
-        $open = SettlementRecord::query()
+        $settling = PeriodRoute::current()->previous();
+        $later = SettlementRecord::query()
             ->where('estado', '!=', SettlementStatus::Closed->value)
+            ->where('periodo', '>', $settling->key())
             ->max('periodo');
 
-        $period = is_string($open) ? Period::fromString($open) : PeriodRoute::current()->previous();
+        $period = is_string($later) ? Period::fromString($later) : $settling;
 
         return redirect()->route('comisiones.periodos.show', $period->key());
     }

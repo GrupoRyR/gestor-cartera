@@ -49,6 +49,27 @@ function julySales(SapBatches $sap, int $budgetBy, bool $unknownCode = false): v
     BudgetRecord::query()->create(['periodo' => '2026-07', 'slp_code' => 14, 'valor' => '77241857.00', 'created_by' => $budgetBy]);
 }
 
+/**
+ * A version row with a placeholder result, for the screens that never
+ * read the result back.
+ */
+function menuVersionRow(string $period, SettlementStatus $status): SettlementRecord
+{
+    return SettlementRecord::query()->create([
+        'periodo' => $period,
+        'version' => 1,
+        'revision' => 1,
+        'estado' => $status->value,
+        'calculado_por' => 'ana@segurex.com',
+        'calculado_en' => CarbonImmutable::parse('2026-08-01 08:00:00'),
+        'justificaciones' => [],
+        'resultado' => 'placeholder',
+        'resultado_sha256' => hash('sha256', 'placeholder'),
+        'total_nomina' => '0.00',
+        'alertas_bloqueantes' => 0,
+    ]);
+}
+
 it('serves the settlement of a period under /comisiones/periodos', function () {
     expect(route('comisiones.periodos.show', '2026-07', absolute: false))->toBe('/comisiones/periodos/2026-07')
         ->and(route('comisiones.periodos.calcular', '2026-07', absolute: false))->toBe('/comisiones/periodos/2026-07/calcular')
@@ -87,6 +108,24 @@ it('lists every entry of the module in the menu, showing the ones whose route ex
 });
 
 it('opens the month being settled from the menu entry', function () {
+    $this->actingAs($this->analyst)->get('/comisiones/liquidacion')->assertRedirect('/comisiones/periodos/2026-07');
+});
+
+it('keeps the menu entry on the month being settled when an older draft was left open', function () {
+    menuVersionRow('2026-03', SettlementStatus::Draft);
+    menuVersionRow('2026-06', SettlementStatus::Approved);
+
+    $this->actingAs($this->analyst)->get('/comisiones/liquidacion')->assertRedirect('/comisiones/periodos/2026-07');
+});
+
+it('opens a later period from the menu entry while it is open', function () {
+    menuVersionRow('2026-07', SettlementStatus::Closed);
+    menuVersionRow('2026-08', SettlementStatus::Draft);
+
+    $this->actingAs($this->analyst)->get('/comisiones/liquidacion')->assertRedirect('/comisiones/periodos/2026-08');
+
+    SettlementRecord::query()->where('periodo', '2026-08')->update(['estado' => SettlementStatus::Closed->value]);
+
     $this->actingAs($this->analyst)->get('/comisiones/liquidacion')->assertRedirect('/comisiones/periodos/2026-07');
 });
 
