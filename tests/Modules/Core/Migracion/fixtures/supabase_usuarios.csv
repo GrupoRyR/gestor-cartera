@@ -1,0 +1,4 @@
+id,email,nombre,rol,slp_codes,activo,created_at
+7f1c,andres.ospina@segurex.com,Andrés O.,gerente,"{84,99}",true,2025-03-01 10:00:00+00
+8a2d,camilo.duque@segurex.com,Camilo Duque,asesor,"{84,85,99}",true,2025-03-02 11:30:00+00
+9b3e,diana.velez@segurex.com,Diana Vélez,admin,{77},f,2025-03-03 08:15:00+00

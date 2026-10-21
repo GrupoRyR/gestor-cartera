@@ -106,6 +106,25 @@ function storedVersion(string $type, string $key, string $from): array
     return ParameterRecord::query()->where('tipo', $type)->where('clave', $key)->whereDate('vigente_desde', $from)->sole()->datos;
 }
 
+/**
+ * The array with the keys of every object sorted, recursively; lists keep
+ * their order. MySQL's JSON columns reorder object keys, SQLite keeps them.
+ *
+ * @param  array<array-key, mixed>  $data
+ * @return array<array-key, mixed>
+ */
+function keysSorted(array $data): array
+{
+    if (! array_is_list($data)) {
+        ksort($data);
+    }
+
+    return array_map(fn (mixed $value): mixed => is_array($value) ? keysSorted($value) : $value, $data);
+}
+
+// Strict like toBe(), types included, whatever order the database gives the keys.
+expect()->extend('toBeStoredAs', fn (array $expected) => expect(keysSorted($this->value))->toBe(keysSorted($expected)));
+
 it('serves the forms under /comisiones/parametros/{tipo}/nueva and stores per kind', function () {
     expect(route('comisiones.parametros.create', ['tipo' => 'codigo', 'clave' => '14'], absolute: false))->toBe('/comisiones/parametros/codigo/nueva?clave=14')
         ->and(route('comisiones.parametros.create', ['tipo' => 'tramos'], absolute: false))->toBe('/comisiones/parametros/tramos/nueva')
@@ -185,7 +204,7 @@ it('adds a version of a code that ends the one in force and is used from its mon
     expect(ParameterRecord::query()->where('tipo', 'codigo')->where('clave', '50')->orderBy('vigente_desde')->get()
         ->map(fn (ParameterRecord $row) => [$row->vigente_desde->format('Y-m-d'), $row->vigente_hasta?->format('Y-m-d')])->all())
         ->toBe([['2026-01-01', '2026-10-31'], ['2026-11-01', null]])
-        ->and(storedVersion('codigo', '50', '2026-11-01'))->toBe([
+        ->and(storedVersion('codigo', '50', '2026-11-01'))->toBeStoredAs([
             'nombre' => 'Andrea Hincapié',
             'persona' => ['id' => 'andrea-hincapie', 'nombre' => 'Andrea Hincapié'],
             'tasa_venta' => '2',
@@ -237,7 +256,7 @@ it('adds a new seller code with rates typed with a comma and the person taken fr
         ->assertRedirect('/comisiones/parametros/codigo/120')
         ->assertSessionHas('status', 'Guardaste la versión del código 120 que rige desde el 01/11/2026.');
 
-    expect(storedVersion('codigo', '120', '2026-11-01'))->toBe([
+    expect(storedVersion('codigo', '120', '2026-11-01'))->toBeStoredAs([
         'nombre' => 'Laura Pérez',
         'persona' => ['id' => 'laura-perez', 'nombre' => 'Laura Pérez'],
         'tasa_venta' => '0.5',
@@ -326,7 +345,7 @@ it('edits the tranche table, dropping the empty rows', function () {
         ->assertRedirect('/comisiones/parametros/tramos/tramos')
         ->assertSessionHas('status', 'Guardaste la versión de la tabla de tramos que rige desde el 01/11/2026.');
 
-    expect(storedVersion('tramos', 'tramos', '2026-11-01'))->toBe(['tramos' => [
+    expect(storedVersion('tramos', 'tramos', '2026-11-01'))->toBeStoredAs(['tramos' => [
         ['desde' => 0, 'hasta' => 60, 'participacion' => '100'],
         ['desde' => 61, 'hasta' => 80, 'participacion' => '90'],
         ['desde' => 81, 'hasta' => 95, 'participacion' => '80'],
@@ -391,7 +410,7 @@ it('edits a director team and adds a new one', function () {
         ->assertRedirect('/comisiones/parametros/equipo/distribucion')
         ->assertSessionHas('status', 'Guardaste la versión del equipo Distribución que rige desde el 01/11/2026.');
 
-    expect(storedVersion('equipo', 'distribucion', '2026-11-01'))->toBe([
+    expect(storedVersion('equipo', 'distribucion', '2026-11-01'))->toBeStoredAs([
         'canal' => 'Distribución',
         'director' => ['id' => 'jessika-quintero', 'nombre' => 'Jessika Quintero'],
         'codigo_asociado' => 53,
@@ -405,7 +424,7 @@ it('edits a director team and adds a new one', function () {
         ->assertRedirect('/comisiones/parametros/equipo/retail');
 
     expect(storedVersion('equipo', 'retail', '2026-11-01')['codigo_asociado'])->toBeNull()
-        ->and(storedVersion('equipo', 'retail', '2026-11-01')['director'])->toBe(['id' => 'jessika-quintero', 'nombre' => 'Jessika Quintero']);
+        ->and(storedVersion('equipo', 'retail', '2026-11-01')['director'])->toBeStoredAs(['id' => 'jessika-quintero', 'nombre' => 'Jessika Quintero']);
 
     // Codes that are not numbers or repeat, and a key that is a plain number.
     $this->actingAs($this->manager)->from('/comisiones/parametros/equipo/nueva')
@@ -438,7 +457,7 @@ it('edits a derived commission and refuses a key that reads as a code', function
         ->assertRedirect('/comisiones/parametros/derivada/85.1')
         ->assertSessionHas('status', 'Guardaste la versión de la comisión derivada 85.1 que rige desde el 01/11/2026.');
 
-    expect(storedVersion('derivada', '85.1', '2026-11-01'))->toBe([
+    expect(storedVersion('derivada', '85.1', '2026-11-01'))->toBeStoredAs([
         'etiqueta' => 'Sergio Caballero (recaudo)',
         'persona' => ['id' => 'sergio-caballero', 'nombre' => 'Sergio Caballero'],
         'codigo_origen' => 85,
@@ -472,7 +491,7 @@ it('stores the settlement options and shows them back', function () {
         ->assertRedirect('/comisiones/parametros/opciones/opciones')
         ->assertSessionHas('status', 'Guardaste la versión de las opciones de liquidación que rige desde el 01/11/2026.');
 
-    expect(storedVersion('opciones', 'opciones', '2026-11-01'))->toBe([
+    expect(storedVersion('opciones', 'opciones', '2026-11-01'))->toBeStoredAs([
         'base_venta' => 'con_iva',
         'iva_venta' => '19',
         'notas_credito' => 'netear',

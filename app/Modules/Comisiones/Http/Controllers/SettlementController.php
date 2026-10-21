@@ -11,6 +11,7 @@ use App\Modules\Comisiones\Infrastructure\Persistence\SettlementRecord;
 use App\Modules\Comisiones\Infrastructure\Settlement\ApprovalGuard;
 use App\Modules\Comisiones\Infrastructure\Settlement\CorruptSettlement;
 use App\Modules\Comisiones\Infrastructure\Settlement\EloquentSettlements;
+use App\Modules\Comisiones\Infrastructure\Settlement\InputChanges;
 use App\Modules\Comisiones\Infrastructure\Settlement\UserNames;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\RedirectResponse;
@@ -44,7 +45,7 @@ final class SettlementController
         return redirect()->route('comisiones.periodos.show', $period->key());
     }
 
-    public function show(Request $request, ApprovalGuard $guard, string $periodo): View
+    public function show(Request $request, ApprovalGuard $guard, InputChanges $changes, string $periodo): View
     {
         $period = PeriodRoute::period($periodo);
         $versions = SettlementRecord::query()->where('periodo', $period->key())->orderBy('version')->get();
@@ -78,6 +79,14 @@ final class SettlementController
             && $user instanceof User && $user->can('comisiones.approve')) {
             $reasons = $guard->reasons($period, $user);
             $isAnalyst = mb_strtolower(trim($settlement->calculatedBy)) === mb_strtolower(trim($user->email));
+
+            if ($changes->since($period, $settlement->calculatedAt)) {
+                $reasons[] = __('comisiones::liquidacion.errores.entradas_cambiaron', [
+                    'periodo' => $period->key(),
+                    'revision' => $settlement->revision,
+                    'paso' => __('comisiones::liquidacion.errores.pasos.aprobar'),
+                ]);
+            }
 
             $approval = [
                 'reasons' => $isAnalyst ? [__('comisiones::liquidacion.aprobacion.mismo_analista'), ...$reasons] : $reasons,

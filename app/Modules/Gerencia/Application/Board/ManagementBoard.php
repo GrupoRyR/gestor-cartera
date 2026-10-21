@@ -4,7 +4,7 @@ namespace App\Modules\Gerencia\Application\Board;
 
 use App\Modules\Gerencia\Application\Collections\CollectionsReport;
 use App\Modules\Gerencia\Application\Commitments\ComplianceReport;
-use App\Modules\Gerencia\Application\Mail\MailResultsReport;
+use App\Modules\Gerencia\Application\Mail\MailRunsReport;
 use App\Modules\Gerencia\Application\Portfolio\ScopeFigures;
 use App\Modules\Gerencia\Domain\Period\ReportPeriod;
 use Carbon\CarbonImmutable;
@@ -24,7 +24,7 @@ final readonly class ManagementBoard
         public string $scopeName,
         public array $scopes,
         public ComplianceReport $compliance,
-        public MailResultsReport $mail,
+        public MailRunsReport $mail,
         public CollectionsReport $collections,
     ) {}
 

@@ -8,6 +8,7 @@ use App\Modules\Comisiones\Application\CalculateSettlement;
 use App\Modules\Comisiones\Application\CloseSettlement;
 use App\Modules\Comisiones\Application\RegisterComplementarySettlement;
 use App\Modules\Comisiones\Domain\Settlement\Settlement;
+use App\Modules\Comisiones\Domain\Settlement\SettlementStatus;
 use App\Modules\Comisiones\Domain\Settlement\UnresolvedAlerts;
 use App\Modules\Comisiones\Domain\Shared\Period;
 use App\Modules\Comisiones\Http\Requests\ApproveSettlementRequest;
@@ -15,14 +16,17 @@ use App\Modules\Comisiones\Http\Requests\ComplementarySettlementRequest;
 use App\Modules\Comisiones\Http\Support\PeriodRoute;
 use App\Modules\Comisiones\Http\Support\SettlementErrors;
 use App\Modules\Comisiones\Infrastructure\Audit\AuditTrail;
+use App\Modules\Comisiones\Infrastructure\Persistence\SettlementRecord;
 use App\Modules\Comisiones\Infrastructure\Settlement\ApprovalGuard;
 use App\Modules\Comisiones\Infrastructure\Settlement\ApprovalRefused;
 use App\Modules\Comisiones\Infrastructure\Settlement\CorruptSettlement;
 use App\Modules\Comisiones\Infrastructure\Settlement\EloquentSettlements;
+use App\Modules\Comisiones\Infrastructure\Settlement\InputChanges;
 use Carbon\CarbonImmutable;
 use Closure;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use InvalidArgumentException;
 use Throwable;
 
 /**
@@ -45,6 +49,7 @@ final class SettlementActionController
     public function __construct(
         private readonly EloquentSettlements $settlements,
         private readonly AuditTrail $audit,
+        private readonly InputChanges $changes,
     ) {}
 
     public function calculate(Request $request, CalculateSettlement $calculate, string $periodo): RedirectResponse
@@ -64,6 +69,10 @@ final class SettlementActionController
     {
         $period = PeriodRoute::period($periodo);
         $user = self::user($request);
+
+        if ($stale = $this->staleInputs($period, SettlementStatus::Draft, 'aprobar')) {
+            return $stale;
+        }
 
         try {
             $guard->assertMayApprove($period, $user);
@@ -98,6 +107,10 @@ final class SettlementActionController
         $period = PeriodRoute::period($periodo);
         $user = self::user($request);
 
+        if ($stale = $this->staleInputs($period, SettlementStatus::Approved, 'cerrar')) {
+            return $stale;
+        }
+
         return $this->attempt($period, 'cerrar', function () use ($close, $period, $user): RedirectResponse {
             $settlement = $close->handle($period, $user->email, CarbonImmutable::now());
             $this->record('comisiones.settlement.closed', $settlement, $user);
@@ -118,6 +131,31 @@ final class SettlementActionController
 
             return $this->done($settlement, 'complementaria');
         }, withInput: true);
+    }
+
+    /**
+     * Refuses to approve or close the latest version when the budget, an
+     * approved capture or a parameter version of the period changed after
+     * it was calculated: it would sign off figures that leave them out.
+     * Only checked when the latest version is in the status the step needs;
+     * otherwise the step itself answers.
+     *
+     * @param  string  $step  aprobar or cerrar.
+     */
+    private function staleInputs(Period $period, SettlementStatus $status, string $step): ?RedirectResponse
+    {
+        $latest = SettlementRecord::query()->where('periodo', $period->key())->orderByDesc('version')
+            ->first(['version', 'revision', 'estado', 'calculado_en']);
+
+        if ($latest === null || $latest->estado !== $status->value || ! $this->changes->since($period, $latest->calculado_en)) {
+            return null;
+        }
+
+        return $this->back($period)->with('error', __('comisiones::liquidacion.errores.entradas_cambiaron', [
+            'periodo' => $period->key(),
+            'revision' => $latest->revision,
+            'paso' => __("comisiones::liquidacion.errores.pasos.{$step}"),
+        ]));
     }
 
     /**
@@ -143,8 +181,11 @@ final class SettlementActionController
             throw $exception;
         }
 
-        // A corrupt stored result needs IT; the other refusals are expected answers.
-        if ($exception instanceof CorruptSettlement) {
+        // A corrupt stored result needs IT. An InvalidArgumentException is either a
+        // user input the engine refused or a bug (a malformed amount or date), and
+        // they look the same here, so it is logged too. The other refusals are
+        // expected answers of the flow.
+        if ($exception instanceof CorruptSettlement || $exception instanceof InvalidArgumentException) {
             report($exception);
         }
 

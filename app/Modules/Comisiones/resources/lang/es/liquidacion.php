@@ -95,6 +95,11 @@ return [
     ],
 
     'errores' => [
+        'entradas_cambiaron' => 'Hay cambios en el presupuesto, en capturas aprobadas o en parámetros de :periodo después del cálculo de la revisión :revision. Recalcula la liquidación antes de :paso.',
+        'pasos' => [
+            'aprobar' => 'aprobarla',
+            'cerrar' => 'cerrarla',
+        ],
         'sin_liquidacion' => 'Todavía no has calculado la liquidación de :periodo.',
         'cerrada' => 'La liquidación de :periodo está cerrada. Para corregirla, registra una liquidación complementaria.',
         'transicion' => [

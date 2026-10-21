@@ -92,10 +92,45 @@ return [
                     .'E-mail: cartera@derivadoscol.com',
             ],
         ],
+        // The monthly circularization texts each company sends today, word
+        // for word (client-facing: they keep "usted" as written).
         'circularizacion' => [
-            'asunto' => 'Estado de cartera de {cliente} con {empresa}',
-            'inicio' => "Hola, {cliente}:\n\nCon corte al {fecha_corte}, este es el estado de tu cartera con {empresa}.",
-            'cierre' => "Si encuentras alguna diferencia, responde a este correo para revisarla.\n\nGracias,\nÁrea de cartera de {empresa}",
+            'SGX' => [
+                'asunto' => 'Circularización de Cartera – Corte al {fecha_cierre}',
+                'inicio' => "Buen día\n\n"
+                    ."Estimado cliente {cliente}\n\n"
+                    ."Cordial saludo,\n\n"
+                    .'Con el fin de mantener actualizada nuestra información contable y dar cumplimiento a nuestros procesos de conciliación, '
+                    .'nos permitimos circularizar el estado de su cartera con corte al {fecha_cierre}.',
+                'cierre' => 'Agradecemos validar el saldo registrado y, en caso de presentarse alguna diferencia, remitirnos sus observaciones y/o soportes '
+                    .'correspondientes dentro de los próximos cinco (5) días hábiles, a los correos cartera@segurex.com, creditosgx@outlook.com y '
+                    ."miguel.martinez@segurex.com.\n\n"
+                    .'En caso de estar de acuerdo con la información suministrada, agradeceremos nos confirme su conformidad por este mismo medio. '
+                    ."Su colaboración es fundamental para garantizar la correcta gestión y conciliación de nuestras cuentas.\n\n"
+                    ."Quedamos atentos a cualquier inquietud\n\n"
+                    ."Cordialmente,\n\n"
+                    ."**María Paula Alvarez**\n"
+                    .'Auxiliar de Cartera',
+            ],
+            'SDC' => [
+                'asunto' => 'Circularización de Cartera – Corte al {fecha_cierre}',
+                'inicio' => "Buen día\n\n"
+                    ."Estimado cliente **{cliente}**\n\n"
+                    ."Cordial saludo,\n\n"
+                    .'Con el fin de mantener actualizada nuestra información contable y dar cumplimiento a nuestros procesos de conciliación, '
+                    .'nos permitimos circularizar el estado de su cartera con **corte al {fecha_cierre}**.',
+                'cierre' => 'Agradecemos validar el saldo registrado y, en caso de presentarse alguna diferencia, remitirnos sus observaciones y/o soportes '
+                    .'correspondientes dentro de los próximos **cinco (5) días hábiles**, a los correos cartera@derivadoscol.com y '
+                    ."miguel.martinez@derivadoscol.com.\n\n"
+                    .'En caso de estar de acuerdo con la información suministrada, agradeceremos nos confirme su conformidad por este mismo medio. '
+                    ."Su colaboración es fundamental para garantizar la correcta gestión y conciliación de nuestras cuentas.\n\n"
+                    ."Quedamos atentos a cualquier inquietud.\n\n"
+                    ."**Cordialmente,**\n\n"
+                    ."**María Paula Alvarez**\n"
+                    ."**Auxiliar de Crédito y Cobranza**\n"
+                    ."**Celular: +57 3153654788**\n"
+                    .'**E-mail: cartera@derivadoscol.com**',
+            ],
         ],
     ],
 
