@@ -1,0 +1,6 @@
+id,codigo_sn,nombre_sn,documento,slp_code,tipo,nota,fecha_compromiso,valor_compromiso,estado,creado_por,creado_en,actualizado_en
+101,C100,Agro Arango,FV-1001,84,nota,"Llamé y no contestó.
+Vuelvo a llamar el lunes.",,,abierto,Camilo.Duque@segurex.com,2025-03-20 20:30:00+00,2025-03-20 20:30:00+00
+102,C200,Ferretería La Montaña,,84,nota,Cliente pide paz y salvo,,,abierto,andres.ospina@segurex.com,2025-03-21T14:00:00.123456+00:00,2025-03-21 14:00:00+00
+103,C100,Agro Arango,,84,compromiso,Paga el viernes,2025-03-28,500000,abierto,andres.ospina@segurex.com,2025-03-22 10:00:00+00,2025-03-22 10:00:00+00
+104,C999,Desconocido,,84,nota,Cliente que no existe,,,abierto,andres.ospina@segurex.com,2025-03-23 10:00:00+00,2025-03-23 10:00:00+00

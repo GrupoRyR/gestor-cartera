@@ -126,23 +126,25 @@ it('copies nobody on the test send', function () {
     $this->fakes->mail->assertSent(fn (OutgoingMail $mail): bool => $mail->to === ['maria.rojas@segurex.com'] && $mail->cc === [], times: 1);
 });
 
-it('copies nobody on the circularization', function () {
+it('copies the same recipients on the circularization', function () {
     $this->travelTo(CarbonImmutable::parse('2026-11-01 09:00:00', 'America/Bogota'));
+    // The circularization waits for the cartera of the month close.
+    $this->fakes->cartera->cutoffDate = CarbonImmutable::parse('2026-10-31', 'America/Bogota');
 
-    $this->artisan('cobro:circularizacion --aun-en-borrador')->assertSuccessful();
+    $this->artisan('cobro:circularizacion --empresa=SGX')->assertSuccessful();
 
-    expect($this->fakes->mail->sent())->not->toBeEmpty()
-        ->and(collect($this->fakes->mail->sent())->every(fn (OutgoingMail $mail): bool => $mail->cc === []))->toBeTrue();
+    expect(cobroMailFor($this->distribuidor->summary->id)->cc)
+        ->toBe(['miguel.martinez@segurex.com', 'Jenny.Buitrago@segurex.com', 'jessika.quintero@segurex.com']);
 });
 
-it('shows the copies of each client in the weekly preview, and none in the circularization', function () {
+it('shows the copies of each client in the weekly and the circularization previews', function () {
     $analyst = CobroUsers::create(Role::PortfolioAnalyst);
 
     $this->actingAs($analyst)->get('/cobro/semanal')->assertOk()
         ->assertSeeText('Con copia a: miguel.martinez@segurex.com, Jenny.Buitrago@segurex.com, jessika.quintero@segurex.com');
 
     $this->actingAs($analyst)->get('/cobro/circularizacion')->assertOk()
-        ->assertDontSeeText('Con copia a');
+        ->assertSeeText('Con copia a: miguel.martinez@segurex.com, Jenny.Buitrago@segurex.com, jessika.quintero@segurex.com');
 });
 
 /**

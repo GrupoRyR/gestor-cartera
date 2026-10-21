@@ -36,8 +36,11 @@ use Illuminate\Database\Eloquent\Builder;
  * - sales, payments and crossings dated in the period (the engine would
  *   ignore the others anyway); crossings only when approved (SAP crossings
  *   always are);
- * - a sale is annulled when SAP marks it "anulado" or "anulacion": an
- *   original and its cancellation net to zero, so both leave the base;
+ * - a cancelled sale counts, signed, like a credit note: SAP marks the
+ *   original "anulado" and sends its cancellation ("anulacion") with the
+ *   opposite total. In one month they net to zero; when the cancellation
+ *   falls in a later month it reduces that month's sales, so a sale already
+ *   paid in a closed month is netted instead of lost (§14.2 "netear");
  * - a payment or crossing without an invoice date takes the date of the
  *   staged invoice (tipo_objeto 13, same doc_entry), else its own date
  *   (0 days); a crossing takes the invoice's currency, since Report 4 has none;
@@ -115,7 +118,8 @@ final class EloquentSettlementInputs implements SettlementInputs
             total: Money::of($sale->total),
             currency: self::currency($sale->moneda),
             exchangeRate: self::exchangeRate($sale->trm),
-            annulled: in_array($sale->estado_documento, ['anulado', 'anulacion'], true),
+            // Never annulled: see the class comment on cancellations.
+            annulled: false,
         );
     }
 

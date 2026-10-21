@@ -1,0 +1,7 @@
+id,empresa,nit,nombre,estado,estado_manual
+1,SGX,900100199,Agro Arango S.A.S.,vencida,0
+2,SGX,900.200.200,Ferretería La Montaña,al_dia,0
+3,SDC,800300300-9,Distribuciones Zuluaga,juridico,1
+4,SGX,900400400,Inversiones Duplicadas,al_dia,0
+5,SGX,900999999,Cliente Fantasma,al_dia,0
+6,SGX,900600600,Montajes Dos Códigos,al_dia,0
