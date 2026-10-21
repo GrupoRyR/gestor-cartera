@@ -9,7 +9,6 @@ use App\Modules\Comisiones\Http\Support\PeriodRoute;
 use App\Modules\Comisiones\Http\Support\SelectedSettlement;
 use App\Modules\Comisiones\Infrastructure\Persistence\SettlementRecord;
 use App\Modules\Comisiones\Infrastructure\Settlement\ApprovalGuard;
-use App\Modules\Comisiones\Infrastructure\Settlement\CorruptSettlement;
 use App\Modules\Comisiones\Infrastructure\Settlement\EloquentSettlements;
 use App\Modules\Comisiones\Infrastructure\Settlement\InputChanges;
 use App\Modules\Comisiones\Infrastructure\Settlement\UserNames;
@@ -53,11 +52,9 @@ final class SettlementController
         $period = PeriodRoute::period($periodo);
         $versions = $this->settlements->versions($period);
 
-        try {
-            $selected = SelectedSettlement::from($request, $period, $this->settlements);
-        } catch (CorruptSettlement $corrupt) {
-            report($corrupt);
+        $selected = SelectedSettlement::readable($request, $period, $this->settlements);
 
+        if ($selected === null) {
             return view('comisiones::periodos.show', [
                 'period' => $period,
                 'selected' => new SelectedSettlement($period, null, null),
