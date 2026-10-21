@@ -394,7 +394,7 @@ final class ComisionesDemoSeeder extends Seeder
             'slp_code' => 41,
             'tipo' => 'descuento',
             'valor' => '350000.00',
-            'descripcion' => 'Anticipo de comisión pagado en julio',
+            'descripcion' => 'Anticipo de comisión pagado el mes anterior',
             'estado' => CaptureStatus::Pending,
         ]);
 
