@@ -12,6 +12,8 @@ use App\Modules\Comisiones\Infrastructure\Settlement\EloquentSettlementInputs;
 use App\Modules\Comisiones\Infrastructure\Settlement\EloquentSettlements;
 use App\Modules\Core\Contracts\Events\BatchAccepted;
 use App\Support\Modules\ModuleServiceProvider;
+use App\Support\Navigation\NavItem;
+use App\Support\Navigation\NavRegistry;
 use Illuminate\Support\Facades\Event;
 
 /**
@@ -40,5 +42,77 @@ final class ComisionesServiceProvider extends ModuleServiceProvider
         Event::listen(BatchAccepted::class, ImportCommissionBatch::class);
 
         $this->commands([AssignModuleRoleCommand::class]);
+    }
+
+    /**
+     * The Comisiones group of the menu, after Cobro (its entries use 200 to
+     * 250). Every entry of the module is registered here; NavRegistry skips
+     * the ones whose route does not exist yet, so the areas built later
+     * (presupuesto, ajustes, parametros, auditoria) appear once their
+     * routes/web/<area>.php names these routes.
+     */
+    protected function navigation(NavRegistry $navigation): void
+    {
+        $navigation->add(
+            new NavItem(
+                key: 'comisiones.tablero',
+                label: 'Tablero',
+                route: 'comisiones.tablero',
+                icon: 'dashboard',
+                permission: 'comisiones.view',
+                group: 'Comisiones',
+                order: 200,
+            ),
+            new NavItem(
+                key: 'comisiones.liquidacion',
+                label: 'Liquidación del mes',
+                route: 'comisiones.liquidacion',
+                icon: 'document',
+                permission: 'comisiones.view',
+                group: 'Comisiones',
+                order: 210,
+                activePattern: 'comisiones.periodos.*',
+            ),
+            new NavItem(
+                key: 'comisiones.presupuesto',
+                label: 'Presupuesto',
+                route: 'comisiones.presupuesto.index',
+                icon: 'wallet',
+                permission: 'comisiones.view',
+                group: 'Comisiones',
+                order: 220,
+                activePattern: 'comisiones.presupuesto.*',
+            ),
+            new NavItem(
+                key: 'comisiones.ajustes',
+                label: 'Ajustes y cruces',
+                route: 'comisiones.ajustes.index',
+                icon: 'edit',
+                permission: 'comisiones.view',
+                group: 'Comisiones',
+                order: 230,
+                activePattern: 'comisiones.ajustes.*',
+            ),
+            new NavItem(
+                key: 'comisiones.parametros',
+                label: 'Parámetros',
+                route: 'comisiones.parametros.index',
+                icon: 'sliders',
+                permission: 'comisiones.parameters',
+                group: 'Comisiones',
+                order: 240,
+                activePattern: 'comisiones.parametros.*',
+            ),
+            new NavItem(
+                key: 'comisiones.auditoria',
+                label: 'Auditoría',
+                route: 'comisiones.auditoria.index',
+                icon: 'history',
+                permission: 'comisiones.audit',
+                group: 'Comisiones',
+                order: 250,
+                activePattern: 'comisiones.auditoria.*',
+            ),
+        );
     }
 }
