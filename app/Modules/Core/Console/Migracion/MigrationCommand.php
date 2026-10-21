@@ -32,6 +32,26 @@ abstract class MigrationCommand extends Command
     abstract protected function files(): array;
 
     /**
+     * Columns a file may have, by file name; read as empty when it lacks them.
+     *
+     * @return array<string, list<string>>
+     */
+    protected function optionalColumns(): array
+    {
+        return [];
+    }
+
+    /**
+     * Checks that the files found are enough to import something, before
+     * anything is written (e.g. a file that needs another one).
+     *
+     * @param  array<string, CsvFile>  $files
+     *
+     * @throws InvalidCsvFile With the message to show when they are not.
+     */
+    protected function checkFiles(array $files): void {}
+
+    /**
      * Imports the rows of $files, usually with eachRow().
      *
      * @param  array<string, CsvFile>  $files  The declared files found in the folder, by name.
@@ -49,15 +69,15 @@ abstract class MigrationCommand extends Command
 
         try {
             $files = $this->open($folder);
+
+            if ($files === []) {
+                throw new InvalidCsvFile("No encontré ninguno de estos archivos en {$folder}: ".implode(', ', array_keys($this->files())).'.');
+            }
+
+            $this->checkFiles($files);
         } catch (InvalidCsvFile $problem) {
             $this->error($problem->getMessage());
             $this->line('No se importó nada.');
-
-            return self::FAILURE;
-        }
-
-        if ($files === []) {
-            $this->error("No encontré ninguno de estos archivos en {$folder}: ".implode(', ', array_keys($this->files())).'.');
 
             return self::FAILURE;
         }
@@ -83,10 +103,10 @@ abstract class MigrationCommand extends Command
 
     /**
      * Runs $import on each row of $file and counts the outcome: true when it
-     * saved something, false when there was nothing to save. Each row runs
-     * in its own savepoint: a row that is unreadable, or that $import
-     * refuses with RowRejected, leaves nothing behind and is counted as
-     * rejected with its reason; the next row goes on.
+     * saved something, false (or RowSkipped, with its reason) when there was
+     * nothing to save. Each row runs in its own savepoint: a row that is
+     * unreadable, or that $import refuses with RowRejected, leaves nothing
+     * behind and is counted as rejected with its reason; the next row goes on.
      *
      * @param  Closure(CsvRow): bool  $import
      */
@@ -100,6 +120,10 @@ abstract class MigrationCommand extends Command
                 $saved = $this->database->transaction(fn (): bool => $import($row));
             } catch (RowRejected $rejection) {
                 $report->rejected($row, $rejection->getMessage());
+
+                continue;
+            } catch (RowSkipped $skip) {
+                $report->skipped($row, $skip->getMessage());
 
                 continue;
             }
@@ -157,7 +181,7 @@ abstract class MigrationCommand extends Command
             $path = $folder.DIRECTORY_SEPARATOR.$name;
 
             if (is_file($path)) {
-                $files[$name] = CsvFile::open($path, $columns);
+                $files[$name] = CsvFile::open($path, $columns, $this->optionalColumns()[$name] ?? []);
             } else {
                 $missing[] = $name;
             }
@@ -182,6 +206,20 @@ abstract class MigrationCommand extends Command
 
         $this->newLine();
         $this->table(['Origen', 'Archivo', 'Leídos', 'Importados', 'Omitidos', 'Rechazados'], $totals);
+
+        $skipped = [];
+
+        foreach ($report->skipReasons() as $file => $reasons) {
+            foreach ($reasons as $reason => $count) {
+                $skipped[] = [$file, $reason, $count];
+            }
+        }
+
+        if ($skipped !== []) {
+            $this->newLine();
+            $this->line('Omitidos por motivo:');
+            $this->table(['Archivo', 'Motivo', 'Filas'], $skipped);
+        }
 
         $this->entries('Filas rechazadas (no se importaron):', 'Motivo', $report->rejections());
         $this->entries('Avisos (la fila se importó u omitió, con esta salvedad):', 'Aviso', $report->warnings());

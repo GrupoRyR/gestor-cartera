@@ -26,10 +26,10 @@ Cada comando lee solo sus archivos. Los nombres son fijos: guarda cada exportaci
 
 | Archivo | Origen | Columnas | Lo usa |
 |---|---|---|---|
-| `fase1_users.csv` | Fase 1, tabla `users` | `id`, `nombre`, `email`, `rol` (admin o gestor), `empresa` (SGX, SDC o ALL), `activo` (0 o 1) | usuarios |
+| `fase1_users.csv` | Fase 1, tabla `users` | `id`, `nombre`, `email`, `rol` (admin o gestor), `empresa` (SGX, SDC o ALL), `activo` (0 o 1) | usuarios; gestiones y compromisos (para saber quién escribió) |
 | `fase1_clients.csv` | Fase 1, tabla `clients` | `id`, `empresa`, `nit`, `nombre`, `estado`, `estado_manual` | gestiones, compromisos, estados |
 | `fase1_client_codes.csv` | Fase 1, consulta sobre `invoices` (opcional) | `client_id`, `codigo_sn` | gestiones, compromisos, estados |
-| `fase1_actions.csv` | Fase 1, tabla `actions` | `id`, `client_id`, `empresa`, `user_id`, `tipo`, `resultado`, `detalle`, `compromiso_fecha`, `compromiso_valor`, `descuento`, `created_at` | gestiones, compromisos |
+| `fase1_actions.csv` | Fase 1, tabla `actions` | `id`, `client_id`, `empresa`, `user_id`, `tipo`, `resultado`, `detalle`, `compromiso_fecha`, `compromiso_valor`, `descuento`, `created_at`; `adjunto_nombre` si viene | gestiones, compromisos |
 | `supabase_usuarios.csv` | Supabase, tabla `usuarios` | `id`, `email`, `nombre`, `rol` (asesor, gerente o admin), `slp_codes`, `activo` (true o false) | usuarios |
 | `supabase_gestiones.csv` | Supabase, tabla `gestiones` | `id`, `codigo_sn`, `documento`, `slp_code`, `tipo` (nota o compromiso), `nota`, `fecha_compromiso`, `valor_compromiso`, `estado` (abierto, cumplido o cancelado), `creado_por` (correo), `creado_en`, `actualizado_en` | gestiones, compromisos |
 
@@ -111,7 +111,7 @@ Al final, el comando muestra una tabla por archivo:
 |---|---|
 | Leídos | Filas con datos (las líneas en blanco no cuentan). |
 | Importados | Filas que guardaron algo: un registro nuevo o algo que le faltaba a uno que ya existía. |
-| Omitidos | Filas que no tenían nada nuevo que guardar (ya estaban en la app). |
+| Omitidos | Filas que no tenían nada nuevo que guardar (ya estaban en la app) o que importa otro comando. La tabla «Omitidos por motivo» los cuenta por motivo. |
 | Rechazados | Filas que no se pudieron leer o no cumplen las reglas. No se guardó nada de ellas. |
 
 Debajo vienen, si los hay:
@@ -157,3 +157,59 @@ Lee `fase1_users.csv` y después `supabase_usuarios.csv`.
 - **Los códigos siguen al rol que queda**: los de un asesor solo se vinculan si el usuario queda como asesor comercial, y los de un gerente solo van a su equipo si queda como gerente comercial. Si conserva otro rol, no se vinculan y sale un aviso («no se vinculan los códigos 84, 85: el usuario conserva el rol analista_cartera»).
 - **Se rechaza la fila** si el correo está vacío o no es válido, si el nombre está vacío, o si el rol, la empresa o el estado no son de los valores esperados.
 - Cada usuario creado o cambiado (rol, empresas o equipo) y cada asesor vinculado queda en la auditoría, como en la pantalla Equipo, con el origen «migracion».
+
+## Gestiones (`core:migrar-gestiones`)
+
+Lee `fase1_actions.csv` y después `supabase_gestiones.csv`, y deja cada gestión en la bitácora del cliente. Para encontrar clientes y autores usa también `fase1_clients.csv` (obligatorio si traes `fase1_actions.csv`), `fase1_client_codes.csv` (opcional, pero mejora la búsqueda) y `fase1_users.csv`. Corre antes `core:migrar-usuarios`, para que los autores ya estén en la app.
+
+Los compromisos de pago no se importan aquí: las filas con `tipo` compromiso quedan como omitidas («se importa con core:migrar-compromisos»). Una llamada de Fase 1 que traía fecha de compromiso sí se importa como llamada; el compromiso lo crea el otro comando.
+
+### Cómo se escribe cada gestión
+
+| Origen | `tipo` | Tipo en la app | Resumen | Detalle |
+|---|---|---|---|---|
+| Fase 1 | llamada | Llamada | «Llamada: <resultado>» (el resultado también queda como resultado de la llamada) | `detalle` |
+| Fase 1 | correo | Correo enviado | `resultado` o, si no hay, la primera línea de `detalle` | `detalle` |
+| Fase 1 | whatsapp | Nota | «WhatsApp: <resultado o primera línea de detalle>» | `detalle` |
+| Fase 1 | nota | Nota | `resultado` o la primera línea de `detalle` | `detalle` |
+| Fase 1 | documento | Nota | «Documento: <adjunto_nombre o primera línea de detalle>» | `detalle` |
+| Fase 1 | pago | Nota | «Pago registrado: <resultado o primera línea de detalle>» | `detalle` |
+| Fase 1 | sistema, con resultado «Cambio de estado» | Cambio de estado | «De «Vencida» a «Jurídico»», como un cambio manual de la app, si `detalle` trae los dos estados; si no, la primera línea de `detalle` | — |
+| Fase 1 | sistema, cualquier otro | Sistema | `resultado` o la primera línea de `detalle` | `detalle` |
+| Fase 1 | compromiso | — | Omitida: la importa `core:migrar-compromisos` | — |
+| Supabase | nota | Nota | La primera línea de `nota` | `nota` |
+| Supabase | compromiso | — | Omitida: la importa `core:migrar-compromisos` | — |
+
+- El resumen se corta en 255 caracteres con «…». El detalle no se guarda si es igual al resumen.
+- La fecha de la gestión es `created_at` (Fase 1, hora de Bogotá) o `creado_en` (Supabase, con su zona, pasada a hora de Bogotá).
+- En los datos extra de la gestión (`metadata`) quedan, cuando vienen: `descuento`, `compromiso_fecha` y `compromiso_valor`; el nombre del adjunto; el `documento` de Supabase; los estados de un cambio de estado; el `resultado` que no quedó en el resumen ni como resultado de la llamada; y el autor que la app no tiene.
+- `descuento`, `compromiso_fecha` y `compromiso_valor` nunca rechazan la gestión: si uno no se puede leer (p. ej. `1.500.000` o `31/02/2025`), se guarda tal como viene, como texto, y sale un aviso.
+- **Los archivos adjuntos no se migran.** De un documento de Fase 1 solo queda el nombre del archivo y su descripción; el archivo sigue en el servidor de Fase 1.
+
+### Cómo se encuentra el cliente
+
+- **Fase 1**: el cliente de la gestión (`client_id`) se busca en `fase1_clients.csv`; si no está, la fila se rechaza. Luego se busca en la app, en la misma empresa y sin clientes eliminados:
+  1. Por código SAP: los `codigo_sn` de ese cliente en `fase1_client_codes.csv` que existen en la app. Si coincide uno, ese es. Si coinciden varios clientes, la fila se rechaza («el cliente 6 tiene varios códigos SAP en la app: C600, C601»).
+  2. Si no hay código, por NIT. De cada NIT se toman todos sus dígitos y, si termina en un guion seguido de un solo dígito (el dígito de verificación, como en `900123456-7`), también los dígitos de antes del guion. Dos NIT coinciden si tienen los mismos dígitos, o si los dígitos de uno son los del otro sin su dígito de verificación: `900.123.456` coincide con `900123456-7`, y `900123456-7` con `9001234567`. Un dígito de más sin guion no basta: `1234567` no coincide con `12345678`. Si coincide un cliente, ese es; si coinciden varios, se rechaza («NIT ambiguo…»); si ninguno, se rechaza («cliente no existe en la app (SGX, NIT 900123456)»).
+- **Supabase**: el cliente de SGX con el código `codigo_sn`; si no existe, la fila se rechaza.
+- Si la empresa de la gestión no es la del cliente, la fila se rechaza.
+
+### Autor
+
+- El autor se busca por correo entre los usuarios de la app que no están eliminados: en Fase 1, el `user_id` se traduce a correo con `fase1_users.csv`; en Supabase, `creado_por` ya es el correo.
+- Una gestión de Fase 1 sin `user_id` es del sistema y queda sin autor.
+- Si el autor no está en la app, la gestión **sí se importa**, sin autor; su correo (o «usuario Fase 1 #7» si no está en `fase1_users.csv`) queda en `metadata` y sale un aviso.
+
+### Última actividad
+
+Las gestiones importadas escritas por una persona de la app (con autor y de un tipo distinto de «Sistema», la misma regla de la app; un cambio de estado de Fase 1 hecho por una persona cuenta) mueven la última actividad del cliente, solo si son posteriores a la que ya tiene. No cambian el estado del cliente ni envían nada.
+
+### Volver a correrlo
+
+Cada gestión importada guarda su origen en `metadata.legacy_key` (`fase1:actions:<id>` o `supabase:gestiones:<id>`). Una fila cuyo origen ya está en la bitácora, aunque la gestión se haya eliminado en la app, queda como omitida («ya importado»): una gestión eliminada no vuelve.
+
+### Se rechaza la fila
+
+- Si `empresa`, `tipo`, `created_at` o `creado_en` están vacíos, o el tipo no es de los esperados.
+- Si `created_at` o `creado_en` no son una fecha válida.
+- Si no se encuentra el cliente, como se explica arriba.

@@ -6,7 +6,8 @@ namespace App\Modules\Core\Console\Migracion;
  * What one migration run did, per file: rows read, imported (something was
  * saved), skipped (already in the app or not applicable) and rejected; plus
  * the reason of each rejected row and the warnings about rows that were
- * imported or skipped only in part. MigrationCommand prints it at the end.
+ * imported or skipped only in part, and how many rows were skipped for each
+ * reason. MigrationCommand prints it at the end.
  */
 final class ImportReport
 {
@@ -14,6 +15,13 @@ final class ImportReport
      * @var array<string, array{imported: int, skipped: int, rejected: int}>
      */
     private array $totals = [];
+
+    /**
+     * How many rows of each file were skipped for each reason.
+     *
+     * @var array<string, array<string, int>>
+     */
+    private array $skipReasons = [];
 
     /**
      * @var list<array{file: string, line: int, id: string, reason: string}>
@@ -38,9 +46,16 @@ final class ImportReport
         $this->count($row, 'imported');
     }
 
-    public function skipped(CsvRow $row): void
+    /**
+     * Counts $row as skipped, under $reason when there is one.
+     */
+    public function skipped(CsvRow $row, ?string $reason = null): void
     {
         $this->count($row, 'skipped');
+
+        if ($reason !== null) {
+            $this->skipReasons[$row->file][$reason] = ($this->skipReasons[$row->file][$reason] ?? 0) + 1;
+        }
     }
 
     public function rejected(CsvRow $row, string $reason): void
@@ -59,6 +74,25 @@ final class ImportReport
     }
 
     /**
+     * Runs $read on each row of a lookup file (one that is read, not
+     * imported, so it has no counts). A row it cannot read is left out with
+     * a warning; null (a missing file) reads nothing.
+     *
+     * @param  callable(CsvRow): void  $read
+     */
+    public function lookup(?CsvFile $file, callable $read): void
+    {
+        foreach ($file?->rows() ?? [] as $row) {
+            try {
+                $row->assertReadable();
+                $read($row);
+            } catch (RowRejected $rejection) {
+                $this->warn($row, "se ignora la fila: {$rejection->getMessage()}");
+            }
+        }
+    }
+
+    /**
      * The counts of each file, in the order the files were opened.
      *
      * @return array<string, array{read: int, imported: int, skipped: int, rejected: int}>
@@ -69,6 +103,16 @@ final class ImportReport
             fn (array $counts): array => ['read' => array_sum($counts), ...$counts],
             $this->totals,
         );
+    }
+
+    /**
+     * The skipped rows of each file with a reason, counted by reason.
+     *
+     * @return array<string, array<string, int>>
+     */
+    public function skipReasons(): array
+    {
+        return $this->skipReasons;
     }
 
     /**
