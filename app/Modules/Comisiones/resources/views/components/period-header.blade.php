@@ -4,9 +4,10 @@
 {{--
     The head of every screen of a period: the page header with the month as
     context, and the period tabs (Resumen, Consolidado, Controles, Informes).
-    A tab shows only once its route exists, so the areas built later appear
-    by themselves. $version keeps ?version= in the tab links when an older
-    version is shown. Slot "actions": the page header actions.
+    A tab shows only once its route exists and only to a user its permission
+    lets in, so nobody meets a 403 from a tab. $version keeps ?version= in the
+    tab links when an older version is shown. Slot "actions": the page header
+    actions.
 --}}
 @props(['period', 'title', 'current' => 'resumen', 'version' => null, 'description' => null])
 
@@ -15,12 +16,12 @@
     $tabs = [];
 
     foreach ([
-        'resumen' => 'comisiones.periodos.show',
-        'consolidado' => 'comisiones.periodos.consolidado',
-        'controles' => 'comisiones.periodos.controles',
-        'informes' => 'comisiones.periodos.informes.index',
-    ] as $key => $name) {
-        if (Route::has($name)) {
+        'resumen' => ['comisiones.periodos.show', 'comisiones.view'],
+        'consolidado' => ['comisiones.periodos.consolidado', 'comisiones.view'],
+        'controles' => ['comisiones.periodos.controles', 'comisiones.view'],
+        'informes' => ['comisiones.periodos.informes.index', 'comisiones.reports'],
+    ] as $key => [$name, $permission]) {
+        if (Route::has($name) && auth()->user()?->can($permission)) {
             $tabs[] = [
                 'key' => $key,
                 'label' => __('comisiones::comun.pestanas.'.$key),
