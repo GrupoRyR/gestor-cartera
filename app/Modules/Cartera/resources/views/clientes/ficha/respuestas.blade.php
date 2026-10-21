@@ -22,7 +22,7 @@
                 <p class="mt-1 text-sm text-fg-soft [overflow-wrap:anywhere]">{{ $mail->preview }}</p>
 
                 <p class="mt-1 flex flex-wrap items-center gap-x-3 text-sm text-fg-muted">
-                    <span>{{ __('cartera::ficha.respuestas.de', ['remitente' => $mail->from]) }}</span>
+                    <span class="min-w-0 [overflow-wrap:anywhere]">{{ __('cartera::ficha.respuestas.de', ['remitente' => $mail->from]) }}</span>
                     <span><x-ui.date :value="$mail->receivedAt" :time="true" /></span>
                     @if ($mail->url && str_starts_with(strtolower($mail->url), 'https://'))
                         <x-ui.link-button :href="$mail->url" variant="ghost" icon="external" :external="true">{{ __('cartera::ficha.respuestas.abrir') }}</x-ui.link-button>

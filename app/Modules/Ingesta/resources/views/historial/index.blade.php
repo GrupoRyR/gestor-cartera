@@ -68,13 +68,13 @@
         @endforeach
 
         <form method="GET" action="{{ route('ingesta.index') }}" aria-label="{{ __('ingesta::historial.filtros.etiqueta') }}" class="flex flex-wrap items-end gap-3">
-            <div class="min-w-[12rem] flex-1">
+            <div class="min-w-[min(12rem,100%)] flex-1">
                 <x-ui.select name="lote" :label="__('ingesta::historial.filtros.lote')" :options="Dataset::options()" :value="$filters['lote']" :placeholder="__('ingesta::historial.filtros.todos')" />
             </div>
-            <div class="min-w-[12rem] flex-1">
+            <div class="min-w-[min(12rem,100%)] flex-1">
                 <x-ui.select name="empresa" :label="__('ingesta::historial.filtros.empresa')" :options="CompanyCode::options()" :value="$filters['empresa']" :placeholder="__('ingesta::historial.filtros.todas')" />
             </div>
-            <div class="min-w-[12rem] flex-1">
+            <div class="min-w-[min(12rem,100%)] flex-1">
                 <x-ui.select name="estado" :label="__('ingesta::historial.filtros.estado')" :options="LoadStatus::options()" :value="$filters['estado']" :placeholder="__('ingesta::historial.filtros.todos')" />
             </div>
             <div class="flex flex-wrap gap-2">

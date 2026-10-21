@@ -123,7 +123,7 @@
                     <x-ui.card :title="__('cobro::envios.prueba.titulo')" :description="__('cobro::envios.prueba.descripcion')">
                         <form method="POST" action="{{ route($kind->route('prueba'), ['empresa' => $company->code->value]) }}" class="flex flex-wrap items-end gap-3">
                             @csrf
-                            <div class="min-w-[14rem] flex-1">
+                            <div class="min-w-[min(14rem,100%)] flex-1">
                                 <x-ui.select
                                     name="cliente"
                                     :label="__('cobro::envios.prueba.cliente')"

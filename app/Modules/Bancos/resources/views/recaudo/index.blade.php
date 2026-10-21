@@ -182,11 +182,11 @@
             <div data-part="week-bars" class="mt-6 grid gap-4">
                 <h3 class="text-base font-semibold">{{ __('bancos::recaudo.web.semana.por_dia') }}</h3>
 
-                <ul class="grid gap-4">
+                <ul class="@container grid gap-4">
                     @foreach ($week->days as $weekDay)
-                        <li class="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 gap-y-1.5 sm:grid-cols-[10rem_minmax(0,1fr)_minmax(10rem,auto)]">
-                            <span class="text-sm font-semibold text-fg-soft sm:col-start-1 sm:row-start-1">{{ $weekDay->date->locale('es')->isoFormat('dddd D') }}</span>
-                            <span class="text-end text-sm tabular-nums sm:col-start-3 sm:row-start-1">
+                        <li class="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 gap-y-1.5 @lg:grid-cols-[10rem_minmax(0,1fr)_minmax(10rem,auto)]">
+                            <span class="text-sm font-semibold text-fg-soft @lg:col-start-1 @lg:row-start-1">{{ $weekDay->date->locale('es')->isoFormat('dddd D') }}</span>
+                            <span class="text-end text-sm tabular-nums @lg:col-start-3 @lg:row-start-1">
                                 @if (! $weekDay->loaded)
                                     <span class="text-fg-muted">{{ __('bancos::recaudo.web.semana.aun_no') }}</span>
                                 @elseif ($weekDay->total <= 0)
@@ -195,7 +195,7 @@
                                     <x-bancos::amount :value="$weekDay->total" class="font-semibold" />
                                 @endif
                             </span>
-                            <span aria-hidden="true" class="col-span-2 h-3 overflow-hidden rounded-full bg-subtle sm:col-span-1 sm:col-start-2 sm:row-start-1">
+                            <span aria-hidden="true" class="col-span-2 h-3 overflow-hidden rounded-full bg-subtle @lg:col-span-1 @lg:col-start-2 @lg:row-start-1">
                                 <span class="block h-full rounded-full bg-brand-primary" style="width: {{ $week->barWidth($weekDay) }}%"></span>
                             </span>
                         </li>

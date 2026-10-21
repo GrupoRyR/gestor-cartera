@@ -54,22 +54,22 @@
         </div>
 
         <form method="GET" action="{{ route('bancos.movimientos.banco', $bank->value) }}" aria-label="{{ __('bancos::movimientos.filtros.etiqueta') }}" class="flex flex-wrap items-end gap-3">
-            <div class="min-w-[10rem] flex-1">
+            <div class="min-w-[min(10rem,100%)] flex-1">
                 <x-ui.input name="desde" type="date" :label="__('bancos::movimientos.filtros.desde')" :value="$filter->from?->format('Y-m-d')" />
             </div>
-            <div class="min-w-[10rem] flex-1">
+            <div class="min-w-[min(10rem,100%)] flex-1">
                 <x-ui.input name="hasta" type="date" :label="__('bancos::movimientos.filtros.hasta')" :value="$filter->to?->format('Y-m-d')" />
             </div>
-            <div class="min-w-[10rem] flex-1">
+            <div class="min-w-[min(10rem,100%)] flex-1">
                 <x-ui.input name="valor_min" type="number" min="0" step="any" inputmode="decimal" :label="__('bancos::movimientos.filtros.valor_min')" :value="$filter->minAmount" />
             </div>
-            <div class="min-w-[10rem] flex-1">
+            <div class="min-w-[min(10rem,100%)] flex-1">
                 <x-ui.input name="valor_max" type="number" min="0" step="any" inputmode="decimal" :label="__('bancos::movimientos.filtros.valor_max')" :value="$filter->maxAmount" />
             </div>
-            <div class="min-w-[10rem] flex-1">
+            <div class="min-w-[min(10rem,100%)] flex-1">
                 <x-ui.select name="estado" :label="__('bancos::movimientos.filtros.estado')" :options="MovementStatus::options()" :value="$filter->status" :placeholder="__('bancos::movimientos.filtros.todos')" />
             </div>
-            <div class="min-w-[12rem] flex-1">
+            <div class="min-w-[min(12rem,100%)] flex-1">
                 <x-ui.input name="q" type="search" :label="__('bancos::movimientos.filtros.buscar')" :value="$filter->text" />
             </div>
             <div class="flex flex-wrap gap-2">
