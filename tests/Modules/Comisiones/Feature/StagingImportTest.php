@@ -138,7 +138,7 @@ it('never rewrites the assignment in force, and audits a change dated before its
         ->and($entry->cambios['slp_code'])->toEqual(['old' => 15, 'new' => 41])
         ->and($entry->contexto['fecha_sap'])->toBe($sapDate)
         ->and($entry->contexto['vigente_desde'])->toBe($applied)
-        ->and($entry->contexto['load_id'])->toEqual(CommissionLoad::query()->max('id'));
+        ->and($entry->contexto['load_id'])->toEqual(CommissionLoad::query()->max('load_id'));
     $this->fakes->audit->assertRecorded('comisiones.assignment.start_moved');
 
     expect(AuditLabels::event($entry->evento))->toBe('Cambio de vendedor con fecha ajustada')
