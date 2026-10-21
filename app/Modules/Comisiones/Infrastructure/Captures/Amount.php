@@ -52,6 +52,31 @@ final class Amount
     }
 
     /**
+     * A commission rate typed as a percent ("2,5", "2.5", "2,5 %") as
+     * "2.5"; null when it is not one, is zero or is above 100.
+     */
+    public static function percent(mixed $value): ?string
+    {
+        if (is_int($value) || is_float($value)) {
+            $value = (string) $value;
+        }
+
+        if (! is_string($value)) {
+            return null;
+        }
+
+        $text = preg_replace('/\s+|%/u', '', $value) ?? '';
+
+        if (preg_match('/^\d{1,3}([.,]\d{1,4})?$/', $text) !== 1) {
+            return null;
+        }
+
+        $rate = BigDecimal::of(str_replace(',', '.', $text));
+
+        return $rate->isPositive() && $rate->isLessThanOrEqualTo(100) ? $rate->strippedOfTrailingZeros()->toString() : null;
+    }
+
+    /**
      * The stored amount as a person types it back: Colombian format without
      * the sign, decimals only when there are cents ("77.241.857", "1.234,50").
      */
