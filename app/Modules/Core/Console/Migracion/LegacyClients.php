@@ -61,8 +61,8 @@ final class LegacyClients
     {
         $clients = new self;
 
-        foreach (ClientRecord::query()->get(['id', 'company', 'code', 'tax_id']) as $record) {
-            $client = new TargetClient($record->id, $record->company, $record->code);
+        foreach (ClientRecord::query()->get(['id', 'company', 'code', 'tax_id', 'advisor_code']) as $record) {
+            $client = new TargetClient($record->id, $record->company, $record->code, $record->advisor_code);
             $clients->byCode[$client->company->value][$client->code] = $client;
             ['full' => $full, 'base' => $base] = self::nit($record->tax_id);
 
@@ -96,6 +96,24 @@ final class LegacyClients
         $client = $this->resolved[$legacyId] ??= $this->resolveFase1($legacyId);
 
         return $client instanceof TargetClient ? $client : throw new RowRejected($client);
+    }
+
+    /**
+     * The client of a fase1_actions.csv row (client_id), which must be of
+     * the row's company (empresa).
+     *
+     * @throws RowRejected
+     */
+    public function ofAction(CsvRow $row): TargetClient
+    {
+        $company = CompanyCode::from($row->oneOf('empresa', ['SGX', 'SDC']));
+        $client = $this->fase1($row->int('client_id'));
+
+        if ($client->company !== $company) {
+            throw new RowRejected("la empresa de la gestión ({$company->value}) no coincide con la del cliente ({$client->company->value})");
+        }
+
+        return $client;
     }
 
     /**
