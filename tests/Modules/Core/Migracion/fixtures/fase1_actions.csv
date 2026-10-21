@@ -1,0 +1,20 @@
+id,client_id,empresa,user_id,tipo,resultado,detalle,compromiso_fecha,compromiso_valor,descuento,adjunto,adjunto_nombre,created_at
+1,1,SGX,1,llamada,Contestó y promete pagar,"Habló con la tesorera.
+Pide la factura de nuevo.",2025-03-10,1500000.00,NULL,,,2025-03-01 09:30:00
+2,1,SGX,2,correo,Envío de estado de cuenta,Se envió el estado de cuenta a tesorería,NULL,NULL,NULL,,,2025-03-02 10:00:00
+3,2,SGX,1,whatsapp,,Mensaje con la relación de facturas,NULL,NULL,NULL,,,2025-03-03 11:00:00
+4,2,SGX,1,nota,,Cliente en reestructuración,NULL,NULL,NULL,,,2025-03-04 12:00:00
+5,3,SDC,2,documento,Documento de cobro,Carta de cobro firmada,NULL,NULL,NULL,a1b2.pdf,carta-cobro.pdf,2025-03-05 08:00:00
+6,3,SDC,2,pago,Pago recibido por 2.000.000,Facturas: FV-1 (2.000.000) · Banco: Bancolombia,NULL,NULL,50000.00,,,2025-03-06 15:45:00
+7,1,SGX,1,sistema,Cambio de estado,De «vencida» a «juridico»,NULL,NULL,NULL,,,2025-03-07 16:00:00
+8,1,SGX,NULL,sistema,Cartera en cero,El cliente no presenta saldo en el último corte cargado.,NULL,NULL,NULL,,,2025-03-08 06:00:00
+9,1,SGX,1,compromiso,Compromiso de pago,Paga el 15,2025-03-15,800000.00,NULL,,,2025-03-09 09:00:00
+10,4,SGX,1,nota,,Nota de un cliente ambiguo,NULL,NULL,NULL,,,2025-03-10 09:00:00
+11,5,SGX,1,nota,,Nota de un cliente que no está en la app,NULL,NULL,NULL,,,2025-03-10 09:00:00
+12,6,SGX,1,nota,,Nota de un cliente con dos códigos,NULL,NULL,NULL,,,2025-03-10 09:00:00
+13,1,SDC,1,nota,,Empresa equivocada,NULL,NULL,NULL,,,2025-03-10 09:00:00
+14,2,SGX,3,nota,,Nota de Paola,NULL,NULL,NULL,,,2025-03-11 09:00:00
+15,2,SGX,9,llamada,No contestó,,NULL,NULL,NULL,,,2025-03-12 09:00:00
+16,1,SGX,1,fax,,Tipo raro,NULL,NULL,NULL,,,2025-03-10 09:00:00
+17,1,SGX,1,nota,,Fecha mala,NULL,NULL,NULL,,,31/02/2025
+18,99,SGX,1,nota,,Cliente que no está en el archivo,NULL,NULL,NULL,,,2025-03-10 09:00:00

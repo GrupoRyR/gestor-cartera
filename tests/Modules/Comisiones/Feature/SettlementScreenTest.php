@@ -14,6 +14,7 @@ use App\Modules\Core\Contracts\Enums\Role;
 use App\Support\Formatting\Money;
 use App\Support\Navigation\NavRegistry;
 use Carbon\CarbonImmutable;
+use Illuminate\Support\Facades\Exceptions;
 use Tests\Fakes\AuditEntry;
 use Tests\Fakes\ContractFakes;
 use Tests\Modules\Comisiones\Feature\Concerns\ComisionesUsers;
@@ -199,6 +200,26 @@ it('approves a draft once every blocking alert is justified', function () {
         ->assertSeeText('Vendedor nuevo; SAP lo crea en agosto.')
         ->assertSeeText('03/08/2026 09:00 por Beto Ruiz')
         ->assertSeeText('Cerrar período');
+});
+
+it('answers an invalid step in Spanish and still reports it, so a bug never hides behind the message', function () {
+    Exceptions::fake();
+    julySales($this->sap, budgetBy: $this->analyst->id, unknownCode: true);
+    $this->actingAs($this->analyst)->post('/comisiones/periodos/2026-07/calcular');
+
+    // A justification for something that is not a blocking alert of the version.
+    $this->actingAs($this->approver)->post('/comisiones/periodos/2026-07/aprobar', [
+        'revision' => 1,
+        'justificaciones' => [
+            ['clave' => 'codigo_desconocido:99', 'texto' => 'Vendedor nuevo.'],
+            ['clave' => 'sin_presupuesto:14', 'texto' => 'No aplica.'],
+        ],
+    ])
+        ->assertRedirect('/comisiones/periodos/2026-07')
+        ->assertSessionHas('error', 'No pudimos completar el paso: revisa el motivo y las justificaciones e inténtalo de nuevo.');
+
+    Exceptions::assertReported(InvalidArgumentException::class);
+    expect(SettlementRecord::query()->sole()->estado)->toBe('borrador');
 });
 
 it('asks the approver to review again a draft recalculated after the review', function () {

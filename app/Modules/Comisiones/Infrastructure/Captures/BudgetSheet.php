@@ -216,13 +216,20 @@ final class BudgetSheet
     }
 
     /**
+     * One CSV line. A cell that starts like a formula (=, +, -, @, a tab or a
+     * carriage return) gets a leading apostrophe, so Excel shows text that
+     * came from SAP instead of running it (OWASP "CSV injection").
+     *
      * @param  list<string>  $cells
      */
     private static function csvLine(array $cells): string
     {
-        return implode(';', array_map(
-            fn (string $cell): string => preg_match('/[;"\r\n]/', $cell) === 1 ? '"'.str_replace('"', '""', $cell).'"' : $cell,
-            $cells,
-        ));
+        return implode(';', array_map(function (string $cell): string {
+            if (preg_match('/^[=+\-@\t\r]/', $cell) === 1) {
+                $cell = "'".$cell;
+            }
+
+            return preg_match('/[;"\r\n]/', $cell) === 1 ? '"'.str_replace('"', '""', $cell).'"' : $cell;
+        }, $cells));
     }
 }

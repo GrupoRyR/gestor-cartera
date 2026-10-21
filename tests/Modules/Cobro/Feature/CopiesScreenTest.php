@@ -70,7 +70,7 @@ it('forbids the editor to roles without cobro.manage', function (?Role $role) {
 it('shows the default copies of each company until someone saves them', function () {
     $this->actingAs($this->analyst)->get('/cobro/copias')
         ->assertOk()
-        ->assertSeeText('Copias del cobro semanal')
+        ->assertSeeText('Copias del cobro semanal y la circularización')
         ->assertSeeText('Usa las copias por defecto')
         ->assertSee('miguel.martinez@segurex.com', false)
         ->assertSee('value="DISTRIBUCION"', false)

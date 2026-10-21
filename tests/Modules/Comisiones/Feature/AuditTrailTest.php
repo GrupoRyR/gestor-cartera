@@ -43,7 +43,8 @@ it('writes the event with the user, the period and the changes, and tells Core',
         ->and($stored->usuario)->toBe('Ana Gómez')
         ->and($stored->sujeto_tipo)->toBe('comisiones_presupuesto')
         ->and($stored->sujeto_id)->toBe('7')
-        ->and($stored->cambios)->toBe(['valor' => ['old' => '100.00', 'new' => '200.00']])
+        // MySQL's JSON columns reorder keys: compare the pairs, not their order.
+        ->and($stored->cambios)->toEqual(['valor' => ['old' => '100.00', 'new' => '200.00']])
         ->and($stored->contexto)->toBe(['slp_code' => 14])
         ->and($stored->motivo)->toBe('Ajuste de la meta')
         ->and($stored->created_at?->format('Y-m-d H:i'))->toBe('2026-08-03 09:30');

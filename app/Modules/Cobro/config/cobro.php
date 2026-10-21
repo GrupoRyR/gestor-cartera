@@ -43,8 +43,9 @@ return [
         'time' => '17:00',
     ],
 
-    // Carbon copies (Cc) of the weekly collection mail of each company,
-    // until someone saves them in /cobro/copias: fixed addresses, the
+    // Carbon copies (Cc) of the weekly collection and the monthly
+    // circularization mails of each company, until someone saves them in
+    // /cobro/copias: fixed addresses, the
     // client's advisor, and the sales managers of each SAP group
     // (OCRG.GroupName, compared without regard to case or accents).
     'copias' => [
@@ -66,15 +67,18 @@ return [
     ],
 
     // Monthly circularization at close (4.2): the 1st at 09:00, Bogotá
-    // time, once the robot published the cartera of the closed month.
-    // While the format is a draft (the real report has not arrived), the
-    // scheduled run sends nothing; the "Circularización" session turns
-    // "draft" off together with the final format.
+    // time, for both companies, in the format each one sends today. The
+    // robot dates each snapshot with the day it extracts it (about 19:00),
+    // so at that hour the latest cutoff is the last day of the closed
+    // month. The mail copies (Cc) the weekly collection's copies above.
+    // "draft" off: the scheduled run really sends. Turned on, it would hold
+    // the scheduled run back and mark the mails "Borrador" (for a future
+    // format under review); the preview and the test send work either way.
     'circularizacion' => [
-        'companies' => ['SGX'],
+        'companies' => ['SGX', 'SDC'],
         'day' => 1,
         'time' => '09:00',
-        'draft' => true,
+        'draft' => false,
     ],
 
 ];
