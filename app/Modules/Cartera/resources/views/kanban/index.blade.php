@@ -45,7 +45,12 @@
         <x-ui.alert tone="success" hidden x-bind:hidden="! notice"><span x-text="notice"></span></x-ui.alert>
         <x-ui.alert tone="danger" hidden x-bind:hidden="! error"><span x-text="error"></span></x-ui.alert>
 
-        <div role="region" tabindex="0" aria-label="{{ __('cartera::kanban.tablero') }}" class="flex snap-x snap-mandatory items-start gap-4 overflow-x-auto pb-4">
+        {{--
+            The board scrolls sideways inside this region, never the page. It is
+            positioned (relative) so the visually hidden labels of the cards,
+            which are absolutely positioned, are clipped by it too.
+        --}}
+        <div role="region" tabindex="0" aria-label="{{ __('cartera::kanban.tablero') }}" class="relative flex snap-x snap-mandatory items-start gap-4 overflow-x-auto overscroll-x-contain pb-4">
             @foreach ($board->columns as $column)
                 @php($status = $column->status)
                 <section
