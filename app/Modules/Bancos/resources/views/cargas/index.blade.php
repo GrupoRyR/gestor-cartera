@@ -53,7 +53,7 @@
                             :label="__('bancos::cargas.formulario.archivo')"
                             :hint="__('bancos::cargas.formulario.archivo_ayuda')"
                             :required="true"
-                            accept=".xlsx,.csv,.txt"
+                            accept=".xlsx,.xls,.csv,.txt"
                         />
                     </div>
 

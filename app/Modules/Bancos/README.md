@@ -23,14 +23,14 @@ Treasury API (POST) ────┴───────────────
 | `Domain/Collections` | `CollectionBuilder` (adds credits into the contract's `DailyCollection`/`WeeklyCollection`, in cents), `DayReport`, `WeekReport`. Plain PHP. |
 | `Application/Import` | `MovementImporter` (the only way in), `StatementImport` (a file), `FolderImporter` (the drop folder), `ReceiveMovements` (the API). |
 | `Application/Movements`, `Application/Reports` | Queries of the screens and the status change; the report use cases. |
-| `Infrastructure` | Eloquent models (`BankMovement`, `BankLoad`), `TabularFile` (csv/txt/xlsx), `EloquentRecaudoProvider`. |
+| `Infrastructure` | Eloquent models (`BankMovement`, `BankLoad`), `TabularFile` (csv/txt, xlsx, and xls when it is an HTML table), `EloquentRecaudoProvider`. |
 | `Http`, `routes`, `resources` | Screens, the API, texts (`resources/lang/es`). |
 
 ## The statements: what is guessed
 
 > **No real statement has been delivered yet** (Part D, item 3). Every layout below is an **assumption**, built so that each bank exercises a different shape. The fixtures in `tests/Modules/Bancos/fixtures` are invented and say so in their first row. When Treasury sends real files, adjust the profile of the bank (its class in `Domain/Statement/Banks`) and replace the fixture; nothing else changes.
 
-The reader finds the header row in the first 40 rows (banks print a title and the account above it) and maps the columns **by name**, so the order does not matter. Headers are compared without accents, case or punctuation. A file is `.csv`, `.txt` (delimiter and encoding detected: UTF-8 or Windows-1252, with or without BOM) or `.xlsx` (first sheet). An old `.xls` is refused with a message that says how to save it.
+The reader finds the header row in the first 40 rows (banks print a title and the account above it) and maps the columns **by name**, so the order does not matter. Headers are compared without accents, case or punctuation. A file is `.csv`, `.txt` (delimiter and encoding detected: UTF-8 or Windows-1252, with or without BOM), `.xlsx` (first sheet) or `.xls` when it is really an HTML table, as some bank portals export it (every `<tr>` becomes a row). A real binary `.xls` (Excel 97) is refused with a message that says how to save it.
 
 | Bank | Columns assumed | Money | Dates | Numbers |
 |---|---|---|---|---|

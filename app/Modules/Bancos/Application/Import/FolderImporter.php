@@ -15,7 +15,7 @@ use Throwable;
  * Imports the statements dropped in the import folder (config
  * bancos.import_path):
  *
- *     <folder>/<SGX|SDC>/<bogota|davivienda|bancolombia|miami>/<file>.(csv|txt|xlsx)
+ *     <folder>/<SGX|SDC>/<bogota|davivienda|bancolombia|miami>/<file>.(csv|txt|xlsx|xls)
  *
  * The company and the bank come from the two folders, so a file needs no
  * naming rule. Once imported a file moves to procesados/<year-month>/; one
@@ -204,6 +204,6 @@ final class FolderImporter
 
     private function isStatement(string $path): bool
     {
-        return in_array(strtolower(pathinfo($path, PATHINFO_EXTENSION)), [...TabularFile::EXTENSIONS, 'xls'], true);
+        return in_array(strtolower(pathinfo($path, PATHINFO_EXTENSION)), TabularFile::EXTENSIONS, true);
     }
 }

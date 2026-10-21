@@ -2,14 +2,19 @@
 
 namespace App\Modules\Bancos\Infrastructure\Files;
 
+use DOMDocument;
+use DOMElement;
 use OpenSpout\Reader\XLSX\Options;
 use OpenSpout\Reader\XLSX\Reader;
 use Throwable;
 
 /**
  * Opens a bank statement as raw rows, whatever its container: .xlsx (first
- * sheet) or .csv/.txt. The delimiter and the encoding of a CSV are detected,
- * because each bank (and each export option) picks its own.
+ * sheet), .csv/.txt, or an .xls that is really an HTML table (what some bank
+ * portals, Davivienda's among them, export under that extension). The
+ * delimiter and the encoding of a CSV are detected, because each bank (and
+ * each export option) picks its own. A real binary .xls (Excel 97) is refused
+ * with a message that says how to save it.
  *
  * Cells come back raw, as the file holds them (strings, and for .xlsx also
  * numbers and dates); the bank reader gives them meaning. Empty rows are kept
@@ -17,7 +22,7 @@ use Throwable;
  */
 final class TabularFile
 {
-    public const array EXTENSIONS = ['csv', 'txt', 'xlsx'];
+    public const array EXTENSIONS = ['csv', 'txt', 'xlsx', 'xls'];
 
     /** More rows than a year of one account can have; a bigger file is not a statement. */
     public const int MAX_ROWS = 50_000;
@@ -40,8 +45,8 @@ final class TabularFile
         return match ($extension) {
             'xlsx' => self::spreadsheet($path),
             'csv', 'txt' => self::csv($path),
-            'xls' => throw new UnreadableFile('Los archivos .xls antiguos no se pueden leer. Guárdalo como .xlsx o .csv desde Excel y vuélvelo a subir.'),
-            default => throw new UnreadableFile('El formato «.'.$extension.'» no es válido. Sube un archivo .xlsx, .csv o .txt.'),
+            'xls' => self::htmlTable($path),
+            default => throw new UnreadableFile('El formato «.'.$extension.'» no es válido. Sube un archivo .xlsx, .xls, .csv o .txt.'),
         };
     }
 
@@ -87,13 +92,7 @@ final class TabularFile
      */
     private static function csv(string $path): array
     {
-        $content = @file_get_contents($path);
-
-        if ($content === false) {
-            throw new UnreadableFile('No pude leer el archivo.');
-        }
-
-        $content = self::utf8($content);
+        $content = self::utf8(self::contents($path));
         $delimiter = self::delimiter($content);
 
         $stream = fopen('php://temp', 'r+');
@@ -120,6 +119,83 @@ final class TabularFile
         fclose($stream);
 
         return $rows;
+    }
+
+    /**
+     * Every <tr> of the document, in order, as the texts of its cells. Rows
+     * outside the table of movements (a title, the totals at the foot) come
+     * back too: the bank reader ignores what is not a movement.
+     *
+     * @return list<list<string>>
+     */
+    private static function htmlTable(string $path): array
+    {
+        $content = self::contents($path);
+        $start = ltrim(str_starts_with($content, "\xEF\xBB\xBF") ? substr($content, 3) : $content);
+
+        if (! str_starts_with($start, '<')) {
+            throw new UnreadableFile('Los archivos .xls antiguos no se pueden leer. Guárdalo como .xlsx o .csv desde Excel y vuélvelo a subir.');
+        }
+
+        $document = new DOMDocument;
+        $previous = libxml_use_internal_errors(true);
+
+        try {
+            // The XML declaration tells the HTML parser the text is UTF-8, so accents survive.
+            $loaded = $document->loadHTML('<?xml encoding="UTF-8">'.self::utf8($content), LIBXML_NONET | LIBXML_NOERROR | LIBXML_NOWARNING);
+        } finally {
+            libxml_clear_errors();
+            libxml_use_internal_errors($previous);
+        }
+
+        if (! $loaded) {
+            throw new UnreadableFile('No pude leer el archivo .xls.');
+        }
+
+        $rows = [];
+
+        foreach ($document->getElementsByTagName('tr') as $tr) {
+            $cells = [];
+
+            foreach ($tr->childNodes as $node) {
+                if ($node instanceof DOMElement && in_array(strtolower($node->nodeName), ['td', 'th'], true)) {
+                    $cells[] = self::htmlCell($node->textContent);
+                }
+            }
+
+            $rows[] = $cells;
+
+            if (count($rows) > self::MAX_ROWS) {
+                throw new UnreadableFile('El archivo tiene demasiadas filas para ser un extracto.');
+            }
+        }
+
+        return $rows;
+    }
+
+    /**
+     * The text of an HTML cell with its whitespace collapsed, without the
+     * leading apostrophe Excel uses to mark a number as text ('0000123).
+     */
+    private static function htmlCell(string $text): string
+    {
+        $text = trim((string) preg_replace('/\s+/u', ' ', str_replace("\u{00A0}", ' ', $text)));
+
+        return str_starts_with($text, "'") ? substr($text, 1) : $text;
+    }
+
+    /**
+     * @throws UnreadableFile
+     */
+    private static function contents(string $path): string
+    {
+        $content = @file_get_contents($path);
+
+        if ($content === false) {
+            throw new UnreadableFile('No pude leer el archivo.');
+        }
+
+        return $content;
     }
 
     /**

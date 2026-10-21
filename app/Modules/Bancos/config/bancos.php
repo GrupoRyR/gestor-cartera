@@ -6,7 +6,7 @@ return [
 
     // Folder the importer reads dropped bank files from. Relative to the
     // "local" disk (storage/app/private) unless it is an absolute path.
-    // Layout: <folder>/<SGX|SDC>/<bank>/<file>.(csv|txt|xlsx)
+    // Layout: <folder>/<SGX|SDC>/<bank>/<file>.(csv|txt|xlsx|xls)
     'import_path' => env('BANCOS_IMPORT_PATH', 'bancos/entrada'),
 
     // Time (America/Bogota) the daily command picks up the folder: the

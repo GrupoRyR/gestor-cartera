@@ -109,9 +109,10 @@ it('keeps importing the other files when one fails', function () {
     expect(BankMovement::query()->count())->toBe(4);
 });
 
-it('moves an old .xls to errores and tells how to save it', function () {
+it('moves an old binary .xls to errores and tells how to save it', function () {
     $directory = $this->folder.'/SGX/bogota';
     File::ensureDirectoryExists($directory);
+    file_put_contents($directory.'/viejo.xls', "\xD0\xCF\x11\xE0\xA1\xB1\x1A\xE1");
     touch($directory.'/viejo.xls', time() - 3600);
 
     $this->artisan('bancos:importar-carpeta')->assertFailed();

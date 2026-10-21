@@ -11,7 +11,7 @@ use Illuminate\Validation\Rule;
 
 /**
  * POST /bancos/cargas: the company the account belongs to, the bank, and the
- * statement (.xlsx, .csv or .txt, up to 10 MB). The route already checked
+ * statement (.xlsx, .xls, .csv or .txt, up to 10 MB). The route already checked
  * bancos.import.
  */
 final class UploadStatementRequest extends FormRequest
@@ -28,7 +28,7 @@ final class UploadStatementRequest extends FormRequest
         return [
             'empresa' => ['required', 'string', Rule::in($companies)],
             'banco' => ['required', 'string', Rule::enum(Bank::class)],
-            'archivo' => ['required', 'file', 'extensions:xlsx,csv,txt', 'max:'.self::MAX_KILOBYTES],
+            'archivo' => ['required', 'file', 'extensions:xlsx,xls,csv,txt', 'max:'.self::MAX_KILOBYTES],
         ];
     }
 

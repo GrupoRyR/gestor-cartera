@@ -120,8 +120,8 @@ describe('uploading a statement', function () {
             ->and(session('errors')->first('archivo'))->toContain('Davivienda');
     });
 
-    it('explains what to do with an .xls', function () {
-        $file = UploadedFile::fake()->create('extracto.xls', 10);
+    it('explains what to do with an old binary .xls', function () {
+        $file = UploadedFile::fake()->createWithContent('extracto.xls', "\xD0\xCF\x11\xE0\xA1\xB1\x1A\xE1".str_repeat("\0", 64));
 
         bancosUpload(BancosUsers::create(Role::PortfolioAnalyst), file: $file)->assertSessionHasErrors(['archivo']);
 

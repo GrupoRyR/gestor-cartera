@@ -73,8 +73,57 @@ it('reads the first sheet of an .xlsx and keeps numbers as numbers', function ()
         ->and($rows[1][1])->toBe(1500.5);
 });
 
-it('explains what to do with an old .xls', function () {
-    expect(fn () => TabularFile::rows('/tmp/extracto.xls'))->toThrow(UnreadableFile::class, '.xlsx');
+describe('an .xls that is an HTML table, as some bank portals export', function () {
+    it('reads every row of the document, in order, as the texts of its cells', function () {
+        $html = "<!-- invented -->\r\n<table><tr /></table>\r\n<TABLE border=\"1\">\r\n"
+            ."  <tr><td colspan=\"3\"><STRONG>Movimientos</STRONG></td></tr>\r\n"
+            ."  <TR>\r\n    <TD><STRONG>Fecha</STRONG></TD>\r\n    <TD><STRONG>Desc Mot.</STRONG></TD>\r\n    <TD><STRONG>Referencia 1</STRONG></TD>\r\n  </TR>\r\n"
+            ."  <TR><TD align=\"right\">15/10/2026</TD><TD align=\"right\"> Abono   ACH\r\n EJEMPLO</TD><TD>'0000000900111222</TD></TR>\r\n"
+            ."  <TR><TD>16/10/2026</TD><TD>Consignación</TD><TD>'</TD></TR>\r\n"
+            ."  <tr><td height=\"20\" /></tr>\r\n"
+            ."</TABLE>\r\n";
+        $path = bancosTempFile($html, 'xls');
+
+        try {
+            $rows = TabularFile::rows($path);
+        } finally {
+            unlink($path);
+        }
+
+        expect($rows)->toBe([
+            [],
+            ['Movimientos'],
+            ['Fecha', 'Desc Mot.', 'Referencia 1'],
+            ['15/10/2026', 'Abono ACH EJEMPLO', '0000000900111222'],
+            ['16/10/2026', 'Consignación', ''],
+            [''],
+        ]);
+    });
+
+    it('keeps the accents of a table saved in Windows-1252, with or without a byte order mark', function (string $prefix, string $encoding) {
+        $path = bancosTempFile($prefix.mb_convert_encoding('<table><tr><th>Transacción</th><td>Débito</td></tr></table>', $encoding, 'UTF-8'), 'xls');
+
+        try {
+            $rows = TabularFile::rows($path);
+        } finally {
+            unlink($path);
+        }
+
+        expect($rows)->toBe([['Transacción', 'Débito']]);
+    })->with([
+        'Windows-1252' => ['', 'Windows-1252'],
+        'UTF-8 with BOM' => ["\xEF\xBB\xBF  ", 'UTF-8'],
+    ]);
+
+    it('still explains what to do with an old binary .xls', function () {
+        $path = bancosTempFile("\xD0\xCF\x11\xE0\xA1\xB1\x1A\xE1".str_repeat("\0", 64), 'xls');
+
+        try {
+            expect(fn () => TabularFile::rows($path))->toThrow(UnreadableFile::class, '.xlsx');
+        } finally {
+            unlink($path);
+        }
+    });
 });
 
 it('refuses formats it cannot read', function () {
