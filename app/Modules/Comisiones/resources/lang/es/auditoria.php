@@ -43,7 +43,7 @@ return [
             'imported' => 'Carga de SAP importada',
         ],
         'assignment' => [
-            'start_moved' => 'Cambio de vendedor aplicado desde el día siguiente',
+            'start_moved' => 'Cambio de vendedor con fecha ajustada',
         ],
         'parameter' => [
             'version_added' => 'Versión de parámetro guardada',

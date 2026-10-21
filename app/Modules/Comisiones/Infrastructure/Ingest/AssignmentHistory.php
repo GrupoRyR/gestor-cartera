@@ -17,8 +17,9 @@ use App\Modules\Comisiones\Infrastructure\Persistence\ClientAssignmentRecord;
  * - a client with the same seller adds nothing.
  *
  * History is never rewritten: a change dated on or before the start of the
- * assignment in force starts the day after that start, so the crossings
- * already assigned keep their seller, and is audited as
+ * assignment in force starts at the later of the day after that start and
+ * the cutoff of the load that brings it, so the seller in force keeps its
+ * crossings up to the day the change was seen. It is audited as
  * comisiones.assignment.start_moved with the date SAP gave and the one
  * applied. Any other split is corrected by hand with support (§5.4).
  */
@@ -58,7 +59,7 @@ final class AssignmentHistory
             $from = (string) ($client['fecha_modificacion'] ?? $cutoff);
 
             if ($from <= $inForce->vigente_desde->format('Y-m-d')) {
-                $moved = $inForce->vigente_desde->addDay()->format('Y-m-d');
+                $moved = max($inForce->vigente_desde->addDay()->format('Y-m-d'), $cutoff);
                 $this->audit->record(
                     event: 'comisiones.assignment.start_moved',
                     subjectType: 'cliente',
