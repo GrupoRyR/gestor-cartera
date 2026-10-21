@@ -66,7 +66,6 @@ describe('the invented statement of each bank', function () {
         expect(bancosLines($reading->movements))->toBe(['2026-10-15 credito 1000.00 COP ']);
     })->with(['empty' => '', 'another date' => '01/10/2026']);
 
-
     it('reads Davivienda: an HTML .xls, Notas Credito or Debito, Colombian numbers, the totals left out', function () {
         $reading = StatementReaders::for(Bank::Davivienda)->read(TabularFile::rows(Fixtures::path(Bank::Davivienda)));
 
