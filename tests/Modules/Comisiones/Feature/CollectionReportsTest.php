@@ -157,6 +157,26 @@ it('lists one report per code with collections and 85.1, pending until generated
     expect(preg_match('/\p{Lu}{4,}/u', strip_tags($response->getContent())))->toBe(0);
 });
 
+it('gives the batch more time without ever shortening a longer or unlimited limit', function (string $before, string $after) {
+    AugustCollections::close($this, $this->analyst, $this->approver);
+    $original = ini_get('max_execution_time');
+    ini_set('max_execution_time', $before);
+
+    try {
+        $this->actingAs($this->approver)->post(augustReports().'/generar')->assertSessionHas('status');
+        $limit = ini_get('max_execution_time');
+    } finally {
+        // Back to what the suite had: a limit left here would stop the rest of the run.
+        set_time_limit((int) $original);
+    }
+
+    expect($limit)->toBe($after);
+})->with([
+    'unlimited, as the CLI runs' => ['0', '0'],
+    'the 30 seconds of shared hosting' => ['30', '180'],
+    'already longer' => ['600', '600'],
+]);
+
 it('generates and stores every missing report of the closed version, once', function () {
     AugustCollections::close($this, $this->analyst, $this->approver);
 

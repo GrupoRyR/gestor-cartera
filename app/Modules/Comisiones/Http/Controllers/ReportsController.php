@@ -44,6 +44,9 @@ use Symfony\Component\HttpFoundation\StreamedResponse;
  */
 final class ReportsController
 {
+    /** The time a batch of collection reports may take (§11: under 2 minutes). */
+    private const int BATCH_SECONDS = 180;
+
     public function __construct(
         private readonly EloquentSettlements $settlements,
         private readonly CollectionReports $reports,
@@ -250,10 +253,17 @@ final class ReportsController
      * shared hosting usually allows. Should the host still stop it, nothing
      * is lost: each PDF is stored as soon as it is rendered, so the next
      * attempt only renders the missing ones.
+     *
+     * The limit is only ever raised: an unlimited one (0, as on the CLI and
+     * in the tests) or a longer one is left as it is.
      */
     private static function allowBatchTime(): void
     {
-        set_time_limit(180);
+        $current = (int) ini_get('max_execution_time');
+
+        if ($current !== 0 && $current < self::BATCH_SECONDS) {
+            set_time_limit(self::BATCH_SECONDS);
+        }
     }
 
     private static function user(Request $request): ?User
