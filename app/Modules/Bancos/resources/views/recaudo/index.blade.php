@@ -1,16 +1,20 @@
+@use('App\Modules\Bancos\Domain\Collections\MonthCellState')
 @use('App\Modules\Core\Contracts\Enums\Bank')
-@use('App\Modules\Core\Contracts\Enums\CompanyCode')
 
 {{--
     GET /bancos/recaudo (bancos.recaudo): the daily collections report and the
-    weekly accumulated of the same week.
+    month of that day as the grid the portfolio analyst keeps in her workbook.
     $date: the day of the report; $today: today (Bogotá); $day: DayReport;
-    $week: WeekReport; $pending: credits of the day still to apply in SAP;
-    $otherCurrency: credits of the day in a currency that does not add up.
+    $month: MonthReport (one grid per company in view); $previousMonth and
+    $nextMonth: the day the month links open, or null when out of range;
+    $pending: credits of the day still to apply in SAP; $otherCurrency:
+    credits of the day in a currency that does not add up.
 
-    The bars follow the dataviz rules for magnitude: one hue (the brand), every
-    bar labelled with its amount, so nothing depends on color or hover, and
-    the same numbers one click away as a table.
+    The grid is a table per company, like her sheets: a row per Monday-to-
+    Friday week, the business days, a column per weekday and the totals. A
+    weekday of another month is an empty shaded cell, a holiday says so, and
+    a day that has not arrived reads "—" (not zero) with its reason for
+    screen readers. A day with money links to its detail.
 --}}
 @php
     $long = fn ($value): string => $value->locale('es')->isoFormat('dddd D [de] MMMM');
@@ -25,19 +29,15 @@
         ['key' => 'share', 'label' => __('bancos::recaudo.web.columnas.participacion'), 'align' => 'end'],
     ];
 
-    $weekColumns = [
-        ['key' => 'day', 'label' => __('bancos::recaudo.web.semana.columnas.dia')],
-        ['key' => 'total', 'label' => __('bancos::recaudo.web.semana.columnas.recaudo'), 'align' => 'end'],
-        ['key' => 'cumulative', 'label' => __('bancos::recaudo.web.semana.columnas.acumulado'), 'align' => 'end'],
+    $monthColumns = [
+        ['key' => 'week', 'label' => __('bancos::recaudo.web.mes.columnas.semana')],
+        ['key' => 'days', 'label' => __('bancos::recaudo.web.mes.columnas.dias'), 'align' => 'center'],
+        ...array_map(
+            fn (string $weekday): array => ['key' => $weekday, 'label' => __("bancos::recaudo.web.mes.columnas.{$weekday}"), 'align' => 'end'],
+            ['lunes', 'martes', 'miercoles', 'jueves', 'viernes'],
+        ),
+        ['key' => 'total', 'label' => __('bancos::recaudo.web.mes.columnas.total'), 'align' => 'end'],
     ];
-
-    $change = $week->change();
-    $trendLabel = match ($week->trend()) {
-        'up' => __('bancos::recaudo.web.semana.sube'),
-        'down' => __('bancos::recaudo.web.semana.baja'),
-        'flat' => __('bancos::recaudo.web.semana.igual'),
-        default => null,
-    };
 @endphp
 
 <x-layouts.app :title="__('bancos::recaudo.web.titulo')">
@@ -148,84 +148,90 @@
         </x-ui.card>
 
         <x-ui.card
-            :title="__('bancos::recaudo.web.semana.titulo', ['desde' => $short($week->start), 'hasta' => $short($week->end)])"
-            :description="__('bancos::recaudo.web.semana.descripcion')"
+            :title="__('bancos::recaudo.web.mes.titulo', ['mes' => $month->month->locale('es')->isoFormat('MMMM [de] YYYY')])"
+            :description="__('bancos::recaudo.web.mes.descripcion')"
         >
-            <div class="grid grid-cols-1 gap-3 min-[22rem]:grid-cols-2 md:gap-4 lg:grid-cols-3">
-                <x-ui.stat
-                    :label="__('bancos::recaudo.web.semana.total')"
-                    :hint="__('bancos::recaudo.web.semana.dias', ['n' => $week->daysCounted])"
-                    :trend="$week->trend()"
-                    :trend-label="$trendLabel"
-                >
-                    <x-bancos::amount :value="$week->total" />
-                </x-ui.stat>
+            @if ($previousMonth !== null || $nextMonth !== null)
+                <nav aria-label="{{ __('bancos::recaudo.web.mes.navegacion') }}" class="mb-4 flex flex-wrap gap-3">
+                    @if ($previousMonth !== null)
+                        <x-ui.link-button :href="route('bancos.recaudo', ['fecha' => $previousMonth->format('Y-m-d')])" variant="secondary" icon="chevron-left">{{ __('bancos::recaudo.web.mes.anterior') }}</x-ui.link-button>
+                    @endif
 
-                @if ($week->daysCounted > 0)
-                    <x-ui.stat
-                        :label="__('bancos::recaudo.web.semana.anterior')"
-                        :hint="$change !== null ? __('bancos::recaudo.web.semana.cambio', ['cambio' => ($change > 0 ? '+' : '').number_format($change, 1, ',', '.')]) : null"
-                    >
-                        <x-bancos::amount :value="$week->previousTotal" />
-                    </x-ui.stat>
-                @endif
+                    @if ($nextMonth !== null)
+                        <x-ui.link-button :href="route('bancos.recaudo', ['fecha' => $nextMonth->format('Y-m-d')])" variant="secondary" icon="chevron-right">{{ __('bancos::recaudo.web.mes.siguiente') }}</x-ui.link-button>
+                    @endif
+                </nav>
+            @endif
 
-                @if (count($week->companyTotals) > 1)
-                    @foreach ($week->companyTotals as $code => $total)
-                        <x-ui.stat :label="CompanyCode::from($code)->label()">
-                            <x-bancos::amount :value="$total" />
-                        </x-ui.stat>
-                    @endforeach
-                @endif
-            </div>
-
-            <div data-part="week-bars" class="mt-6 grid gap-4">
-                <h3 class="text-base font-semibold">{{ __('bancos::recaudo.web.semana.por_dia') }}</h3>
-
-                <ul class="grid gap-4">
-                    @foreach ($week->days as $weekDay)
-                        <li class="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 gap-y-1.5 sm:grid-cols-[10rem_minmax(0,1fr)_minmax(10rem,auto)]">
-                            <span class="text-sm font-semibold text-fg-soft sm:col-start-1 sm:row-start-1">{{ $weekDay->date->locale('es')->isoFormat('dddd D') }}</span>
-                            <span class="text-end text-sm tabular-nums sm:col-start-3 sm:row-start-1">
-                                @if (! $weekDay->loaded)
-                                    <span class="text-fg-muted">{{ __('bancos::recaudo.web.semana.aun_no') }}</span>
-                                @elseif ($weekDay->total <= 0)
-                                    <span class="text-fg-muted">{{ __('bancos::recaudo.web.semana.sin_creditos') }}</span>
-                                @else
-                                    <x-bancos::amount :value="$weekDay->total" class="font-semibold" />
-                                @endif
-                            </span>
-                            <span aria-hidden="true" class="col-span-2 h-3 overflow-hidden rounded-full bg-subtle sm:col-span-1 sm:col-start-2 sm:row-start-1">
-                                <span class="block h-full rounded-full bg-brand-primary" style="width: {{ $week->barWidth($weekDay) }}%"></span>
-                            </span>
-                        </li>
-                    @endforeach
-                </ul>
-
-                <details class="text-sm">
-                    <summary class="inline-flex min-h-touch cursor-pointer items-center font-semibold text-brand-ink underline-offset-4 hover:underline">{{ __('bancos::recaudo.web.semana.tabla') }}</summary>
-                    <x-ui.table :caption="__('bancos::recaudo.web.semana.tabla_titulo')" :caption-hidden="true" :columns="$weekColumns">
-                        @foreach ($week->days as $weekDay)
+            <div class="grid gap-6">
+                @foreach ($month->grids as $grid)
+                    <x-ui.table :caption="__('bancos::recaudo.web.mes.tabla', ['empresa' => $grid->company->label(), 'codigo' => $grid->company->value])" :columns="$monthColumns">
+                        @foreach ($grid->weeks as $week)
                             <tr>
-                                <td>{{ $weekDay->date->locale('es')->isoFormat('dddd D') }}</td>
-                                <td data-align="end">
-                                    @if ($weekDay->loaded)
-                                        <x-bancos::amount :value="$weekDay->total" />
+                                <th scope="row" class="whitespace-nowrap">{{ $week->label() }}</th>
+                                <td data-align="center">{{ $week->businessDays }}</td>
+
+                                @foreach ($week->cells as $cell)
+                                    @php($selected = $cell->state !== MonthCellState::Outside && $cell->date->toDateString() === $date->toDateString())
+
+                                    <td
+                                        data-align="end"
+                                        @if ($selected) aria-current="date" @endif
+                                        @class([
+                                            'whitespace-nowrap',
+                                            'bg-brand-tint text-brand-ink' => $selected,
+                                            'bg-subtle' => ! $selected && $cell->state === MonthCellState::Outside,
+                                            'bg-subtle/50' => ! $selected && $cell->state === MonthCellState::Holiday,
+                                        ])
+                                    >
+                                        @switch($cell->state)
+                                            @case(MonthCellState::Outside)
+                                                <span data-visually-hidden>{{ __('bancos::recaudo.web.mes.fuera') }}</span>
+                                                @break
+                                            @case(MonthCellState::Holiday)
+                                                <span class="text-sm text-fg-muted">{{ __('bancos::recaudo.web.mes.festivo') }}</span>
+                                                @break
+                                            @case(MonthCellState::Pending)
+                                                <span aria-hidden="true" class="text-fg-muted">—</span>
+                                                <span data-visually-hidden>{{ __('bancos::recaudo.web.mes.aun_no') }}</span>
+                                                @break
+                                            @default
+                                                @if ($cell->amount > 0)
+                                                    <a href="{{ route('bancos.recaudo', ['fecha' => $cell->date->format('Y-m-d')]) }}" class="inline-flex min-h-touch items-center font-semibold text-brand-ink underline-offset-4 hover:underline">
+                                                        <x-bancos::amount :value="$cell->amount" />
+                                                        <span data-visually-hidden>, {{ __('bancos::recaudo.web.mes.ver_dia', ['fecha' => $long($cell->date)]) }}</span>
+                                                    </a>
+                                                @else
+                                                    <span aria-hidden="true" class="text-fg-muted">—</span>
+                                                    <span data-visually-hidden>{{ __('bancos::recaudo.web.mes.sin_creditos') }}</span>
+                                                @endif
+                                        @endswitch
+                                    </td>
+                                @endforeach
+
+                                <td data-align="end" class="font-semibold whitespace-nowrap">
+                                    @if ($week->hasFigures())
+                                        <x-bancos::amount :value="$week->total" />
                                     @else
-                                        <span class="text-fg-muted">{{ __('bancos::recaudo.web.semana.aun_no') }}</span>
-                                    @endif
-                                </td>
-                                <td data-align="end">
-                                    @if ($weekDay->cumulative !== null)
-                                        <x-bancos::amount :value="$weekDay->cumulative" />
-                                    @else
-                                        <span class="text-fg-muted">—</span>
+                                        <span aria-hidden="true" class="font-normal text-fg-muted">—</span>
+                                        <span data-visually-hidden>{{ __('bancos::recaudo.web.mes.aun_no') }}</span>
                                     @endif
                                 </td>
                             </tr>
                         @endforeach
+
+                        <x-slot:footer>
+                            <tr>
+                                <th scope="row">{{ __('bancos::recaudo.web.total_fila') }}</th>
+                                <td data-align="center" class="font-semibold">{{ $grid->businessDays }}</td>
+                                @foreach ($grid->columnTotals as $columnTotal)
+                                    <td data-align="end" class="font-semibold whitespace-nowrap"><x-bancos::amount :value="$columnTotal" /></td>
+                                @endforeach
+                                <td data-align="end" class="font-bold whitespace-nowrap"><x-bancos::amount :value="$grid->total" /></td>
+                            </tr>
+                        </x-slot:footer>
                     </x-ui.table>
-                </details>
+                @endforeach
             </div>
         </x-ui.card>
     </div>

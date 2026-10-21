@@ -14,8 +14,9 @@ use Illuminate\Database\Eloquent\Builder;
 
 /**
  * GET /bancos/recaudo: the daily collections report (what came in on a day,
- * by bank) and the weekly accumulated of that day's week. It replaces the
- * sheet the portfolio analyst filled in by hand.
+ * by bank) and the month of that day as the grid the portfolio analyst keeps
+ * in her workbook (a row per week, a column per weekday, one table per
+ * company). It replaces the sheet she filled in by hand.
  */
 final class CollectionReportController
 {
@@ -30,11 +31,18 @@ final class CollectionReportController
         $companies = $this->companies->inView();
         $today = CollectionReports::defaultDay()->addDay();
 
+        // The month links land on the last day of the month before and the
+        // first of the next one, inside what the request accepts.
+        $previousMonth = $date->startOfMonth()->subDay();
+        $nextMonth = $date->startOfMonth()->addMonth();
+
         return view('bancos::recaudo.index', [
             'date' => $date,
             'today' => $today,
             'day' => $this->reports->day($date, $companies),
-            'week' => $this->reports->week($date, $companies),
+            'month' => $this->reports->month($date, $companies),
+            'previousMonth' => $previousMonth->toDateString() >= CollectionReportRequest::FIRST_DAY ? $previousMonth : null,
+            'nextMonth' => $nextMonth->lessThanOrEqualTo($today) ? $nextMonth : null,
             'pending' => $this->pendingOn($date, $companies),
             'otherCurrency' => $this->otherCurrency($date, $companies),
         ]);

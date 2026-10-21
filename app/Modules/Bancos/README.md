@@ -2,7 +2,7 @@
 
 Bank movements and collections (Part B, module 5 of `docs/prompt-gestor-cartera.md`), **without the reconciliation** (5.8, waiting for the file from the user: Part D, item 2).
 
-Treasury downloads the statements of the bank accounts; the debits are theirs and the **credits** are Cartera's. This module reads the statements, keeps the credits once, lets the analyst note the cash receipt number once the payment is applied in SAP, and reports what came in per day and per week.
+Treasury downloads the statements of the bank accounts; the debits are theirs and the **credits** are Cartera's. This module reads the statements, keeps the credits once, lets the analyst note the cash receipt number once the payment is applied in SAP, and reports what came in per day, by bank and as the analyst's monthly grid of business days.
 
 ```
 folder (every morning) ─┐
@@ -20,7 +20,8 @@ Treasury API (POST) ────┴───────────────
 | Where | What |
 |---|---|
 | `Domain/Statement` | `StatementReader` (the interface), `TabularStatementReader` (the shared logic), `Banks/*` (one class per bank, only its `BankProfile`), `Cells` (dates, amounts, headers), `StatementMovement` (the normalized movement). Plain PHP. |
-| `Domain/Collections` | `CollectionBuilder` (adds credits into the contract's `DailyCollection`/`WeeklyCollection`, in cents), `DayReport`, `WeekReport`. Plain PHP. |
+| `Domain/Collections` | `CollectionBuilder` (adds credits into the contract's `DailyCollection`/`WeeklyCollection`, in cents), `DayReport`, `MonthReport` (the analyst's monthly grid: `MonthGrid` per company, `MonthWeek` rows, `MonthCell` days). Plain PHP. |
+| `Domain/Calendar` | `ColombianHolidays`: the holidays by law and the business days. Plain PHP. |
 | `Application/Import` | `MovementImporter` (the only way in), `StatementImport` (a file), `FolderImporter` (the drop folder), `ReceiveMovements` (the API). |
 | `Application/Movements`, `Application/Reports` | Queries of the screens and the status change; the report use cases. |
 | `Infrastructure` | Eloquent models (`BankMovement`, `BankLoad`), `TabularFile` (csv/txt, xlsx, and xls when it is an HTML table), `EloquentRecaudoProvider`. |
@@ -98,10 +99,26 @@ The `RecaudoProvider` contract as JSON: `diario` (per day and company, with `por
 
 ## Collections (recaudo)
 
-- The sum of the credits per **movement date**, whatever their status: an ignored credit still reached the bank account, and Treasury's cash flow wants the cash.
+- The sum of the credits per **movement date**, whatever their status (pending, applied or ignored): an ignored credit still reached the bank account, and Treasury's cash flow wants the cash.
 - Only credits in `bancos.collection_currency` (COP) add up. Dollar credits are stored and listed, but there is **no exchange rate** to convert them; the report warns when there are any.
-- Movements arrive the day after (día vencido): the report opens on yesterday and the week shows the days that have not arrived as "Aún no llega", not as zero. The week is compared with the previous one over the same weekdays.
-- The sheet María Paula fills in today is **not known yet** (Part D, item 4), nor how Treasury builds the weekly accumulated (item 5): the layouts here are proposals.
+- Movements arrive the day after (día vencido): the report opens on yesterday, and a business day after yesterday reads "—" ("Aún no llega"), not zero.
+
+`/bancos/recaudo` has two cards: the **day** (what came in on the chosen day, by bank) and the **month** of that day, in the format María Paula keeps in her workbook (Part D, item 4: one sheet per company, October 2026 as the sample):
+
+| Semana | Días | Lunes | Martes | Miércoles | Jueves | Viernes | Total recaudo |
+|---|---|---|---|---|---|---|---|
+| 01 oct. – 02 oct. | 2 | (other month) | (other month) | (other month) | $ | $ | $ week |
+| 12 oct. – 16 oct. | 4 | Festivo | $ | $ | $ | — (not here yet) | $ week |
+| Total | 21 | $ column | … | … | … | … | $ month |
+
+- **One table per company in view**: the active one, or SGX then SDC in the group view.
+- **Rows** are the Monday-to-Friday weeks with at least one weekday in the month, labelled by their first and last weekday inside the month. **Días** counts the business days of the week inside the month; the total row, those of the month.
+- **Business days** are Monday to Friday except the Colombian holidays, which `ColombianHolidays` computes by law (Ley 51 de 1983: the fixed ones, the ones moved to Monday, and the ones that follow Easter, computed without `ext-calendar`). There is no list to update each year.
+- **Weekends and holidays go to the next business day**: a cell holds the credits from the day after the previous business day up to its own day. A Saturday credit shows on Monday (Tuesday when Monday is a holiday), and one of a holiday on the day after. This crosses months: Saturday 31 October 2026 belongs to Tuesday 3 November (2 November is a holiday), so it is in November's grid, not October's. The month is therefore read from the day after the last business day of the month before up to its own last business day.
+- A weekday of another month is an empty shaded cell; a holiday says "Festivo". A day with money links to its detail (the day card).
+- **Total recaudo** of a row is the sum of its cells, which is the week's accumulated; the total row adds each column and the month. Everything is added in cents.
+- Her sheet also has a **"Proyección de recaudo" and a "%" column**: they are left out until there is a source for the projection.
+- The old weekly card (Monday to Sunday, compared with the week before) is gone: each row's total is the week's accumulated. The API still serves `semanal` (ISO weeks) for Treasury; how Treasury builds its weekly accumulated is still to confirm (Part D, item 5).
 
 ## Who can do what
 

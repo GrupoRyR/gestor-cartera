@@ -2,22 +2,25 @@
 
 namespace App\Modules\Bancos\Application\Reports;
 
+use App\Modules\Bancos\Domain\Calendar\ColombianHolidays;
 use App\Modules\Bancos\Domain\Collections\DayReport;
-use App\Modules\Bancos\Domain\Collections\WeekReport;
+use App\Modules\Bancos\Domain\Collections\MonthReport;
 use App\Modules\Bancos\Domain\Statement\Cells;
 use App\Modules\Core\Contracts\Enums\CompanyCode;
 use App\Modules\Core\Contracts\RecaudoProvider;
 use Carbon\CarbonImmutable;
-use Carbon\CarbonInterface;
 
 /**
  * The two collections reports of Cartera, built from the RecaudoProvider
  * contract (the same numbers Treasury reads from the API): the day, by bank,
- * and the week with its running total.
+ * and the month as the analyst's grid of business days.
  */
 final class CollectionReports
 {
-    public function __construct(private readonly RecaudoProvider $collections) {}
+    public function __construct(
+        private readonly RecaudoProvider $collections,
+        private readonly ColombianHolidays $holidays,
+    ) {}
 
     /**
      * The day the report opens on: yesterday. The movements arrive the day
@@ -37,21 +40,15 @@ final class CollectionReports
     }
 
     /**
-     * The week of $date (Monday to Sunday) and how it compares with the one before.
+     * The month of $date, a grid per company: the weekend and holiday credits
+     * go to the next business day, even when that is in the next month.
      *
      * @param  list<CompanyCode>  $companies  The companies in view.
      */
-    public function week(CarbonImmutable $date, array $companies): WeekReport
+    public function month(CarbonImmutable $date, array $companies): MonthReport
     {
-        $start = $date->startOfWeek(CarbonInterface::MONDAY)->startOfDay();
-        $previous = $start->subWeek();
+        [$from, $to] = MonthReport::range($date, $this->holidays);
 
-        return WeekReport::from(
-            anyDayOfTheWeek: $date,
-            thisWeek: $this->collections->daily($start, $start->addDays(6)),
-            previousWeek: $this->collections->daily($previous, $previous->addDays(6)),
-            companies: $companies,
-            lastLoaded: self::defaultDay(),
-        );
+        return MonthReport::from($date, $this->collections->daily($from, $to), $companies, self::defaultDay(), $this->holidays);
     }
 }
