@@ -155,6 +155,41 @@ class ConsultasTest(unittest.TestCase):
                 self.assertIn("VALIDAR CON DATOS REALES", _sql(esquema.LOTES[nombre]))
 
 
+def _codigo(nombre: str) -> str:
+    """SQL de un lote sin comentarios y con los espacios normalizados."""
+    return " ".join(_sin_comentarios(_sql(esquema.LOTES[nombre])).split())
+
+
+class DecisionesConfirmadasTest(unittest.TestCase):
+    """Reglas que Miguel confirmo contra SAP; si cambian, cambia la prueba."""
+
+    def test_el_canal_es_el_grupo_del_cliente(self):
+        self.assertIn('"OCRG" T7 ON T7."GroupCode" = T2."GroupCode"', _codigo("ventas"))
+        self.assertIn('T7."GroupName" AS "Canal"', _codigo("ventas"))
+        self.assertIn('"OCRG" T2 ON T2."GroupCode" = T0."GroupCode"',
+                      _codigo("maestro_clientes"))
+        self.assertIn('T2."GroupName" AS "Canal"', _codigo("maestro_clientes"))
+
+    def test_el_id_del_pedido_de_la_app_sale_de_la_factura(self):
+        self.assertIn('T0."U_SGX_IdPedidoApp"', _codigo("ventas"))
+        self.assertIn('X."IdPedidoApp" AS "Id pedido app"', _codigo("ventas"))
+
+    def test_la_ventana_de_ventas_va_por_la_fecha_de_la_factura(self):
+        sql = _codigo("ventas")
+        self.assertEqual(sql.count(f'T0."DocDate" >= {VENTANA}'), 2)
+        self.assertNotIn('T0."TaxDate" >=', sql)
+        self.assertIn('X."TaxDate" AS "Fecha documento"', sql)
+        self.assertIn('X."DocDate" AS "Fecha contabilización"', sql)
+
+    def test_los_cruces_son_solo_anticipos_y_cliente_proveedor(self):
+        sql = _codigo("cruces")
+        self.assertNotIn("'otro'", sql)
+        self.assertIn('AND (T4."TienePago" = 1 OR T4."TieneProveedor" = 1)', sql)
+
+    def test_la_zona_del_vendedor_queda_en_null(self):
+        self.assertIn('CAST(NULL AS NVARCHAR(100)) AS "Zona"', _codigo("maestro_vendedores"))
+
+
 class ColumnaTest(unittest.TestCase):
     def test_la_forma_posicional_sigue_valiendo(self):
         columna = Columna("Saldo", "saldo", NUMERO)

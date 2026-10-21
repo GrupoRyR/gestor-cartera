@@ -13,9 +13,13 @@
 --
 -- Llave natural: "Tipo objeto" + "DocEntry" + "Línea".
 --
+-- Periodo: la venta se asigna al mes de la fecha de la factura (DocDate, la
+-- de la factura electronica), que sale en "Fecha contabilización". "Fecha
+-- documento" (TaxDate) se conserva solo como referencia.
+--
 -- Ventana sin parametros (para que corra igual en el Query Manager): el mes en
--- curso mas los ultimos 7 dias del mes anterior, hasta hoy, por fecha de
--- contabilizacion (DocDate) o de documento (TaxDate).
+-- curso mas los ultimos 7 dias del mes anterior, hasta hoy, por la fecha de la
+-- factura (DocDate).
 --   ADD_DAYS(CURRENT_DATE, -6 - DAYOFMONTH(CURRENT_DATE))
 --     = CURRENT_DATE - (DAYOFMONTH - 1)   -> primer dia del mes en curso
 --                    - 7                  -> menos 7 dias
@@ -46,18 +50,14 @@ SELECT
         WHEN X."DocStatus" = 'C' THEN 'cerrado'
         ELSE 'abierto'
     END                                                        AS "Estado documento",
-    -- VALIDAR CON DATOS REALES: la especificacion asigna la venta al periodo
-    -- por "fecha de documento". En B1 TaxDate es la fecha del documento y
-    -- DocDate la de contabilizacion (la de la factura electronica). Confirmar
-    -- cual usa hoy el informe de ventas; Comisiones recibe las dos.
+    -- El periodo va por DocDate ("Fecha contabilización"), confirmado por
+    -- Miguel. TaxDate se envia como referencia.
     X."TaxDate"                                                AS "Fecha documento",
     X."DocDate"                                                AS "Fecha contabilización",
     IFNULL(X."SlpCode", -1)                                    AS "SlpCode",
     T3."SlpName"                                               AS "Vendedor",
-    -- VALIDAR CON DATOS REALES: no se sabe de donde sale el canal (grupo del
-    -- cliente OCRG."GroupName", un campo de usuario U_ de OCRD u OSLP, o los
-    -- equipos que parametriza Comisiones). Va en NULL hasta confirmarlo.
-    CAST(NULL AS NVARCHAR(100))                                AS "Canal",
+    -- Canal = grupo del cliente de la factura (OCRG), confirmado por Miguel.
+    T7."GroupName"                                             AS "Canal",
     X."CardCode"                                               AS "Código cliente",
     X."CardName"                                               AS "Cliente",
     T2."LicTradNum"                                            AS "Nit",
@@ -67,9 +67,10 @@ SELECT
     -- la factura sale de una entrega (BaseType 15), el pedido queda un paso
     -- atras y aqui sale NULL.
     CASE WHEN X."BaseType" = 17 THEN X."BaseRef" END           AS "Pedido",
-    -- VALIDAR CON DATOS REALES: el id del pedido de la app de ventas no tiene
-    -- un campo conocido en SAP (posible campo de usuario U_ del pedido ORDR).
-    CAST(NULL AS NVARCHAR(100))                                AS "Id pedido app",
+    -- Id del pedido de la app de ventas: campo de usuario de la factura
+    -- (OINV."U_SGX_IdPedidoApp"), confirmado por Miguel. Las notas credito lo
+    -- traen en NULL.
+    X."IdPedidoApp"                                            AS "Id pedido app",
     X."NumAtCard"                                              AS "OC cliente",
     -- VALIDAR CON DATOS REALES: la ciudad de envio no esta separada en el
     -- encabezado (Address2 es la direccion completa). Candidata: INV12/RIN12
@@ -106,13 +107,12 @@ FROM (
         T0."Comments",
         T1."LineNum", T1."ItemCode", T1."Dscription", T1."Quantity", T1."Price",
         T1."PriceBefDi", T1."StockPrice", T1."LineTotal", T1."VatSum",
-        T1."BaseType", T1."BaseRef"
+        T1."BaseType", T1."BaseRef",
+        CAST(T0."U_SGX_IdPedidoApp" AS NVARCHAR(254)) AS "IdPedidoApp"
     FROM "OINV" T0
     INNER JOIN "INV1" T1 ON T1."DocEntry" = T0."DocEntry"
-    WHERE (T0."DocDate" >= ADD_DAYS(CURRENT_DATE, -6 - DAYOFMONTH(CURRENT_DATE))
-           AND T0."DocDate" <= CURRENT_DATE)
-       OR (T0."TaxDate" >= ADD_DAYS(CURRENT_DATE, -6 - DAYOFMONTH(CURRENT_DATE))
-           AND T0."TaxDate" <= CURRENT_DATE)
+    WHERE T0."DocDate" >= ADD_DAYS(CURRENT_DATE, -6 - DAYOFMONTH(CURRENT_DATE))
+      AND T0."DocDate" <= CURRENT_DATE
 
     UNION ALL
 
@@ -125,17 +125,17 @@ FROM (
         T0."Comments",
         T1."LineNum", T1."ItemCode", T1."Dscription", T1."Quantity", T1."Price",
         T1."PriceBefDi", T1."StockPrice", T1."LineTotal", T1."VatSum",
-        T1."BaseType", T1."BaseRef"
+        T1."BaseType", T1."BaseRef",
+        CAST(NULL AS NVARCHAR(254)) AS "IdPedidoApp"
     FROM "ORIN" T0
     INNER JOIN "RIN1" T1 ON T1."DocEntry" = T0."DocEntry"
-    WHERE (T0."DocDate" >= ADD_DAYS(CURRENT_DATE, -6 - DAYOFMONTH(CURRENT_DATE))
-           AND T0."DocDate" <= CURRENT_DATE)
-       OR (T0."TaxDate" >= ADD_DAYS(CURRENT_DATE, -6 - DAYOFMONTH(CURRENT_DATE))
-           AND T0."TaxDate" <= CURRENT_DATE)
+    WHERE T0."DocDate" >= ADD_DAYS(CURRENT_DATE, -6 - DAYOFMONTH(CURRENT_DATE))
+      AND T0."DocDate" <= CURRENT_DATE
 ) X
 LEFT JOIN "OCRD" T2 ON T2."CardCode"   = X."CardCode"
 LEFT JOIN "OSLP" T3 ON T3."SlpCode"    = X."SlpCode"
 LEFT JOIN "OITM" T4 ON T4."ItemCode"   = X."ItemCode"
 LEFT JOIN "OITB" T5 ON T5."ItmsGrpCod" = T4."ItmsGrpCod"
 LEFT JOIN "OMRC" T6 ON T6."FirmCode"   = T4."FirmCode"
+LEFT JOIN "OCRG" T7 ON T7."GroupCode"  = T2."GroupCode"
 ORDER BY X."DocDate", X."ObjType", X."DocEntry", X."LineNum"

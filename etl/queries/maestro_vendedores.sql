@@ -15,10 +15,11 @@ SELECT
     CASE WHEN IFNULL(T0."Active", 'Y') = 'Y'
          THEN 'activo' ELSE 'inactivo' END                      AS "Estado",
     LOWER(NULLIF(TRIM(T0."Email"), ''))                         AS "Correo",
-    -- VALIDAR CON DATOS REALES: el canal y la zona del vendedor no tienen una
-    -- columna conocida en OSLP (posibles campos de usuario U_). Van en NULL;
-    -- hoy los parametriza Comisiones.
+    -- VALIDAR CON DATOS REALES: el canal del vendedor no tiene una columna
+    -- conocida en OSLP (posible campo de usuario U_). Va en NULL; hoy lo
+    -- parametriza Comisiones con los equipos.
     CAST(NULL AS NVARCHAR(100))                                 AS "Canal",
+    -- La zona va en NULL a proposito: SAP no la maneja (confirmado por Miguel).
     CAST(NULL AS NVARCHAR(100))                                 AS "Zona",
     -- VALIDAR CON DATOS REALES: OSLP no trae una fecha de modificacion
     -- confirmada (revisar si la version de B1 tiene "UpdateDate" en OSLP o su
