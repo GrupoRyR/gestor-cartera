@@ -87,6 +87,7 @@ final class ReportsController
             return $settlement;
         }
 
+        self::allowBatchTime();
         $outcome = $this->archive->generateMissing($settlement, $this->reports->of($settlement), self::user($request));
         $back = $this->back($request, $settlement);
         $count = count($outcome->generated);
@@ -140,6 +141,7 @@ final class ReportsController
 
         $user = self::user($request);
         $reports = $this->reports->of($settlement);
+        self::allowBatchTime();
         $outcome = $this->archive->generateMissing($settlement, $reports, $user);
 
         if ($outcome->mismatched !== []) {
@@ -240,6 +242,18 @@ final class ReportsController
             'referencias' => implode(', ', array_map(fn (CollectionReport $report): string => $report->reference, $reports)),
             'detalle' => implode('; ', $details),
         ]);
+    }
+
+    /**
+     * A batch renders every collection PDF of the version in one request
+     * (§11: all of them in under 2 minutes), longer than the 30 seconds
+     * shared hosting usually allows. Should the host still stop it, nothing
+     * is lost: each PDF is stored as soon as it is rendered, so the next
+     * attempt only renders the missing ones.
+     */
+    private static function allowBatchTime(): void
+    {
+        set_time_limit(180);
     }
 
     private static function user(Request $request): ?User
