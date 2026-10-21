@@ -41,7 +41,7 @@
                         <tr data-message="{{ $message->id }}">
                             <td class="min-w-56">
                                 <x-ui.checkbox name="mensajes[]" :value="$message->id" :label="$message->from_name ?? $message->from_address ?? '—'" />
-                                <a href="{{ route('cobro.respuestas.show', $message) }}" class="mt-1 block font-semibold underline underline-offset-2 [overflow-wrap:anywhere]">{{ $message->subject !== '' ? $message->subject : __('cobro::respuestas.sin_asunto') }}</a>
+                                <a href="{{ route('cobro.respuestas.show', $message) }}" class="flex min-h-touch items-center font-semibold underline underline-offset-2 [overflow-wrap:anywhere]">{{ $message->subject !== '' ? $message->subject : __('cobro::respuestas.sin_asunto') }}</a>
                                 <span class="mt-1 block text-sm [overflow-wrap:anywhere]">{{ Str::limit($message->is_bounce ? ($message->bounce_reason ?? $message->preview) : $message->preview, 160) }}</span>
                             </td>
                             <td>

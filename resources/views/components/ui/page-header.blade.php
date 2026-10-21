@@ -1,7 +1,8 @@
 {{--
     Heading of a page (C.5): the page's only <h1>, an optional short context
     line above it, a description and an "actions" slot. On phones the
-    actions drop below the heading.
+    actions drop below the heading; they never grow wider than the page,
+    even with large text (each action may shrink and wrap).
 --}}
 @props(['title', 'context' => null, 'description' => null])
 
@@ -19,6 +20,6 @@
     </div>
 
     @isset($actions)
-        <div data-part="actions" class="flex flex-wrap items-center gap-2 max-sm:w-full max-sm:*:grow">{{ $actions }}</div>
+        <div data-part="actions" class="flex max-w-full min-w-0 flex-wrap items-center gap-2 *:min-w-0 max-sm:w-full max-sm:*:grow">{{ $actions }}</div>
     @endisset
 </header>

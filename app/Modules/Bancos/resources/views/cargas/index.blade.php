@@ -26,7 +26,7 @@
     <div class="flex flex-col gap-6">
         @can('bancos.import')
             <x-ui.card :title="__('bancos::cargas.formulario.titulo')" :description="__('bancos::cargas.formulario.descripcion')">
-                <form method="POST" action="{{ route('bancos.cargas.store') }}" enctype="multipart/form-data" class="grid max-w-3xl gap-4 md:grid-cols-2">
+                <form method="POST" action="{{ route('bancos.cargas.store') }}" enctype="multipart/form-data" class="grid max-w-3xl grid-cols-1 gap-4 md:grid-cols-2">
                     @csrf
 
                     <x-ui.select

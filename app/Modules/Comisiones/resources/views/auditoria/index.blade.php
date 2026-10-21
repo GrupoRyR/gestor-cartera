@@ -22,7 +22,7 @@
 
     <div class="flex flex-col gap-6">
         <x-ui.card :title="__('comisiones::auditoria.filtros.titulo')">
-            <form method="GET" action="{{ route('comisiones.auditoria.index') }}" class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 xl:items-end">
+            <form method="GET" action="{{ route('comisiones.auditoria.index') }}" class="grid grid-cols-1 gap-4 sm:grid-cols-[repeat(auto-fit,minmax(min(8rem,100%),1fr))] sm:items-end">
                 <x-ui.select name="usuario" :label="__('comisiones::auditoria.filtros.usuario')" :options="$users" :value="$filters->user" :placeholder="__('comisiones::auditoria.filtros.todos')" />
                 <x-ui.input name="desde" type="date" :label="__('comisiones::auditoria.filtros.desde')" :value="$filters->from?->format('Y-m-d')" />
                 <x-ui.input name="hasta" type="date" :label="__('comisiones::auditoria.filtros.hasta')" :value="$filters->to?->format('Y-m-d')" />
