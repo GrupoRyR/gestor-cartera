@@ -93,8 +93,8 @@
                 <circle cx="{{ $end->x }}" cy="{{ $end->y }}" r="6" stroke-width="2" class="fill-brand-primary stroke-surface" />
 
                 <g x-cloak x-show="i !== null" aria-hidden="true">
-                    <line x-bind:x1="points[i]?.x" x-bind:x2="points[i]?.x" y1="{{ $chart->topLine }}" y2="{{ $chart->baseline }}" stroke-width="1" class="stroke-fg-muted" />
-                    <circle x-bind:cx="points[i]?.x" x-bind:cy="points[i]?.y" r="6" stroke-width="2" class="fill-brand-primary stroke-surface" />
+                    <line x-bind:x1="points[i]?.x ?? 0" x-bind:x2="points[i]?.x ?? 0" y1="{{ $chart->topLine }}" y2="{{ $chart->baseline }}" stroke-width="1" class="stroke-fg-muted" />
+                    <circle x-bind:cx="points[i]?.x ?? 0" x-bind:cy="points[i]?.y ?? 0" r="6" stroke-width="2" class="fill-brand-primary stroke-surface" />
                 </g>
             </svg>
 

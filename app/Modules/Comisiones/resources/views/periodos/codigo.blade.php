@@ -123,16 +123,16 @@
             @if ($version !== null)
                 <input type="hidden" name="version" value="{{ $version }}">
             @endif
-            <div class="min-w-[12rem] flex-1">
+            <div class="min-w-[min(12rem,100%)] flex-1">
                 <x-ui.input name="cliente" type="search" :label="__('comisiones::codigo.filtros.cliente')" :hint="__('comisiones::codigo.filtros.cliente_ayuda')" :value="$filters->client" />
             </div>
-            <div class="min-w-[9rem]">
+            <div class="min-w-[min(9rem,100%)]">
                 <x-ui.input name="factura" :label="__('comisiones::codigo.filtros.factura')" :value="$filters->invoice" />
             </div>
-            <div class="min-w-[10rem]">
+            <div class="min-w-[min(10rem,100%)]">
                 <x-ui.input name="desde" type="date" :label="__('comisiones::codigo.filtros.desde')" :value="$filters->from" />
             </div>
-            <div class="min-w-[10rem]">
+            <div class="min-w-[min(10rem,100%)]">
                 <x-ui.input name="hasta" type="date" :label="__('comisiones::codigo.filtros.hasta')" :value="$filters->to" />
             </div>
             <div class="flex flex-wrap gap-2">

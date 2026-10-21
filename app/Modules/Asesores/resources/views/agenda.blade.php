@@ -58,7 +58,7 @@
                         @foreach ($commitments as $commitment)
                             @php($days = (int) $today->startOfDay()->diffInDays($commitment->dueDate->startOfDay(), false))
                             <tr>
-                                <td>
+                                <td class="min-w-40">
                                     <a href="{{ route('asesores.clientes.show', $commitment->clientId) }}" class="block min-h-touch font-semibold text-brand-ink underline-offset-4 hover:underline [overflow-wrap:anywhere]">{{ $commitment->clientName }}</a>
                                 </td>
                                 <td>

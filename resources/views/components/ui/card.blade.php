@@ -3,6 +3,8 @@
 {{--
     Content block (C.5). With a title it is a <section> named by its heading;
     without one, a plain <div>. Slots: default (body), "actions", "footer".
+    When the title and the actions do not fit side by side (phones, large
+    text) the actions drop below the title instead of widening the page.
 --}}
 @props(['title' => null, 'description' => null, 'level' => 2])
 
@@ -27,9 +29,9 @@
 
 <{{ $tag }} {{ $attributes->merge(['aria-labelledby' => $headingId])->class('flex min-w-0 flex-col rounded-card border border-line bg-surface') }}>
     @if ($hasHeader)
-        <header data-part="header" class="flex items-start justify-between gap-4 px-5 pt-5">
+        <header data-part="header" class="flex flex-wrap items-start justify-between gap-4 px-5 pt-5">
             @if ($titled || filled($description))
-                <div class="min-w-0 flex-1">
+                <div class="min-w-0 flex-[1_1_8rem]">
                     @if ($titled)
                         <h{{ $level }} id="{{ $headingId }}" class="{{ $headingClass }}">{{ $title }}</h{{ $level }}>
                     @endif
@@ -41,7 +43,7 @@
             @endif
 
             @isset($actions)
-                <div data-part="actions" class="-my-1.5 -me-1.5 flex shrink-0 flex-wrap items-center justify-end gap-2">{{ $actions }}</div>
+                <div data-part="actions" class="-my-1.5 -me-1.5 flex max-w-full min-w-0 flex-wrap items-center justify-end gap-2">{{ $actions }}</div>
             @endisset
         </header>
     @endif

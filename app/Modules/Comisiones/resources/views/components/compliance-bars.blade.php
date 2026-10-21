@@ -17,7 +17,7 @@
     <x-ui.empty icon="chart" :title="__('comisiones::tablero.avance.vacio')" />
 @else
     <div data-part="compliance-bars" class="grid gap-4">
-        <ul class="grid gap-4">
+        <ul class="@container grid gap-4">
             @foreach ($chart['bars'] as $bar)
                 @php
                     $code = $bar->code;
@@ -28,13 +28,13 @@
                         default => __('comisiones::tablero.avance.no_cumple', ['minimo' => $minimum]),
                     };
                 @endphp
-                <li data-bar="{{ $code->code() }}" class="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 gap-y-1.5 sm:grid-cols-[12rem_minmax(0,1fr)_minmax(13rem,auto)]">
-                    <span class="min-w-0 truncate text-sm font-semibold text-fg-soft sm:col-start-1 sm:row-start-1">{{ $code->code() }} · {{ $code->rule->name }}</span>
-                    <span class="text-end text-sm sm:col-start-3 sm:row-start-1">
+                <li data-bar="{{ $code->code() }}" class="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 gap-y-1.5 @xl:grid-cols-[12rem_minmax(0,1fr)_minmax(13rem,auto)]">
+                    <span class="min-w-0 truncate text-sm font-semibold text-fg-soft @xl:col-start-1 @xl:row-start-1">{{ $code->code() }} · {{ $code->rule->name }}</span>
+                    <span class="text-end text-sm @xl:col-start-3 @xl:row-start-1">
                         <span class="font-semibold tabular-nums">{{ Labels::percent($code->compliance) }}</span>
                         <span class="text-fg-muted">· {{ $verdict }}</span>
                     </span>
-                    <span aria-hidden="true" class="relative col-span-2 h-3 rounded-full bg-subtle sm:col-span-1 sm:col-start-2 sm:row-start-1">
+                    <span aria-hidden="true" class="relative col-span-2 h-3 rounded-full bg-subtle @xl:col-span-1 @xl:col-start-2 @xl:row-start-1">
                         <span class="block h-full rounded-full bg-viz-1" style="width: {{ $bar->width }}%"></span>
                         @if ($bar->minimumAt !== null)
                             <span class="absolute -top-1 -bottom-1 w-0.5 -translate-x-1/2 rounded-full bg-fg" style="left: {{ $bar->minimumAt }}%"></span>
