@@ -8,6 +8,9 @@
     ->links(). Renders nothing when everything fits in one page; a
     length-aware paginator also shows "Página X de Y". The links keep the
     current query string (search, filters, sort) except the page parameter.
+    On the first or last page the missing link stays in place as a disabled
+    link (role="link" aria-disabled="true"), so assistive tech and contrast
+    checkers treat it as an inactive control.
 --}}
 @props(['paginator', 'label' => 'Paginación'])
 
@@ -26,7 +29,7 @@
 @if ($paginator->hasPages())
     <nav {{ $attributes->merge(['aria-label' => $label])->class('flex flex-wrap items-center justify-between gap-3 pt-4') }}>
         @if ($paginator->onFirstPage())
-            <span data-part="previous" data-disabled class="{{ $disabled }}"><x-ui.icon name="chevron-left" class="-ms-1 size-[1.125rem]" />Anterior</span>
+            <span role="link" aria-disabled="true" data-part="previous" data-disabled class="{{ $disabled }}"><x-ui.icon name="chevron-left" class="-ms-1 size-[1.125rem]" />Anterior</span>
         @else
             <a href="{{ $paginator->previousPageUrl() }}" rel="prev" data-part="previous" class="{{ $link }}"><x-ui.icon name="chevron-left" class="-ms-1 size-[1.125rem]" />Anterior</a>
         @endif
@@ -38,7 +41,7 @@
         @if ($paginator->hasMorePages())
             <a href="{{ $paginator->nextPageUrl() }}" rel="next" data-part="next" class="{{ $link }}">Siguiente<x-ui.icon name="chevron-right" class="-me-1 size-[1.125rem]" /></a>
         @else
-            <span data-part="next" data-disabled class="{{ $disabled }}">Siguiente<x-ui.icon name="chevron-right" class="-me-1 size-[1.125rem]" /></span>
+            <span role="link" aria-disabled="true" data-part="next" data-disabled class="{{ $disabled }}">Siguiente<x-ui.icon name="chevron-right" class="-me-1 size-[1.125rem]" /></span>
         @endif
     </nav>
 @endif

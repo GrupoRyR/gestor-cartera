@@ -29,9 +29,9 @@
 
     <ul class="mt-3 grid gap-x-6 gap-y-1.5 text-sm sm:grid-cols-2">
         @foreach ($slices as $slice)
-            <li class="flex items-center gap-2">
+            <li class="flex flex-wrap items-center gap-x-2">
                 <span class="{{ $shades[$slice->band->severity()] }} size-3 shrink-0 rounded-sm" aria-hidden="true"></span>
-                <span class="text-fg-soft">{{ __('cartera::tablero.edades.bandas.'.$slice->band->value) }}</span>
+                <span class="min-w-0 text-fg-soft">{{ __('cartera::tablero.edades.bandas.'.$slice->band->value) }}</span>
                 <span class="ms-auto text-end font-semibold tabular-nums"><x-ui.money :value="$slice->amount" /></span>
             </li>
         @endforeach

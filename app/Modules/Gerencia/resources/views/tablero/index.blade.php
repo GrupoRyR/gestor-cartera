@@ -211,7 +211,8 @@
 
                         <details class="text-sm">
                             <summary class="inline-flex min-h-touch cursor-pointer items-center font-semibold text-brand-ink underline-offset-4 hover:underline">{{ __('gerencia::tablero.tendencia.tabla_resumen') }}</summary>
-                            <x-ui.table :caption="__('gerencia::tablero.tendencia.tabla')" :caption-hidden="true" :columns="$trendColumns">
+                            {{-- Named after the chart it repeats, not the card, so the two landmarks differ. --}}
+                            <x-ui.table :caption="__('gerencia::tablero.tendencia.grafico')" :caption-hidden="true" :columns="$trendColumns">
                                 @foreach ($trend['rows'] as $row)
                                     <tr>
                                         <th scope="row">{{ $row['month'] }}</th>
@@ -238,7 +239,8 @@
                 @if ($rows === [])
                     <x-ui.empty icon="calendar-check" :title="__('gerencia::tablero.cumplimiento.vacio.titulo')" :description="__('gerencia::tablero.cumplimiento.vacio.detalle')" />
                 @else
-                    <x-ui.table :caption="__('gerencia::tablero.cumplimiento.tabla')" :caption-hidden="true" :columns="$complianceColumns">
+                    {{-- The card already carries the table's name: the period keeps the two landmarks apart. --}}
+                    <x-ui.table :caption="__('gerencia::tablero.cumplimiento.tabla').' · '.$periodLabel" :caption-hidden="true" :columns="$complianceColumns">
                         @foreach ($rows as $row)
                             @php
                                 $advisor = $row->compliance;

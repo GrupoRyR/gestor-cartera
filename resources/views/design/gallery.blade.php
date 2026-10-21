@@ -459,7 +459,7 @@
 
         <section id="component-ui-money" aria-labelledby="component-ui-money-title" class="{{ $sectionClass }}">
             <h2 id="component-ui-money-title" class="{{ $headingClass }}"><code>&lt;x-ui.money&gt;</code></h2>
-            <dl class="grid max-w-md grid-cols-[auto_1fr] gap-x-6 gap-y-2 text-[0.9375rem]">
+            <dl class="grid max-w-md grid-cols-[fit-content(45%)_minmax(0,1fr)] gap-x-6 gap-y-2 text-[0.9375rem] [overflow-wrap:anywhere]">
                 <dt class="text-fg-muted">Pesos</dt><dd><x-ui.money :value="1234567" /></dd>
                 <dt class="text-fg-muted">Dólares</dt><dd><x-ui.money :value="15890.5" currency="USD" /></dd>
                 <dt class="text-fg-muted">Con decimales</dt><dd><x-ui.money :value="1234567.89" :decimals="2" /></dd>
@@ -471,7 +471,7 @@
 
         <section id="component-ui-date" aria-labelledby="component-ui-date-title" class="{{ $sectionClass }}">
             <h2 id="component-ui-date-title" class="{{ $headingClass }}"><code>&lt;x-ui.date&gt;</code></h2>
-            <dl class="grid max-w-md grid-cols-[auto_1fr] gap-x-6 gap-y-2 text-[0.9375rem]">
+            <dl class="grid max-w-md grid-cols-[fit-content(45%)_minmax(0,1fr)] gap-x-6 gap-y-2 text-[0.9375rem] [overflow-wrap:anywhere]">
                 <dt class="text-fg-muted">Fecha</dt><dd><x-ui.date :value="$sampleDate" /></dd>
                 <dt class="text-fg-muted">Fecha y hora</dt><dd><x-ui.date :value="$sampleDate" :time="true" /></dd>
                 <dt class="text-fg-muted">Sin fecha</dt><dd><x-ui.date :value="null" fallback="Sin fecha" /></dd>

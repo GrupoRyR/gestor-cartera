@@ -24,7 +24,7 @@
             <input type="hidden" name="{{ $name }}" value="{{ $value }}">
         @endforeach
 
-        <div class="min-w-56 flex-1 sm:max-w-sm">
+        <div class="min-w-[min(14rem,100%)] flex-1 sm:max-w-sm">
             <x-ui.select name="asesor" :label="__('asesores::comun.asesor.etiqueta')" :options="$options" :value="$filter->advisor?->value()" :placeholder="__('asesores::comun.asesor.todos')" />
         </div>
         <x-ui.button type="submit" variant="secondary">{{ __('asesores::comun.asesor.ver') }}</x-ui.button>

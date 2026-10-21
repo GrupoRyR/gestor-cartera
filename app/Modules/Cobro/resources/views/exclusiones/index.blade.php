@@ -32,7 +32,7 @@
 
     <div class="flex flex-col gap-6">
         <form method="GET" action="{{ route('cobro.exclusiones.index') }}" role="search" aria-label="{{ __('cobro::exclusiones.buscar.etiqueta') }}" class="flex flex-wrap items-end gap-3">
-            <div class="min-w-[14rem] flex-1">
+            <div class="min-w-[min(14rem,100%)] flex-1">
                 <x-ui.input name="buscar" type="search" :label="__('cobro::exclusiones.buscar.campo')" :value="$search" />
             </div>
             <x-ui.checkbox name="todos" :label="__('cobro::exclusiones.buscar.todos')" :checked="$all" />
