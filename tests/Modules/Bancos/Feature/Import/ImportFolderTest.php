@@ -27,10 +27,11 @@ afterEach(function () {
 
 /**
  * Drops a copy of the invented statement of a bank in <company>/<bank>, old
- * enough to be taken.
+ * enough to be taken, named extracto.<extension of the fixture> by default.
  */
-function bancosDrop(string $folder, string $company, string $bankFolder, Bank $bank, string $name = 'extracto.csv', int $age = 3600): string
+function bancosDrop(string $folder, string $company, string $bankFolder, Bank $bank, ?string $name = null, int $age = 3600): string
 {
+    $name ??= 'extracto.'.pathinfo(Fixtures::path($bank), PATHINFO_EXTENSION);
     $directory = $folder.DIRECTORY_SEPARATOR.$company.DIRECTORY_SEPARATOR.$bankFolder;
     File::ensureDirectoryExists($directory);
     $path = $directory.DIRECTORY_SEPARATOR.$name;
@@ -48,7 +49,8 @@ it('imports the file of each company and bank folder, with the company and bank 
 
     expect(BankMovement::query()->where('company', 'SGX')->where('bank', 'bogota')->count())->toBe(3)
         ->and(BankMovement::query()->where('company', 'SDC')->where('bank', 'davivienda')->count())->toBe(2)
-        ->and(BankLoad::query()->pluck('source')->unique()->all())->toBe([ImportSource::Folder]);
+        ->and(BankLoad::query()->pluck('source')->unique()->all())->toBe([ImportSource::Folder])
+        ->and(glob($this->folder.'/procesados/2026-10/SDC-davivienda-*-extracto.xls'))->toHaveCount(1);
 });
 
 it('moves an imported file to procesados so it is not read again', function () {

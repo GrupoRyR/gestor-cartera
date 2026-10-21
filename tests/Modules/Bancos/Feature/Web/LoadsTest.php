@@ -110,6 +110,16 @@ describe('uploading a statement', function () {
         expect(BankMovement::query()->sole()->amount)->toBe('1000.00');
     });
 
+    it("reads Davivienda's .xls, an HTML table", function () {
+        $file = new UploadedFile(Fixtures::path(Bank::Davivienda), 'extracto.xls', 'application/vnd.ms-excel', null, true);
+
+        bancosUpload(BancosUsers::create(Role::PortfolioAnalyst), ['banco' => 'davivienda'], $file)
+            ->assertRedirect('/bancos/cargas')
+            ->assertSessionHas('status', '2 créditos nuevos de Davivienda (SGX); 0 ya estaban cargados.');
+
+        expect(BankMovement::query()->orderBy('id')->pluck('reference')->all())->toBe(['123456', '654321']);
+    });
+
     it('tells the user when the file is from another bank, and keeps what they chose', function () {
         bancosUpload(BancosUsers::create(Role::PortfolioAnalyst), ['banco' => 'bancolombia'])
             ->assertRedirect('/bancos/cargas')

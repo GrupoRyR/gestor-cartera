@@ -196,7 +196,7 @@ describe('from a file', function () {
         $result = app(StatementImport::class)->fromFile(Fixtures::path($bank), $bank, CompanyCode::SGX, ImportSource::Folder);
 
         expect($result->inserted())->toBe($credits)
-            ->and($result->load->file_name)->toBe($bank->value.'-ejemplo-inventado.csv')
+            ->and($result->load->file_name)->toBe(basename(Fixtures::path($bank)))
             ->and($result->load->file_sha256)->toBe(hash_file('sha256', Fixtures::path($bank)));
     })->with([
         'bogota' => [Bank::Bogota, 3],

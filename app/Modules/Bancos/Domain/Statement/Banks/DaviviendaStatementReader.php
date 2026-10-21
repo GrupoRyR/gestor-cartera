@@ -9,12 +9,20 @@ use App\Modules\Bancos\Domain\Statement\TabularStatementReader;
 use App\Modules\Core\Contracts\Enums\Bank;
 
 /**
- * Davivienda. ASSUMED layout, to be confirmed with a real extract
- * (docs/prompt-gestor-cartera.md, Part D, item 3): one unsigned amount column
- * plus a column that says whether it is a credit or a debit, dates as
- * dd/mm/aaaa, Colombian numbers (1.234.567,89).
+ * Davivienda. Layout of the real export (sample of October 2026): an .xls
+ * that is really an HTML table (TabularFile reads it), with a "Movimientos"
+ * title row, then the header with 17 columns:
  *
- *   Fecha | Oficina | Descripción motivo | Documento | Transacción | Valor
+ *   Fecha | Doc. | Tran | Ofi. | Jor. | Hora | Mot. | Desc Mot. | Valor Total |
+ *   Valor Cheque | ID Origen/Destino | Referencia 1 | Referencia 2 | Terminal |
+ *   Fecha Movto. | Ciudad | Valor Saldo
+ *
+ * Tran says whether Valor Total is a credit (Notas Credito) or a debit (Notas
+ * Debito). Valor Total is unsigned, with a dollar sign and Colombian numbers
+ * (1.234.567,89); dates are dd/mm/aaaa. Desc Mot. holds the payer's NIT and
+ * name. Doc. is the reference: one per movement, except the bank's own
+ * charges, which share 99999999 or 99999998. The totals printed at the foot
+ * have no date and are left out.
  */
 final class DaviviendaStatementReader extends TabularStatementReader
 {
@@ -23,14 +31,13 @@ final class DaviviendaStatementReader extends TabularStatementReader
         return new BankProfile(
             bank: Bank::Davivienda,
             headers: [
-                Column::Date->value => ['fecha', 'fecha de sistema', 'fecha sistema'],
-                Column::Description->value => ['descripcion motivo', 'descripcion', 'motivo'],
-                Column::Reference->value => ['documento', 'referencia', 'referencia 1'],
-                Column::Account->value => ['cuenta', 'numero de cuenta'],
-                Column::Amount->value => ['valor', 'valor total', 'monto'],
-                Column::Type->value => ['transaccion', 'tipo', 'tipo de transaccion', 'naturaleza'],
+                Column::Date->value => ['fecha'],
+                Column::Description->value => ['desc mot', 'descripcion motivo'],
+                Column::Reference->value => ['doc', 'documento'],
+                Column::Amount->value => ['valor total'],
+                Column::Type->value => ['tran', 'transaccion'],
             ],
-            dateFormats: ['d/m/Y', 'Y/m/d', 'Y-m-d'],
+            dateFormats: ['d/m/Y'],
             numbers: NumberStyle::Colombian,
         );
     }

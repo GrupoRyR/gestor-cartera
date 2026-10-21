@@ -76,15 +76,20 @@ describe('the invented statement of each bank', function () {
         expect(mb_strlen((string) $reading->movements[0]->description))->toBe(TabularStatementReader::MAX_DESCRIPTION);
     });
 
-    it('reads Davivienda: one amount column and a column that says credit or debit', function () {
+    it('reads Davivienda: an HTML .xls, Notas Credito or Debito, Colombian numbers, the totals left out', function () {
         $reading = StatementReaders::for(Bank::Davivienda)->read(TabularFile::rows(Fixtures::path(Bank::Davivienda)));
 
-        expect(bancosLines($reading->credits()))->toBe([
-            '2026-10-12 credito 2800000.00 COP 45001',
-            '2026-10-13 credito 640000.00 COP 45003',
+        expect(bancosLines($reading->movements))->toBe([
+            '2026-10-13 credito 1250000.00 COP 123456',
+            '2026-10-13 debito 5000.00 COP 99999999',
+            '2026-10-14 credito 640000.50 COP 654321',
+            '2026-10-14 debito 295000.00 COP 99999998',
         ])
+            ->and($reading->movements[0]->description)->toBe('Abono ACH 900111222 FERRETERIA EL TORN')
+            ->and(count($reading->credits()))->toBe(2)
             ->and($reading->debitCount())->toBe(2)
-            ->and($reading->errors)->toBe([]);
+            ->and($reading->errors)->toBe([])
+            ->and($reading->ignoredRows)->toBe(2); // the titles and the values of the totals at the foot
     });
 
     it('reads Bancolombia: rows without a header, by position, a signed amount and ddmmaaaa dates', function () {
@@ -200,10 +205,10 @@ describe('rows that are not movements', function () {
     it('reports a bad amount with its row number and keeps reading', function () {
         // Davivienda prints Colombian numbers: a dot only groups thousands.
         $reading = StatementReaders::for(Bank::Davivienda)->read([
-            ['Fecha', 'Transacción', 'Valor Total'],
-            ['15/10/2026', 'Crédito', '$ 1.000,00'],
-            ['15/10/2026', 'Crédito', '1000.55'],
-            ['16/10/2026', 'Crédito', '$ 2.000,00'],
+            ['Fecha', 'Tran', 'Valor Total'],
+            ['15/10/2026', 'Notas Credito', '$ 1.000,00'],
+            ['15/10/2026', 'Notas Credito', '1000.55'],
+            ['16/10/2026', 'Notas Credito', '$ 2.000,00'],
         ]);
 
         expect(count($reading->credits()))->toBe(2)
@@ -214,9 +219,9 @@ describe('rows that are not movements', function () {
 
     it('reports a date that went wrong, but ignores notes without a date', function () {
         $reading = StatementReaders::for(Bank::Davivienda)->read([
-            ['Fecha', 'Transacción', 'Valor Total'],
-            ['31/02/2026', 'Crédito', '1.000,00'],
-            ['Saldo anterior', 'Crédito', '9.000,00'],
+            ['Fecha', 'Tran', 'Valor Total'],
+            ['31/02/2026', 'Notas Credito', '1.000,00'],
+            ['Saldo anterior', 'Notas Credito', '9.000,00'],
             [null, 'Nota', null],
         ]);
 
@@ -238,7 +243,7 @@ describe('rows that are not movements', function () {
 
     it('does not guess when it cannot tell a credit from a debit', function () {
         $reading = StatementReaders::for(Bank::Davivienda)->read([
-            ['Fecha', 'Transacción', 'Valor Total'],
+            ['Fecha', 'Tran', 'Valor Total'],
             ['15/10/2026', 'Reverso', '1.000,00'],
         ]);
 

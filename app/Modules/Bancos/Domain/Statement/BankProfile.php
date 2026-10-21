@@ -16,10 +16,10 @@ use App\Modules\Core\Contracts\Enums\Bank;
 final readonly class BankProfile
 {
     /** Words that mark a credit in a Type column, in Cells::header() form. */
-    public const array CREDIT_WORDS = ['credito', 'cr', 'c', 'abono', 'deposito', 'consignacion', 'ingreso', 'credit', 'deposit'];
+    public const array CREDIT_WORDS = ['credito', 'cr', 'c', 'abono', 'deposito', 'consignacion', 'ingreso', 'credit', 'deposit', 'notas credito', 'nota credito'];
 
     /** Words that mark a debit in a Type column. */
-    public const array DEBIT_WORDS = ['debito', 'db', 'd', 'cargo', 'retiro', 'egreso', 'debit', 'withdrawal'];
+    public const array DEBIT_WORDS = ['debito', 'db', 'd', 'cargo', 'retiro', 'egreso', 'debit', 'withdrawal', 'notas debito', 'nota debito'];
 
     /**
      * @param  array<string, list<string>>  $headers  Column::value => accepted headers.
