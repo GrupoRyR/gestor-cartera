@@ -29,6 +29,12 @@ use Illuminate\Database\UniqueConstraintViolationException;
  */
 final class EloquentSettlements implements Settlements
 {
+    /** The columns of a version in a list of versions. */
+    private const array LISTED = [
+        'id', 'periodo', 'version', 'revision', 'estado', 'calculado_por', 'calculado_en',
+        'motivo', 'version_anterior',
+    ];
+
     public function __construct(
         private readonly ResultSerializer $serializer,
     ) {}
@@ -83,18 +89,18 @@ final class EloquentSettlements implements Settlements
     }
 
     /**
-     * Every version of the period, oldest first.
+     * Every version of the period, oldest first, as rows that hold only the
+     * listed columns: the stored result is neither loaded nor decoded.
      *
-     * @return list<Settlement>
+     * @return list<SettlementRecord>
      */
     public function versions(Period $period): array
     {
         return SettlementRecord::query()
+            ->select(self::LISTED)
             ->where('periodo', $period->key())
             ->orderBy('version')
             ->get()
-            ->map(fn (SettlementRecord $row): Settlement => $this->hydrate($row))
-            ->values()
             ->all();
     }
 

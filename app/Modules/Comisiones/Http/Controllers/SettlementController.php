@@ -4,12 +4,10 @@ namespace App\Modules\Comisiones\Http\Controllers;
 
 use App\Models\User;
 use App\Modules\Comisiones\Domain\Settlement\SettlementStatus;
-use App\Modules\Comisiones\Domain\Shared\Period;
 use App\Modules\Comisiones\Http\Support\PeriodRoute;
 use App\Modules\Comisiones\Http\Support\SelectedSettlement;
 use App\Modules\Comisiones\Infrastructure\Persistence\SettlementRecord;
 use App\Modules\Comisiones\Infrastructure\Settlement\ApprovalGuard;
-use App\Modules\Comisiones\Infrastructure\Settlement\CorruptSettlement;
 use App\Modules\Comisiones\Infrastructure\Settlement\EloquentSettlements;
 use App\Modules\Comisiones\Infrastructure\Settlement\InputChanges;
 use App\Modules\Comisiones\Infrastructure\Settlement\UserNames;
@@ -21,8 +19,9 @@ use Illuminate\Http\Request;
  * The settlement of a period (§6, §7, §9.7), comisiones.periodos.*:
  *
  * - GET /comisiones/liquidacion: the menu entry "Liquidación del mes"; goes
- *   to the latest period still open, or else to the month before the
- *   current one (the month being settled once it ends);
+ *   to the month before the current one (the month being settled once it
+ *   ends), unless the month in course is already open. A draft left open
+ *   in another month never holds the entry;
  * - GET /comisiones/periodos/{periodo}?version=N: status, version and
  *   revision, who calculated, approved and closed it, totals, alerts with
  *   their justifications, the approval form and the versions of the period.
@@ -36,11 +35,13 @@ final class SettlementController
 
     public function current(): RedirectResponse
     {
-        $open = SettlementRecord::query()
+        $current = PeriodRoute::current();
+        $currentOpen = SettlementRecord::query()
+            ->where('periodo', $current->key())
             ->where('estado', '!=', SettlementStatus::Closed->value)
-            ->max('periodo');
+            ->exists();
 
-        $period = is_string($open) ? Period::fromString($open) : PeriodRoute::current()->previous();
+        $period = $currentOpen ? $current : $current->previous();
 
         return redirect()->route('comisiones.periodos.show', $period->key());
     }
@@ -48,13 +49,11 @@ final class SettlementController
     public function show(Request $request, ApprovalGuard $guard, InputChanges $changes, string $periodo): View
     {
         $period = PeriodRoute::period($periodo);
-        $versions = SettlementRecord::query()->where('periodo', $period->key())->orderBy('version')->get();
+        $versions = $this->settlements->versions($period);
 
-        try {
-            $selected = SelectedSettlement::from($request, $period, $this->settlements);
-        } catch (CorruptSettlement $corrupt) {
-            report($corrupt);
+        $selected = SelectedSettlement::readable($request, $period, $this->settlements);
 
+        if ($selected === null) {
             return view('comisiones::periodos.show', [
                 'period' => $period,
                 'selected' => new SelectedSettlement($period, null, null),
@@ -67,7 +66,7 @@ final class SettlementController
 
         $settlement = $selected->settlement;
         $names = $this->names->of([
-            ...$versions->pluck('calculado_por')->all(),
+            ...array_map(fn (SettlementRecord $row): string => $row->calculado_por, $versions),
             $settlement?->approvedBy,
             $settlement?->closedBy,
         ]);

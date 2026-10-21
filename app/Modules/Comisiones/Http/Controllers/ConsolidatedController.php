@@ -3,7 +3,6 @@
 namespace App\Modules\Comisiones\Http\Controllers;
 
 use App\Models\User;
-use App\Modules\Comisiones\Domain\Shared\Period;
 use App\Modules\Comisiones\Http\Support\PeriodRoute;
 use App\Modules\Comisiones\Http\Support\SelectedSettlement;
 use App\Modules\Comisiones\Infrastructure\Audit\AuditTrail;
@@ -11,7 +10,6 @@ use App\Modules\Comisiones\Infrastructure\Export\ConsolidatedSpreadsheet;
 use App\Modules\Comisiones\Infrastructure\Export\SpreadsheetDownload;
 use App\Modules\Comisiones\Infrastructure\Report\ConsolidatedReport;
 use App\Modules\Comisiones\Infrastructure\Report\PdfRenderer;
-use App\Modules\Comisiones\Infrastructure\Settlement\CorruptSettlement;
 use App\Modules\Comisiones\Infrastructure\Settlement\EloquentSettlements;
 use App\Modules\Core\Contracts\CurrentCompany;
 use App\Modules\Core\Contracts\Enums\CompanyCode;
@@ -43,7 +41,7 @@ final class ConsolidatedController
     public function show(Request $request, string $periodo): View|RedirectResponse
     {
         $period = PeriodRoute::period($periodo);
-        $selected = $this->selected($request, $period);
+        $selected = SelectedSettlement::calculated($request, $period, $this->settlements);
 
         if ($selected === null) {
             return redirect()->route('comisiones.periodos.show', $period->key());
@@ -59,7 +57,7 @@ final class ConsolidatedController
     public function spreadsheet(Request $request, ConsolidatedSpreadsheet $spreadsheet, string $periodo): BinaryFileResponse|RedirectResponse
     {
         $period = PeriodRoute::period($periodo);
-        $selected = $this->selected($request, $period);
+        $selected = SelectedSettlement::calculated($request, $period, $this->settlements);
 
         if ($selected === null) {
             return redirect()->route('comisiones.periodos.show', $period->key());
@@ -75,7 +73,7 @@ final class ConsolidatedController
     public function pdf(Request $request, PdfRenderer $renderer, CurrentCompany $companies, string $periodo): Response|RedirectResponse
     {
         $period = PeriodRoute::period($periodo);
-        $selected = $this->selected($request, $period);
+        $selected = SelectedSettlement::calculated($request, $period, $this->settlements);
 
         if ($selected === null) {
             return redirect()->route('comisiones.periodos.show', $period->key());
@@ -95,25 +93,6 @@ final class ConsolidatedController
             'Content-Type' => 'application/pdf',
             'Content-Disposition' => 'attachment; filename="'.$report->fileName('pdf').'"',
         ]);
-    }
-
-    /**
-     * The version asked for, null when the stored result is corrupt (the
-     * period screen says so), 404 when the period was never calculated.
-     */
-    private function selected(Request $request, Period $period): ?SelectedSettlement
-    {
-        try {
-            $selected = SelectedSettlement::from($request, $period, $this->settlements);
-        } catch (CorruptSettlement $corrupt) {
-            report($corrupt);
-
-            return null;
-        }
-
-        abort_if($selected->settlement === null, 404);
-
-        return $selected;
     }
 
     private function record(Request $request, ConsolidatedReport $report, string $format): void
