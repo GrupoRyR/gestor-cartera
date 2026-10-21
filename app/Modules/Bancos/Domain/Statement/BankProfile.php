@@ -10,7 +10,8 @@ use App\Modules\Core\Contracts\Enums\Bank;
  * credits from debits and the currency of its account.
  *
  * The headers are compared as Cells::header() writes them (lowercase, without
- * accents or punctuation), so list them in that form.
+ * accents or punctuation), so list them in that form. A bank whose file has
+ * no header row gives the position of each column instead.
  */
 final readonly class BankProfile
 {
@@ -24,6 +25,8 @@ final readonly class BankProfile
      * @param  array<string, list<string>>  $headers  Column::value => accepted headers.
      * @param  list<string>  $dateFormats  PHP date formats, tried in order.
      * @param  string  $currency  ISO 4217 code of the account, unless the file has a Currency column.
+     * @param  array<string, int>  $positions  Column::value => zero-based index, for a bank whose file
+     *                                         has no header row: every row is then a movement.
      */
     public function __construct(
         public Bank $bank,
@@ -31,6 +34,7 @@ final readonly class BankProfile
         public array $dateFormats,
         public NumberStyle $numbers,
         public string $currency = 'COP',
+        public array $positions = [],
     ) {}
 
     /**
@@ -38,7 +42,23 @@ final readonly class BankProfile
      */
     public function withCurrency(string $currency): self
     {
-        return new self($this->bank, $this->headers, $this->dateFormats, $this->numbers, strtoupper($currency));
+        return new self($this->bank, $this->headers, $this->dateFormats, $this->numbers, strtoupper($currency), $this->positions);
+    }
+
+    /**
+     * Whether the file has no header row and is read by position.
+     */
+    public function isPositional(): bool
+    {
+        return $this->positions !== [];
+    }
+
+    /**
+     * Cells a row needs to hold every positional column.
+     */
+    public function requiredCells(): int
+    {
+        return $this->positions === [] ? 0 : max($this->positions) + 1;
     }
 
     /**

@@ -69,7 +69,7 @@ it('accepts folder names in any case', function () {
 
     $this->artisan('bancos:importar-carpeta')->assertSuccessful();
 
-    expect(BankMovement::query()->where('company', 'SGX')->where('bank', 'bancolombia')->count())->toBe(2);
+    expect(BankMovement::query()->where('company', 'SGX')->where('bank', 'bancolombia')->count())->toBe(4);
 });
 
 it('says there is nothing to do when the folder is empty or missing', function () {

@@ -10,12 +10,17 @@ use App\Modules\Core\Contracts\Enums\Bank;
  * by name (so a bank that adds or moves a column does not break the import),
  * and turn each data row into credits and debits.
  *
+ * A bank whose file has no header row (Bancolombia) gives the position of
+ * each column in its profile instead: every non-empty row is then data.
+ *
  * Each bank extends it with only its BankProfile. A quirk that a real extract
  * shows later is fixed by overriding in that bank's class, not here.
  *
  * Rows are classified so nothing disappears silently:
- *  - an empty row, or a row without a date (a total, a note), is counted as
- *    ignored;
+ *  - an empty row is skipped; a row without a date (a total, a note) is
+ *    counted as ignored;
+ *  - in a file without a header, a row with fewer cells than the columns
+ *    need is an error with its row number;
  *  - a row with a date but an unreadable one, or an unreadable amount, is an
  *    error with its row number;
  *  - a row with a zero amount is ignored.
@@ -55,16 +60,30 @@ abstract class TabularStatementReader implements StatementReader
     public function read(array $rows): StatementReading
     {
         $profile = $this->profile();
-        [$headerIndex, $columns] = $this->locateHeader($rows, $profile);
+        [$firstDataRow, $columns] = $profile->isPositional()
+            ? $this->checkPositions($rows, $profile)
+            : $this->locateHeader($rows, $profile);
 
         $movements = [];
         $errors = [];
         $ignored = 0;
 
-        foreach (array_slice($rows, $headerIndex + 1, null, true) as $index => $row) {
+        foreach (array_slice($rows, $firstDataRow, null, true) as $index => $row) {
             $number = $index + 1;
 
             if ($this->isEmpty($row)) {
+                continue;
+            }
+
+            // Without a header every row is a movement: one cut short is an error, not a note.
+            if ($profile->isPositional() && count($row) < $profile->requiredCells()) {
+                $errors[] = new RowError($number, sprintf(
+                    'La fila tiene %d columnas y el extracto de %s tiene al menos %d.',
+                    count($row),
+                    $profile->bank->label(),
+                    $profile->requiredCells(),
+                ));
+
                 continue;
             }
 
@@ -118,7 +137,7 @@ abstract class TabularStatementReader implements StatementReader
      * an Amount column), and the position of every column it names.
      *
      * @param  list<list<mixed>>  $rows
-     * @return array{int, array<string, int>}
+     * @return array{int, array<string, int>} The index of the first row after the header, and the columns.
      *
      * @throws UnrecognizedStatement
      */
@@ -136,7 +155,7 @@ abstract class TabularStatementReader implements StatementReader
             }
 
             if (isset($columns[Column::Date->value]) && (isset($columns[Column::Credit->value]) || isset($columns[Column::Amount->value]))) {
-                return [$index, $columns];
+                return [$index + 1, $columns];
             }
         }
 
@@ -144,6 +163,44 @@ abstract class TabularStatementReader implements StatementReader
             'No encontré las columnas de %s (fecha y valor o crédito) en las primeras %d filas. Revisa que el archivo sea el extracto de ese banco y que no esté vacío.',
             $profile->bank->label(),
             self::HEADER_SEARCH_ROWS,
+        ));
+    }
+
+    /**
+     * For a file without a header: makes sure it is this bank's, by finding,
+     * among its first non-empty rows, one wide enough for every column and
+     * with a date where the date goes. Every row is data.
+     *
+     * @param  list<list<mixed>>  $rows
+     * @return array{int, array<string, int>} The index of the first data row (0), and the columns.
+     *
+     * @throws UnrecognizedStatement
+     */
+    private function checkPositions(array $rows, BankProfile $profile): array
+    {
+        $date = $profile->positions[Column::Date->value] ?? null;
+        $looked = 0;
+
+        foreach ($rows as $row) {
+            if ($this->isEmpty($row)) {
+                continue;
+            }
+
+            if ($date !== null && count($row) >= $profile->requiredCells() && Cells::date($row[$date] ?? null, $profile->dateFormats) !== null) {
+                return [0, $profile->positions];
+            }
+
+            if (++$looked >= self::HEADER_SEARCH_ROWS) {
+                break;
+            }
+        }
+
+        throw new UnrecognizedStatement(sprintf(
+            'No reconocí el extracto de %s: espero filas sin encabezado, de al menos %d columnas, con la fecha como %s en la columna %d. Revisa que el archivo sea el extracto de ese banco y que no esté vacío.',
+            $profile->bank->label(),
+            $profile->requiredCells(),
+            implode(' o ', array_map(fn (string $format): string => strtr($format, ['d' => 'dd', 'm' => 'mm', 'Y' => 'aaaa']), $profile->dateFormats)),
+            ($date ?? 0) + 1,
         ));
     }
 

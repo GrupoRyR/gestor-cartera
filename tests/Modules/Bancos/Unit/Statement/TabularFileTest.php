@@ -40,9 +40,15 @@ it('reads a file saved by Excel in Windows-1252 as UTF-8', function () {
 });
 
 it('drops the byte order mark', function () {
-    $rows = TabularFile::rows(Fixtures::path(Bank::Bancolombia));
+    $path = bancosTempFile("\xEF\xBB\xBFFecha;Valor\n15/10/2026;1.000,00\n");
 
-    expect($rows[0][0])->toStartWith('EXTRACTO');
+    try {
+        $rows = TabularFile::rows($path);
+    } finally {
+        unlink($path);
+    }
+
+    expect($rows[0][0])->toBe('Fecha');
 });
 
 it('keeps blank lines so row numbers match the ones the user sees', function () {

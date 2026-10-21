@@ -55,16 +55,26 @@ describe('the invented statement of each bank', function () {
             ->and($reading->errors)->toBe([]);
     });
 
-    it('reads Bancolombia: a signed amount column, year-first dates, a BOM and quoted commas', function () {
+    it('reads Bancolombia: rows without a header, by position, a signed amount and ddmmaaaa dates', function () {
         $reading = StatementReaders::for(Bank::Bancolombia)->read(TabularFile::rows(Fixtures::path(Bank::Bancolombia)));
 
-        expect(bancosLines($reading->credits()))->toBe([
-            '2026-10-13 credito 3500000.00 COP PSE778899',
-            '2026-10-14 credito 780000.00 COP TR-5521',
+        expect(bancosLines($reading->movements))->toBe([
+            '2026-10-13 credito 2225395.00 COP ',
+            '2026-10-13 credito 500000.00 COP ',
+            '2026-10-13 credito 500000.00 COP ',
+            '2026-10-13 debito 672000.00 COP 000123456',
+            '2026-10-14 credito 780000.00 COP ',
+            '2026-10-14 debito 2688.00 COP ',
+            '2026-10-14 debito 15000.00 COP ',
         ])
-            ->and($reading->credits()[1]->description)->toBe('TRANSFERENCIA DE SERVICIOS, LOGISTICA SAS')
-            ->and($reading->debitCount())->toBe(2)
-            ->and($reading->errors)->toBe([]);
+            ->and($reading->movements[0]->description)->toBe('TRANSFERENCIA CTA SUC VIRTUAL')
+            ->and($reading->movements[0]->account)->toBe('00000000000')
+            ->and($reading->movements[0]->reference)->toBeNull()
+            ->and($reading->movements[4]->description)->toBe('PAGO INTERBANC FERRETERIA EL T')
+            ->and(count($reading->credits()))->toBe(4)
+            ->and($reading->debitCount())->toBe(3)
+            ->and($reading->errors)->toBe([])
+            ->and($reading->ignoredRows)->toBe(0);
     });
 
     it('reads the Miami account: English headers, month-first dates and dollars', function () {
@@ -112,8 +122,45 @@ describe('finding the columns', function () {
             ->toThrow(UnrecognizedStatement::class, 'Davivienda');
     });
 
-    it('refuses an empty file', function () {
-        expect(fn () => StatementReaders::for(Bank::Bogota)->read([]))->toThrow(UnrecognizedStatement::class);
+    it('refuses an empty file', function (Bank $bank) {
+        expect(fn () => StatementReaders::for($bank)->read([[], ['']]))->toThrow(UnrecognizedStatement::class);
+    })->with([Bank::Bogota, Bank::Bancolombia]);
+});
+
+describe('a statement without a header, read by position', function () {
+    it('refuses a file that is not of that bank and says what it expected', function () {
+        $rows = TabularFile::rows(Fixtures::path(Bank::Miami));
+
+        expect(fn () => StatementReaders::for(Bank::Bancolombia)->read($rows))
+            ->toThrow(UnrecognizedStatement::class, 'Bancolombia')
+            ->and(fn () => StatementReaders::for(Bank::Bancolombia)->read($rows))
+            ->toThrow(UnrecognizedStatement::class, 'ddmmaaaa');
+    });
+
+    it('reports a short row with its number instead of skipping it', function () {
+        $reading = StatementReaders::for(Bank::Bancolombia)->read([
+            ['00000000000', '126', '1', '13102026', '', '1000.00', '4160', 'TRANSFERENCIA', '0'],
+            [],
+            ['00000000000', '126', '1', '13102026', '', '2000.00'],
+            ['00000000000', '126', '1', '14102026', '', '3000.00', '4160', 'TRANSFERENCIA', '0'],
+        ]);
+
+        expect(bancosLines($reading->movements))->toBe(['2026-10-13 credito 1000.00 COP ', '2026-10-14 credito 3000.00 COP '])
+            ->and($reading->errors)->toHaveCount(1)
+            ->and($reading->errors[0]->row)->toBe(3)
+            ->and($reading->errors[0]->message)->toContain('6');
+    });
+
+    it('reports a date it cannot read in a row of the statement', function () {
+        $reading = StatementReaders::for(Bank::Bancolombia)->read([
+            ['00000000000', '126', '1', '13102026', '', '1000.00', '4160', 'TRANSFERENCIA', '0'],
+            ['00000000000', '126', '1', '31022026', '', '2000.00', '4160', 'TRANSFERENCIA', '0'],
+        ]);
+
+        expect($reading->movements)->toHaveCount(1)
+            ->and($reading->errors)->toHaveCount(1)
+            ->and($reading->errors[0]->row)->toBe(2)
+            ->and($reading->errors[0]->message)->toContain('31022026');
     });
 });
 

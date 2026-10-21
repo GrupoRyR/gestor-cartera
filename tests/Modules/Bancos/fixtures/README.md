@@ -10,5 +10,5 @@ delivers them (`docs/prompt-gestor-cartera.md`, Part D, item 3).
 |---|---|
 | `bogota-ejemplo-inventado.csv` | `;`, ISO-8859-1, `Fecha / Descripción / Referencia / Débito / Crédito / Saldo`, `dd/mm/aaaa`, `1.234,56` |
 | `davivienda-ejemplo-inventado.csv` | `,` with quoted amounts, `Fecha / Oficina / Descripción motivo / Documento / Transacción / Valor`, `dd/mm/aaaa`, `1.234,56` |
-| `bancolombia-ejemplo-inventado.csv` | `,`, UTF-8 with BOM, `FECHA / DESCRIPCIÓN / SUCURSAL / REFERENCIA 1 / VALOR / SALDO`, `aaaa/mm/dd`, signed `-1234.56` |
+| `bancolombia-ejemplo-inventado.csv` | Real layout: `,`, no header row, 9 columns by position (account `00000000000`, office, `1`, `ddmmaaaa`, document, signed `-1234.56`, code, description, `0`). Two identical transfers on one day and a cheque with its document number |
 | `miami-ejemplo-inventado.csv` | `,`, `Date / Description / Reference / Deposits / Withdrawals / Balance`, `mm/dd/aaaa`, `1,234.56`, USD |

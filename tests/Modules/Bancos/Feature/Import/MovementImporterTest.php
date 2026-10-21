@@ -201,14 +201,14 @@ describe('from a file', function () {
     })->with([
         'bogota' => [Bank::Bogota, 4],
         'davivienda' => [Bank::Davivienda, 2],
-        'bancolombia' => [Bank::Bancolombia, 2],
+        'bancolombia' => [Bank::Bancolombia, 4],
         'miami' => [Bank::Miami, 2],
     ]);
 
-    it('keeps the two identical Bogotá consignments', function () {
-        app(StatementImport::class)->fromFile(Fixtures::path(Bank::Bogota), Bank::Bogota, CompanyCode::SGX, ImportSource::Folder);
+    it('keeps the two identical Bancolombia transfers of the same day', function () {
+        app(StatementImport::class)->fromFile(Fixtures::path(Bank::Bancolombia), Bank::Bancolombia, CompanyCode::SGX, ImportSource::Folder);
 
-        expect(BankMovement::query()->where('reference', '998877')->count())->toBe(2);
+        expect(BankMovement::query()->where('amount', '500000.00')->count())->toBe(2);
     });
 
     it('loads the Miami account in dollars unless the configuration says otherwise', function () {
