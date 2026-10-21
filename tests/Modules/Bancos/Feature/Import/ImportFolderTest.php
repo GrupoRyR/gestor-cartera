@@ -46,7 +46,7 @@ it('imports the file of each company and bank folder, with the company and bank 
 
     $this->artisan('bancos:importar-carpeta')->assertSuccessful();
 
-    expect(BankMovement::query()->where('company', 'SGX')->where('bank', 'bogota')->count())->toBe(4)
+    expect(BankMovement::query()->where('company', 'SGX')->where('bank', 'bogota')->count())->toBe(3)
         ->and(BankMovement::query()->where('company', 'SDC')->where('bank', 'davivienda')->count())->toBe(2)
         ->and(BankLoad::query()->pluck('source')->unique()->all())->toBe([ImportSource::Folder]);
 });
@@ -106,7 +106,7 @@ it('keeps importing the other files when one fails', function () {
 
     $this->artisan('bancos:importar-carpeta')->assertFailed();
 
-    expect(BankMovement::query()->count())->toBe(4);
+    expect(BankMovement::query()->count())->toBe(3);
 });
 
 it('moves an old binary .xls to errores and tells how to save it', function () {

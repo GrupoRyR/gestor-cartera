@@ -71,11 +71,11 @@ describe('uploading a statement', function () {
 
         bancosUpload($user)
             ->assertRedirect('/bancos/cargas')
-            ->assertSessionHas('status', '4 créditos nuevos de Banco de Bogotá (SGX); 0 ya estaban cargados.');
+            ->assertSessionHas('status', '3 créditos nuevos de Banco de Bogotá (SGX); 0 ya estaban cargados.');
 
         $load = BankLoad::query()->sole();
 
-        expect(BankMovement::query()->count())->toBe(4)
+        expect(BankMovement::query()->count())->toBe(3)
             ->and($load->source)->toBe(ImportSource::App)
             ->and($load->file_name)->toBe('extracto.csv')
             ->and($load->user_id)->toBe($user->id)
@@ -86,19 +86,19 @@ describe('uploading a statement', function () {
         $user = BancosUsers::create(Role::PortfolioAnalyst);
 
         bancosUpload($user);
-        bancosUpload($user)->assertSessionHas('status', '0 créditos nuevos de Banco de Bogotá (SGX); 4 ya estaban cargados.');
+        bancosUpload($user)->assertSessionHas('status', '0 créditos nuevos de Banco de Bogotá (SGX); 3 ya estaban cargados.');
 
-        expect(BankMovement::query()->count())->toBe(4);
+        expect(BankMovement::query()->count())->toBe(3);
     });
 
     it('lets Treasury upload', function () {
         bancosUpload(BancosUsers::create(Role::Treasury))->assertRedirect('/bancos/cargas');
 
-        expect(BankMovement::query()->count())->toBe(4);
+        expect(BankMovement::query()->count())->toBe(3);
     });
 
     it('reads an .xlsx as well', function () {
-        $path = Fixtures::workbook([['Fecha', 'Descripción', 'Referencia', 'Débito', 'Crédito'], ['15/10/2026', 'Pago', 'R1', '', '1.000,00']]);
+        $path = Fixtures::workbook([['Fecha', 'Descripción de Transacción', 'Referencia del Banco', 'Indicador Débito / Crédito', 'Valor'], ['15/10/2026', 'Pago', 'R1', 'C', '1000.00']]);
 
         try {
             bancosUpload(BancosUsers::create(Role::PortfolioAnalyst), file: new UploadedFile($path, 'extracto.xlsx', null, null, true))
@@ -111,13 +111,13 @@ describe('uploading a statement', function () {
     });
 
     it('tells the user when the file is from another bank, and keeps what they chose', function () {
-        bancosUpload(BancosUsers::create(Role::PortfolioAnalyst), ['banco' => 'davivienda'])
+        bancosUpload(BancosUsers::create(Role::PortfolioAnalyst), ['banco' => 'bancolombia'])
             ->assertRedirect('/bancos/cargas')
             ->assertSessionHasErrors(['archivo'])
-            ->assertSessionHasInput('banco', 'davivienda');
+            ->assertSessionHasInput('banco', 'bancolombia');
 
         expect(BankMovement::query()->count())->toBe(0)
-            ->and(session('errors')->first('archivo'))->toContain('Davivienda');
+            ->and(session('errors')->first('archivo'))->toContain('Bancolombia');
     });
 
     it('explains what to do with an old binary .xls', function () {
@@ -147,7 +147,7 @@ describe('uploading a statement', function () {
     });
 
     it('sends the user to the detail when some rows could not be read', function () {
-        $csv = "Fecha;Descripción;Referencia;Débito;Crédito\n15/10/2026;Bueno;R1;;1.000,00\n15/10/2026;Malo;R2;;1000.55\n";
+        $csv = "Fecha;Descripción de Transacción;Referencia del Banco;Indicador Débito / Crédito;Valor\n15/10/2026;Bueno;R1;C;1000.00\n15/10/2026;Malo;R2;C;1.000,55\n";
         $file = UploadedFile::fake()->createWithContent('extracto.csv', $csv);
 
         $response = bancosUpload(BancosUsers::create(Role::PortfolioAnalyst), file: $file);

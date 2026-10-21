@@ -30,6 +30,11 @@ abstract class TabularStatementReader implements StatementReader
     /** Rows searched for the header row: banks print a title and the account above it. */
     public const int HEADER_SEARCH_ROWS = 40;
 
+    /** Longest description a movement carries: the size of the column that stores it. */
+    public const int MAX_DESCRIPTION = 500;
+
+    private const string DETAIL_SEPARATOR = ' · ';
+
     /**
      * @param  string|null  $currency  ISO code of the account when it is not the one the profile assumes.
      */
@@ -121,7 +126,7 @@ abstract class TabularStatementReader implements StatementReader
                     date: $date,
                     type: $type,
                     amount: $amount,
-                    description: Cells::text($this->cell($row, $columns, Column::Description)),
+                    description: $this->description($row, $columns),
                     reference: Cells::text($this->cell($row, $columns, Column::Reference)),
                     account: Cells::text($this->cell($row, $columns, Column::Account)),
                     currency: $this->rowCurrency($row, $columns, $profile),
@@ -265,6 +270,37 @@ abstract class TabularStatementReader implements StatementReader
         } catch (UnreadableCell) {
             return true;
         }
+    }
+
+    /**
+     * A free text of the statement as it is stored: whitespace collapsed. A
+     * bank whose texts carry noise (labels, glued words) overrides it.
+     */
+    protected function cleanText(string $text): string
+    {
+        return trim((string) preg_replace('/\s+/u', ' ', $text));
+    }
+
+    /**
+     * The Description and Detail texts, cleaned and joined, cut to the length
+     * the movement table keeps.
+     *
+     * @param  list<mixed>  $row
+     * @param  array<string, int>  $columns
+     */
+    private function description(array $row, array $columns): ?string
+    {
+        $parts = [];
+
+        foreach ([Column::Description, Column::Detail] as $column) {
+            $text = $this->cleanText((string) Cells::text($this->cell($row, $columns, $column)));
+
+            if ($text !== '') {
+                $parts[] = $text;
+            }
+        }
+
+        return $parts === [] ? null : mb_substr(implode(self::DETAIL_SEPARATOR, $parts), 0, self::MAX_DESCRIPTION);
     }
 
     /**

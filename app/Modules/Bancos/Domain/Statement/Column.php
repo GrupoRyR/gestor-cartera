@@ -12,6 +12,9 @@ enum Column: string
 
     case Description = 'description';
 
+    /** Extra free text appended to the description (Bogotá's reference text). */
+    case Detail = 'detail';
+
     case Reference = 'reference';
 
     case Account = 'account';

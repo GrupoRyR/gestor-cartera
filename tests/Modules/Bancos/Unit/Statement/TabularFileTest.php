@@ -35,8 +35,10 @@ it('picks the delimiter that splits the lines evenly, even when amounts hold com
 it('reads a file saved by Excel in Windows-1252 as UTF-8', function () {
     $rows = TabularFile::rows(Fixtures::path(Bank::Bogota));
 
-    expect($rows[3][1])->toBe('Descripción')
-        ->and($rows[3][4])->toBe('Crédito');
+    expect($rows[0][2])->toBe('Fecha de Transacción')
+        ->and($rows[0][11])->toBe('Indicador Débito / Crédito')
+        ->and($rows[0])->toHaveCount(18)
+        ->and($rows[3])->toHaveCount(18); // a quoted text with a comma stays one cell
 });
 
 it('drops the byte order mark', function () {

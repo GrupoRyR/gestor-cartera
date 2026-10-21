@@ -199,7 +199,7 @@ describe('from a file', function () {
             ->and($result->load->file_name)->toBe($bank->value.'-ejemplo-inventado.csv')
             ->and($result->load->file_sha256)->toBe(hash_file('sha256', Fixtures::path($bank)));
     })->with([
-        'bogota' => [Bank::Bogota, 4],
+        'bogota' => [Bank::Bogota, 3],
         'davivienda' => [Bank::Davivienda, 2],
         'bancolombia' => [Bank::Bancolombia, 4],
         'miami' => [Bank::Miami, 2],
