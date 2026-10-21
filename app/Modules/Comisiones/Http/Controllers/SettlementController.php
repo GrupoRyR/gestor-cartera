@@ -51,7 +51,7 @@ final class SettlementController
     public function show(Request $request, ApprovalGuard $guard, InputChanges $changes, string $periodo): View
     {
         $period = PeriodRoute::period($periodo);
-        $versions = SettlementRecord::query()->where('periodo', $period->key())->orderBy('version')->get();
+        $versions = $this->settlements->versions($period);
 
         try {
             $selected = SelectedSettlement::from($request, $period, $this->settlements);
@@ -70,7 +70,7 @@ final class SettlementController
 
         $settlement = $selected->settlement;
         $names = $this->names->of([
-            ...$versions->pluck('calculado_por')->all(),
+            ...array_map(fn (SettlementRecord $row): string => $row->calculado_por, $versions),
             $settlement?->approvedBy,
             $settlement?->closedBy,
         ]);

@@ -318,13 +318,14 @@ it('registers a complementary settlement with its reason and keeps the closed ve
 
     $versions = app(EloquentSettlements::class)->versions(Period::of(2026, 7));
 
-    expect(array_map(fn ($settlement) => [$settlement->version, $settlement->status], $versions))->toBe([
-        [1, SettlementStatus::Closed],
-        [2, SettlementStatus::Draft],
-    ])->and($versions[1]->reason)->toBe('Recaudo de julio que llegó tarde');
+    expect(array_map(fn (SettlementRecord $row) => [$row->version, $row->estado], $versions))->toBe([
+        [1, SettlementStatus::Closed->value],
+        [2, SettlementStatus::Draft->value],
+    ])->and($versions[1]->motivo)->toBe('Recaudo de julio que llegó tarde');
     $this->fakes->audit->assertRecorded('comisiones.settlement.complemented', fn (AuditEntry $entry) => $entry->context['motivo'] === 'Recaudo de julio que llegó tarde');
 
     $this->actingAs($this->analyst)->get('/comisiones/periodos/2026-07')->assertOk()
+        ->assertViewHas('versions', fn (array $rows) => count($rows) === 2 && ! array_key_exists('resultado', $rows[0]->getAttributes()))
         ->assertSeeText('Versión 2 · revisión 1')
         ->assertSeeText('Recaudo de julio que llegó tarde')
         ->assertSeeText('Ver versión 1');
