@@ -2,6 +2,7 @@
 
 namespace App\Modules\Comisiones\Infrastructure\Ingest;
 
+use App\Modules\Comisiones\Infrastructure\Audit\AuditTrail;
 use App\Modules\Comisiones\Infrastructure\Persistence\ClientAssignmentRecord;
 
 /**
@@ -15,13 +16,20 @@ use App\Modules\Comisiones\Infrastructure\Persistence\ClientAssignmentRecord;
  *   date, or from the load's cutoff date when SAP gives none;
  * - a client with the same seller adds nothing.
  *
- * History never goes backwards: a change dated on or before the start of the
- * assignment in force corrects that assignment instead of slipping under it.
+ * History is never rewritten: a change dated on or before the start of the
+ * assignment in force starts the day after that start, so the crossings
+ * already assigned keep their seller, and is audited as
+ * comisiones.assignment.start_moved with the date SAP gave and the one
+ * applied. Any other split is corrected by hand with support (§5.4).
  */
 final class AssignmentHistory
 {
     /** Start of the first assignment of a client. */
     public const string FIRST_SIGHTING = '2000-01-01';
+
+    public function __construct(
+        private readonly AuditTrail $audit,
+    ) {}
 
     /**
      * @param  list<array<string, scalar|null>>  $clients  comisiones_clientes rows (StagingRows::client()).
@@ -50,9 +58,16 @@ final class AssignmentHistory
             $from = (string) ($client['fecha_modificacion'] ?? $cutoff);
 
             if ($from <= $inForce->vigente_desde->format('Y-m-d')) {
-                $inForce->update(['slp_code' => $seller, 'load_id' => $loadId]);
-
-                continue;
+                $moved = $inForce->vigente_desde->addDay()->format('Y-m-d');
+                $this->audit->record(
+                    event: 'comisiones.assignment.start_moved',
+                    subjectType: 'cliente',
+                    subjectId: $code,
+                    changes: ['slp_code' => ['old' => $inForce->slp_code, 'new' => $seller]],
+                    context: ['fecha_sap' => $from, 'vigente_desde' => $moved, 'load_id' => $loadId],
+                    period: substr($moved, 0, 7),
+                );
+                $from = $moved;
             }
 
             $started[] = $this->start($code, $seller, $from, $loadId);
