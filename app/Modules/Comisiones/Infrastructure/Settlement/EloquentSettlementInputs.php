@@ -26,7 +26,6 @@ use App\Modules\Comisiones\Infrastructure\Persistence\ObrRecord;
 use App\Modules\Comisiones\Infrastructure\Persistence\PaymentRecord;
 use App\Modules\Comisiones\Infrastructure\Persistence\ReassignmentRecord;
 use App\Modules\Comisiones\Infrastructure\Persistence\SaleRecord;
-use Brick\Math\BigDecimal;
 use Illuminate\Database\Eloquent\Builder;
 
 /**
@@ -43,15 +42,26 @@ use Illuminate\Database\Eloquent\Builder;
  *   paid in a closed month is netted instead of lost (§14.2 "netear");
  * - a payment or crossing without an invoice date takes the date of the
  *   staged invoice (tipo_objeto 13, same doc_entry), else its own date
- *   (0 days); a crossing takes the invoice's currency, since Report 4 has none;
+ *   (0 days);
  * - a crossing's seller override is the latest approved reassignment, else
  *   the seller captured on a manual crossing;
- * - a blank currency or "$" is COP and a missing TRM is 1;
+ * - every line is in pesos: the robot sends SAP's local-currency amounts
+ *   (etl/queries/ventas.sql, recaudos.sql, cruces.sql: «Montos en moneda
+ *   local»), and its moneda/trm columns are the document's own currency and
+ *   rate, kept in staging for reference only. Passing them on would make
+ *   the engine warn about, or with the «convertir» option multiply by the
+ *   TRM, an amount already converted (§14.7);
  * - the whole assignment history, the budgets of the period, and its
  *   approved OBR sales and adjustments.
  */
 final class EloquentSettlementInputs implements SettlementInputs
 {
+    /** The currency of every amount the robot sends: SAP's local currency. */
+    private const string PESOS = 'COP';
+
+    /** Already in pesos: nothing to convert. */
+    private const string NO_CONVERSION = '1';
+
     public function forPeriod(Period $period): SettlementInput
     {
         $payments = $this->inPeriod(PaymentRecord::query(), 'fecha_pago', $period)->get();
@@ -116,8 +126,8 @@ final class EloquentSettlementInputs implements SettlementInputs
             clientCode: $sale->codigo_cliente,
             clientName: $sale->cliente ?? '',
             total: Money::of($sale->total),
-            currency: self::currency($sale->moneda),
-            exchangeRate: self::exchangeRate($sale->trm),
+            currency: self::PESOS,
+            exchangeRate: self::NO_CONVERSION,
             // Never annulled: see the class comment on cancellations.
             annulled: false,
         );
@@ -142,8 +152,8 @@ final class EloquentSettlementInputs implements SettlementInputs
             clientName: $payment->nombre_cliente ?? '',
             invoiceAmount: Money::of($payment->valor_factura ?? '0'),
             paidBase: Money::of($payment->valor_pagado_sin_iva),
-            currency: self::currency($payment->moneda),
-            exchangeRate: self::exchangeRate($payment->trm),
+            currency: self::PESOS,
+            exchangeRate: self::NO_CONVERSION,
             annulled: $payment->estado_pago === 'anulado',
         );
     }
@@ -173,8 +183,8 @@ final class EloquentSettlementInputs implements SettlementInputs
             invoiceVat: self::money($crossing->iva_factura),
             crossedAmountWithoutVat: self::money($crossing->valor_compensado_sin_iva),
             sellerOverride: $overrides[$crossing->clave] ?? $crossing->slp_code_capturado,
-            currency: self::currency($invoice?->moneda),
-            exchangeRate: self::exchangeRate($invoice?->trm),
+            currency: self::PESOS,
+            exchangeRate: self::NO_CONVERSION,
             annulled: $crossing->estado_cruce === 'anulado',
         );
     }
@@ -280,24 +290,6 @@ final class EloquentSettlementInputs implements SettlementInputs
             'cliente_proveedor' => CrossingType::ClientSupplier,
             default => CrossingType::Other,
         };
-    }
-
-    /** SAP reports pesos as "$", "COP" or nothing. */
-    private static function currency(?string $currency): string
-    {
-        $currency = strtoupper(trim($currency ?? ''));
-
-        return $currency === '' || $currency === '$' ? 'COP' : $currency;
-    }
-
-    /** A plain decimal without trailing zeros ("3950.5"); 1 when SAP gives none. */
-    private static function exchangeRate(?string $rate): string
-    {
-        if ($rate === null || ! BigDecimal::of($rate)->isPositive()) {
-            return '1';
-        }
-
-        return BigDecimal::of($rate)->strippedOfTrailingZeros()->toString();
     }
 
     private static function money(?string $amount): ?Money
