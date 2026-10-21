@@ -19,6 +19,7 @@ use Tests\Fakes\AuditEntry;
 use Tests\Fakes\ContractFakes;
 use Tests\Modules\Comisiones\Feature\Concerns\ComisionesUsers;
 use Tests\Modules\Comisiones\Feature\Concerns\SapBatches;
+use Tests\Modules\Comisiones\Feature\Concerns\SettlementRows;
 
 /*
 | The settlement of a period on screen (§6, §9.7, §10): calculate, approve
@@ -87,6 +88,30 @@ it('lists every entry of the module in the menu, showing the ones whose route ex
 });
 
 it('opens the month being settled from the menu entry', function () {
+    $this->actingAs($this->analyst)->get('/comisiones/liquidacion')->assertRedirect('/comisiones/periodos/2026-07');
+});
+
+it('keeps the menu entry on the month being settled when an older draft was left open', function () {
+    SettlementRows::placeholder('2026-03', SettlementStatus::Draft);
+    SettlementRows::placeholder('2026-06', SettlementStatus::Approved);
+
+    $this->actingAs($this->analyst)->get('/comisiones/liquidacion')->assertRedirect('/comisiones/periodos/2026-07');
+});
+
+it('never holds the menu entry on a future month calculated by mistake', function () {
+    SettlementRows::placeholder('2026-12', SettlementStatus::Draft);
+
+    $this->actingAs($this->analyst)->get('/comisiones/liquidacion')->assertRedirect('/comisiones/periodos/2026-07');
+});
+
+it('opens a later period from the menu entry while it is open', function () {
+    SettlementRows::placeholder('2026-07', SettlementStatus::Closed);
+    SettlementRows::placeholder('2026-08', SettlementStatus::Draft);
+
+    $this->actingAs($this->analyst)->get('/comisiones/liquidacion')->assertRedirect('/comisiones/periodos/2026-08');
+
+    SettlementRecord::query()->where('periodo', '2026-08')->update(['estado' => SettlementStatus::Closed->value]);
+
     $this->actingAs($this->analyst)->get('/comisiones/liquidacion')->assertRedirect('/comisiones/periodos/2026-07');
 });
 
@@ -279,13 +304,14 @@ it('registers a complementary settlement with its reason and keeps the closed ve
 
     $versions = app(EloquentSettlements::class)->versions(Period::of(2026, 7));
 
-    expect(array_map(fn ($settlement) => [$settlement->version, $settlement->status], $versions))->toBe([
-        [1, SettlementStatus::Closed],
-        [2, SettlementStatus::Draft],
-    ])->and($versions[1]->reason)->toBe('Recaudo de julio que llegó tarde');
+    expect(array_map(fn (SettlementRecord $row) => [$row->version, $row->estado], $versions))->toBe([
+        [1, SettlementStatus::Closed->value],
+        [2, SettlementStatus::Draft->value],
+    ])->and($versions[1]->motivo)->toBe('Recaudo de julio que llegó tarde');
     $this->fakes->audit->assertRecorded('comisiones.settlement.complemented', fn (AuditEntry $entry) => $entry->context['motivo'] === 'Recaudo de julio que llegó tarde');
 
     $this->actingAs($this->analyst)->get('/comisiones/periodos/2026-07')->assertOk()
+        ->assertViewHas('versions', fn (array $rows) => count($rows) === 2 && ! array_key_exists('resultado', $rows[0]->getAttributes()))
         ->assertSeeText('Versión 2 · revisión 1')
         ->assertSeeText('Recaudo de julio que llegó tarde')
         ->assertSeeText('Ver versión 1');

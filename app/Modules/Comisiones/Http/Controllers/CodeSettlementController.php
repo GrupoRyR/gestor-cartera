@@ -7,7 +7,6 @@ use App\Modules\Comisiones\Domain\Calculation\SaleDetail;
 use App\Modules\Comisiones\Http\Requests\CodeLinesRequest;
 use App\Modules\Comisiones\Http\Support\PeriodRoute;
 use App\Modules\Comisiones\Http\Support\SelectedSettlement;
-use App\Modules\Comisiones\Infrastructure\Settlement\CorruptSettlement;
 use App\Modules\Comisiones\Infrastructure\Settlement\EloquentSettlements;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\RedirectResponse;
@@ -33,11 +32,9 @@ final class CodeSettlementController
     {
         $period = PeriodRoute::period($periodo);
 
-        try {
-            $selected = SelectedSettlement::from($request, $period, $this->settlements);
-        } catch (CorruptSettlement $corrupt) {
-            report($corrupt);
+        $selected = SelectedSettlement::calculated($request, $period, $this->settlements);
 
+        if ($selected === null) {
             return redirect()->route('comisiones.periodos.show', $period->key());
         }
 

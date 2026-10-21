@@ -9,10 +9,6 @@ use Brick\Math\BigNumber;
 use Brick\Math\BigRational;
 use DateTimeImmutable;
 use DateTimeZone;
-use FilesystemIterator;
-use RecursiveDirectoryIterator;
-use RecursiveIteratorIterator;
-use SplFileInfo;
 use Throwable;
 
 /**
@@ -25,8 +21,89 @@ use Throwable;
  */
 final class ResultSerializer
 {
-    /** @var list<class-string>|null */
-    private static ?array $allowed = null;
+    /**
+     * Every class and enum under Comisiones\Domain, relative to it. A static
+     * list, so decoding neither scans the directory nor autoloads the domain;
+     * ResultSerializerTest keeps it equal to the directory.
+     */
+    private const array DOMAIN = [
+        'Calculation\Alert',
+        'Calculation\AlertCollector',
+        'Calculation\AlertKind',
+        'Calculation\AlertSeverity',
+        'Calculation\CaptureFigures',
+        'Calculation\CodeSettlement',
+        'Calculation\CollectionCommission',
+        'Calculation\CollectionDetail',
+        'Calculation\CollectionFigures',
+        'Calculation\CollectionOutcome',
+        'Calculation\CollectionSource',
+        'Calculation\ControlTotals',
+        'Calculation\CrossingResolver',
+        'Calculation\DerivedCommission',
+        'Calculation\DerivedSettlement',
+        'Calculation\DirectorCommission',
+        'Calculation\DirectorSettlement',
+        'Calculation\DirectorTeamRow',
+        'Calculation\LineFilter',
+        'Calculation\ManualCaptures',
+        'Calculation\PersonRole',
+        'Calculation\PersonSettlement',
+        'Calculation\PersonTotals',
+        'Calculation\RoleKind',
+        'Calculation\SaleDetail',
+        'Calculation\SalesCommission',
+        'Calculation\SalesFigures',
+        'Calculation\SalesOutcome',
+        'Calculation\SettlementCalculator',
+        'Calculation\SettlementResult',
+        'Input\AdjustmentKind',
+        'Input\Budget',
+        'Input\ClientAssignment',
+        'Input\CrossingLine',
+        'Input\CrossingSource',
+        'Input\CrossingType',
+        'Input\DocumentType',
+        'Input\LineFields',
+        'Input\ManualAdjustment',
+        'Input\ObrSale',
+        'Input\PaymentLine',
+        'Input\SaleLine',
+        'Input\SettlementInput',
+        'Parameters\CodeScope',
+        'Parameters\CollectionTranche',
+        'Parameters\DerivedBase',
+        'Parameters\DerivedCommissionRule',
+        'Parameters\DirectorTeam',
+        'Parameters\MissingParameters',
+        'Parameters\Options\ComplianceScope',
+        'Parameters\Options\CreditNoteTreatment',
+        'Parameters\Options\CrossingSellerDate',
+        'Parameters\Options\CurrencyTreatment',
+        'Parameters\Options\DirectorPlacement',
+        'Parameters\Options\SalesBasis',
+        'Parameters\OptionsVersion',
+        'Parameters\ParameterBook',
+        'Parameters\PeriodParameters',
+        'Parameters\SellerCodeRule',
+        'Parameters\SettlementOptions',
+        'Parameters\TrancheTable',
+        'Settlement\InvalidTransition',
+        'Settlement\SegregationOfDuties',
+        'Settlement\Settlement',
+        'Settlement\SettlementLocked',
+        'Settlement\SettlementStatus',
+        'Settlement\StaleSettlement',
+        'Settlement\UnresolvedAlerts',
+        'Shared\Dates',
+        'Shared\Decimals',
+        'Shared\Money',
+        'Shared\Percentage',
+        'Shared\Period',
+        'Shared\PersonRef',
+        'Shared\SellerCode',
+        'Shared\Validity',
+    ];
 
     /**
      * @return array{string, string} The stored text and its sha256.
@@ -72,28 +149,9 @@ final class ResultSerializer
      */
     public static function allowedClasses(): array
     {
-        if (self::$allowed !== null) {
-            return self::$allowed;
-        }
+        /** @var list<class-string> $domain */
+        $domain = array_map(fn (string $class): string => 'App\Modules\Comisiones\Domain\\'.$class, self::DOMAIN);
 
-        $root = dirname(__DIR__, 2).DIRECTORY_SEPARATOR.'Domain';
-        $classes = [DateTimeImmutable::class, DateTimeZone::class, BigNumber::class, BigDecimal::class, BigInteger::class, BigRational::class];
-        $files = new RecursiveIteratorIterator(new RecursiveDirectoryIterator($root, FilesystemIterator::SKIP_DOTS));
-
-        /** @var SplFileInfo $file */
-        foreach ($files as $file) {
-            if ($file->getExtension() !== 'php') {
-                continue;
-            }
-
-            $relative = substr($file->getPathname(), strlen($root) + 1, -4);
-            $class = 'App\\Modules\\Comisiones\\Domain\\'.str_replace(['/', '\\'], '\\', $relative);
-
-            if (class_exists($class) || enum_exists($class)) {
-                $classes[] = $class;
-            }
-        }
-
-        return self::$allowed = $classes;
+        return [...$domain, DateTimeImmutable::class, DateTimeZone::class, BigNumber::class, BigDecimal::class, BigInteger::class, BigRational::class];
     }
 }
