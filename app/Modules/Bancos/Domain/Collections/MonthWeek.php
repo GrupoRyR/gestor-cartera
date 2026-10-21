@@ -40,12 +40,12 @@ final readonly class MonthWeek
     }
 
     /**
-     * Whether any day of the row has its figure already.
+     * Whether any day of the row has its figure already, or money that came in early.
      */
     public function hasFigures(): bool
     {
         foreach ($this->cells as $cell) {
-            if ($cell->isLoaded()) {
+            if ($cell->isLoaded() || $cell->amount > 0) {
                 return true;
             }
         }

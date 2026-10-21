@@ -182,7 +182,7 @@ describe('the month', function () {
         $grid = $month->grids[0];
 
         expect($month->month->toDateString())->toBe('2026-10-01')
-            ->and($month->businessDays)->toBe(21)
+            ->and($grid->businessDays)->toBe(21)
             ->and($grid->weeks[2]->businessDays)->toBe(4)
             ->and($grid->weeks[2]->cells[1]->amount)->toBe(150.0)
             ->and($grid->total)->toBe(1150.0);
@@ -256,7 +256,7 @@ describe('the month', function () {
         $month = $response->viewData('month');
 
         expect($month->month->toDateString())->toBe('2026-09-01')
-            ->and($month->businessDays)->toBe(22)
+            ->and($month->grids[0]->businessDays)->toBe(22)
             ->and($month->grids[0]->total)->toBe(40.0);
 
         $response->assertSee('Recaudo diario de septiembre de 2026')

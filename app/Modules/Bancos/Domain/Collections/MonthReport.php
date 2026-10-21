@@ -21,7 +21,9 @@ use Carbon\CarbonInterface;
  * business day of the next one.
  *
  * Statements arrive the day after (día vencido), so a business day after
- * $lastLoaded is not "zero pesos", it is "not here yet". Everything is added
+ * $lastLoaded is not "zero pesos", it is "not here yet"; whatever is already
+ * stored for it (a statement carries the first movements of the next day)
+ * still counts, so the month never leaves money out. Everything is added
  * in cents and divided once at the end, so the totals are exact.
  */
 final readonly class MonthReport
@@ -30,12 +32,10 @@ final readonly class MonthReport
 
     /**
      * @param  CarbonImmutable  $month  First day of the month.
-     * @param  int  $businessDays  Business days of the month.
-     * @param  list<MonthGrid>  $grids  One per company in view, in CompanyCode order.
+     * @param  list<MonthGrid>  $grids  One per company in view, in CompanyCode order; each counts the business days.
      */
     private function __construct(
         public CarbonImmutable $month,
-        public int $businessDays,
         public array $grids,
     ) {}
 
@@ -70,7 +70,7 @@ final readonly class MonthReport
             $companies,
         );
 
-        return new self($month, self::businessDaysOf($month, $holidays), $grids);
+        return new self($month, $grids);
     }
 
     /**
@@ -112,7 +112,7 @@ final readonly class MonthReport
             for ($offset = 0; $offset < self::WEEKDAYS; $offset++) {
                 $date = $monday->addDays($offset);
                 $state = self::stateOf($date, $month, $lastLoaded, $holidays);
-                $amount = $state === MonthCellState::Loaded ? ($cents[$date->toDateString()] ?? 0) : 0;
+                $amount = in_array($state, [MonthCellState::Loaded, MonthCellState::Pending], true) ? ($cents[$date->toDateString()] ?? 0) : 0;
 
                 if ($state !== MonthCellState::Outside) {
                     $inMonth[] = $date;
@@ -153,16 +153,5 @@ final readonly class MonthReport
             $date->toDateString() > $lastLoaded->toDateString() => MonthCellState::Pending,
             default => MonthCellState::Loaded,
         };
-    }
-
-    private static function businessDaysOf(CarbonImmutable $month, ColombianHolidays $holidays): int
-    {
-        $count = 0;
-
-        for ($date = $month; $date->month === $month->month; $date = $date->addDay()) {
-            $count += $holidays->isBusinessDay($date) ? 1 : 0;
-        }
-
-        return $count;
     }
 }

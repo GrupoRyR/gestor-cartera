@@ -89,7 +89,6 @@ describe('the weeks of the month', function () {
         $report = bancosMonth('2026-10-16', bancosOctober());
 
         expect(array_map(fn (MonthWeek $week): int => $week->businessDays, $report->grids[0]->weeks))->toBe([2, 5, 4, 5, 5])
-            ->and($report->businessDays)->toBe(21)
             ->and($report->grids[0]->businessDays)->toBe(21)
             ->and($report->month->toDateString())->toBe('2026-10-01');
     });
@@ -147,6 +146,17 @@ describe('the amounts', function () {
             ->and(bancosStates($november->weeks[0]))->toBe(['Holiday', 'Loaded', 'Loaded', 'Loaded', 'Loaded'])
             ->and(bancosAmounts($november->weeks[0]))->toBe([0.0, 111.0, 0.0, 0.0, 0.0])
             ->and($november->total)->toBe(111.0);
+    });
+
+    it('keeps the credits already stored for a day that has not closed, so no money is left out', function () {
+        // The statements of the 15th, downloaded on the 16th, already carry movements of the 16th.
+        $grid = bancosMonth('2026-10-16', [bancosGridCredit('2026-10-15', 10), bancosGridCredit('2026-10-16', 5)])->grids[0];
+
+        expect($grid->weeks[2]->cells[4]->state)->toBe(MonthCellState::Pending)
+            ->and($grid->weeks[2]->cells[4]->amount)->toBe(5.0)
+            ->and($grid->weeks[2]->total)->toBe(15.0)
+            ->and($grid->total)->toBe(15.0)
+            ->and($grid->weeks[3]->hasFigures())->toBeFalse();
     });
 
     it('asks the provider from the day after the last business day of the month before to the last business day of the month', function () {

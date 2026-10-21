@@ -191,16 +191,15 @@
                                             @case(MonthCellState::Holiday)
                                                 <span class="text-sm text-fg-muted">{{ __('bancos::recaudo.web.mes.festivo') }}</span>
                                                 @break
-                                            @case(MonthCellState::Pending)
-                                                <span aria-hidden="true" class="text-fg-muted">—</span>
-                                                <span data-visually-hidden>{{ __('bancos::recaudo.web.mes.aun_no') }}</span>
-                                                @break
                                             @default
                                                 @if ($cell->amount > 0)
                                                     <a href="{{ route('bancos.recaudo', ['fecha' => $cell->date->format('Y-m-d')]) }}" class="inline-flex min-h-touch items-center font-semibold text-brand-ink underline-offset-4 hover:underline">
                                                         <x-bancos::amount :value="$cell->amount" />
                                                         <span data-visually-hidden>, {{ __('bancos::recaudo.web.mes.ver_dia', ['fecha' => $long($cell->date)]) }}</span>
                                                     </a>
+                                                @elseif ($cell->state === MonthCellState::Pending)
+                                                    <span aria-hidden="true" class="text-fg-muted">—</span>
+                                                    <span data-visually-hidden>{{ __('bancos::recaudo.web.mes.aun_no') }}</span>
                                                 @else
                                                     <span aria-hidden="true" class="text-fg-muted">—</span>
                                                     <span data-visually-hidden>{{ __('bancos::recaudo.web.mes.sin_creditos') }}</span>

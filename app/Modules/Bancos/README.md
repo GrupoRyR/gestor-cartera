@@ -101,7 +101,7 @@ The `RecaudoProvider` contract as JSON: `diario` (per day and company, with `por
 
 - The sum of the credits per **movement date**, whatever their status (pending, applied or ignored): an ignored credit still reached the bank account, and Treasury's cash flow wants the cash.
 - Only credits in `bancos.collection_currency` (COP) add up. Dollar credits are stored and listed, but there is **no exchange rate** to convert them; the report warns when there are any.
-- Movements arrive the day after (día vencido): the report opens on yesterday, and a business day after yesterday reads "—" ("Aún no llega"), not zero.
+- Movements arrive the day after (día vencido): the report opens on yesterday, and a business day after yesterday reads "—" ("Aún no llega"), not zero. Credits already stored for such a day (a statement carries the first movements of the next day) still show and add up, so the month never leaves money out.
 
 `/bancos/recaudo` has two cards: the **day** (what came in on the chosen day, by bank) and the **month** of that day, in the format María Paula keeps in her workbook (Part D, item 4: one sheet per company, October 2026 as the sample):
 
