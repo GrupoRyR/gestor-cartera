@@ -2,7 +2,6 @@
 
 use App\Modules\Bancos\Domain\Statement\StatementMovement;
 use App\Modules\Bancos\Domain\Statement\StatementReaders;
-use App\Modules\Bancos\Domain\Statement\TabularStatementReader;
 use App\Modules\Bancos\Domain\Statement\UnrecognizedStatement;
 use App\Modules\Bancos\Infrastructure\Files\TabularFile;
 use App\Modules\Core\Contracts\Enums\Bank;
@@ -67,14 +66,6 @@ describe('the invented statement of each bank', function () {
         expect(bancosLines($reading->movements))->toBe(['2026-10-15 credito 1000.00 COP ']);
     })->with(['empty' => '', 'another date' => '01/10/2026']);
 
-    it('never returns a description longer than the 500 characters the table keeps', function () {
-        $reading = StatementReaders::for(Bank::Bogota)->read([
-            ['Fecha', 'Valor', 'Indicador Débito / Crédito', 'Descripción de Transacción', 'Texto de Referencia'],
-            ['15/10/2026', '1000', 'C', 'Abono', str_repeat('ñ', 600)],
-        ]);
-
-        expect(mb_strlen((string) $reading->movements[0]->description))->toBe(TabularStatementReader::MAX_DESCRIPTION);
-    });
 
     it('reads Davivienda: an HTML .xls, Notas Credito or Debito, Colombian numbers, the totals left out', function () {
         $reading = StatementReaders::for(Bank::Davivienda)->read(TabularFile::rows(Fixtures::path(Bank::Davivienda)));
@@ -198,6 +189,16 @@ describe('a statement without a header, read by position', function () {
             ->and($reading->errors)->toHaveCount(1)
             ->and($reading->errors[0]->row)->toBe(2)
             ->and($reading->errors[0]->message)->toContain('31022026');
+    });
+
+    it('reads a date that lost its leading zero when Excel saved the file', function () {
+        $reading = StatementReaders::for(Bank::Bancolombia)->read([
+            ['00000000000', 126, 1, 1102026, '', 1000, 4160, 'TRANSFERENCIA', 0],
+            ['00000000000', '126', '1', '2102026', '', '2000.00', '4160', 'TRANSFERENCIA', '0'],
+        ]);
+
+        expect(bancosLines($reading->movements))->toBe(['2026-10-01 credito 1000.00 COP ', '2026-10-02 credito 2000.00 COP '])
+            ->and($reading->errors)->toBe([]);
     });
 });
 

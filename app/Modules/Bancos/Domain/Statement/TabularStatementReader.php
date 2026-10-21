@@ -30,9 +30,6 @@ abstract class TabularStatementReader implements StatementReader
     /** Rows searched for the header row: banks print a title and the account above it. */
     public const int HEADER_SEARCH_ROWS = 40;
 
-    /** Longest description a movement carries: the size of the column that stores it. */
-    public const int MAX_DESCRIPTION = 500;
-
     private const string DETAIL_SEPARATOR = ' · ';
 
     /**
@@ -92,10 +89,11 @@ abstract class TabularStatementReader implements StatementReader
                 continue;
             }
 
-            $date = Cells::date($this->cell($row, $columns, Column::Date), $profile->dateFormats);
+            $dateCell = $this->dateCell($this->cell($row, $columns, Column::Date));
+            $date = Cells::date($dateCell, $profile->dateFormats);
 
             if ($date === null) {
-                $text = Cells::text($this->cell($row, $columns, Column::Date));
+                $text = Cells::text($dateCell);
 
                 // "Total" or "Saldo anterior" are notes; "31/02/2026" is a date that went wrong.
                 if ($text !== null && preg_match('/\d/', $text) === 1 && $this->hasAmount($row, $columns, $profile)) {
@@ -191,7 +189,7 @@ abstract class TabularStatementReader implements StatementReader
                 continue;
             }
 
-            if ($date !== null && count($row) >= $profile->requiredCells() && Cells::date($row[$date] ?? null, $profile->dateFormats) !== null) {
+            if ($date !== null && count($row) >= $profile->requiredCells() && Cells::date($this->dateCell($row[$date] ?? null), $profile->dateFormats) !== null) {
                 return [0, $profile->positions];
             }
 
@@ -282,8 +280,8 @@ abstract class TabularStatementReader implements StatementReader
     }
 
     /**
-     * The Description and Detail texts, cleaned and joined, cut to the length
-     * the movement table keeps.
+     * The Description and Detail texts, cleaned and joined. MovementImporter
+     * cuts them to the length the movement table keeps.
      *
      * @param  list<mixed>  $row
      * @param  array<string, int>  $columns
@@ -300,7 +298,16 @@ abstract class TabularStatementReader implements StatementReader
             }
         }
 
-        return $parts === [] ? null : mb_substr(implode(self::DETAIL_SEPARATOR, $parts), 0, self::MAX_DESCRIPTION);
+        return $parts === [] ? null : implode(self::DETAIL_SEPARATOR, $parts);
+    }
+
+    /**
+     * The date cell as the formats of the profile expect it. A bank whose
+     * dates lose a character on the way (a leading zero) overrides it.
+     */
+    protected function dateCell(mixed $cell): mixed
+    {
+        return $cell;
     }
 
     /**

@@ -3,6 +3,7 @@
 namespace App\Modules\Bancos\Domain\Statement\Banks;
 
 use App\Modules\Bancos\Domain\Statement\BankProfile;
+use App\Modules\Bancos\Domain\Statement\Cells;
 use App\Modules\Bancos\Domain\Statement\Column;
 use App\Modules\Bancos\Domain\Statement\NumberStyle;
 use App\Modules\Bancos\Domain\Statement\TabularStatementReader;
@@ -39,5 +40,16 @@ final class BancolombiaStatementReader extends TabularStatementReader
                 Column::Description->value => 7,
             ],
         );
+    }
+
+    /**
+     * A file opened and saved in Excel turns 01102026 into the number
+     * 1102026: seven digits are a date that lost its leading zero.
+     */
+    protected function dateCell(mixed $cell): mixed
+    {
+        $text = Cells::text($cell);
+
+        return $text !== null && preg_match('/^\d{7}$/', $text) === 1 ? '0'.$text : $cell;
     }
 }
