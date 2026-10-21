@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Dev;
 
 use App\Models\User;
+use App\Modules\Core\Contracts\AuditLogger;
 use App\Modules\Core\Contracts\Enums\CompanyCode;
 use App\Modules\Core\Contracts\Enums\Role;
 use Illuminate\Http\RedirectResponse;
@@ -48,24 +49,29 @@ final class DemoLoginController
             'name' => $user->name,
             'email' => $user->email,
             'roles' => $user->roles->pluck('name')->map(self::roleLabel(...))->implode(', '),
-            'companies' => implode(', ', $companies[$user->id] ?? []) ?: 'Sin empresas',
+            // An admin reaches every company without company_user rows.
+            'companies' => implode(', ', $user->roles->contains('name', Role::Admin->value)
+                ? array_column(CompanyCode::cases(), 'value')
+                : $companies[$user->id] ?? []) ?: 'Sin empresas',
             'action' => route('dev.entrar.usuario', $user),
         ])->all();
 
         return response(Blade::render(self::TEMPLATE, ['users' => $rows]));
     }
 
-    public function store(Request $request, User $user): RedirectResponse
+    public function store(Request $request, User $user, AuditLogger $audit): RedirectResponse
     {
         self::ensureLocalRequest($request);
 
         abort_unless($user->is_active && $user->roles()->exists(), 404);
 
-        // A clean session: nothing of the previous demo user (active company,
-        // intended URL) carries over to the next one.
+        // A clean session (invalidate also renews its id): nothing of the
+        // previous demo user (active company, intended URL) carries over.
         $request->session()->invalidate();
         Auth::login($user);
-        $request->session()->regenerate();
+
+        // The same entry as a Microsoft sign-in, so the audit trail reads alike.
+        $audit->record('core.auth.signed_in', 'user', $user->id, context: ['method' => 'demo']);
 
         return redirect()->route('core.inicio');
     }

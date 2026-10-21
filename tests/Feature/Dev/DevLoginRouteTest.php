@@ -3,6 +3,8 @@
 use App\Models\User;
 use App\Modules\Core\Contracts\Enums\CompanyCode;
 use App\Modules\Core\Contracts\Enums\Role;
+use Illuminate\Http\Middleware\TrustProxies;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Testing\TestResponse;
 use Spatie\Permission\Models\Role as SpatieRole;
@@ -79,6 +81,22 @@ it('ignores forwarded headers that claim the request is local', function () {
     $this->assertGuest();
 });
 
+it('ignores forwarded headers even when every proxy is trusted', function () {
+    $user = CoreUsers::create(Role::PortfolioAnalyst, CompanyCode::SGX);
+
+    bootDevRoutesIn('local');
+    TrustProxies::at('*');
+
+    try {
+        $this->withHeader('X-Forwarded-For', '127.0.0.1');
+
+        postDemoSignIn($this, route('dev.entrar.usuario', $user), '10.0.0.8')->assertNotFound();
+        $this->assertGuest();
+    } finally {
+        TrustProxies::flushState();
+    }
+});
+
 it('answers 404 if the routes were cached in local but the app now runs elsewhere', function () {
     $user = CoreUsers::create(Role::PortfolioAnalyst, CompanyCode::SGX);
 
@@ -119,6 +137,18 @@ it('lists the active users with a role and their companies', function (string $a
     $this->assertGuest();
 })->with(['IPv4' => '127.0.0.1', 'IPv6' => '::1']);
 
+it('lists an admin with every company, as their access is', function () {
+    $admin = CoreUsers::create(Role::Admin);
+
+    bootDevRoutesIn('local');
+
+    $this->get(route('dev.entrar'))
+        ->assertOk()
+        ->assertSee($admin->email)
+        ->assertSee('SGX, SDC')
+        ->assertDontSee('Sin empresas');
+});
+
 it('signs in as the chosen user and sends them home', function (string $address) {
     $manager = CoreUsers::create(Role::PortfolioManager, CompanyCode::SGX, CompanyCode::SDC);
 
@@ -129,6 +159,23 @@ it('signs in as the chosen user and sends them home', function (string $address)
 
     $this->assertAuthenticatedAs($manager);
 })->with(['IPv4' => '127.0.0.1', 'IPv6' => '::1']);
+
+it('audits the demo sign-in like a Microsoft one, marked as a demo', function () {
+    $manager = CoreUsers::create(Role::PortfolioManager, CompanyCode::SGX);
+
+    bootDevRoutesIn('local');
+
+    postDemoSignIn($this, route('dev.entrar.usuario', $manager))->assertRedirect();
+
+    $this->assertDatabaseHas('audit_logs', [
+        'action' => 'core.auth.signed_in',
+        'subject_type' => 'user',
+        'subject_id' => $manager->id,
+        'user_id' => $manager->id,
+    ]);
+    expect(DB::table('audit_logs')->where('action', 'core.auth.signed_in')->value('context'))
+        ->toContain('demo');
+});
 
 it('refuses a sign-in without the CSRF token of the session', function () {
     $manager = CoreUsers::create(Role::PortfolioManager, CompanyCode::SGX);
