@@ -70,6 +70,8 @@ SELECT
     -- Id del pedido de la app de ventas: campo de usuario de la factura
     -- (OINV."U_SGX_IdPedidoApp"), confirmado por Miguel. Las notas credito lo
     -- traen en NULL.
+    -- VALIDAR CON DATOS REALES: si el campo tiene otro nombre en SEGUREX, HANA
+    -- responde "invalid column name" y falla todo el lote de ventas.
     X."IdPedidoApp"                                            AS "Id pedido app",
     X."NumAtCard"                                              AS "OC cliente",
     -- VALIDAR CON DATOS REALES: la ciudad de envio no esta separada en el
