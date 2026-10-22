@@ -92,6 +92,9 @@ return [
         'aprobada' => 'Aprobaste la versión :version de la liquidación de :periodo.',
         'cerrada' => 'Cerraste el período :periodo. La versión :version quedó congelada.',
         'complementaria' => 'Registraste la versión :version de :periodo como liquidación complementaria. Revísala y apruébala de nuevo.',
+        // The approval stays; only the mail to comisiones.approval_mail.recipients failed.
+        'correo_no_enviado' => 'La liquidación quedó aprobada, pero no pudimos enviar el consolidado por correo a :destinatarios. Avísales o descarga el consolidado.',
+        'correo_sin_destinatarios' => 'La liquidación quedó aprobada, pero no hay destinatarios configurados para enviar el consolidado por correo. Descárgalo y compártelo.',
     ],
 
     'errores' => [

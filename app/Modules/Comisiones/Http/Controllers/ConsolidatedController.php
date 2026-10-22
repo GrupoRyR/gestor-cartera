@@ -8,12 +8,9 @@ use App\Modules\Comisiones\Http\Support\SelectedSettlement;
 use App\Modules\Comisiones\Infrastructure\Audit\AuditTrail;
 use App\Modules\Comisiones\Infrastructure\Export\ConsolidatedSpreadsheet;
 use App\Modules\Comisiones\Infrastructure\Export\SpreadsheetDownload;
+use App\Modules\Comisiones\Infrastructure\Report\ConsolidatedPdf;
 use App\Modules\Comisiones\Infrastructure\Report\ConsolidatedReport;
-use App\Modules\Comisiones\Infrastructure\Report\PdfRenderer;
 use App\Modules\Comisiones\Infrastructure\Settlement\EloquentSettlements;
-use App\Modules\Core\Contracts\CurrentCompany;
-use App\Modules\Core\Contracts\Enums\CompanyCode;
-use Carbon\CarbonImmutable;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -70,7 +67,7 @@ final class ConsolidatedController
         return $download;
     }
 
-    public function pdf(Request $request, PdfRenderer $renderer, CurrentCompany $companies, string $periodo): Response|RedirectResponse
+    public function pdf(Request $request, ConsolidatedPdf $renderer, string $periodo): Response|RedirectResponse
     {
         $period = PeriodRoute::period($periodo);
         $selected = SelectedSettlement::calculated($request, $period, $this->settlements);
@@ -81,12 +78,7 @@ final class ConsolidatedController
 
         $report = ConsolidatedReport::of($selected->settlement);
         $user = $request->user();
-        $pdf = $renderer->render('comisiones::pdf.consolidado', [
-            'report' => $report,
-            'palette' => $companies->of(CompanyCode::SGX)->palette,
-            'generatedAt' => CarbonImmutable::now(),
-            'generatedBy' => $user instanceof User ? $user->name : null,
-        ]);
+        $pdf = $renderer->render($report, $user instanceof User ? $user->name : null);
         $this->record($request, $report, 'pdf');
 
         return response($pdf, 200, [

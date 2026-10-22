@@ -10,4 +10,12 @@ return [
     // Reports generated from a closed settlement (collection PDFs, consolidated, payroll file).
     'documents_disk' => 'local',
     'documents_directory' => 'comisiones/informes',
+
+    // Approving a settlement mails its consolidated PDF from the Segurex mailbox to these addresses.
+    'approval_mail' => [
+        'recipients' => [
+            'marcela.sanabria@segurex.com',
+            'monica.pinzon@segurex.com',
+        ],
+    ],
 ];

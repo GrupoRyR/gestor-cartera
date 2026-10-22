@@ -16,6 +16,7 @@ use App\Modules\Comisiones\Http\Requests\ComplementarySettlementRequest;
 use App\Modules\Comisiones\Http\Support\PeriodRoute;
 use App\Modules\Comisiones\Http\Support\SettlementErrors;
 use App\Modules\Comisiones\Infrastructure\Audit\AuditTrail;
+use App\Modules\Comisiones\Infrastructure\Mail\ApprovalMail;
 use App\Modules\Comisiones\Infrastructure\Persistence\SettlementRecord;
 use App\Modules\Comisiones\Infrastructure\Settlement\ApprovalGuard;
 use App\Modules\Comisiones\Infrastructure\Settlement\ApprovalRefused;
@@ -26,6 +27,7 @@ use Carbon\CarbonImmutable;
 use Closure;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Arr;
 use InvalidArgumentException;
 use Throwable;
 
@@ -36,6 +38,8 @@ use Throwable;
  * - calcular (comisiones.calculate): first calculation or recalculation;
  * - aprobar (comisiones.approve): ApprovalGuard (§10), then the approval of
  *   the reviewed revision with a justification per blocking alert (§9.7);
+ *   once stored, ApprovalMail sends the consolidated PDF, and a mail that
+ *   fails only adds a warning: the approval stands;
  * - cerrar (comisiones.close): freezes the approved version;
  * - complementaria (comisiones.calculate): a closed period settled again as
  *   a new version, with its reason.
@@ -65,7 +69,7 @@ final class SettlementActionController
         });
     }
 
-    public function approve(ApproveSettlementRequest $request, ApprovalGuard $guard, ApproveSettlement $approve, string $periodo): RedirectResponse
+    public function approve(ApproveSettlementRequest $request, ApprovalGuard $guard, ApproveSettlement $approve, ApprovalMail $mail, string $periodo): RedirectResponse
     {
         $period = PeriodRoute::period($periodo);
         $user = self::user($request);
@@ -98,8 +102,9 @@ final class SettlementActionController
         }
 
         $this->record('comisiones.settlement.approved', $settlement, $user, ['justificaciones' => $settlement->justifications]);
+        $done = $this->done($settlement, 'aprobada');
 
-        return $this->done($settlement, 'aprobada');
+        return $mail->send($settlement, $user) ? $done : $done->with('error', self::mailWarning());
     }
 
     public function close(Request $request, CloseSettlement $close, string $periodo): RedirectResponse
@@ -227,6 +232,19 @@ final class SettlementActionController
             user: $user,
             reason: $reason,
         );
+    }
+
+    /**
+     * Shown next to the approval when ApprovalMail could not send the
+     * consolidated report: the approval stands, the approver passes it on.
+     */
+    private static function mailWarning(): string
+    {
+        $recipients = ApprovalMail::recipients();
+
+        return $recipients === []
+            ? __('comisiones::liquidacion.mensajes.correo_sin_destinatarios')
+            : __('comisiones::liquidacion.mensajes.correo_no_enviado', ['destinatarios' => Arr::join($recipients, ', ', ' y ')]);
     }
 
     private static function user(Request $request): User
