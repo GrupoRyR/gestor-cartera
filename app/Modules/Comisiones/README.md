@@ -49,16 +49,17 @@ Además de los permisos, `ApprovalGuard` no deja aprobar a quien cargó capturas
 
 ## Correo al aprobar
 
-Cuando el aprobador aprueba una liquidación (`POST /comisiones/periodos/{periodo}/aprobar`), sale un correo con el consolidado de la versión aprobada.
+Cuando el aprobador aprueba una liquidación (`POST /comisiones/periodos/{periodo}/aprobar`), sale un correo con el consolidado de la versión aprobada. Se envía **en segundo plano**: la aprobación pone en la cola un trabajo `SendApprovalMail` y el aprobador no espera el PDF ni a Microsoft Graph.
 
 | Qué | Cómo |
 |---|---|
-| Cuándo | Solo al aprobar. Ni al calcular, ni al cerrar, ni cuando la aprobación se rechaza. |
+| Cuándo | Solo al aprobar. Ni al calcular, ni al cerrar, ni cuando la aprobación se rechaza. Sale cuando corre el worker de la cola, el mismo que envía el cobro de Cobro: `queue:work`, que el programador lanza cada minuto (necesita el cron de `schedule:run`). |
+| Cuántas veces | Una. El trabajo no se reintenta (`$tries = 1`): un reintento después de un envío que Graph aceptó mandaría el correo dos veces. Si la versión se recalculó antes de que el trabajo corra, no se envía. |
 | Desde | El buzón de Segurex (`COBRO_MAILBOX_SGX`), por el contrato `MailSender` que implementa Cobro. |
 | Para | `config('comisiones.approval_mail.recipients')`: hoy Marcela Sanabria y Mónica Pinzón. Para cambiarlos, edita esa lista en `config/comisiones.php`. |
 | Asunto | «Liquidación de comisiones aprobada – julio de 2026». |
 | Cuerpo | Período, versión y revisión, quién aprobó y cuándo, total del equipo regular y total para nómina, y un enlace a la liquidación. |
 | Adjunto | El mismo PDF que descarga `GET …/consolidado.pdf`, por ejemplo `Consolidado_Comisiones_2026-07_v1.pdf`. Lo arma `Infrastructure/Report/ConsolidatedPdf`. |
-| Si falla | La aprobación **no** se deshace. El aprobador ve un aviso («La liquidación quedó aprobada, pero no pudimos enviar el consolidado por correo…») y debe descargar el consolidado y compartirlo. El fallo queda en el registro y en la bitácora como `comisiones.settlement.mail_failed`, con el motivo en `fallo`: `sin_destinatarios`, `sin_mail_sender`, `no_enviado` (Graph lo rechazó) o `error` (falló el PDF o la vista; queda reportado). |
+| Si falla | La aprobación **no** se deshace. El fallo queda en el registro y en la bitácora como «Correo de aprobación no enviado» (`comisiones.settlement.mail_failed`), con el motivo en `fallo`: `sin_destinatarios`, `sin_mail_sender`, `no_enviado` (Graph lo rechazó), `recalculada` o `error` (falló el PDF, la vista o el trabajo; queda reportado). La pantalla del período lo muestra en «Quién hizo qué»: «No se pudo enviar el correo de aprobación (…); descarga el consolidado y envíalo.» |
 
-Un envío correcto queda en la bitácora como `comisiones.settlement.mailed`, con los destinatarios.
+Un envío correcto queda en la bitácora como «Correo de aprobación enviado» (`comisiones.settlement.mailed`), con los destinatarios, y la pantalla del período dice «Correo de aprobación enviado a … el …». Mientras el trabajo espera en la cola, la pantalla no dice nada del correo.

@@ -11,7 +11,9 @@
     ?version= or the latest); $versions: SettlementRecord rows of the period;
     $names: e-mail => user name; $corrupt: the stored result failed its
     check; $approval: null, or ['reasons' => list<string>] when the user may
-    see the approval form (latest draft and comisiones.approve).
+    see the approval form (latest draft and comisiones.approve); $mail:
+    null, or ['sent' => bool, 'text' => string], the approval mail of the
+    version (ApprovalMailLog).
 --}}
 @php
     $settlement = $selected->settlement;
@@ -145,7 +147,18 @@
                             <dd>{{ $settlement->reason }} · {{ __('comisiones::liquidacion.trazabilidad.corrige', ['version' => $settlement->previousVersion]) }}</dd>
                         </div>
                     @endif
+
+                    @if ($mail !== null && $mail['sent'])
+                        <div class="sm:col-span-3" data-mail="enviado">
+                            <dt class="text-[0.8125rem] font-semibold text-fg-muted">{{ __('comisiones::liquidacion.correo.titulo') }}</dt>
+                            <dd>{{ $mail['text'] }}</dd>
+                        </div>
+                    @endif
                 </dl>
+
+                @if ($mail !== null && ! $mail['sent'])
+                    <x-ui.alert tone="warning" class="mt-4" data-mail="fallido">{{ $mail['text'] }}</x-ui.alert>
+                @endif
             </x-ui.card>
 
             @if ($approval !== null)

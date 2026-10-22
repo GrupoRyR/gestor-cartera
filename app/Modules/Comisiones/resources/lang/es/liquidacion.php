@@ -92,9 +92,23 @@ return [
         'aprobada' => 'Aprobaste la versión :version de la liquidación de :periodo.',
         'cerrada' => 'Cerraste el período :periodo. La versión :version quedó congelada.',
         'complementaria' => 'Registraste la versión :version de :periodo como liquidación complementaria. Revísala y apruébala de nuevo.',
-        // The approval stays; only the mail to comisiones.approval_mail.recipients failed.
-        'correo_no_enviado' => 'La liquidación quedó aprobada, pero no pudimos enviar el consolidado por correo a :destinatarios. Avísales o descarga el consolidado.',
-        'correo_sin_destinatarios' => 'La liquidación quedó aprobada, pero no hay destinatarios configurados para enviar el consolidado por correo. Descárgalo y compártelo.',
+        // Added to «aprobada»: the mail to comisiones.approval_mail.recipients goes on the queue.
+        'correo_en_cola' => 'El correo con el consolidado a :destinatarios se envía en segundo plano.',
+        'correo_sin_destinatarios' => 'No hay destinatarios configurados para el correo con el consolidado: descárgalo y compártelo.',
+    ],
+
+    // The approval mail of the version shown, from the audit trail (ApprovalMailLog).
+    'correo' => [
+        'titulo' => 'Correo de aprobación',
+        'enviado' => 'Correo de aprobación enviado a :destinatarios el :fecha.',
+        'fallido' => 'No se pudo enviar el correo de aprobación (:motivo); descarga el consolidado y envíalo.',
+        'motivos' => [
+            'sin_destinatarios' => 'no hay destinatarios configurados',
+            'sin_mail_sender' => 'el envío de correo no está configurado',
+            'no_enviado' => 'el buzón de Segurex no lo aceptó',
+            'recalculada' => 'la versión se recalculó antes del envío',
+            'error' => 'falló al preparar el correo',
+        ],
     ],
 
     'errores' => [

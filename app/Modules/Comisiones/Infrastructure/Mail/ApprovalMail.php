@@ -4,6 +4,7 @@ namespace App\Modules\Comisiones\Infrastructure\Mail;
 
 use App\Models\User;
 use App\Modules\Comisiones\Domain\Settlement\Settlement;
+use App\Modules\Comisiones\Domain\Settlement\SettlementStatus;
 use App\Modules\Comisiones\Infrastructure\Audit\AuditTrail;
 use App\Modules\Comisiones\Infrastructure\Report\ConsolidatedPdf;
 use App\Modules\Comisiones\Infrastructure\Report\ConsolidatedReport;
@@ -23,11 +24,13 @@ use Throwable;
  * a PDF, sent through Core's MailSender from the Segurex mailbox (category
  * "comisiones_aprobacion").
  *
- * Sending is best effort: the approval is already stored, so a missing
+ * SendApprovalMail calls it on the queue. Sending is best effort: the
+ * approval is already stored, so a version recalculated since, a missing
  * sender, no recipients, a mail Graph refuses or a PDF that fails to
  * render never throw. Each outcome is audited as
- * comisiones.settlement.mailed or comisiones.settlement.mail_failed, and
- * send() tells the caller whether the mail went out.
+ * comisiones.settlement.mailed or comisiones.settlement.mail_failed (with
+ * the approved revision and, on failure, the reason in "fallo"), which
+ * ApprovalMailLog reads back for the period screen.
  */
 final readonly class ApprovalMail
 {
@@ -52,22 +55,31 @@ final readonly class ApprovalMail
     }
 
     /**
+     * @param  int  $revision  The revision that was approved. When the version was
+     *                         recalculated since (back to draft, or to another
+     *                         revision), nothing is sent: those figures were not approved.
      * @return bool Whether the mail was sent.
      */
-    public function send(Settlement $settlement, User $approver): bool
+    public function send(Settlement $settlement, User $approver, int $revision): bool
     {
         $recipients = self::recipients();
+
+        if ($settlement->status === SettlementStatus::Draft || $settlement->revision !== $revision) {
+            Log::warning('Comisiones: the approved settlement was recalculated before its mail went out.', ['period' => $settlement->period->key(), 'version' => $settlement->version]);
+
+            return $this->failed($settlement, $revision, $approver, $recipients, 'recalculada');
+        }
 
         if ($recipients === []) {
             Log::warning('Comisiones: the approval mail has no recipients configured.', ['period' => $settlement->period->key()]);
 
-            return $this->failed($settlement, $approver, $recipients, 'sin_destinatarios');
+            return $this->failed($settlement, $revision, $approver, $recipients, 'sin_destinatarios');
         }
 
         if (! app()->bound(MailSender::class)) {
             Log::error('Comisiones: the approval mail could not be sent, MailSender has no implementation.', ['period' => $settlement->period->key()]);
 
-            return $this->failed($settlement, $approver, $recipients, 'sin_mail_sender');
+            return $this->failed($settlement, $revision, $approver, $recipients, 'sin_mail_sender');
         }
 
         try {
@@ -75,15 +87,15 @@ final readonly class ApprovalMail
         } catch (MailNotSent $exception) {
             Log::error('Comisiones: the approval mail could not be sent.', ['period' => $settlement->period->key(), 'exception' => $exception]);
 
-            return $this->failed($settlement, $approver, $recipients, 'no_enviado');
+            return $this->failed($settlement, $revision, $approver, $recipients, 'no_enviado');
         } catch (Throwable $exception) {
             // A bug while building the mail (the PDF, the view) must not undo the approval either.
             report($exception);
 
-            return $this->failed($settlement, $approver, $recipients, 'error');
+            return $this->failed($settlement, $revision, $approver, $recipients, 'error');
         }
 
-        $this->record('comisiones.settlement.mailed', $settlement, $approver, $recipients);
+        $this->record('comisiones.settlement.mailed', $settlement, $revision, $approver, $recipients);
 
         return true;
     }
@@ -116,9 +128,9 @@ final readonly class ApprovalMail
     /**
      * @param  list<string>  $recipients
      */
-    private function failed(Settlement $settlement, User $approver, array $recipients, string $reason): bool
+    private function failed(Settlement $settlement, int $revision, User $approver, array $recipients, string $reason): bool
     {
-        $this->record('comisiones.settlement.mail_failed', $settlement, $approver, $recipients, $reason);
+        $this->record('comisiones.settlement.mail_failed', $settlement, $revision, $approver, $recipients, $reason);
 
         return false;
     }
@@ -126,7 +138,7 @@ final readonly class ApprovalMail
     /**
      * @param  list<string>  $recipients
      */
-    private function record(string $event, Settlement $settlement, User $approver, array $recipients, ?string $failure = null): void
+    private function record(string $event, Settlement $settlement, int $revision, User $approver, array $recipients, ?string $failure = null): void
     {
         $this->audit->record(
             event: $event,
@@ -134,7 +146,7 @@ final readonly class ApprovalMail
             subjectId: $this->settlements->record($settlement->period, $settlement->version)?->id,
             context: array_filter([
                 'version' => $settlement->version,
-                'revision' => $settlement->revision,
+                'revision' => $revision,
                 'destinatarios' => $recipients,
                 'fallo' => $failure,
             ], fn (mixed $value): bool => $value !== null),
