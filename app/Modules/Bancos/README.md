@@ -130,6 +130,10 @@ The `RecaudoProvider` contract as JSON: `diario` (per day and company, with `por
 
 The receipt number is free text (letters, digits, `-`, `/`, `,`), because one deposit can pay several receipts: `4521, 4522`.
 
+## Menu order
+
+The Bancos entries use orders 60, 70 and 80 (Recaudo, Movimientos, Cargas de extractos), after Cartera (10-40) and Gerencia (50) and before Cobro (110). After sign-in, `/` opens the first menu entry the user may see (Core `HomeController`, sorted by order and then label). `gerente_cartera` and `analista_cartera` also hold `bancos.view`, so with a lower order they would land on Recaudo instead of the Cartera dashboard. Treasury only has Bancos and still lands on Recaudo. `tests/Modules/Bancos/Feature/Web/MenuOrderTest.php` checks both, with every module's permissions seeded.
+
 ## Configuration
 
 | Variable | Default | Used for |

@@ -60,6 +60,9 @@ final class BancosServiceProvider extends ModuleServiceProvider
      * The menu of the module: the collections report, the movements by bank
      * (with how many credits still wait for their cash receipt) and the loads.
      * The report and the movements are on the bottom bar of the phone.
+     * Orders 60-80 put them after Cartera (10-40) and Gerencia (50): / opens
+     * the first entry a user may see, and the portfolio roles must land on
+     * Cartera (see README, "Menu order").
      */
     protected function navigation(NavRegistry $navigation): void
     {
@@ -71,7 +74,7 @@ final class BancosServiceProvider extends ModuleServiceProvider
                 icon: 'money',
                 permission: 'bancos.view',
                 group: 'Bancos',
-                order: 10,
+                order: 60,
                 activePattern: 'bancos.recaudo',
                 mobile: true,
             ),
@@ -82,7 +85,7 @@ final class BancosServiceProvider extends ModuleServiceProvider
                 icon: 'bank',
                 permission: 'bancos.view',
                 group: 'Bancos',
-                order: 20,
+                order: 70,
                 activePattern: 'bancos.movimientos.*',
                 mobile: true,
                 badge: fn (): ?int => app()->bound(CurrentCompany::class)
@@ -96,7 +99,7 @@ final class BancosServiceProvider extends ModuleServiceProvider
                 icon: 'upload',
                 permission: 'bancos.view',
                 group: 'Bancos',
-                order: 30,
+                order: 80,
                 activePattern: 'bancos.cargas.*',
             ),
         );
