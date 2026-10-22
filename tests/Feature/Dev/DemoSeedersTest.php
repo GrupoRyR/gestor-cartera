@@ -95,7 +95,7 @@ it('seeds collection runs, commissions and loads, and does not repeat itself', f
     ]);
     $first = $counts();
 
-    expect(DB::table('cobro_runs')->where('kind', 'cobro_semanal')->count())->toBe(3)
+    expect(DB::table('cobro_runs')->where('kind', 'cobro_semanal')->count())->toBe(3 * count(config('cobro.weekly.companies')))
         ->and(DB::table('cobro_runs')->where('kind', 'circularizacion')->distinct()->count('company'))->toBe(2)
         ->and(DB::table('cobro_run_items')->distinct()->count('status'))->toBe(6)
         ->and(DB::table('cobro_inbound_messages')->whereNull('read_at')->where('is_bounce', false)->exists())->toBeTrue()

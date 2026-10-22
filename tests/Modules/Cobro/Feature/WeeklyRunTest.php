@@ -41,7 +41,7 @@ function cobroItem(int $clientId): RunItem
 }
 
 it('plans one item per overdue client of the company and mails the pending ones', function () {
-    $this->artisan('cobro:cobro-semanal')
+    $this->artisan('cobro:cobro-semanal --empresa=SGX')
         ->expectsOutputToContain('Segurex Latam: Cobro semanal en cola para 1 clientes; 1 sin correo y 1 excluidos.')
         ->assertSuccessful();
 
@@ -73,7 +73,7 @@ it('plans one item per overdue client of the company and mails the pending ones'
 });
 
 it('mails the overdue invoices only, from the company mailbox, linked to the client', function () {
-    $this->artisan('cobro:cobro-semanal')->assertSuccessful();
+    $this->artisan('cobro:cobro-semanal --empresa=SGX')->assertSuccessful();
 
     $this->fakes->mail->assertSent(fn (OutgoingMail $mail): bool => $mail->company === CompanyCode::SGX
         && $mail->to === ['tesoreria@tornillo.example', 'pagos@tornillo.example']
@@ -107,7 +107,7 @@ it('names each invoice advisor, reading the advisor list only for advisors other
 });
 
 it('logs the sent mail in the client activity', function () {
-    $this->artisan('cobro:cobro-semanal')->assertSuccessful();
+    $this->artisan('cobro:cobro-semanal --empresa=SGX')->assertSuccessful();
 
     $this->fakes->gestiones->assertLogged(ActivityType::EmailSent, $this->portfolio->tornillo->summary->id);
 
@@ -115,10 +115,10 @@ it('logs the sent mail in the client activity', function () {
 });
 
 it('never runs twice for the same day', function () {
-    $this->artisan('cobro:cobro-semanal')->assertSuccessful();
+    $this->artisan('cobro:cobro-semanal --empresa=SGX')->assertSuccessful();
     $this->travelTo(CarbonImmutable::parse('2026-10-21 18:30:00', 'America/Bogota'));
 
-    $this->artisan('cobro:cobro-semanal')
+    $this->artisan('cobro:cobro-semanal --empresa=SGX')
         ->expectsOutputToContain('Segurex Latam: el envío de Cobro semanal de esta fecha ya se preparó; no se envía de nuevo.')
         ->assertSuccessful();
 
@@ -129,7 +129,7 @@ it('never runs twice for the same day', function () {
 it('records a failed send and still closes the run', function () {
     $this->fakes->mail->failNextWith(new MailNotSent('Graph did not send the cobro_semanal mail.', previous: new GraphRequestFailed('Graph POST /users/x/messages failed with HTTP 429.', 429)));
 
-    $this->artisan('cobro:cobro-semanal')->assertSuccessful();
+    $this->artisan('cobro:cobro-semanal --empresa=SGX')->assertSuccessful();
 
     $item = cobroItem($this->portfolio->tornillo->summary->id);
 
@@ -171,7 +171,7 @@ it('keeps a delivered mail as sent when logging the activity fails', function ()
     });
     Exceptions::fake();
 
-    $this->artisan('cobro:cobro-semanal')->assertSuccessful();
+    $this->artisan('cobro:cobro-semanal --empresa=SGX')->assertSuccessful();
 
     expect(cobroItem($this->portfolio->tornillo->summary->id)->status)->toBe(ItemStatus::Sent)
         ->and(Run::query()->sole()->status)->toBe(RunStatus::Completed);
@@ -212,7 +212,7 @@ it('spreads the send jobs at the configured rate', function () {
     $second = Make::clientDetail(Make::client(name: 'Segundo Cliente SAS', balance: 100, overdue: 100, maxDaysOverdue: 3));
     $this->fakes->cartera->addClient($second, Make::invoice(clientId: $second->summary->id, amount: 100, daysOverdue: 3));
 
-    $this->artisan('cobro:cobro-semanal')->assertSuccessful();
+    $this->artisan('cobro:cobro-semanal --empresa=SGX')->assertSuccessful();
 
     $delays = collect(Queue::pushedJobs()[SendRunItem::class] ?? [])
         ->map(fn (array $pushed): int => (int) round(now()->diffInMinutes($pushed['job']->delay)))
@@ -265,7 +265,7 @@ it('never mails an item that is not pending', function () {
 });
 
 it('marks the item bounced when the mailbox reads its bounce', function () {
-    $this->artisan('cobro:cobro-semanal')->assertSuccessful();
+    $this->artisan('cobro:cobro-semanal --empresa=SGX')->assertSuccessful();
 
     $sent = SentMessage::query()->create([
         'company' => CompanyCode::SGX, 'mailbox' => 'segurex.info@segurex.com', 'client_id' => $this->portfolio->tornillo->summary->id,
@@ -289,7 +289,27 @@ it('marks the item bounced when the mailbox reads its bounce', function () {
         ->and($item->bounced_at?->equalTo(now()->addMinute()))->toBeTrue();
 });
 
+it('runs for Segurex and Derivados by default', function () {
+    $this->artisan('cobro:cobro-semanal')
+        ->expectsOutputToContain('Segurex Latam: Cobro semanal en cola para 1 clientes; 1 sin correo y 1 excluidos.')
+        ->assertSuccessful();
+
+    expect(config('cobro.weekly.companies'))->toBe(['SGX', 'SDC'])
+        ->and(Run::query()->pluck('company')->all())->toEqualCanonicalizing([CompanyCode::SGX, CompanyCode::SDC]);
+
+    $quimicos = collect($this->fakes->mail->sent())->sole(fn (OutgoingMail $mail): bool => $mail->clientId === $this->portfolio->quimicos->summary->id);
+
+    expect($quimicos->company)->toBe(CompanyCode::SDC)
+        ->and($quimicos->to)->toBe(['pagos@quimicos.example'])
+        ->and($quimicos->subject)->toBe('Cobro de cartera - Soluciones y Derivados de Colombia S.A.S')
+        ->and($quimicos->cc)->toBe(['miguel.martinez@derivadoscol.com', 'diana.mora@derivadoscol.com', 'servicioalcliente@derivadoscol.com'])
+        ->and(VisibleText::of($quimicos->html))->toContain('Estimado cliente Químicos del Norte SAS')
+        ->toContain('Auxiliar de Crédito y Cobranza');
+});
+
 it('runs only for the companies of the weekly collection', function () {
+    config(['cobro.weekly.companies' => ['SGX']]);
+
     $this->artisan('cobro:cobro-semanal --empresa=SDC')
         ->expectsOutputToContain('La empresa SDC no tiene este envío. Empresas válidas: SGX.')
         ->assertFailed();

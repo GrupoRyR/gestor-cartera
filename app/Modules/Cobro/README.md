@@ -24,7 +24,7 @@ Permisos (`CobroPermissionSeeder`): `cobro.view` para administrador, gerente y a
 | Comando | Cuándo (hora de Colombia) | Qué hace |
 |---|---|---|
 | `cobro:sincronizar-buzones` | Cada 5 minutos | Lee con una consulta delta de Graph los correos nuevos de la bandeja de entrada de cada buzón, los une al envío y al cliente, y registra la respuesta en la bitácora. Sin credenciales de Graph solo avisa. |
-| `cobro:cobro-semanal` | Miércoles 17:00 (`cobro.weekly`) | Prepara el envío y pone en cola un trabajo `SendRunItem` por cliente. Correrlo de nuevo el mismo día no envía nada. |
+| `cobro:cobro-semanal` | Miércoles 17:00 (`cobro.weekly`) | Para Segurex y Derivados, cada una con su plantilla y sus copias: prepara el envío y pone en cola un trabajo `SendRunItem` por cliente. Correrlo de nuevo el mismo día no envía nada. |
 | `cobro:circularizacion` | Día 1 a las 09:00 (`cobro.circularizacion`) | Igual, una vez al mes, para Segurex y Derivados: **envía de verdad** (ver «Circularización»), pero no envía una empresa cuya cartera cargada no sea la del cierre del mes; `--con-corte-actual` la envía con el último corte. Solo si se vuelve a poner `cobro.circularizacion.draft` en `true` deja de enviar; entonces `--aun-en-borrador` permite probar el motor. |
 | `cobro:cerrar-envios-interrumpidos` | Cada 10 minutos | Marca «No se pudo enviar» a los clientes que un proceso interrumpido dejó «enviando» más de 30 minutos, para que el envío se cierre y el informe lo muestre. |
 
