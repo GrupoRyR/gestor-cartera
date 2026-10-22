@@ -61,7 +61,15 @@ El código del vendedor se deriva del texto de SAP (ej.: `"14 MONICA RIVERA AREV
 ## 5. Reglas de negocio (fuente de verdad)
 
 ### 5.1 Período
-Un período es un mes calendario. Las **ventas** se asignan por fecha del documento. Los **recaudos y cruces** se asignan por fecha de pago o de cruce. Todo valor está en COP, con formato `$ 1.234.567` y fechas `DD/MM/AAAA`.
+Un período es un mes calendario. Todo valor está en COP, con formato `$ 1.234.567` y fechas `DD/MM/AAAA`.
+
+| Línea | Fecha que la pone en el período |
+|---|---|
+| **Venta** | La fecha de la factura: `fecha_contabilizacion` (SAP `DocDate`), como confirmó el dueño de SAP. `fecha_documento` (SAP `TaxDate`) puede caer en otro mes y se guarda solo como referencia. |
+| **Recaudo** | La fecha de pago (`fecha_pago`). |
+| **Cruce** | La fecha de cruce (`fecha_cruce`). |
+
+Los días de un recaudo o de un cruce (§5.3) se cuentan desde la fecha de la factura. Si la línea no trae fecha de factura, se toma la `fecha_contabilizacion` de la factura cargada (`tipo_objeto` 13, mismo `doc_entry`), la misma `DocDate` que el robot envía como `fecha_factura`. Si tampoco está esa factura, se usa la fecha de pago o de cruce (0 días); Controles cuenta esos recaudos en «Recaudos sin fecha de factura».
 
 ### 5.2 Comisión por venta (por código)
 
@@ -107,6 +115,22 @@ El reporte de recaudos de SAP **no incluye** los pagos que resultan de cruces de
 
 - El módulo importa estos cruces desde SAP (Reporte 4 de la Parte B). Debe permitir además la **captura manual** como respaldo, con los campos: vendedor, tipo de cruce, factura, fecha factura, fecha de cruce, código y razón social del cliente, tercero cruzado, importe original y valor cruzado.
 - El módulo asigna el cruce al **vendedor vigente del cliente** según el maestro de clientes (Reporte 5). El usuario puede corregir la asignación con soporte.
+- **Vendedor de un cruce.** Se toma, en este orden:
+  1. la reasignación aprobada más reciente del cruce (captura con soporte);
+  2. el vendedor digitado en un cruce manual;
+  3. el vendedor que el cliente tenía asignado en la **fecha del cruce**. Una opción de los parámetros («Vendedor a la fecha de la factura») usa la fecha de la factura en su lugar.
+
+  Si el cliente no tenía vendedor en esa fecha, el cruce no se asigna y sale la alerta «Cliente sin vendedor asignado».
+- **Cambio de vendedor del cliente.** Cada maestro de clientes que llega de SAP alimenta el historial `comisiones_asignaciones`, que **nunca se reescribe**:
+
+  | Caso | Qué se guarda |
+  |---|---|
+  | Cliente visto por primera vez | Su vendedor, vigente desde el 01/01/2000, para cubrir también el pasado. |
+  | Mismo vendedor que el vigente | Nada. |
+  | Vendedor distinto | Una fila nueva, vigente desde la `fecha_modificacion` de SAP, o desde la fecha de corte de la carga cuando SAP no la trae. |
+  | Vendedor distinto con fecha igual o anterior al inicio de la asignación vigente | La fila nueva empieza en la fecha mayor entre el día siguiente a ese inicio y el corte de la carga. Así el vendedor vigente conserva sus cruces hasta el día en que se vio el cambio. Queda en la bitácora como «Cambio de vendedor con fecha ajustada» (`comisiones.assignment.start_moved`), con la fecha de SAP y la aplicada. |
+
+  Cualquier otro reparto se corrige a mano con una reasignación del cruce, con soporte.
 - El cálculo es idéntico al de un recaudo: la fecha de cruce actúa como fecha de pago y el valor cruzado, **sin IVA**, como valor pagado.
 - Hoy el valor cruzado se digita ya sin IVA (ej.: importe $2.713.450 → valor $2.280.210, es decir, ÷ 1,19). El módulo calcula la base sin IVA a partir del IVA de la factura y no depende de la digitación.
 - En informes, cada cruce se marca con **"(cruce)"** junto a la razón social.
@@ -242,7 +266,7 @@ Conserva una **instantánea diaria** de la cartera (no la sobrescribas). Sirve p
 2. Si el `Total` de ventas es antes de IVA y cómo se tratan las notas crédito y devoluciones.
 3. Si la comisión de directores de canal y el 85.1 deben incluir los cruces (el Excel actual no suma los cruces en 85.1).
 4. Tratamiento exacto de las comisiones adicionales de director asociadas a los códigos 50 y 53.
-5. Para un cruce: qué vendedor aplica si el cliente cambió de asesor entre la factura y el cruce.
+5. ~~Para un cruce: qué vendedor aplica si el cliente cambió de asesor entre la factura y el cruce.~~ **Resuelto (ver §5.4):** el vendedor vigente en la fecha del cruce, según el historial de asignaciones; la opción «Vendedor a la fecha de la factura» de los parámetros cambia esa fecha, y una reasignación aprobada manda sobre ambas.
 6. Si el cumplimiento se evalúa por código (como hoy) o por persona cuando una persona tiene varios códigos.
 7. Si existen recaudos en moneda extranjera. El campo TRM de SAP hoy llega en 1.
 
