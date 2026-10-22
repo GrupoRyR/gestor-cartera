@@ -3,6 +3,7 @@
 use App\Models\User;
 use App\Modules\Comisiones\Database\Seeders\ComisionesPermissionSeeder;
 use App\Modules\Comisiones\Infrastructure\Permissions\ModuleRoles;
+use Database\Seeders\DatabaseSeeder;
 use Spatie\Permission\Models\Permission;
 use Spatie\Permission\Models\Role as SpatieRole;
 use Tests\Fakes\AuditEntry;
@@ -51,6 +52,27 @@ it('grants each permission to the roles of the feature document, and seeds again
     expect(comisionesGrants())->toBe($expected)
         ->and(SpatieRole::query()->whereIn('name', ModuleRoles::ALL)->count())->toBe(2);
 });
+
+it('sends a user with only a module role from the home to the Comisiones screens, not to the no-access page', function (string $role) {
+    $this->seed(DatabaseSeeder::class);
+    $user = User::factory()->create();
+    $user->assignRole(SpatieRole::findOrCreate($role, 'web'));
+
+    expect($user->fresh()?->can('core.access'))->toBeTrue();
+
+    $response = $this->actingAs($user)->get('/');
+    $location = $response->headers->get('Location');
+
+    // Follow the redirects until the first page that answers.
+    for ($hops = 0; $response->isRedirect() && $hops < 5; $hops++) {
+        $location = $response->headers->get('Location');
+        $response = $this->actingAs($user)->get((string) $location);
+    }
+
+    expect((string) parse_url((string) $location, PHP_URL_PATH))->toStartWith('/comisiones')
+        ->not->toBe('/sin-acceso');
+    $response->assertOk();
+})->with([ModuleRoles::APPROVER, ModuleRoles::VIEWER]);
 
 it('assigns and removes a module role by e-mail', function () {
     $user = User::factory()->create(['email' => 'beto.ruiz@segurex.com']);

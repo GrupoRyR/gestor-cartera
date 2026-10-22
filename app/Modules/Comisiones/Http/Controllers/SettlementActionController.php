@@ -16,6 +16,8 @@ use App\Modules\Comisiones\Http\Requests\ComplementarySettlementRequest;
 use App\Modules\Comisiones\Http\Support\PeriodRoute;
 use App\Modules\Comisiones\Http\Support\SettlementErrors;
 use App\Modules\Comisiones\Infrastructure\Audit\AuditTrail;
+use App\Modules\Comisiones\Infrastructure\Mail\ApprovalMail;
+use App\Modules\Comisiones\Infrastructure\Mail\SendApprovalMail;
 use App\Modules\Comisiones\Infrastructure\Persistence\SettlementRecord;
 use App\Modules\Comisiones\Infrastructure\Settlement\ApprovalGuard;
 use App\Modules\Comisiones\Infrastructure\Settlement\ApprovalRefused;
@@ -26,6 +28,7 @@ use Carbon\CarbonImmutable;
 use Closure;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Arr;
 use InvalidArgumentException;
 use Throwable;
 
@@ -36,6 +39,8 @@ use Throwable;
  * - calcular (comisiones.calculate): first calculation or recalculation;
  * - aprobar (comisiones.approve): ApprovalGuard (§10), then the approval of
  *   the reviewed revision with a justification per blocking alert (§9.7);
+ *   once stored, SendApprovalMail goes on the queue to mail the
+ *   consolidated PDF; the approval never waits for it nor depends on it;
  * - cerrar (comisiones.close): freezes the approved version;
  * - complementaria (comisiones.calculate): a closed period settled again as
  *   a new version, with its reason.
@@ -98,8 +103,9 @@ final class SettlementActionController
         }
 
         $this->record('comisiones.settlement.approved', $settlement, $user, ['justificaciones' => $settlement->justifications]);
+        SendApprovalMail::dispatch($period->key(), $settlement->version, $settlement->revision, $user->id);
 
-        return $this->done($settlement, 'aprobada');
+        return $this->done($settlement, 'aprobada', self::mailNote());
     }
 
     public function close(Request $request, CloseSettlement $close, string $periodo): RedirectResponse
@@ -194,13 +200,18 @@ final class SettlementActionController
         return $withInput ? $redirect->withInput() : $redirect;
     }
 
-    private function done(Settlement $settlement, string $message): RedirectResponse
+    /**
+     * @param  string|null  $note  A sentence added after the message.
+     */
+    private function done(Settlement $settlement, string $message, ?string $note = null): RedirectResponse
     {
-        return $this->back($settlement->period)->with('status', __("comisiones::liquidacion.mensajes.{$message}", [
+        $status = __("comisiones::liquidacion.mensajes.{$message}", [
             'periodo' => $settlement->period->key(),
             'version' => $settlement->version,
             'revision' => $settlement->revision,
-        ]));
+        ]);
+
+        return $this->back($settlement->period)->with('status', $note === null ? $status : "{$status} {$note}");
     }
 
     private function back(Period $period): RedirectResponse
@@ -227,6 +238,19 @@ final class SettlementActionController
             user: $user,
             reason: $reason,
         );
+    }
+
+    /**
+     * Added to the approval message: who gets the consolidated report by
+     * mail, which SendApprovalMail sends on the queue.
+     */
+    private static function mailNote(): string
+    {
+        $recipients = ApprovalMail::recipients();
+
+        return $recipients === []
+            ? __('comisiones::liquidacion.mensajes.correo_sin_destinatarios')
+            : __('comisiones::liquidacion.mensajes.correo_en_cola', ['destinatarios' => Arr::join($recipients, ', ', ' y ')]);
     }
 
     private static function user(Request $request): User

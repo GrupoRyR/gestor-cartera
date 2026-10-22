@@ -6,6 +6,7 @@ use App\Models\User;
 use App\Modules\Comisiones\Domain\Settlement\SettlementStatus;
 use App\Modules\Comisiones\Http\Support\PeriodRoute;
 use App\Modules\Comisiones\Http\Support\SelectedSettlement;
+use App\Modules\Comisiones\Infrastructure\Audit\ApprovalMailLog;
 use App\Modules\Comisiones\Infrastructure\Persistence\SettlementRecord;
 use App\Modules\Comisiones\Infrastructure\Settlement\ApprovalGuard;
 use App\Modules\Comisiones\Infrastructure\Settlement\EloquentSettlements;
@@ -23,8 +24,9 @@ use Illuminate\Http\Request;
  *   ends), unless the month in course is already open. A draft left open
  *   in another month never holds the entry;
  * - GET /comisiones/periodos/{periodo}?version=N: status, version and
- *   revision, who calculated, approved and closed it, totals, alerts with
- *   their justifications, the approval form and the versions of the period.
+ *   revision, who calculated, approved and closed it, whether its approval
+ *   mail went out, totals, alerts with their justifications, the approval
+ *   form and the versions of the period.
  */
 final class SettlementController
 {
@@ -61,6 +63,7 @@ final class SettlementController
                 'names' => [],
                 'corrupt' => true,
                 'approval' => null,
+                'mail' => null,
             ]);
         }
 
@@ -99,6 +102,7 @@ final class SettlementController
             'names' => $names,
             'corrupt' => false,
             'approval' => $approval,
+            'mail' => $settlement === null ? null : ApprovalMailLog::line($settlement, $this->settlements->record($period, $settlement->version)?->id),
         ]);
     }
 }
