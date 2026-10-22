@@ -56,7 +56,7 @@ final class ComisionesServiceProvider extends ModuleServiceProvider
         $navigation->add(
             new NavItem(
                 key: 'comisiones.tablero',
-                label: 'Tablero',
+                label: 'Tablero de comisiones',
                 route: 'comisiones.tablero',
                 icon: 'dashboard',
                 permission: 'comisiones.view',
@@ -95,7 +95,7 @@ final class ComisionesServiceProvider extends ModuleServiceProvider
             ),
             new NavItem(
                 key: 'comisiones.parametros',
-                label: 'Parámetros',
+                label: 'Parámetros de comisiones',
                 route: 'comisiones.parametros.index',
                 icon: 'sliders',
                 permission: 'comisiones.parameters',
