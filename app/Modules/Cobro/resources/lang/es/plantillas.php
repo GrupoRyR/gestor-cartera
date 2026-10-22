@@ -113,7 +113,7 @@ return [
                     .'Auxiliar de Cartera',
             ],
             'SDC' => [
-                'asunto' => 'Circularización de Cartera – Corte al {fecha_cierre}',
+                'asunto' => 'Circularización de Cartera – Corte al {fecha_cierre_del}',
                 'inicio' => "Buen día\n\n"
                     ."Estimado cliente **{cliente}**\n\n"
                     ."Cordial saludo,\n\n"

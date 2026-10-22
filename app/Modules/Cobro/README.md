@@ -102,7 +102,7 @@ Variables de `.env` (`docs/arquitectura.md` §15): `GRAPH_TENANT_ID`, `GRAPH_CLI
 
 El correo (`resources/views/circularizacion/estado-cartera.blade.php`) copia el formato que cada empresa envía hoy, sin el marco de la marca, como el cobro semanal:
 
-- Asunto `Circularización de Cartera – Corte al {fecha_cierre}`. `{fecha_cierre}` es la fecha de corte en letras, por ejemplo «31 de mayo de 2026» («—» si no hay corte); `{fecha_corte}` sigue siendo DD/MM/AAAA.
+- Asunto `Circularización de Cartera – Corte al {fecha_cierre}` en Segurex y `… Corte al {fecha_cierre_del}` en Derivados. `{fecha_cierre}` es la fecha de corte en letras, por ejemplo «31 de mayo de 2026», y `{fecha_cierre_del}` la misma con «del», «31 de mayo del 2026» (las dos dan «—» si no hay corte); `{fecha_corte}` sigue siendo DD/MM/AAAA.
 - Textos de cada empresa, palabra por palabra (con «usted», como los escriben), en `resources/lang/es/plantillas.php` (`por_defecto.circularizacion.SGX` y `.SDC`). La pantalla de plantillas todavía edita solo el cobro semanal.
 - La tabla de cada empresa (`Circularizacion/CircularizationTable.php`) con sus columnas en el orden del original y el nombre de la empresa donde el original lleva el logo.
 - Solo Segurex: el aviso en rojo bajo la tabla («…corresponde al cierre del 31 de mayo…», `Circularizacion/ClosingNotice.php`) y el pie de firma con la dirección, los teléfonos y el aviso legal (`resources/lang/es/circularizacion.php`).

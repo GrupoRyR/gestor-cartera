@@ -165,7 +165,7 @@ it('sends with the latest cutoff when asked to, and says that cutoff', function 
 
     expect(Run::query()->count())->toBe(2)
         ->and(collect($this->fakes->mail->sent())->pluck('subject')->unique()->values()->all())
-        ->toBe(['Circularización de Cartera – Corte al 30 de octubre de 2026']);
+        ->toEqualCanonicalizing(['Circularización de Cartera – Corte al 30 de octubre de 2026', 'Circularización de Cartera – Corte al 30 de octubre del 2026']);
 });
 
 it('sends in the same monthly slot once the close is loaded later', function () {

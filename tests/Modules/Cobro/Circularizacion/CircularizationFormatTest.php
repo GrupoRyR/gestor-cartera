@@ -70,9 +70,12 @@ function cobroCircHeaders(string $html): array
     return array_map(fn (string $header): string => trim(html_entity_decode($header)), $matches[1]);
 }
 
-it('titles the mail with the cutoff date in words for each company', function (CompanyCode $company) {
-    expect(cobroCircRender($company)->subject)->toBe('Circularización de Cartera – Corte al 31 de octubre de 2026');
-})->with([CompanyCode::SGX, CompanyCode::SDC]);
+it('titles the mail with the cutoff date in words, as each company writes it', function (CompanyCode $company, string $subject) {
+    expect(cobroCircRender($company)->subject)->toBe($subject);
+})->with([
+    'Segurex' => [CompanyCode::SGX, 'Circularización de Cartera – Corte al 31 de octubre de 2026'],
+    'Derivados, with «del» before the year' => [CompanyCode::SDC, 'Circularización de Cartera – Corte al 31 de octubre del 2026'],
+]);
 
 it('writes a dash for the cutoff date when the snapshot has none', function () {
     $mail = cobroCircRender(CompanyCode::SDC, cobroCircNotice(CompanyCode::SDC, cutoff: null));
