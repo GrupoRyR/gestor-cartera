@@ -19,10 +19,11 @@ Cada bloque se pega tal cual en una **sesión nueva con worktree** de la app de 
   La app te pide aprobar la fusión con un clic. Si algo no está bien, no apruebes y díselo.
 - **Después de cada fusión, actualiza tu `main` local** con `git -C <carpeta> pull --ff-only origin main` antes de abrir sesiones nuevas.
 - Las reglas comunes (idioma, commits, secretos, archivos permitidos) están en `CLAUDE.md`, que cada sesión lee sola. Las órdenes solo dicen lo propio de cada agente.
+- Una orden marcada **✅ Hecho** ya está fusionada en `main`, con el número de sus PR; no la vuelvas a abrir. Una marcada **⏳** espera un insumo tuyo.
 
 ---
 
-## Fase 0a — Cimientos
+## Fase 0a — Cimientos · ✅ Hecho (PR #1)
 
 **Modelo:** Opus 5.5 · **Esfuerzo:** xhigh · **Abrir:** primero, sola.
 
@@ -41,7 +42,7 @@ Al terminar: corre composer lint y composer test, sube tu rama, abre el PR contr
 
 ---
 
-## Fase 0b — Diseño
+## Fase 0b — Diseño · ✅ Hecho (PR #5)
 
 **Modelo:** Opus 5.5 · **Esfuerzo:** high · **Abrir:** cuando la Fase 0a esté en `main`, junto con «Núcleo».
 
@@ -62,7 +63,7 @@ Al terminar: corre composer lint y composer test, sube tu rama, abre el PR contr
 
 ---
 
-## Fase 0b — Núcleo
+## Fase 0b — Núcleo · ✅ Hecho (PR #3 a #26)
 
 **Modelo:** Opus 5.5 · **Esfuerzo:** xhigh · **Abrir:** cuando la Fase 0a esté en `main`, junto con «Diseño».
 
@@ -82,7 +83,7 @@ Al terminar: corre composer lint y composer test, sube tu rama, abre el PR contr
 
 ---
 
-## Fase 1 — Ingesta
+## Fase 1 — Ingesta · ✅ Hecho (PR #35 a #42)
 
 **Modelo:** Opus 5.5 · **Esfuerzo:** high · **Abrir:** cuando las dos sesiones de la Fase 0b estén en `main`.
 
@@ -102,7 +103,7 @@ Al terminar: corre composer lint y composer test, y las pruebas de Python si las
 
 ---
 
-## Fase 1 — Cartera
+## Fase 1 — Cartera · ✅ Hecho (PR #33)
 
 **Modelo:** Sonnet 5.5 · **Esfuerzo:** high · **Abrir:** con el resto de la Fase 1.
 
@@ -121,7 +122,7 @@ Al terminar: corre composer lint y composer test, sube tu rama, abre el PR contr
 
 ---
 
-## Fase 1 — Asesores
+## Fase 1 — Asesores · ✅ Hecho (PR #27, #29 a #32 y #34)
 
 **Modelo:** Sonnet 5.5 · **Esfuerzo:** high · **Abrir:** con el resto de la Fase 1.
 
@@ -140,7 +141,7 @@ Al terminar: corre composer lint y composer test, sube tu rama, abre el PR contr
 
 ---
 
-## Fase 1 — Cobro
+## Fase 1 — Cobro · ✅ Hecho (PR #47; después #48, #50, #51 y #73)
 
 **Modelo:** Opus 5.5 · **Esfuerzo:** high · **Abrir:** con el resto de la Fase 1.
 
@@ -161,7 +162,7 @@ Al terminar: corre composer lint y composer test, sube tu rama, abre el PR contr
 
 ---
 
-## Fase 1 — Bancos
+## Fase 1 — Bancos · ✅ Hecho (PR #46; después #70)
 
 **Modelo:** Sonnet 5.5 · **Esfuerzo:** high · **Abrir:** con el resto de la Fase 1.
 
@@ -180,7 +181,7 @@ Al terminar: corre composer lint y composer test, sube tu rama, abre el PR contr
 
 ---
 
-## Fase 1 — Comisiones: cálculo
+## Fase 1 — Comisiones: cálculo · ✅ Hecho (PR #43)
 
 **Modelo:** Opus 5.5 (o Fable 5.1 si quieres el máximo rigor) · **Esfuerzo:** xhigh · **Abrir:** con el resto de la Fase 1.
 
@@ -199,7 +200,7 @@ Al terminar: corre composer lint y composer test, sube tu rama, abre el PR contr
 
 ---
 
-## Fase 2 — Gerencia
+## Fase 2 — Gerencia · ✅ Hecho (PR #49)
 
 **Modelo:** Sonnet 5.5 · **Esfuerzo:** high · **Abrir:** cuando Cartera, Cobro y Bancos estén en `main`.
 
@@ -217,7 +218,7 @@ Al terminar: corre composer lint y composer test, sube tu rama, abre el PR contr
 
 ---
 
-## Fase 2 — Comisiones: interfaz
+## Fase 2 — Comisiones: interfaz · ✅ Hecho (PR #56 a #62; después #66 y #72)
 
 **Modelo:** Opus 5.5 · **Esfuerzo:** high · **Abrir:** cuando «Comisiones: cálculo» e «Ingesta» estén en `main`.
 
@@ -235,7 +236,7 @@ Al terminar: corre composer lint y composer test, sube tu rama, abre el PR contr
 
 ---
 
-## Fase 2 — Circularización ⏳
+## Fase 2 — Circularización · ✅ Hecho (PR #53 a #55)
 
 **Modelo:** Sonnet 5.5 · **Esfuerzo:** high · **Abrir:** cuando Cobro esté en `main` **y** tengas el formato del informe. Adjunta el archivo en la sesión.
 
@@ -269,7 +270,7 @@ Al terminar: corre composer lint y composer test, sube tu rama, abre el PR contr
 
 ---
 
-## Fase 3 — Migración de datos
+## Fase 3 — Migración de datos · ✅ Hecho (PR #63 a #65)
 
 **Modelo:** Opus 5.5 · **Esfuerzo:** high · **Abrir:** cuando las Fases 1 y 2 estén en `main`.
 
@@ -286,7 +287,7 @@ Al terminar: corre composer lint y composer test, sube tu rama, abre el PR contr
 
 ---
 
-## Fase 3 — Revisión de diseño y calidad
+## Fase 3 — Revisión de diseño y calidad · ✅ Hecho (PR #67 a #69)
 
 **Modelo:** Opus 5.5 · **Esfuerzo:** high · **Abrir:** después de la migración de datos.
 

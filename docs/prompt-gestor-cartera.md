@@ -6,7 +6,7 @@
 > - **Parte C:** el plan de trabajo en paralelo con worktrees, para que varios agentes trabajen al mismo tiempo sin chocar en archivos.
 > - **Parte D:** lo pendiente.
 >
-> Las secciones marcadas **⏳ PENDIENTE** no se construyen hasta recibir el insumo indicado. Las órdenes listas para pegar en cada agente están en `docs/ordenes-agentes.md`.
+> Las secciones marcadas **⏳ PENDIENTE** no se construyen hasta recibir el insumo indicado. Las marcadas **✅ Hecho** ya están fusionadas en `main`, con el número de sus PR. Las órdenes listas para pegar en cada agente están en `docs/ordenes-agentes.md`.
 
 ---
 
@@ -145,7 +145,7 @@ Construir una sola herramienta web para el área de cartera de **Segurex Latam S
 
 Cada módulo vive en `app/Modules/<Modulo>/` (ver C.2). Las funciones salen de la revisión de la app Fase 1 que hizo el equipo de cartera el 2026-10-14.
 
-## Módulo 0D — Interfaz base y PWA (`resources/` compartido)
+## Módulo 0D — Interfaz base y PWA (`resources/` compartido) · ✅ Hecho (PR #5)
 
 1. **Tokens y fuentes:**
    - tokens de `ryr-design` en Tailwind 4
@@ -156,7 +156,7 @@ Cada módulo vive en `app/Modules/<Modulo>/` (ver C.2). Las funciones salen de l
 4. Marca de la empresa activa inyectada en `<head>` y selector de empresa.
 5. PWA según A.6: manifiesto, íconos de cada marca, service worker de estáticos y página «Sin conexión».
 
-## Módulo 0N — Núcleo (`Core`)
+## Módulo 0N — Núcleo (`Core`) · ✅ Hecho (PR #3 a #26)
 
 1. Ingreso con Microsoft, roles y permisos, selección de empresa activa.
 2. Pantalla **Equipo** (admin):
@@ -176,7 +176,7 @@ Cada módulo vive en `app/Modules/<Modulo>/` (ver C.2). Las funciones salen de l
 7. Bitácora de auditoría inmutable para todo el sistema.
 8. Implementación real de los contratos de `Core/Contracts` (C.4) que le corresponden.
 
-## Módulo 1 — Ingesta (`Ingesta`)
+## Módulo 1 — Ingesta (`Ingesta`) · ✅ Hecho (PR #35 a #42)
 
 1. Endpoint firmado que recibe lotes del robot:
    - cartera, asesores y contactos
@@ -191,7 +191,7 @@ Cada módulo vive en `app/Modules/<Modulo>/` (ver C.2). Las funciones salen de l
    - la documentación del robot
    - ajuste de `scripts/instalar_tarea.ps1`
 
-## Módulo 2 — Gestor de cartera (`Cartera`) · Miguel y María Paula
+## Módulo 2 — Gestor de cartera (`Cartera`) · Miguel y María Paula · ✅ Hecho (PR #33)
 
 1. **Tablero** con:
    - total, vencido y % vencido
@@ -224,7 +224,7 @@ Cada módulo vive en `app/Modules/<Modulo>/` (ver C.2). Las funciones salen de l
 - sincronización con OneDrive
 - registro de pagos con plano SAP
 
-## Módulo 3 — Visualizador del asesor (`Asesores`)
+## Módulo 3 — Visualizador del asesor (`Asesores`) · ✅ Hecho (PR #27, #29 a #32 y #34)
 
 Migra el portal Next.js (`legacy/portal-asesores/web`).
 
@@ -235,7 +235,7 @@ Migra el portal Next.js (`legacy/portal-asesores/web`).
 5. Se conservan del portal: exportar a Excel, el reporte PDF del cliente y el botón de WhatsApp al cliente.
 6. La seguridad por asesor, que hoy hacen las vistas de Supabase (`04_seguridad_vistas.sql`), se reimplementa con **policies y scopes de Eloquent**. Debe tener pruebas que demuestren que un asesor no puede leer la cartera de otro.
 
-## Módulo 4 — Correo y cobro automático (`Cobro`) · solo SGX en esta fase
+## Módulo 4 — Correo y cobro automático (`Cobro`) · SGX y SDC · ✅ Hecho (PR #47, #48, #50, #51, #53, #54 y #73)
 
 **Buzones de envío y lectura:**
 
@@ -260,14 +260,14 @@ Migra el portal Next.js (`legacy/portal-asesores/web`).
    - cliente por cliente, con el motivo del rebote leído del buzón
 6. **Respuestas en la app:** las respuestas llegan a la ficha del cliente y a una bandeja «Respuestas de clientes» para la analista, marcadas como leídas o pendientes.
 
-**4.2 Circularización mensual de cartera al cierre** — ⏳ PENDIENTE
+**4.2 Circularización mensual de cartera al cierre** — ✅ Hecho (PR #53 y #54)
 
 1. Una vez al mes, al cierre, se envía a cada cliente el estado de su cartera.
-2. **Formato:** ⏳ pendiente. El usuario enviará el informe que hoy se manda a los clientes y se debe replicar **tal cual**.
+2. **Formato:** el informe que hoy se manda a los clientes, replicado **tal cual** con el formato de cada empresa (PR #54).
 3. Usa la misma lista de exclusión, el mismo informe de entrega y la misma bandeja de respuestas de 4.1.
-4. Mientras llega el formato, en la Fase 1 se construye solo el motor (programación, lote, envío e informe) con una plantilla provisional marcada como borrador.
+4. En la Fase 1 se construyó solo el motor (programación, lote, envío e informe) con una plantilla provisional marcada como borrador; el PR #54 la reemplazó por el formato real.
 
-## Módulo 5 — Movimientos de bancos y recaudo (`Bancos`)
+## Módulo 5 — Movimientos de bancos y recaudo (`Bancos`) · ✅ Hecho salvo la conciliación, 5.8 (PR #46 y #70)
 
 **Flujo actual:**
 
@@ -285,7 +285,7 @@ Migra el portal Next.js (`legacy/portal-asesores/web`).
 3. Carga **diaria, a día vencido**, e histórico anual.
 4. Pestaña **Movimientos por banco**, una por cada banco, con filtros por fecha, valor y estado.
 5. Al aplicar el pago en SAP, la analista registra en el movimiento el **número de recibo de caja**. Estados: pendiente, aplicado o ignorado.
-6. **Informe de recaudo diario:** se calcula solo, como la suma de los créditos de todos los bancos del día anterior. Reemplaza el informe que hoy llena María Paula a mano. ⏳ Pedir a María Paula el formato actual.
+6. **Informe de recaudo diario:** se calcula solo, como la suma de los créditos de todos los bancos del día anterior. Reemplaza el informe que hoy llena María Paula a mano, con su mismo formato (PR #70).
 7. **Acumulado semanal de ingresos** para revisión de cartera, y un informe para gerencia. ⏳ Revisar con Tesorería cómo lo hacen hoy.
 8. **Conciliación** — ⏳ PENDIENTE: el usuario enviará el archivo de conciliación. Hasta entonces no se construye la sugerencia de cliente por movimiento.
 9. **Flujo de caja:**
@@ -293,7 +293,7 @@ Migra el portal Next.js (`legacy/portal-asesores/web`).
    - La app expone el recaudo diario por una API de solo lectura (`GET /api/recaudo?desde=&hasta=`), para que Tesorería lo use en su flujo.
    - Implementa el contrato `RecaudoProvider`.
 
-## Módulo 6 — Tablero gerencial (`Gerencia`) · Miguel
+## Módulo 6 — Tablero gerencial (`Gerencia`) · Miguel · ✅ Hecho (PR #49 y #55)
 
 1. Indicadores consolidados del grupo y por empresa:
    - tendencia mensual
@@ -302,7 +302,7 @@ Migra el portal Next.js (`legacy/portal-asesores/web`).
 2. Resultados del cobro semanal y de la circularización: entregados, rebotados y respuestas.
 3. Recaudo diario y semanal desde el Módulo 5.
 
-## Módulo 7 — Liquidación de comisiones comerciales (`Comisiones`) · solo SGX
+## Módulo 7 — Liquidación de comisiones comerciales (`Comisiones`) · solo SGX · ✅ Hecho (PR #43, #56 a #62, #66 y #72)
 
 La especificación completa está en `docs/especificaciones/liquidacion-comisiones.md` y **es la fuente de verdad** de reglas, pantallas, controles y casos de prueba. Este prompt solo ajusta lo que ya está decidido.
 
@@ -313,7 +313,7 @@ La especificación completa está en `docs/especificaciones/liquidacion-comision
 2. **Punto 14.1 de esa especificación:** resuelto. Es SAP Business One sobre HANA, y la extracción la hace el robot ETL.
 3. **Roles del módulo:**
    - analista de liquidación (Miguel)
-   - aprobador (⏳ pendiente)
+   - aprobador: Tatiana, con el rol `comisiones_aprobador` (se asigna con `php artisan comisiones:rol`; ver `app/Modules/Comisiones/README.md`)
    - consulta
    - administrador de parámetros
    - **Segregación de funciones:** el aprobador debe ser una persona distinta.
@@ -368,7 +368,7 @@ tests/Modules/<Modulo>/
 
 En la app de escritorio, el modelo se elige en el selector junto al botón de enviar, y el esfuerzo con **Ctrl+Shift+E**.
 
-### Fase 0a — Cimientos (una sesión; se fusiona antes de todo lo demás)
+### Fase 0a — Cimientos (una sesión; se fusiona antes de todo lo demás) · ✅ Hecho (PR #1)
 
 | Sesión | Modelo | Esfuerzo | Archivos que le pertenecen |
 |---|---|---|---|
@@ -385,23 +385,23 @@ En la app de escritorio, el modelo se elige en el selector junto al botón de en
 9. `docs/arquitectura.md` con las reglas de C.2 y C.4, y actualización de `CLAUDE.md` si hace falta.
 10. `deploy/deploy.sh` según la skill `cpanel-deploy`, sin ejecutar nada remoto.
 
-### Fase 0b — Diseño y núcleo (dos sesiones en paralelo)
+### Fase 0b — Diseño y núcleo (dos sesiones en paralelo) · ✅ Hecho
 
 | Sesión | Modelo | Esfuerzo | Archivos que le pertenecen |
 |---|---|---|---|
-| Diseño | Opus 5.5 | high | `resources/css/**`, `resources/js/**`, `resources/views/layouts/**`, `resources/views/components/**`, `resources/views/design/**`, `app/View/Components/**`, `public/fonts/**`, `public/icons/**`, `public/manifest.webmanifest`, `public/sw.js`, `public/offline.html`, `tests/Feature/Design/**` |
-| Núcleo | Opus 5.5 | xhigh | `app/Modules/Core/**` (sin cambiar los contratos existentes), `tests/Modules/Core/**` |
+| Diseño ✅ (#5) | Opus 5.5 | high | `resources/css/**`, `resources/js/**`, `resources/views/layouts/**`, `resources/views/components/**`, `resources/views/design/**`, `app/View/Components/**`, `public/fonts/**`, `public/icons/**`, `public/manifest.webmanifest`, `public/sw.js`, `public/offline.html`, `tests/Feature/Design/**` |
+| Núcleo ✅ (#3 a #26) | Opus 5.5 | xhigh | `app/Modules/Core/**` (sin cambiar los contratos existentes), `tests/Modules/Core/**` |
 
-### Fase 1 — Módulos (seis sesiones en paralelo)
+### Fase 1 — Módulos (seis sesiones en paralelo) · ✅ Hecho
 
 | Sesión | Módulo | Modelo | Esfuerzo | Archivos que le pertenecen |
 |---|---|---|---|---|
-| Ingesta | 1 | Opus 5.5 | high | `app/Modules/Ingesta/**`, `tests/Modules/Ingesta/**`, `etl/**`, `scripts/instalar_tarea.ps1` |
-| Cartera | 2 | Sonnet 5.5 | high | `app/Modules/Cartera/**`, `tests/Modules/Cartera/**` |
-| Asesores | 3 | Sonnet 5.5 | high | `app/Modules/Asesores/**`, `tests/Modules/Asesores/**` |
-| Cobro | 4.1 + motor de 4.2 | Opus 5.5 | high | `app/Modules/Cobro/**`, `tests/Modules/Cobro/**` |
-| Bancos | 5 (sin 5.8) | Sonnet 5.5 | high | `app/Modules/Bancos/**`, `tests/Modules/Bancos/**` |
-| Comisiones: cálculo | 7 (dominio y reglas) | Opus 5.5 (o Fable 5.1) | xhigh | `app/Modules/Comisiones/Domain/**`, `app/Modules/Comisiones/Application/**`, `tests/Modules/Comisiones/**` |
+| Ingesta ✅ (#35 a #42) | 1 | Opus 5.5 | high | `app/Modules/Ingesta/**`, `tests/Modules/Ingesta/**`, `etl/**`, `scripts/instalar_tarea.ps1` |
+| Cartera ✅ (#33) | 2 | Sonnet 5.5 | high | `app/Modules/Cartera/**`, `tests/Modules/Cartera/**` |
+| Asesores ✅ (#27, #29 a #32 y #34) | 3 | Sonnet 5.5 | high | `app/Modules/Asesores/**`, `tests/Modules/Asesores/**` |
+| Cobro ✅ (#47) | 4.1 + motor de 4.2 | Opus 5.5 | high | `app/Modules/Cobro/**`, `tests/Modules/Cobro/**` |
+| Bancos ✅ (#46) | 5 (sin 5.8) | Sonnet 5.5 | high | `app/Modules/Bancos/**`, `tests/Modules/Bancos/**` |
+| Comisiones: cálculo ✅ (#43) | 7 (dominio y reglas) | Opus 5.5 (o Fable 5.1) | xhigh | `app/Modules/Comisiones/Domain/**`, `app/Modules/Comisiones/Application/**`, `tests/Modules/Comisiones/**` |
 
 - Todos usan las implementaciones falsas de `tests/Fakes/` mientras el módulo real no esté fusionado.
 - El robot ETL (`etl/**`) pertenece **solo** a Ingesta, **incluidas** las consultas de comisiones. El agente de comisiones no toca `etl/`.
@@ -410,17 +410,17 @@ En la app de escritorio, el modelo se elige en el selector junto al botón de en
 
 | Sesión | Módulo | Modelo | Esfuerzo | Archivos | Se abre cuando |
 |---|---|---|---|---|---|
-| Gerencia | 6 | Sonnet 5.5 | high | `app/Modules/Gerencia/**`, `tests/Modules/Gerencia/**` | Cartera, Cobro y Bancos están en `main` |
-| Comisiones: interfaz | 7 (pantallas, PDF, cierre, auditoría) | Opus 5.5 | high | `app/Modules/Comisiones/{Http,Infrastructure,Providers,routes,resources,database,config}/**`, `tests/Modules/Comisiones/Feature/**` | Comisiones: cálculo e Ingesta están en `main` |
-| Circularización | 4.2 con el formato real | Sonnet 5.5 | high | `app/Modules/Cobro/Circularizacion/**`, `app/Modules/Cobro/resources/views/circularizacion/**`, `tests/Modules/Cobro/Circularizacion/**` | Cobro está en `main` y llegó el ⏳ formato |
+| Gerencia ✅ (#49) | 6 | Sonnet 5.5 | high | `app/Modules/Gerencia/**`, `tests/Modules/Gerencia/**` | Cartera, Cobro y Bancos están en `main` |
+| Comisiones: interfaz ✅ (#56 a #62) | 7 (pantallas, PDF, cierre, auditoría) | Opus 5.5 | high | `app/Modules/Comisiones/{Http,Infrastructure,Providers,routes,resources,database,config}/**`, `tests/Modules/Comisiones/Feature/**` | Comisiones: cálculo e Ingesta están en `main` |
+| Circularización ✅ (#53 a #55) | 4.2 con el formato real | Sonnet 5.5 | high | `app/Modules/Cobro/Circularizacion/**`, `app/Modules/Cobro/resources/views/circularizacion/**`, `tests/Modules/Cobro/Circularizacion/**` | Cobro está en `main` y llegó el ⏳ formato |
 | Conciliación | 5.8 | Sonnet 5.5 | high | `app/Modules/Bancos/Conciliacion/**`, `app/Modules/Bancos/resources/views/conciliacion/**`, `tests/Modules/Bancos/Conciliacion/**` | Bancos está en `main` y llegó el ⏳ archivo |
 
 ### Fase 3 — Integración y salida a producción (secuencial)
 
 | Sesión | Modelo | Esfuerzo | Qué hace |
 |---|---|---|---|
-| Migración de datos | Opus 5.5 | high | Importa el histórico desde Supabase y desde la base de Cartera Fase 1: gestiones, compromisos, estados manuales y usuarios. Comandos Artisan idempotentes en `app/Modules/Core/Console/Migracion/**`. |
-| Revisión de diseño y calidad | Opus 5.5 | high | Recorre la app por rol con ambas marcas, en claro y oscuro, a 375 px, 768 px y en escritorio, y con la letra al 200 %. Exige Lighthouse en celular de al menos 90 en rendimiento y accesibilidad. Corrige solo lo de diseño y reporta el resto. |
+| Migración de datos ✅ (#63 a #65) | Opus 5.5 | high | Importa el histórico desde Supabase y desde la base de Cartera Fase 1: gestiones, compromisos, estados manuales y usuarios. Comandos Artisan idempotentes en `app/Modules/Core/Console/Migracion/**`. |
+| Revisión de diseño y calidad ✅ (#67 a #69) | Opus 5.5 | high | Recorre la app por rol con ambas marcas, en claro y oscuro, a 375 px, 768 px y en escritorio, y con la letra al 200 %. Exige Lighthouse en celular de al menos 90 en rendimiento y accesibilidad. Corrige solo lo de diseño y reporta el resto. |
 | Despliegue | Opus 5.5 | high | Primera instalación en GoDaddy con la skill `cpanel-deploy`, cron de cPanel, y compilado de `public/build` en un PR propio, que el usuario fusiona antes de desplegar. Los pasos remotos los ejecuta o autoriza el usuario. Al final, plan de apagado de Cartera Fase 1 y del portal Next.js. |
 
 ## C.4 Contratos de `Core/Contracts` (los crea la Fase 0a)
@@ -485,16 +485,16 @@ En la app de escritorio, el modelo se elige en el selector junto al botón de en
 
 | # | Pendiente | Quién lo entrega | Bloquea |
 |---|---|---|---|
-| 1 | ⏳ Formato del informe de **circularización** que hoy se envía a los clientes | Usuario | Circularización |
+| 1 | ✅ Resuelto (PR #54): formato del informe de **circularización** que hoy se envía a los clientes | Usuario | Circularización |
 | 2 | ⏳ Archivo de **conciliación** bancaria | Usuario | Conciliación |
-| 3 | ⏳ Ejemplos de extracto de cada banco (Bogotá, Davivienda, Bancolombia y Miami) | Tesorería | Lectores de Bancos |
-| 4 | ⏳ Formato actual del informe de recaudo diario | María Paula | 5.6 |
+| 3 | ✅ Resuelto salvo Miami (PR #70): ejemplos de extracto de cada banco (Bogotá, Davivienda, Bancolombia y Miami). ⏳ Falta el de Miami. | Tesorería | Lectores de Bancos |
+| 4 | ✅ Resuelto (PR #70): formato actual del informe de recaudo diario | María Paula | 5.6 |
 | 5 | ⏳ Cómo hace hoy Tesorería el acumulado semanal de ingresos | Tesorería | 5.7 |
 | 6 | Dirección exacta del buzón de Segurex (`segurex.info@…`), y permisos de Graph limitados a los dos buzones | TI | Cobro en producción |
 | 7 | Registro de la aplicación en Entra ID (ingreso y correo) | TI | Fase 0b núcleo, en producción |
 | 8 | Plan de GoDaddy: versión de MySQL, acceso SSH, cron y PHP 8.3 en MultiPHP | TI | Despliegue |
-| 9 | Quién **aprueba** la liquidación de comisiones (distinto de Miguel) | Gerencia | Comisiones: interfaz |
-| 10 | Puntos 14.2 a 14.7 de la especificación de comisiones: IVA en ventas, cruces en directores y en 85.1, códigos 50 y 53, cambio de asesor en cruces, cumplimiento por código o por persona, moneda extranjera | Miguel | Partes de Comisiones: cálculo |
+| 9 | ✅ Resuelto: quién **aprueba** la liquidación de comisiones (distinto de Miguel). Es Tatiana, con el rol `comisiones_aprobador`. | Gerencia | Comisiones: interfaz |
+| 10 | Puntos 14.2 a 14.7 de la especificación de comisiones: IVA en ventas, cruces en directores y en 85.1, códigos 50 y 53, cambio de asesor en cruces, cumplimiento por código o por persona, moneda extranjera. El cambio de asesor en cruces (14.5) ya está resuelto: ver §5.4 de la especificación. | Miguel | Partes de Comisiones: cálculo |
 | 11 | Confirmar que los «15 días» de SGX se cuentan **después del vencimiento** de la factura y no desde su fecha de emisión | María Paula | Estados del núcleo |
-| 12 | Si el cobro semanal y la circularización aplican también a SDC desde ya, o solo a SGX en esta fase | Miguel | Alcance de Cobro |
+| 12 | ✅ Resuelto: si el cobro semanal y la circularización aplican también a SDC desde ya, o solo a SGX en esta fase. Aplican a las dos: la circularización ya salía para SGX y SDC (PR #54) y el cobro semanal también sale para SDC (PR #73). | Miguel | Alcance de Cobro |
 | 13 | Rotar el secreto de la aplicación de OneDrive de la Fase 1 cuando se apague esa app | TI | Despliegue |
