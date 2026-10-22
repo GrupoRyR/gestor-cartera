@@ -78,7 +78,7 @@ it('mails every client with a balance in its company format, at the close of the
         ->toContain('AL CIERRE DEL 31 DE OCTUBRE')
         ->toContain('AVISO LEGAL:')
         ->and($quimicos->to)->toBe(['pagos@quimicos.example'])
-        ->and($quimicos->subject)->toBe('Circularización de Cartera – Corte al 31 de octubre de 2026')
+        ->and($quimicos->subject)->toBe('Circularización de Cartera – Corte al 31 de octubre del 2026')
         ->and($quimicos->company)->toBe(CompanyCode::SDC)
         ->and($quimicos->html)->toContain('Estimado cliente <strong>Químicos del Norte SAS</strong>')
         ->not->toContain('ACLARAMOS')

@@ -28,6 +28,12 @@ it('writes the cutoff date in words, with the month in lowercase', function (str
     'end of the year' => ['2026-12-31', '31 de diciembre de 2026'],
 ]);
 
+it('writes the cutoff date in words with «del» before the year, as Derivados titles it', function () {
+    expect(cobroCutoffWordsValues('2026-05-31')['fecha_cierre_del'])->toBe('31 de mayo del 2026')
+        ->and(cobroCutoffWordsValues(null)['fecha_cierre_del'])->toBe('—')
+        ->and(Placeholders::unknown('Corte al {fecha_cierre_del}'))->toBe([]);
+});
+
 it('keeps {fecha_corte} as a DD/MM/AAAA date', function () {
     expect(cobroCutoffWordsValues('2026-05-31')['fecha_corte'])->toBe('31/05/2026');
 });

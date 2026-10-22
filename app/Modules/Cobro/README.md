@@ -24,9 +24,11 @@ Permisos (`CobroPermissionSeeder`): `cobro.view` para administrador, gerente y a
 | Comando | Cuándo (hora de Colombia) | Qué hace |
 |---|---|---|
 | `cobro:sincronizar-buzones` | Cada 5 minutos | Lee con una consulta delta de Graph los correos nuevos de la bandeja de entrada de cada buzón, los une al envío y al cliente, y registra la respuesta en la bitácora. Sin credenciales de Graph solo avisa. |
-| `cobro:cobro-semanal` | Miércoles 17:00 (`cobro.weekly`) | Prepara el envío y pone en cola un trabajo `SendRunItem` por cliente. Correrlo de nuevo el mismo día no envía nada. |
+| `cobro:cobro-semanal` | Miércoles 17:00 (`cobro.weekly`) | Para Segurex y Derivados, cada una con su plantilla y sus copias: prepara el envío y pone en cola un trabajo `SendRunItem` por cliente. Correrlo de nuevo el mismo día no envía nada. |
 | `cobro:circularizacion` | Día 1 a las 09:00 (`cobro.circularizacion`) | Igual, una vez al mes, para Segurex y Derivados: **envía de verdad** (ver «Circularización»), pero no envía una empresa cuya cartera cargada no sea la del cierre del mes; `--con-corte-actual` la envía con el último corte. Solo si se vuelve a poner `cobro.circularizacion.draft` en `true` deja de enviar; entonces `--aun-en-borrador` permite probar el motor. |
 | `cobro:cerrar-envios-interrumpidos` | Cada 10 minutos | Marca «No se pudo enviar» a los clientes que un proceso interrumpido dejó «enviando» más de 30 minutos, para que el envío se cierre y el informe lo muestre. |
+
+**Derivados entra al cobro semanal**: el primer miércoles después de desplegar sale de verdad para sus clientes vencidos desde `COBRO_MAILBOX_SDC`. Antes, confirma que ese buzón está en el alcance de Graph (ver «Microsoft Graph») y envíate una prueba desde `/cobro/semanal`.
 
 Cada trabajo reclama su cliente antes de enviar (pendiente → enviando), así que un reintento nunca le manda dos correos al mismo cliente. Los trabajos salen escalonados a `cobro.send_per_minute` correos por minuto (25 por defecto; Exchange Online acepta 30 por minuto por buzón) y el limitador `cobro-mail` queda de respaldo: 300 clientes tardan unos 12 minutos en salir. El informe muestra en español por qué no salió un correo; el detalle técnico queda en el registro.
 
@@ -102,7 +104,7 @@ Variables de `.env` (`docs/arquitectura.md` §15): `GRAPH_TENANT_ID`, `GRAPH_CLI
 
 El correo (`resources/views/circularizacion/estado-cartera.blade.php`) copia el formato que cada empresa envía hoy, sin el marco de la marca, como el cobro semanal:
 
-- Asunto `Circularización de Cartera – Corte al {fecha_cierre}`. `{fecha_cierre}` es la fecha de corte en letras, por ejemplo «31 de mayo de 2026» («—» si no hay corte); `{fecha_corte}` sigue siendo DD/MM/AAAA.
+- Asunto `Circularización de Cartera – Corte al {fecha_cierre}` en Segurex y `… Corte al {fecha_cierre_del}` en Derivados. `{fecha_cierre}` es la fecha de corte en letras, por ejemplo «31 de mayo de 2026», y `{fecha_cierre_del}` la misma con «del», «31 de mayo del 2026» (las dos dan «—» si no hay corte); `{fecha_corte}` sigue siendo DD/MM/AAAA.
 - Textos de cada empresa, palabra por palabra (con «usted», como los escriben), en `resources/lang/es/plantillas.php` (`por_defecto.circularizacion.SGX` y `.SDC`). La pantalla de plantillas todavía edita solo el cobro semanal.
 - La tabla de cada empresa (`Circularizacion/CircularizationTable.php`) con sus columnas en el orden del original y el nombre de la empresa donde el original lleva el logo.
 - Solo Segurex: el aviso en rojo bajo la tabla («…corresponde al cierre del 31 de mayo…», `Circularizacion/ClosingNotice.php`) y el pie de firma con la dirección, los teléfonos y el aviso legal (`resources/lang/es/circularizacion.php`).

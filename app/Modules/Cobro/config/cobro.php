@@ -36,9 +36,9 @@ return [
     'send_per_minute' => 25,
 
     // Weekly collection of overdue invoices (4.1): Wednesdays at 17:00,
-    // Bogotá time. Only SGX in phase 1 (Part D, item 12).
+    // Bogotá time, for both companies, each with its own template and copies.
     'weekly' => [
-        'companies' => ['SGX'],
+        'companies' => ['SGX', 'SDC'],
         'day' => 3,
         'time' => '17:00',
     ],

@@ -79,19 +79,21 @@ final class NoticeRenderer
             'vencimientos' => SpanishList::join(array_values(array_unique(array_map(fn (Invoice $invoice): string => DateFormat::date($invoice->dueAt), $overdue)))),
             'fecha_corte' => $data->cutoffDate === null ? '—' : DateFormat::date($data->cutoffDate),
             'fecha_cierre' => $data->cutoffDate === null ? '—' : self::dateInWords($data->cutoffDate),
+            'fecha_cierre_del' => $data->cutoffDate === null ? '—' : self::dateInWords($data->cutoffDate, yearJoiner: 'del'),
         ];
     }
 
     /**
-     * The date in Spanish words, month in lowercase: "31 de mayo de 2026".
-     * Read in the application timezone, like DateFormat, so it names the
-     * same day as {fecha_corte}.
+     * The date in Spanish words, month in lowercase: "31 de mayo de 2026",
+     * or "31 de mayo del 2026" with "del" as the year joiner. Read in the
+     * application timezone, like DateFormat, so it names the same day as
+     * {fecha_corte}.
      */
-    public static function dateInWords(CarbonImmutable $date): string
+    public static function dateInWords(CarbonImmutable $date, string $yearJoiner = 'de'): string
     {
         $local = $date->setTimezone(config()->string('app.timezone'))->locale('es');
 
-        return "{$local->day} de {$local->monthName} de {$local->year}";
+        return "{$local->day} de {$local->monthName} {$yearJoiner} {$local->year}";
     }
 
     /**

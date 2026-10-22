@@ -73,8 +73,6 @@ it('copies the fixed addresses, the advisor and the group manager, without dupli
 });
 
 it('copies only the SDC fixed addresses of the configuration', function () {
-    config(['cobro.weekly.companies' => ['SGX', 'SDC']]);
-
     $this->artisan('cobro:cobro-semanal --empresa=SDC')->assertSuccessful();
 
     expect(cobroMailFor($this->portfolio->quimicos->summary->id)->cc)
