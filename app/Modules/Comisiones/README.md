@@ -20,7 +20,7 @@ php artisan comisiones:rol tatiana.munoz@segurex.com comisiones_aprobador
 
 1. **Antes**, el usuario debe existir y estar activo. Se crea solo la primera vez que entra con su cuenta de Microsoft (Entra ID), sin rol; también lo puede registrar un administrador en `/equipo/nuevo`. Si no existe o está desactivado, el comando responde «No hay un usuario activo con el correo …» y no cambia nada.
 2. Corre el comando. Responde «Asignaste el rol comisiones_aprobador a tatiana.munoz@segurex.com.» y deja `comisiones.role.assigned` en la bitácora.
-3. Pídele que entre por `/comisiones`. Con solo un rol del módulo, la página de inicio (`/`) la manda a «sin acceso», porque `core.access` solo lo tienen los roles de Core.
+3. Al entrar, la página de inicio la lleva a Comisiones. Los dos roles del módulo traen `core.access` (lo da `ComisionesPermissionSeeder`), así que no necesita un rol de Core.
 
 | Para | Comando |
 |---|---|
@@ -43,6 +43,7 @@ Permisos de `ComisionesPermissionSeeder`. Quien calcula o captura nunca aprueba 
 | `comisiones.parameters` | Agregar versiones de parámetros | `admin`, `gerente_cartera` |
 | `comisiones.reports` | PDF de recaudo, ZIP y archivo de nómina | `gerente_cartera`, `comisiones_aprobador` |
 | `comisiones.audit` | La bitácora | `admin`, `gerente_cartera`, `comisiones_aprobador` |
+| `core.access` | Entrar a la plataforma (Core lo da a sus roles; el módulo, a los suyos) | `comisiones_aprobador`, `comisiones_consulta` |
 
 Además de los permisos, `ApprovalGuard` no deja aprobar a quien cargó capturas o cambió parámetros del período, y el motor no deja aprobar a quien calculó la versión.
 

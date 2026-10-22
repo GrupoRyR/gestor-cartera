@@ -22,12 +22,17 @@ final class ComisionesPermissionSeeder extends PermissionSeeder
      * - comisiones.parameters: add parameter versions.
      * - comisiones.reports: collection PDFs, ZIP and payroll file.
      * - comisiones.audit: the audit trail.
+     * - core.access: Core grants it only to its own roles, and without it
+     *   the home sends a user to the no-access page. The two module roles
+     *   get it too, so someone who only approves or only consults
+     *   commissions lands on the Comisiones screens.
      *
      * @return array<string, list<string|\BackedEnum>>
      */
     public function permissions(): array
     {
         return [
+            'core.access' => [ModuleRoles::APPROVER, ModuleRoles::VIEWER],
             'comisiones.view' => [Role::PortfolioManager, ModuleRoles::APPROVER, ModuleRoles::VIEWER],
             'comisiones.calculate' => [Role::PortfolioManager],
             'comisiones.capture' => [Role::PortfolioManager],
