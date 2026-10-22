@@ -16,7 +16,7 @@ return [
         'banco' => 'Banco',
         'banco_elige' => 'Elige el banco',
         'archivo' => 'Extracto',
-        'archivo_ayuda' => 'Archivo .xlsx, .csv o .txt de hasta 10 MB. Los débitos se ignoran.',
+        'archivo_ayuda' => 'Archivo .xlsx, .xls, .csv o .txt de hasta 10 MB. Los débitos se ignoran.',
         'enviar' => 'Cargar extracto',
     ],
     'columnas' => [
@@ -70,7 +70,7 @@ return [
         'con_errores' => ':errores filas no se pudieron cargar. Revisa el detalle.',
     ],
     'validacion' => [
-        'formato' => 'Sube un archivo .xlsx, .csv o .txt. Si es un .xls, guárdalo desde Excel como .xlsx.',
+        'formato' => 'Sube un archivo .xlsx, .xls, .csv o .txt.',
         'peso' => 'El extracto pesa más de 10 MB. Descarga solo el rango de fechas que necesitas.',
     ],
 ];

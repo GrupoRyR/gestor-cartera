@@ -53,14 +53,16 @@ it('never hard-codes a company color: brands come from the --brand-* variables',
     }
 });
 
-it('only sets inline styles for the width of a bar', function () {
-    foreach (bancosViews() as $path) {
-        preg_match_all('/style="([^"]*)"/', (string) file_get_contents($path), $matches);
+it('sets no inline styles', function () {
+    $styled = [];
 
-        foreach ($matches[1] as $style) {
-            $this->assertMatchesRegularExpression('/^width: \{\{ [^}]+ \}\}%$/', $style, "{$path} has an inline style that is not a bar width: {$style}");
+    foreach (bancosViews() as $path) {
+        if (preg_match('/\sstyle\s*=/i', (string) file_get_contents($path)) === 1) {
+            $styled[] = $path;
         }
     }
+
+    expect($styled)->toBe([]);
 });
 
 it('writes the text of the interface in sentence case: nothing in sustained capitals', function () {

@@ -171,49 +171,98 @@ describe('companies', function () {
     });
 });
 
-describe('the week', function () {
-    it('accumulates the week of the day, Monday to Sunday', function () {
-        bancosReported('2026-10-12', '100.00');   // Monday
-        bancosReported('2026-10-14', '50.00');    // Wednesday
-        bancosReported('2026-10-15', '25.00');    // Thursday
-        bancosReported('2026-10-11', '999.00');   // the Sunday before
+describe('the month', function () {
+    it('shows the month of the day as the analyst keeps it: weeks by weekday, with the business days and the totals', function () {
+        bancosReported('2026-10-01', '1000.00');   // Thursday
+        bancosReported('2026-10-12', '100.00');    // the holiday: goes to Tuesday the 13th
+        bancosReported('2026-10-13', '50.00');
 
         $response = $this->actingAs($this->analyst)->get('/bancos/recaudo');
-        $week = $response->viewData('week');
+        $month = $response->viewData('month');
+        $grid = $month->grids[0];
 
-        expect($week->total)->toBe(175.0)
-            ->and($week->days[0]->date->toDateString())->toBe('2026-10-12')
-            ->and($week->days[3]->cumulative)->toBe(175.0)
-            ->and($week->days[4]->loaded)->toBeFalse();   // Friday: today, not here yet
+        expect($month->month->toDateString())->toBe('2026-10-01')
+            ->and($grid->businessDays)->toBe(21)
+            ->and($grid->weeks[2]->businessDays)->toBe(4)
+            ->and($grid->weeks[2]->cells[1]->amount)->toBe(150.0)
+            ->and($grid->total)->toBe(1150.0);
 
-        $response->assertSee('Semana del 12 de octubre al 18 de octubre')->assertSee('Aún no llega');
+        $response->assertSee('Recaudo diario de octubre de 2026')
+            ->assertSee('festivo se suma al siguiente día hábil')
+            ->assertSeeInOrder(['Semana', 'Días', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Total recaudo'])
+            ->assertSeeInOrder(['01 oct. – 02 oct.', '05 oct. – 09 oct.', '12 oct. – 16 oct.', '19 oct. – 23 oct.', '26 oct. – 30 oct.'])
+            ->assertSeeInOrder(['12 oct. – 16 oct.', '4', 'Festivo', '150', 'Aún no llega'])
+            ->assertSee('1.150');
     });
 
-    it('compares with the week before over the same weekdays', function () {
-        bancosReported('2026-10-12', '300.00');
-        bancosReported('2026-10-05', '100.00');
-        bancosReported('2026-10-08', '100.00');
-        bancosReported('2026-10-09', '9000.00');   // Friday of the week before: not counted yet
+    it('adds a weekend to the next business day and links each day to its detail', function () {
+        bancosReported('2026-10-03', '500.00');   // Saturday
+        bancosReported('2026-10-05', '20.00');    // Monday
 
-        $week = $this->actingAs($this->analyst)->get('/bancos/recaudo')->viewData('week');
+        $response = $this->actingAs($this->analyst)->get('/bancos/recaudo');
 
-        expect($week->previousTotal)->toBe(200.0)->and($week->trend())->toBe('up');
+        expect($response->viewData('month')->grids[0]->weeks[1]->cells[0]->amount)->toBe(520.0);
+        $response->assertSee(route('bancos.recaudo', ['fecha' => '2026-10-05']));
     });
 
-    it('follows the day asked for', function () {
-        bancosReported('2026-10-06', '40.00');
+    it('counts every credit, also the applied and the ignored ones', function () {
+        bancosReported('2026-10-14', '100.00');
+        bancosReported('2026-10-14', '40.00', fields: ['status' => 'aplicado', 'receipt_number' => '9']);
+        bancosReported('2026-10-14', '2.00', fields: ['status' => 'ignorado']);
 
-        $response = $this->actingAs($this->analyst)->get('/bancos/recaudo?fecha=2026-10-08');
-        $week = $response->viewData('week');
+        $grid = $this->actingAs($this->analyst)->get('/bancos/recaudo')->viewData('month')->grids[0];
 
-        expect($week->start->toDateString())->toBe('2026-10-05')
-            ->and($week->total)->toBe(40.0);
+        expect($grid->weeks[2]->cells[2]->amount)->toBe(142.0);
     });
 
-    it('offers the same numbers as a table', function () {
-        bancosReported('2026-10-12', '100.00');
+    it('says the days that have not arrived are not here yet, not zero', function () {
+        $grid = $this->actingAs($this->analyst)->get('/bancos/recaudo')->viewData('month')->grids[0];
 
-        $this->actingAs($this->analyst)->get('/bancos/recaudo')->assertSee('Ver los mismos datos en una tabla');
+        expect($grid->weeks[2]->cells[4]->state->name)->toBe('Pending')   // Friday the 16th: today
+            ->and($grid->weeks[2]->cells[3]->state->name)->toBe('Loaded');
+    });
+
+    it('draws a table per company in the group view, and only the active one otherwise', function () {
+        bancosReported('2026-10-05', '1000.00', company: CompanyCode::SGX);
+        bancosReported('2026-10-05', '300.00', company: CompanyCode::SDC);
+
+        $this->actingAs($this->analyst)->get('/bancos/recaudo')
+            ->assertSee('Segurex Latam (SGX)')
+            ->assertDontSee('Soluciones y Derivados (SDC)');
+
+        $this->fakes->currentCompany->switchTo(null);
+
+        $response = $this->actingAs($this->analyst)->get('/bancos/recaudo');
+        $grids = $response->viewData('month')->grids;
+
+        expect($grids)->toHaveCount(2)
+            ->and($grids[0]->total)->toBe(1000.0)
+            ->and($grids[1]->total)->toBe(300.0);
+
+        $response->assertSeeInOrder(['Segurex Latam (SGX)', 'Soluciones y Derivados (SDC)']);
+    });
+
+    it('goes to the month before, and not to a month that has not started', function () {
+        $this->actingAs($this->analyst)->get('/bancos/recaudo')
+            ->assertSee(route('bancos.recaudo', ['fecha' => '2026-09-30']))
+            ->assertSee('Mes anterior')
+            ->assertDontSee('Mes siguiente');
+    });
+
+    it('follows the day asked for, with links to the months around it', function () {
+        bancosReported('2026-09-15', '40.00');
+
+        $response = $this->actingAs($this->analyst)->get('/bancos/recaudo?fecha=2026-09-15');
+        $month = $response->viewData('month');
+
+        expect($month->month->toDateString())->toBe('2026-09-01')
+            ->and($month->grids[0]->businessDays)->toBe(22)
+            ->and($month->grids[0]->total)->toBe(40.0);
+
+        $response->assertSee('Recaudo diario de septiembre de 2026')
+            ->assertSee(route('bancos.recaudo', ['fecha' => '2026-08-31']))
+            ->assertSee(route('bancos.recaudo', ['fecha' => '2026-10-01']))
+            ->assertSee('Mes siguiente');
     });
 });
 

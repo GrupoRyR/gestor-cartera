@@ -14,11 +14,14 @@ use RuntimeException;
 final class Fixtures
 {
     /**
-     * Path of the invented statement of a bank.
+     * Path of the invented statement of a bank, with the extension its real
+     * export has (Davivienda's is an HTML table saved as .xls).
      */
     public static function path(Bank $bank): string
     {
-        return dirname(__DIR__).DIRECTORY_SEPARATOR.'fixtures'.DIRECTORY_SEPARATOR.$bank->value.'-ejemplo-inventado.csv';
+        $extension = $bank === Bank::Davivienda ? 'xls' : 'csv';
+
+        return dirname(__DIR__).DIRECTORY_SEPARATOR.'fixtures'.DIRECTORY_SEPARATOR.$bank->value.'-ejemplo-inventado.'.$extension;
     }
 
     public static function contents(Bank $bank): string

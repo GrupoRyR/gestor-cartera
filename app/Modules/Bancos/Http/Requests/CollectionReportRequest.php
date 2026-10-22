@@ -13,13 +13,16 @@ use Illuminate\Foundation\Http\FormRequest;
  */
 final class CollectionReportRequest extends FormRequest
 {
+    /** The first day the report accepts. */
+    public const FIRST_DAY = '2000-01-01';
+
     /**
      * @return array<string, mixed>
      */
     public function rules(): array
     {
         return [
-            'fecha' => ['nullable', 'date_format:Y-m-d', 'before_or_equal:today', 'after_or_equal:2000-01-01'],
+            'fecha' => ['nullable', 'date_format:Y-m-d', 'before_or_equal:today', 'after_or_equal:'.self::FIRST_DAY],
         ];
     }
 

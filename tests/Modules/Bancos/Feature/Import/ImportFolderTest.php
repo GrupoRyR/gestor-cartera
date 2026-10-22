@@ -27,10 +27,11 @@ afterEach(function () {
 
 /**
  * Drops a copy of the invented statement of a bank in <company>/<bank>, old
- * enough to be taken.
+ * enough to be taken, named extracto.<extension of the fixture> by default.
  */
-function bancosDrop(string $folder, string $company, string $bankFolder, Bank $bank, string $name = 'extracto.csv', int $age = 3600): string
+function bancosDrop(string $folder, string $company, string $bankFolder, Bank $bank, ?string $name = null, int $age = 3600): string
 {
+    $name ??= 'extracto.'.pathinfo(Fixtures::path($bank), PATHINFO_EXTENSION);
     $directory = $folder.DIRECTORY_SEPARATOR.$company.DIRECTORY_SEPARATOR.$bankFolder;
     File::ensureDirectoryExists($directory);
     $path = $directory.DIRECTORY_SEPARATOR.$name;
@@ -46,9 +47,10 @@ it('imports the file of each company and bank folder, with the company and bank 
 
     $this->artisan('bancos:importar-carpeta')->assertSuccessful();
 
-    expect(BankMovement::query()->where('company', 'SGX')->where('bank', 'bogota')->count())->toBe(4)
+    expect(BankMovement::query()->where('company', 'SGX')->where('bank', 'bogota')->count())->toBe(3)
         ->and(BankMovement::query()->where('company', 'SDC')->where('bank', 'davivienda')->count())->toBe(2)
-        ->and(BankLoad::query()->pluck('source')->unique()->all())->toBe([ImportSource::Folder]);
+        ->and(BankLoad::query()->pluck('source')->unique()->all())->toBe([ImportSource::Folder])
+        ->and(glob($this->folder.'/procesados/2026-10/SDC-davivienda-*-extracto.xls'))->toHaveCount(1);
 });
 
 it('moves an imported file to procesados so it is not read again', function () {
@@ -69,7 +71,7 @@ it('accepts folder names in any case', function () {
 
     $this->artisan('bancos:importar-carpeta')->assertSuccessful();
 
-    expect(BankMovement::query()->where('company', 'SGX')->where('bank', 'bancolombia')->count())->toBe(2);
+    expect(BankMovement::query()->where('company', 'SGX')->where('bank', 'bancolombia')->count())->toBe(4);
 });
 
 it('says there is nothing to do when the folder is empty or missing', function () {
@@ -106,12 +108,13 @@ it('keeps importing the other files when one fails', function () {
 
     $this->artisan('bancos:importar-carpeta')->assertFailed();
 
-    expect(BankMovement::query()->count())->toBe(4);
+    expect(BankMovement::query()->count())->toBe(3);
 });
 
-it('moves an old .xls to errores and tells how to save it', function () {
+it('moves an old binary .xls to errores and tells how to save it', function () {
     $directory = $this->folder.'/SGX/bogota';
     File::ensureDirectoryExists($directory);
+    file_put_contents($directory.'/viejo.xls', "\xD0\xCF\x11\xE0\xA1\xB1\x1A\xE1");
     touch($directory.'/viejo.xls', time() - 3600);
 
     $this->artisan('bancos:importar-carpeta')->assertFailed();

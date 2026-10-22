@@ -196,19 +196,19 @@ describe('from a file', function () {
         $result = app(StatementImport::class)->fromFile(Fixtures::path($bank), $bank, CompanyCode::SGX, ImportSource::Folder);
 
         expect($result->inserted())->toBe($credits)
-            ->and($result->load->file_name)->toBe($bank->value.'-ejemplo-inventado.csv')
+            ->and($result->load->file_name)->toBe(basename(Fixtures::path($bank)))
             ->and($result->load->file_sha256)->toBe(hash_file('sha256', Fixtures::path($bank)));
     })->with([
-        'bogota' => [Bank::Bogota, 4],
+        'bogota' => [Bank::Bogota, 3],
         'davivienda' => [Bank::Davivienda, 2],
-        'bancolombia' => [Bank::Bancolombia, 2],
+        'bancolombia' => [Bank::Bancolombia, 4],
         'miami' => [Bank::Miami, 2],
     ]);
 
-    it('keeps the two identical Bogotá consignments', function () {
-        app(StatementImport::class)->fromFile(Fixtures::path(Bank::Bogota), Bank::Bogota, CompanyCode::SGX, ImportSource::Folder);
+    it('keeps the two identical Bancolombia transfers of the same day', function () {
+        app(StatementImport::class)->fromFile(Fixtures::path(Bank::Bancolombia), Bank::Bancolombia, CompanyCode::SGX, ImportSource::Folder);
 
-        expect(BankMovement::query()->where('reference', '998877')->count())->toBe(2);
+        expect(BankMovement::query()->where('amount', '500000.00')->count())->toBe(2);
     });
 
     it('loads the Miami account in dollars unless the configuration says otherwise', function () {

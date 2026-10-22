@@ -2,7 +2,7 @@
 
 Bank movements and collections (Part B, module 5 of `docs/prompt-gestor-cartera.md`), **without the reconciliation** (5.8, waiting for the file from the user: Part D, item 2).
 
-Treasury downloads the statements of the bank accounts; the debits are theirs and the **credits** are Cartera's. This module reads the statements, keeps the credits once, lets the analyst note the cash receipt number once the payment is applied in SAP, and reports what came in per day and per week.
+Treasury downloads the statements of the bank accounts; the debits are theirs and the **credits** are Cartera's. This module reads the statements, keeps the credits once, lets the analyst note the cash receipt number once the payment is applied in SAP, and reports what came in per day, by bank and as the analyst's monthly grid of business days.
 
 ```
 folder (every morning) ─┐
@@ -20,31 +20,41 @@ Treasury API (POST) ────┴───────────────
 | Where | What |
 |---|---|
 | `Domain/Statement` | `StatementReader` (the interface), `TabularStatementReader` (the shared logic), `Banks/*` (one class per bank, only its `BankProfile`), `Cells` (dates, amounts, headers), `StatementMovement` (the normalized movement). Plain PHP. |
-| `Domain/Collections` | `CollectionBuilder` (adds credits into the contract's `DailyCollection`/`WeeklyCollection`, in cents), `DayReport`, `WeekReport`. Plain PHP. |
+| `Domain/Collections` | `CollectionBuilder` (adds credits into the contract's `DailyCollection`/`WeeklyCollection`, in cents), `DayReport`, `MonthReport` (the analyst's monthly grid: `MonthGrid` per company, `MonthWeek` rows, `MonthCell` days). Plain PHP. |
+| `Domain/Calendar` | `ColombianHolidays`: the holidays by law and the business days. Plain PHP. |
 | `Application/Import` | `MovementImporter` (the only way in), `StatementImport` (a file), `FolderImporter` (the drop folder), `ReceiveMovements` (the API). |
 | `Application/Movements`, `Application/Reports` | Queries of the screens and the status change; the report use cases. |
-| `Infrastructure` | Eloquent models (`BankMovement`, `BankLoad`), `TabularFile` (csv/txt/xlsx), `EloquentRecaudoProvider`. |
+| `Infrastructure` | Eloquent models (`BankMovement`, `BankLoad`), `TabularFile` (csv/txt, xlsx, and xls when it is an HTML table), `EloquentRecaudoProvider`. |
 | `Http`, `routes`, `resources` | Screens, the API, texts (`resources/lang/es`). |
 
-## The statements: what is guessed
+## The statements: the real layouts
 
-> **No real statement has been delivered yet** (Part D, item 3). Every layout below is an **assumption**, built so that each bank exercises a different shape. The fixtures in `tests/Modules/Bancos/fixtures` are invented and say so in their first row. When Treasury sends real files, adjust the profile of the bank (its class in `Domain/Statement/Banks`) and replace the fixture; nothing else changes.
+> The layouts of **Banco de Bogotá, Davivienda and Bancolombia are the ones of their real exports** (samples of October 2026, Part D, item 3). **Miami is still assumed**: no sample has arrived. The fixtures in `tests/Modules/Bancos/fixtures` keep the real structure with invented data (see the README there). When a bank changes its export, adjust its profile (its class in `Domain/Statement/Banks`) and the fixture; nothing else changes.
 
-The reader finds the header row in the first 40 rows (banks print a title and the account above it) and maps the columns **by name**, so the order does not matter. Headers are compared without accents, case or punctuation. A file is `.csv`, `.txt` (delimiter and encoding detected: UTF-8 or Windows-1252, with or without BOM) or `.xlsx` (first sheet). An old `.xls` is refused with a message that says how to save it.
+A file is `.csv`, `.txt` (delimiter and encoding detected: UTF-8 or Windows-1252, with or without BOM), `.xlsx` (first sheet) or `.xls` when it is really an HTML table, as Davivienda exports it (every `<tr>` becomes a row, cells lose Excel's leading apostrophe). A real binary `.xls` (Excel 97) is refused with a message that says how to save it.
 
-| Bank | Columns assumed | Money | Dates | Numbers |
-|---|---|---|---|---|
-| Banco de Bogotá | `Fecha`, `Descripción`, `Referencia`, `Débito`, `Crédito`, `Saldo` | credit and debit in separate columns | `dd/mm/aaaa` | `1.234.567,89` |
-| Davivienda | `Fecha`, `Oficina`, `Descripción motivo`, `Documento`, `Transacción`, `Valor` | one unsigned `Valor` plus `Transacción` (`Crédito` / `Débito`) | `dd/mm/aaaa` | `1.234.567,89` |
-| Bancolombia | `FECHA`, `DESCRIPCIÓN`, `SUCURSAL`, `REFERENCIA 1`, `VALOR`, `SALDO` | one signed `VALOR` (debits negative) | `aaaa/mm/dd` | `-1234567.89` |
-| Miami | `Date`, `Description`, `Reference`, `Deposits`, `Withdrawals`, `Balance` | deposits and withdrawals in separate columns | `mm/dd/aaaa` | `1,234,567.89`, **USD** |
+Most banks have a header row: the reader finds it in the first 40 rows (a bank may print a title above it) and maps the columns **by name**, so the order does not matter. Headers are compared without accents, case or punctuation. **Bancolombia has no header**: its profile gives the position of each column, every non-empty row is a movement, and a file whose first rows do not fit (too few columns, no date where the date goes) is refused as not being Bancolombia's.
 
-Each profile also accepts a few alternative headers (see the class). The **company and the bank never come from the file**: they come from the folder it is dropped in, or from what the person picks in the form, or from the body of the API call.
+| Bank | File | Columns used | Credit or debit | Dates | Numbers |
+|---|---|---|---|---|---|
+| Banco de Bogotá | `.csv`, `,`, Windows-1252, header in row 1, 18 columns | `Fecha`, `Valor`, `Indicador Débito / Crédito`, `Descripción de Transacción` + `Texto de Referencia`, `Referencia del Banco`, `Número de Cuenta`, `Moneda de Cuenta` | indicator `C` / `D` (`Tipo de Transacción` is a numeric code, not the direction) | `dd/mm/aaaa` in `Fecha` (`Fecha de Transacción` comes empty) | `1234567.89`, unsigned |
+| Davivienda | `.xls` that is an HTML table, a `Movimientos` title, 17 columns, totals at the foot | `Fecha`, `Valor Total`, `Tran`, `Desc Mot.`, `Doc.` | `Tran`: `Notas Credito` / `Notas Debito` | `dd/mm/aaaa` | `$ 1.234.567,89`, unsigned |
+| Bancolombia | `.csv`, `,`, **no header**, 9 columns | by position: 0 account, 3 date, 4 document, 5 amount, 7 description (1 office, 6 transaction code; 2 and 8 always `1` and `0`, meaning unknown) | the sign of the amount | `ddmmaaaa`, no separators | `-1234567.89` |
+| Miami (**assumed**) | `.csv` | `Date`, `Description`, `Reference`, `Deposits`, `Withdrawals` | separate columns | `mm/dd/aaaa` | `1,234,567.89`, **USD** |
+
+What the real files taught:
+
+- **No bank gives a unique movement id.** Bogotá's `Referencia del Banco` is shared by a credit and the fee and GMF debits charged on it. Davivienda's `Doc.` is the closest (one per movement), but the bank's own charges reuse `99999999` and `99999998`. Bancolombia's document column is empty except for cheques. So the fingerprint of a movement stays the texts plus their position in the file (see Loading).
+- Bogotá's description joins `Descripción de Transacción` and `Texto de Referencia` (where the payer is) with ` · `, without the bank's labels (`Oficina Receptora: 0940`, `Otros detalles del movimiento:`). A reader can override `cleanText()` for that. Descriptions are cut to 500 characters, the size of the column that stores them.
+- Davivienda's `Desc Mot.` and Bancolombia's description (up to about 30 characters) hold the payer's NIT or name, cut short by the bank.
+- Only Bogotá has a currency column (`Moneda de Cuenta`); the three accounts are in pesos.
+
+The **company and the bank never come from the file**: they come from the folder it is dropped in, or from what the person picks in the form, or from the body of the API call.
 
 Rules the readers follow:
 
 - **Amounts are never guessed.** `1234567.89` in a Colombian-style file (dot as thousands separator with groups that are not of three) is refused, not read as 123.456.789. Each bank has a number style.
-- A row with a date it cannot read, or an amount it cannot read, is an **error with its row number**; rows without a date (totals, notes) or with a zero amount are counted as ignored. Nothing disappears silently: the load history shows the counts and the first 50 errors.
+- A row with a date it cannot read, or an amount it cannot read, is an **error with its row number**; rows without a date (totals, notes) or with a zero amount are counted as ignored. In a file without a header, a row with fewer cells than the columns need is an error too. Nothing disappears silently: the load history shows the counts and the first 50 errors.
 - A Type column that says neither credit nor debit is an error, not a guess.
 
 ## Loading
@@ -57,7 +67,7 @@ All three go through `MovementImporter`:
 
 - Only **credits** are stored. Debits are counted and skipped.
 - **No duplicates.** The fingerprint is company + bank + date + amount + currency + reference + description + account, plus the position of the movement among identical ones in the same file. Two real payments with the same amount, reference and date in one file are both kept; loading that file again, or an overlapping one, adds nothing. The unique index makes it safe under concurrency.
-- **Known limit:** two identical payments (same date, amount, reference and text) that arrive in *separate* loads cannot be told from the same statement loaded twice, so the second is skipped. Identical payments in the same file are kept. Real statements carry a reference or a time that tells them apart; if Treasury's files do not, the fingerprint needs the bank's own movement id.
+- **Known limit:** two identical payments (same date, amount, reference and text) that arrive in *separate* loads cannot be told from the same statement loaded twice, so the second is skipped. Identical payments in the same file are kept. The real exports carry no movement id of the bank that would tell them apart (see above): two Bancolombia transfers of the same amount on the same day look the same. Davivienda prints a time (`Hora`) that is not used yet.
 - Credits dated **after today** are not stored: a bank cannot post tomorrow's money, so the date was read in the wrong order. The load reports them.
 - The currency comes from the reader (COP; USD for Miami), the file's `Currency` column if it has one, or `bancos.currencies.<bank>`.
 
@@ -89,10 +99,26 @@ The `RecaudoProvider` contract as JSON: `diario` (per day and company, with `por
 
 ## Collections (recaudo)
 
-- The sum of the credits per **movement date**, whatever their status: an ignored credit still reached the bank account, and Treasury's cash flow wants the cash.
+- The sum of the credits per **movement date**, whatever their status (pending, applied or ignored): an ignored credit still reached the bank account, and Treasury's cash flow wants the cash.
 - Only credits in `bancos.collection_currency` (COP) add up. Dollar credits are stored and listed, but there is **no exchange rate** to convert them; the report warns when there are any.
-- Movements arrive the day after (día vencido): the report opens on yesterday and the week shows the days that have not arrived as "Aún no llega", not as zero. The week is compared with the previous one over the same weekdays.
-- The sheet María Paula fills in today is **not known yet** (Part D, item 4), nor how Treasury builds the weekly accumulated (item 5): the layouts here are proposals.
+- Movements arrive the day after (día vencido): the report opens on yesterday, and a business day after yesterday reads "—" ("Aún no llega"), not zero. Credits already stored for such a day (a statement carries the first movements of the next day) still show and add up, so the month never leaves money out.
+
+`/bancos/recaudo` has two cards: the **day** (what came in on the chosen day, by bank) and the **month** of that day, in the format María Paula keeps in her workbook (Part D, item 4: one sheet per company, October 2026 as the sample):
+
+| Semana | Días | Lunes | Martes | Miércoles | Jueves | Viernes | Total recaudo |
+|---|---|---|---|---|---|---|---|
+| 01 oct. – 02 oct. | 2 | (other month) | (other month) | (other month) | $ | $ | $ week |
+| 12 oct. – 16 oct. | 4 | Festivo | $ | $ | $ | — (not here yet) | $ week |
+| Total | 21 | $ column | … | … | … | … | $ month |
+
+- **One table per company in view**: the active one, or SGX then SDC in the group view.
+- **Rows** are the Monday-to-Friday weeks with at least one weekday in the month, labelled by their first and last weekday inside the month. **Días** counts the business days of the week inside the month; the total row, those of the month.
+- **Business days** are Monday to Friday except the Colombian holidays, which `ColombianHolidays` computes by law (Ley 51 de 1983: the fixed ones, the ones moved to Monday, and the ones that follow Easter, computed without `ext-calendar`). There is no list to update each year.
+- **Weekends and holidays go to the next business day**: a cell holds the credits from the day after the previous business day up to its own day. A Saturday credit shows on Monday (Tuesday when Monday is a holiday), and one of a holiday on the day after. This crosses months: Saturday 31 October 2026 belongs to Tuesday 3 November (2 November is a holiday), so it is in November's grid, not October's. The month is therefore read from the day after the last business day of the month before up to its own last business day.
+- A weekday of another month is an empty shaded cell; a holiday says "Festivo". A day with money links to its detail (the day card).
+- **Total recaudo** of a row is the sum of its cells, which is the week's accumulated; the total row adds each column and the month. Everything is added in cents.
+- Her sheet also has a **"Proyección de recaudo" and a "%" column**: they are left out until there is a source for the projection.
+- The old weekly card (Monday to Sunday, compared with the week before) is gone: each row's total is the week's accumulated. The API still serves `semanal` (ISO weeks) for Treasury; how Treasury builds its weekly accumulated is still to confirm (Part D, item 5).
 
 ## Who can do what
 

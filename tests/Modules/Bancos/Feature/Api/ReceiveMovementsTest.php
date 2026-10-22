@@ -137,7 +137,7 @@ describe('storing', function () {
 
         // The first credit of the invented Bancolombia statement, as the API would send it.
         bancosPost(bancosPayload(['movimientos' => [
-            ['fecha' => '2026-10-13', 'valor' => '3500000.00', 'descripcion' => 'PAGO PSE CLIENTE MODA Y ESTILO', 'referencia' => 'PSE778899'],
+            ['fecha' => '2026-10-13', 'valor' => '2225395.00', 'descripcion' => 'TRANSFERENCIA CTA SUC VIRTUAL', 'cuenta' => '00000000000'],
         ]]))->assertOk()->assertJson(['nuevos' => 0, 'repetidos' => 1]);
     });
 

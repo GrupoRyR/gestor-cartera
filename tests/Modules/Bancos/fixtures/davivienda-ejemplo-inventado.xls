@@ -1,0 +1,155 @@
+<!-- EJEMPLO INVENTADO: no es un extracto real -->
+<table cellspacing="0" cellpadding="0" width="100%" border="0">
+  <tr />
+</table>
+<TABLE cellSpacing="2" cellPadding="2" width="100%" border="1">
+  <tr>
+    <td colspan="16" nowrap="nowrap" width="50%" align="center">
+      <STRONG>Movimientos</STRONG>
+    </td>
+  </tr>
+  <TR>
+    <TD width="30%" bgColor="#cccccc">
+      <STRONG>Fecha</STRONG>
+    </TD>
+    <TD width="30%" bgColor="#cccccc">
+      <STRONG>Doc.</STRONG>
+    </TD>
+    <TD width="30%" bgColor="#cccccc">
+      <STRONG>Tran</STRONG>
+    </TD>
+    <TD width="30%" bgColor="#cccccc">
+      <STRONG>Ofi.</STRONG>
+    </TD>
+    <TD width="30%" bgColor="#cccccc">
+      <STRONG>Jor.</STRONG>
+    </TD>
+    <TD width="30%" bgColor="#cccccc">
+      <STRONG>Hora</STRONG>
+    </TD>
+    <TD width="30%" bgColor="#cccccc">
+      <STRONG>Mot.</STRONG>
+    </TD>
+    <TD width="30%" bgColor="#cccccc">
+      <STRONG>Desc Mot.</STRONG>
+    </TD>
+    <TD width="30%" bgColor="#cccccc">
+      <STRONG>Valor Total</STRONG>
+    </TD>
+    <TD width="30%" bgColor="#cccccc">
+      <STRONG>Valor Cheque</STRONG>
+    </TD>
+    <TD width="30%" bgColor="#cccccc">
+      <STRONG>ID Origen/Destino</STRONG>
+    </TD>
+    <TD width="30%" bgColor="#cccccc">
+      <STRONG>Referencia 1</STRONG>
+    </TD>
+    <TD width="30%" bgColor="#cccccc">
+      <STRONG>Referencia 2</STRONG>
+    </TD>
+    <TD width="30%" bgColor="#cccccc">
+      <STRONG>Terminal</STRONG>
+    </TD>
+    <TD width="30%" bgColor="#cccccc">
+      <STRONG>Fecha Movto.</STRONG>
+    </TD>
+    <TD width="30%" bgColor="#cccccc">
+      <STRONG>Ciudad</STRONG>
+    </TD>
+    <TD width="30%" bgColor="#cccccc">
+      <STRONG>Valor Saldo</STRONG>
+    </TD>
+  </TR>
+  <TR>
+    <TD align="right">13/10/2026</TD>
+    <TD align="right">123456</TD>
+    <TD align="right">Notas Credito</TD>
+    <TD align="right">PROCESOS ACH</TD>
+    <TD align="right">Normal</TD>
+    <TD align="right">17:42:27</TD>
+    <TD align="right">29</TD>
+    <TD align="right"> Abono ACH 900111222 FERRETERIA EL TORN</TD>
+    <TD align="right">$ 1.250.000,00</TD>
+    <TD align="right">$ 0,00</TD>
+    <TD align="right">900111222</TD>
+    <TD align="right">'0000000900111222</TD>
+    <TD align="right">'0000000000000000</TD>
+    <TD align="right">690</TD>
+    <TD align="right">13/10/2026</TD>
+    <TD align="right">BOGOTA</TD>
+    <TD align="right">$ 0,00</TD>
+  </TR>
+  <TR>
+    <TD align="right">13/10/2026</TD>
+    <TD align="right">99999999</TD>
+    <TD align="right">Notas Debito</TD>
+    <TD align="right">COTA</TD>
+    <TD align="right">Normal</TD>
+    <TD align="right">23:10:05</TD>
+    <TD align="right">56</TD>
+    <TD align="right"> Gravamen 4x1000</TD>
+    <TD align="right">$ 5.000,00</TD>
+    <TD align="right">$ 0,00</TD>
+    <TD align="right"> </TD>
+    <TD align="right">'</TD>
+    <TD align="right">'</TD>
+    <TD align="right">0</TD>
+    <TD align="right">13/10/2026</TD>
+    <TD align="right">COTA</TD>
+    <TD align="right">$ 0,00</TD>
+  </TR>
+  <TR>
+    <TD align="right">14/10/2026</TD>
+    <TD align="right">654321</TD>
+    <TD align="right">Notas Credito</TD>
+    <TD align="right">PORTAL-EMPRESARIAL</TD>
+    <TD align="right">Adicional</TD>
+    <TD align="right">08:15:00</TD>
+    <TD align="right">31</TD>
+    <TD align="right"> Transf Portal 900333444 DISTRIBUIDORA LA</TD>
+    <TD align="right">$ 640.000,50</TD>
+    <TD align="right">$ 0,00</TD>
+    <TD align="right">900333444</TD>
+    <TD align="right">'0000000900333444</TD>
+    <TD align="right">'0000000000000000</TD>
+    <TD align="right">512</TD>
+    <TD align="right">14/10/2026</TD>
+    <TD align="right">BOGOTA</TD>
+    <TD align="right">$ 0,00</TD>
+  </TR>
+  <TR>
+    <TD align="right">14/10/2026</TD>
+    <TD align="right">99999998</TD>
+    <TD align="right">Notas Debito</TD>
+    <TD align="right">COTA</TD>
+    <TD align="right">Normal</TD>
+    <TD align="right">23:12:40</TD>
+    <TD align="right">57</TD>
+    <TD align="right"> Comision portal empresarial</TD>
+    <TD align="right">$ 295.000,00</TD>
+    <TD align="right">$ 0,00</TD>
+    <TD align="right"> </TD>
+    <TD align="right">'</TD>
+    <TD align="right">'</TD>
+    <TD align="right">0</TD>
+    <TD align="right">14/10/2026</TD>
+    <TD align="right">COTA</TD>
+    <TD align="right">$ 0,00</TD>
+  </TR>
+  <tr>
+    <td height="20" />
+  </tr>
+  <tr>
+    <td class="TituDatos" nowrap="nowrap" align="center">Total Abonos</td>
+    <td class="TituDatos" nowrap="nowrap" align="center">Total retiros y debitos</td>
+    <td class="TituDatos" nowrap="nowrap" align="center">Movimiento neto</td>
+    <td class="TituDatos" nowrap="nowrap" align="center">Cantidad de registros</td>
+  </tr>
+  <tr>
+    <td class="Datos2" nowrap="nowrap">$ 1.890.000,50</td>
+    <td class="Datos2" nowrap="nowrap">$ 300.000,00</td>
+    <td class="Datos2" nowrap="nowrap">$1,590,000.50</td>
+    <td class="Datos2" nowrap="nowrap">4</td>
+  </tr>
+</TABLE>

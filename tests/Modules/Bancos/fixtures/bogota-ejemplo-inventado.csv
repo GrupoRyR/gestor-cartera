@@ -1,11 +1,8 @@
-EXTRACTO DE EJEMPLO INVENTADO - NO ES UN ARCHIVO REAL DEL BANCO DE BOGOTA
-Cuenta corriente;000-111111-22;;;;
-Periodo;01/10/2026 - 15/10/2026;;;;
-Fecha;Descripción;Referencia;Débito;Crédito;Saldo
-05/10/2026;TRANSFERENCIA ACH DE FERRETERIA EL TORNILLO SAS;ACH123456;;1.250.000,00;11.250.000,00
-05/10/2026;PAGO PROVEEDOR PAPELERIA;PP-889;300.000,00;;10.950.000,00
-06/10/2026;CONSIGNACION EFECTIVO OFICINA CENTRO;998877;;480.500,50;11.430.500,50
-06/10/2026;CONSIGNACION EFECTIVO OFICINA CENTRO;998877;;480.500,50;11.911.001,00
-07/10/2026;COMISION MANEJO;;12.000,00;;11.899.001,00
-08/10/2026;ABONO INTERESES;;;1.234,56;11.900.235,56
-Total;;;312.000,00;2.213.735,06;
+Número de Cuenta,Nombre de Cuenta,Fecha de Transacción,Número de Items,Texto de Referencia,Subtipo de Producto,Moneda de Cuenta,ID de Banco,Nombre de Banco,Descripción de Transacción,Tipo de Transacción,Indicador Débito / Crédito,Valor,Monto en Efectivo,Monto en Cheque,Referencia del Cliente,Referencia del Banco,Fecha
+0000012345,EJEMPLO INVENTADO,,,Oficina Receptora: 0940Otros detalles del movimiento:Cr Ach Bancolombia Ferreteria El Tornillo Nit900111222 Fac 1234,Depositos,COP,001,BANCO DE BOGOTA,Abono dispersion ACH,593,C,1250000,1250000.00,0.00, ,NSDISF000000PGPF1,13/10/2026
+0000012345,EJEMPLO INVENTADO,,,Oficina Receptora: 0940Otros detalles del movimiento:,Depositos,COP,001,BANCO DE BOGOTA,Gravamen Movimientos Financieros,850,D,5000,0.00,0.00, ,NSDISF000000PGPF1,13/10/2026
+0000012345,EJEMPLO INVENTADO,,,"Otros detalles del movimiento:Abono transferencia por canal electronico el 13/10/2026 desde 00011122233 FERRETERIA EL TORNILLO,SAS",Depositos,COP,001,BANCO DE BOGOTA,Abono transferencia electronica,594,C,480500.5,480500.50,0.00, ,NSDISF000000PGPF2,13/10/2026
+0000012345,EJEMPLO INVENTADO,,,Oficina Receptora: 0516Otros detalles del movimiento:Abono por recaudos con comprobante 900111222Referencia 2: 900111222,Depositos,COP,001,BANCO DE BOGOTA,Abono recaudo con comprobante,561,C,300000,300000.00,0.00,9001112220,NSDISF000000PGPF3,14/10/2026
+0000012345,EJEMPLO INVENTADO,,,Oficina Receptora: 0516Otros detalles del movimiento:,Depositos,COP,001,BANCO DE BOGOTA,Cargo comision recaudos con comprobante,761,D,1667.98,0.00,0.00, ,NSDISF000000PGPF3,14/10/2026
+0000012345,EJEMPLO INVENTADO,,,Oficina Receptora: 0516Otros detalles del movimiento:Cheque 0000004567,Depositos,COP,001,BANCO DE BOGOTA,Pago cheque en oficina,410,D,200000,0.00,0.00,0000004567,NSDISF000000PGPF4,14/10/2026
+0000012345,EJEMPLO INVENTADO,,,Otros detalles del movimiento:,Depositos,COP,001,BANCO DE BOGOTA,Gravamen Movimientos Financieros,850,D,800,0.00,0.00, ,NSDISF000000PGPF4,14/10/2026
