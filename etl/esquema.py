@@ -100,7 +100,9 @@ CONTACTOS: list[Columna] = [
 ]
 
 # Comisiones, reporte 1: una fila por linea de factura (13) o nota credito
-# (14); las notas credito llegan con signo negativo.
+# (14); las notas credito llegan con signo negativo. El periodo de la venta es
+# fecha_contabilizacion (DocDate, la fecha de la factura); fecha_documento es
+# TaxDate y va como referencia.
 VENTAS: list[Columna] = [
     Columna("Tipo objeto",           "tipo_objeto",           ENTERO, requerida=True),
     Columna("DocEntry",              "doc_entry",             ENTERO, requerida=True),
@@ -167,7 +169,8 @@ RECAUDOS: list[Columna] = [
 ]
 
 # Comisiones, reporte 4: una fila por linea de factura de una reconciliacion
-# interna manual, automatica o semiautomatica (OITR + ITR1).
+# interna manual, automatica o semiautomatica (OITR + ITR1) que sea un cruce de
+# anticipo o una compensacion cliente-proveedor.
 CRUCES: list[Columna] = [
     Columna("Número cruce",             "numero_cruce",             ENTERO, requerida=True),
     Columna("Línea",                    "linea",                    ENTERO, requerida=True),

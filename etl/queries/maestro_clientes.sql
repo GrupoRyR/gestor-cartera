@@ -21,9 +21,9 @@ SELECT
     T0."CardName"                                               AS "Razón social",
     IFNULL(T0."SlpCode", -1)                                    AS "SlpCode",
     T1."SlpName"                                                AS "Vendedor",
-    -- VALIDAR CON DATOS REALES: no se sabe de donde sale el canal (grupo del
-    -- cliente OCRG."GroupName" o un campo de usuario U_). Va en NULL.
-    CAST(NULL AS NVARCHAR(100))                                 AS "Canal",
+    -- Canal = grupo del cliente (OCRG), confirmado por Miguel; es el mismo
+    -- que ventas.sql y que "Grupo" en cartera.sql.
+    T2."GroupName"                                              AS "Canal",
     T0."City"                                                   AS "Ciudad",
     NULLIF(TRIM(T0."ConnBP"), '')                               AS "Código proveedor",
     -- VALIDAR CON DATOS REALES: inactivo = congelado (frozenFor = 'Y'); no se
@@ -32,5 +32,6 @@ SELECT
     T0."UpdateDate"                                             AS "Fecha modificación"
 FROM "OCRD" T0
 LEFT JOIN "OSLP" T1 ON T1."SlpCode" = T0."SlpCode"
+LEFT JOIN "OCRG" T2 ON T2."GroupCode" = T0."GroupCode"
 WHERE T0."CardType" = 'C'
 ORDER BY T0."CardCode"

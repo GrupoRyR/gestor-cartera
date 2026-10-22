@@ -79,6 +79,14 @@ Cada lote es una consulta de `etl/queries` y su contrato de columnas en `etl/esq
 
 Ventas, recaudos y cruces traen el mes en curso más los últimos 7 días del mes anterior, hasta hoy; incluyen los documentos anulados con su estado. Las notas crédito de ventas llegan con signo negativo. Los maestros traen todos los registros, activos o no.
 
+### Confirmado con Miguel
+
+- **Canal:** es el grupo del cliente (`OCRG.GroupName`, unido por `OCRD.GroupCode`), en `maestro_clientes` y en `ventas` (el cliente de la factura). Es el mismo valor que la columna «Grupo» de la cartera.
+- **Id pedido app:** `OINV.U_SGX_IdPedidoApp`. Las notas crédito lo traen vacío.
+- **Período de ventas:** la fecha de la factura (`DocDate`), que llega en `fecha_contabilizacion`. `fecha_documento` (`TaxDate`) se conserva como referencia. La ventana de ventas también va por `DocDate`.
+- **Cruces:** solo cruces de anticipos y compensaciones cliente-proveedor. Una reconciliación que no es ninguna de las dos no se extrae.
+- **Zona del vendedor:** queda vacía; SAP no la maneja.
+
 Valores de texto que Comisiones puede filtrar:
 
 | Lote | Columna | Valores |
@@ -86,7 +94,7 @@ Valores de texto que Comisiones puede filtrar:
 | `ventas` | `clase_documento` | `factura`, `nota_debito`, `nota_credito` |
 | `ventas` | `estado_documento` | `anulado`, `anulacion`, `cerrado`, `abierto` |
 | `recaudos` | `estado_pago` | `anulado`, `vigente` |
-| `cruces` | `tipo_cruce` | `anticipo`, `cliente-proveedor`, `otro` |
+| `cruces` | `tipo_cruce` | `anticipo`, `cliente-proveedor` |
 | `cruces` | `estado` | `anulado`, `vigente` |
 | `maestro_clientes`, `maestro_vendedores` | `estado` | `activo`, `inactivo` |
 | `contactos` | `principal`, `activo` | `Y`, `N` |
@@ -102,10 +110,8 @@ Cada punto está marcado en su consulta con `VALIDAR CON DATOS REALES`. Valídal
 
 **ventas.sql**
 
-- [ ] `fecha_documento`: es `TaxDate` y `fecha_contabilizacion` es `DocDate`. Confirmar cuál asigna la venta al período.
-- [ ] `canal`: va en `NULL`; no se sabe si sale del grupo del cliente, de un campo de usuario o de Comisiones.
+- [ ] `canal` e `id_pedido_app`: confirmar que llegan llenos (ver «Confirmado con Miguel»).
 - [ ] `pedido`: solo cuando la línea viene de un pedido (`BaseType` 17). Si la factura sale de una entrega, queda `NULL`.
-- [ ] `id_pedido_app`: va en `NULL`; no hay un campo conocido en SAP.
 - [ ] `ciudad_envio`: va en `NULL`; candidata `INV12.CityS` / `RIN12.CityS`.
 - [ ] `costo_unitario` y `costo_total`: salen de `StockPrice`. Confirmar contra el margen del informe actual.
 - [ ] `precio_lista`: es `PriceBefDi` (precio antes del descuento de la línea), no la lista de precios del artículo.
@@ -120,19 +126,18 @@ Cada punto está marcado en su consulta con `VALIDAR CON DATOS REALES`. Valídal
 **cruces.sql** (toda la consulta está por validar)
 
 - [ ] Que los cruces que hoy se digitan a mano sean las reconciliaciones internas de tipo 0, 1 y 2.
-- [ ] `tipo_cruce`: la regla de anticipo (línea de pago recibido) y de cliente-proveedor (línea de proveedor o documento de compras).
+- [ ] `tipo_cruce`: la regla de anticipo (línea de pago recibido) y de cliente-proveedor (línea de proveedor o documento de compras). Lo que no cumple ninguna de las dos queda fuera: confirmar que no se pierde ningún cruce digitado a mano.
 - [ ] `codigo_proveedor`: el proveedor de la reconciliación o, si no hay, `OCRD.ConnBP` del cliente.
 - [ ] `fecha_factura`: es `DocDate`, como en recaudos.
 - [ ] `usuario`: va en `NULL`; no hay una columna confirmada en `OITR`.
 
 **maestro_clientes.sql**
 
-- [ ] `canal`: va en `NULL`, igual que en ventas.
 - [ ] `estado`: `inactivo` solo si el cliente está congelado (`frozenFor`); no mira los rangos de fechas.
 
 **maestro_vendedores.sql**
 
-- [ ] `canal` y `zona`: van en `NULL`; no hay columnas conocidas en `OSLP`.
+- [ ] `canal`: va en `NULL`; no hay una columna conocida en `OSLP`.
 - [ ] `fecha_modificacion`: va en `NULL`; revisar si la versión de SAP tiene `OSLP.UpdateDate`.
 
 ## Validar una consulta nueva

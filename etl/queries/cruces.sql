@@ -21,12 +21,16 @@
 -- VALIDAR CON DATOS REALES: que los cruces que hoy se digitan a mano sean
 --   justo los ReconType 0, 1 y 2.
 --
--- "Tipo cruce" mira las demas lineas de la misma reconciliacion:
+-- Solo entran los cruces de anticipos y las compensaciones cliente-proveedor
+-- (confirmado por Miguel). "Tipo cruce" mira las demas lineas de la misma
+-- reconciliacion:
 --   anticipo           -> tiene una linea de pago recibido (SrcObjTyp '24')
 --   cliente-proveedor  -> tiene una linea de un proveedor (OCRD."CardType" 'S')
 --                         o de un documento de compras (18, 19) o pago
 --                         efectuado (46)
---   otro               -> ninguna de las anteriores
+-- Una reconciliacion sin ninguna de las dos (por ejemplo, factura contra
+-- asiento o contra nota credito) no es un cruce comisionable y queda fuera.
+-- Si tiene las dos, cuenta como anticipo.
 --
 -- "SrcObjTyp" es texto (NVARCHAR) en B1 y se compara como texto. "ReconType" se
 -- convierte a entero para no depender de su tipo.
@@ -45,11 +49,8 @@ SELECT
     T0."ReconNum"                                               AS "Número cruce",
     T1."LineSeq"                                                AS "Línea",
     T0."ReconDate"                                              AS "Fecha cruce",
-    CASE
-        WHEN T4."TienePago" = 1 THEN 'anticipo'
-        WHEN T4."TieneProveedor" = 1 THEN 'cliente-proveedor'
-        ELSE 'otro'
-    END                                                         AS "Tipo cruce",
+    CASE WHEN T4."TienePago" = 1 THEN 'anticipo'
+         ELSE 'cliente-proveedor' END                           AS "Tipo cruce",
     CAST(T0."ReconType" AS INTEGER)                             AS "Tipo conciliación",
     CASE WHEN T0."Canceled" = 'Y' THEN 'anulado' ELSE 'vigente' END AS "Estado",
     T3."LicTradNum"                                             AS "Nit",
@@ -104,4 +105,5 @@ WHERE T1."SrcObjTyp" = '13'
   AND CAST(T0."ReconType" AS INTEGER) IN (0, 1, 2)
   AND T0."ReconDate" >= ADD_DAYS(CURRENT_DATE, -6 - DAYOFMONTH(CURRENT_DATE))
   AND T0."ReconDate" <= CURRENT_DATE
+  AND (T4."TienePago" = 1 OR T4."TieneProveedor" = 1)
 ORDER BY T0."ReconDate", T0."ReconNum", T1."LineSeq"
