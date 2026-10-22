@@ -110,6 +110,21 @@ it('flags the controls a period does not meet', function () {
         ->assertSeeText('Sin justificar');
 });
 
+it('counts the staged sales of the period by their posting date', function () {
+    $this->sap->send(Dataset::Sales, [
+        SapBatches::sale(),
+        // Issued in June, posted in July: staged for July.
+        SapBatches::sale(['doc_entry' => 5501, 'fecha_documento' => '2026-06-28', 'fecha_contabilizacion' => '2026-07-02']),
+    ]);
+    $this->actingAs($this->analyst)->post('/comisiones/periodos/2026-07/calcular');
+
+    $response = $this->actingAs($this->analyst)->get('/comisiones/periodos/2026-07/controles')->assertOk();
+
+    preg_match('/data-staged="ventas">.*?<td data-align="end">([\d.]+)<\/td>/s', (string) $response->getContent(), $matches);
+
+    expect($matches[1] ?? null)->toBe('2');
+});
+
 it('shows an older version when asked', function () {
     AugustCollections::stage($this->sap);
     AugustCollections::close($this, $this->analyst, $this->approver);

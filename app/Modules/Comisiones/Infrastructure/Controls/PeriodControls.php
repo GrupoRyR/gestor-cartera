@@ -79,7 +79,7 @@ final class PeriodControls
             loadsTo: $to,
             loads: $this->loads($from, $to),
             staged: [
-                Dataset::Sales->value => self::countIn(SaleRecord::query(), 'fecha_documento', $period),
+                Dataset::Sales->value => self::countIn(SaleRecord::query(), 'fecha_contabilizacion', $period),
                 Dataset::Collections->value => self::countIn(PaymentRecord::query(), 'fecha_pago', $period),
                 Dataset::Offsets->value => self::countIn(CrossingRecord::query()->where('origen', CrossingRecord::SAP), 'fecha_cruce', $period),
             ],

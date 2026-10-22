@@ -69,8 +69,8 @@ it('is bound to the staging tables', function () {
 
 it('nets in its own month the cancellation of a sale of an earlier month', function () {
     $this->sap->send(Dataset::Sales, [
-        SapBatches::sale(['doc_entry' => 7001, 'fecha_documento' => '2026-07-20', 'estado_documento' => 'anulado', 'total' => '1000000.00']),
-        SapBatches::sale(['doc_entry' => 7002, 'fecha_documento' => '2026-08-05', 'estado_documento' => 'anulacion', 'total' => '-1000000.00']),
+        SapBatches::sale(['doc_entry' => 7001, 'fecha_documento' => '2026-07-20', 'fecha_contabilizacion' => '2026-07-20', 'estado_documento' => 'anulado', 'total' => '1000000.00']),
+        SapBatches::sale(['doc_entry' => 7002, 'fecha_documento' => '2026-08-05', 'fecha_contabilizacion' => '2026-08-05', 'estado_documento' => 'anulacion', 'total' => '-1000000.00']),
     ]);
 
     $august = app(SettlementInputs::class)->forPeriod(Period::of(2026, 8))->sales;
@@ -88,7 +88,7 @@ it('maps the sales of the period: annulments, credit notes, seller and currency'
         SapBatches::sale(['linea' => 2, 'estado_documento' => 'anulacion']),
         SapBatches::sale(['tipo_objeto' => 14, 'doc_entry' => 600, 'numero_documento' => 100, 'clase_documento' => 'nota_credito', 'total' => '-50000.00', 'moneda' => 'USD', 'trm' => '4000.000000']),
         SapBatches::sale(['linea' => 3, 'slp_code' => 0, 'vendedor' => 'OFICINA', 'moneda' => ' ']),
-        SapBatches::sale(['linea' => 4, 'fecha_documento' => '2026-06-28']),
+        SapBatches::sale(['linea' => 4, 'fecha_documento' => '2026-06-28', 'fecha_contabilizacion' => '2026-06-28']),
     ]);
 
     $sales = comisionesByKey(($this->inputs)()->sales);
@@ -121,6 +121,32 @@ it('maps the sales of the period: annulments, credit notes, seller and currency'
         ->and($sales['13-5001-3']->currency)->toBe('COP');
 });
 
+it('puts a sale in the period of its posting date (SAP DocDate), not of its tax date', function () {
+    $this->sap->send(Dataset::Sales, [
+        // Issued in June, posted in July: a July sale.
+        SapBatches::sale(['doc_entry' => 5501, 'fecha_documento' => '2026-06-28', 'fecha_contabilizacion' => '2026-07-02']),
+        // Issued in July, posted in June: a June sale.
+        SapBatches::sale(['doc_entry' => 5502, 'fecha_documento' => '2026-07-03', 'fecha_contabilizacion' => '2026-06-30']),
+    ]);
+
+    $sales = ($this->inputs)()->sales;
+
+    expect($sales)->toHaveCount(1)
+        ->and($sales[0]->key)->toBe('13-5501-0')
+        ->and($sales[0]->documentDate->format('Y-m-d'))->toBe('2026-07-02');
+});
+
+it('takes the posting date of the staged invoice when a payment or crossing has no invoice date', function () {
+    $this->sap->send(Dataset::Sales, [SapBatches::sale(['doc_entry' => 5600, 'fecha_documento' => '2026-05-02', 'fecha_contabilizacion' => '2026-05-06'])]);
+    $this->sap->send(Dataset::Collections, [SapBatches::payment(['doc_entry_factura' => 5600, 'numero_factura' => null, 'fecha_factura' => null])]);
+    $this->sap->send(Dataset::Offsets, [SapBatches::crossing(['doc_entry_factura' => 5600, 'fecha_factura' => null])]);
+
+    $input = ($this->inputs)();
+
+    expect($input->payments[0]->invoiceDate->format('Y-m-d'))->toBe('2026-05-06')
+        ->and($input->crossings[0]->invoiceDate->format('Y-m-d'))->toBe('2026-05-06');
+});
+
 it('never converts a peso amount again when the options ask to convert foreign currency', function () {
     // SAP's document currency and rate stay in staging for reference only.
     $this->sap->send(Dataset::Sales, [SapBatches::sale(['doc_entry' => 5400, 'total' => '40000000.00', 'moneda' => 'USD', 'trm' => '4000.000000'])]);
@@ -136,7 +162,7 @@ it('never converts a peso amount again when the options ask to convert foreign c
 });
 
 it('maps the payments of the period and finds the invoice date', function () {
-    $this->sap->send(Dataset::Sales, [SapBatches::sale(['doc_entry' => 5100, 'numero_documento' => 8100, 'fecha_documento' => '2026-05-02'])]);
+    $this->sap->send(Dataset::Sales, [SapBatches::sale(['doc_entry' => 5100, 'numero_documento' => 8100, 'fecha_documento' => '2026-05-02', 'fecha_contabilizacion' => '2026-05-02'])]);
     $this->sap->send(Dataset::Collections, [
         SapBatches::payment(),
         SapBatches::payment(['linea' => 1, 'estado_pago' => 'anulado']),

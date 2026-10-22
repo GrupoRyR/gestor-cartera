@@ -31,7 +31,7 @@ final class StagingRows
             'clase_documento' => self::required($row, 'clase_documento'),
             'estado_documento' => self::required($row, 'estado_documento'),
             'fecha_documento' => self::required($row, 'fecha_documento'),
-            'fecha_contabilizacion' => self::text($row, 'fecha_contabilizacion'),
+            'fecha_contabilizacion' => self::required($row, 'fecha_contabilizacion'),
             'slp_code' => (int) $row['slp_code'],
             'vendedor' => self::text($row, 'vendedor'),
             'canal' => self::text($row, 'canal'),

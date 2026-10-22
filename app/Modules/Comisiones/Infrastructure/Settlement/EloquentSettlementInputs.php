@@ -35,14 +35,17 @@ use Illuminate\Database\Eloquent\Builder;
  * - sales, payments and crossings dated in the period (the engine would
  *   ignore the others anyway); crossings only when approved (SAP crossings
  *   always are);
+ * - a sale is dated by its posting date, fecha_contabilizacion (SAP
+ *   DocDate, the invoice date), as SAP's owner confirmed; fecha_documento
+ *   (SAP TaxDate) can fall in another month and is kept for reference only;
  * - a cancelled sale counts, signed, like a credit note: SAP marks the
  *   original "anulado" and sends its cancellation ("anulacion") with the
  *   opposite total. In one month they net to zero; when the cancellation
  *   falls in a later month it reduces that month's sales, so a sale already
  *   paid in a closed month is netted instead of lost (§14.2 "netear");
- * - a payment or crossing without an invoice date takes the date of the
- *   staged invoice (tipo_objeto 13, same doc_entry), else its own date
- *   (0 days);
+ * - a payment or crossing without an invoice date takes the posting date
+ *   of the staged invoice (tipo_objeto 13, same doc_entry), the same DocDate
+ *   recaudos.sql sends as fecha_factura, else its own date (0 days);
  * - a crossing's seller override is the latest approved reassignment, else
  *   the seller captured on a manual crossing;
  * - every line is in pesos: the robot sends SAP's local-currency amounts
@@ -74,7 +77,7 @@ final class EloquentSettlementInputs implements SettlementInputs
 
         return new SettlementInput(
             $period,
-            sales: $this->inPeriod(SaleRecord::query(), 'fecha_documento', $period)->get()
+            sales: $this->inPeriod(SaleRecord::query(), 'fecha_contabilizacion', $period)->get()
                 ->map(fn (SaleRecord $sale): SaleLine => $this->sale($sale))->all(),
             payments: $payments->map(fn (PaymentRecord $payment): PaymentLine => $this->payment($payment, $invoices))->all(),
             crossings: $crossings->map(fn (CrossingRecord $crossing): CrossingLine => $this->crossing($crossing, $invoices, $overrides))->all(),
@@ -121,7 +124,8 @@ final class EloquentSettlementInputs implements SettlementInputs
             sellerCode: self::sellerCode($sale->slp_code),
             sellerText: self::sellerText($sale->slp_code, $sale->vendedor),
             documentNumber: (string) $sale->numero_documento,
-            documentDate: $sale->fecha_documento,
+            // The date that put the sale in the period: see the class comment.
+            documentDate: $sale->fecha_contabilizacion,
             documentType: DocumentType::tryFrom($sale->clase_documento) ?? DocumentType::Invoice,
             clientCode: $sale->codigo_cliente,
             clientName: $sale->cliente ?? '',
@@ -147,7 +151,7 @@ final class EloquentSettlementInputs implements SettlementInputs
             paymentNumber: (string) $payment->numero_pago,
             paymentDate: $payment->fecha_pago,
             invoiceNumber: (string) ($payment->numero_factura ?? $payment->doc_entry_factura),
-            invoiceDate: $payment->fecha_factura ?? $invoice->fecha_documento ?? $payment->fecha_pago,
+            invoiceDate: $payment->fecha_factura ?? $invoice->fecha_contabilizacion ?? $payment->fecha_pago,
             clientCode: $payment->codigo_cliente,
             clientName: $payment->nombre_cliente ?? '',
             invoiceAmount: Money::of($payment->valor_factura ?? '0'),
@@ -173,7 +177,7 @@ final class EloquentSettlementInputs implements SettlementInputs
             documentNumber: $crossing->numero_cruce === null ? $crossing->clave : (string) $crossing->numero_cruce,
             crossingDate: $crossing->fecha_cruce,
             invoiceNumber: $crossing->numero_factura ?? (string) ($crossing->doc_entry_factura ?? ''),
-            invoiceDate: $crossing->fecha_factura ?? $invoice->fecha_documento ?? $crossing->fecha_cruce,
+            invoiceDate: $crossing->fecha_factura ?? $invoice->fecha_contabilizacion ?? $crossing->fecha_cruce,
             clientCode: $crossing->codigo_cliente,
             clientName: $crossing->razon_social ?? '',
             counterparty: $crossing->codigo_proveedor ?? $crossing->nit ?? '',

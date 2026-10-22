@@ -27,7 +27,7 @@ beforeEach(function () {
 
     $this->sap->send(Dataset::Sales, [
         SapBatches::sale(['total' => '60000000.00']),
-        SapBatches::sale(['doc_entry' => 5002, 'numero_documento' => 8002, 'codigo_cliente' => 'C800999111', 'cliente' => 'Constructora Andina SAS', 'fecha_documento' => '2026-07-20', 'total' => '9915134.00']),
+        SapBatches::sale(['doc_entry' => 5002, 'numero_documento' => 8002, 'codigo_cliente' => 'C800999111', 'cliente' => 'Constructora Andina SAS', 'fecha_documento' => '2026-07-20', 'fecha_contabilizacion' => '2026-07-20', 'total' => '9915134.00']),
     ]);
     $this->sap->send(Dataset::CustomerMaster, [SapBatches::client()]);
     $this->sap->send(Dataset::Collections, [
