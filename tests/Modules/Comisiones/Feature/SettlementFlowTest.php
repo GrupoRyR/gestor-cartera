@@ -32,7 +32,7 @@ it('settles code 14 of July 2026 from staged SAP sales and its budget, then appr
         SapBatches::sale(['total' => '60000000.00']),
         SapBatches::sale(['linea' => 1, 'total' => '9915134.00']),
         // Last days of June come along with the batch; they belong to June.
-        SapBatches::sale(['linea' => 2, 'fecha_documento' => '2026-06-28', 'total' => '5000000.00']),
+        SapBatches::sale(['linea' => 2, 'fecha_documento' => '2026-06-28', 'fecha_contabilizacion' => '2026-06-28', 'total' => '5000000.00']),
     ]);
     BudgetRecord::query()->create(['periodo' => '2026-07', 'slp_code' => 14, 'valor' => '77241857.00', 'created_by' => $this->analyst->id]);
 

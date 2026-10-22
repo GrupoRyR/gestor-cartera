@@ -21,7 +21,7 @@ use Illuminate\Database\Eloquent\Model;
  * @property string $clase_documento
  * @property string $estado_documento
  * @property CarbonImmutable $fecha_documento
- * @property CarbonImmutable|null $fecha_contabilizacion
+ * @property CarbonImmutable $fecha_contabilizacion
  * @property int $slp_code
  * @property string|null $vendedor
  * @property string|null $canal

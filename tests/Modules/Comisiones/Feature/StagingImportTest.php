@@ -50,6 +50,7 @@ it('stages sales by type, entry and line, and gives the same rows when they arri
     $sale = SaleRecord::query()->where('clave', '13-5001-0')->sole();
 
     expect($sale->fecha_documento->format('Y-m-d'))->toBe('2026-07-15')
+        ->and($sale->fecha_contabilizacion->format('Y-m-d'))->toBe('2026-07-15')
         ->and($sale->slp_code)->toBe(14)
         ->and($sale->moneda)->toBe('$')
         ->and($sale->trm)->toBeNull();
