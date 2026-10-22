@@ -71,6 +71,8 @@ return [
             'approved' => 'Liquidación aprobada',
             'closed' => 'Liquidación cerrada',
             'complemented' => 'Liquidación complementaria registrada',
+            'mailed' => 'Correo de aprobación enviado',
+            'mail_failed' => 'Correo de aprobación no enviado',
         ],
         'export' => [
             'downloaded' => 'Consolidado descargado',

@@ -110,7 +110,13 @@ it('labels every event the module records', function (string $event) {
     'comisiones.support.downloaded', 'comisiones.settlement.calculated', 'comisiones.settlement.approved',
     'comisiones.settlement.closed', 'comisiones.settlement.complemented', 'comisiones.export.downloaded',
     'comisiones.report.generated', 'comisiones.report.downloaded',
+    'comisiones.settlement.mailed', 'comisiones.settlement.mail_failed',
 ]);
+
+it('names the outcomes of the approval mail', function () {
+    expect(AuditLabels::event('comisiones.settlement.mailed'))->toBe('Correo de aprobación enviado')
+        ->and(AuditLabels::event('comisiones.settlement.mail_failed'))->toBe('Correo de aprobación no enviado');
+});
 
 it('filters by user, dates, event and period, and keeps the filters in the pages', function () {
     auditAt('2026-07-31 23:30', 'comisiones.budget.updated', $this->analyst, '2026-07');
