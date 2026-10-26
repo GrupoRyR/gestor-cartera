@@ -17,6 +17,7 @@ use App\Modules\Core\Contracts\CompromisoService;
 use App\Modules\Core\Contracts\CurrentCompany;
 use App\Modules\Core\Contracts\Events\BatchAccepted;
 use App\Modules\Core\Contracts\GestionLogger;
+use App\Modules\Core\Http\Middleware\ContentSecurityPolicy;
 use App\Modules\Core\Http\Middleware\EnsureUserIsActive;
 use App\Modules\Core\Infrastructure\Activity\DatabaseGestionLogger;
 use App\Modules\Core\Infrastructure\Audit\DatabaseAuditLogger;
@@ -100,9 +101,15 @@ final class CoreServiceProvider extends ModuleServiceProvider
         // Appended through the HTTP kernel, not only the router: resolving the
         // kernel after boot (as tests do) syncs its groups into the router and
         // would drop a router-only push.
+        //
+        // The Content-Security-Policy is global, not in the "web" group: the
+        // router sorts auth, can and throttle ahead of what a module appends
+        // to the group, so the guest redirect, a 403 or a 429 would leave
+        // without it, and so would the 404 of a route that does not exist.
         $this->callAfterResolving(HttpKernel::class, function (HttpKernel $kernel): void {
             if ($kernel instanceof FoundationHttpKernel) {
                 $kernel->appendMiddlewareToGroup('web', EnsureUserIsActive::class);
+                $kernel->pushMiddleware(ContentSecurityPolicy::class);
             }
         });
     }

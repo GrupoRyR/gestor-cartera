@@ -122,8 +122,9 @@
         @endif
     </div>
 
-    @verbatim
-        <script>
+    {{-- The nonce lets this inline script run under the Content-Security-Policy. --}}
+    <script nonce="{{ Vite::cspNonce() }}">
+        @verbatim
             (() => {
                 const register = () => window.Alpine.data('kanbanBoard', (config) => ({
                     columns: config.columns,
@@ -249,6 +250,6 @@
                     document.addEventListener('alpine:init', register);
                 }
             })();
-        </script>
-    @endverbatim
+        @endverbatim
+    </script>
 </x-layouts.app>
