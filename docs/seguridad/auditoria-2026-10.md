@@ -14,16 +14,17 @@ Lo que más urge antes del primer despliegue:
 
 1. **HTTPS sin forzar y sin HSTS** (S-01), con la cookie de sesión `Secure` dependiendo de una variable (S-02).
 2. **Ninguna salvaguarda si el Document Root apunta a la raíz del repositorio** (S-03): se descargaría `.env`.
-3. **El repositorio público `SGX-Visualizador-Cartera`** expone la IP de la VPN de SAP y datos personales de los asesores (S-04).
-4. **Las copias de los correos de cobro aceptan cualquier dominio** (S-07): una cuenta de cartera comprometida puede sacar el estado de cuenta de todos los clientes.
+3. **Las copias de los correos de cobro aceptan cualquier dominio** (S-07): una cuenta de cartera comprometida puede sacar el estado de cuenta de todos los clientes.
+
+Los dos repositorios públicos (S-04 y S-05) ya se cerraron el 26 de octubre: el usuario borró `SGX-Visualizador-Cartera` y volvió privado `SGX-Toma-De-Pedidos---SAP`. Queda revisar la VPN, porque su IP estuvo publicada.
 
 | Id | Gravedad | Área | Hallazgo |
 |---|---|---|---|
 | S-01 | Alta | Servidor | No se fuerza HTTPS y no hay HSTS |
 | S-02 | Media | Sesión | La cookie de sesión no es `Secure` por defecto |
 | S-03 | Alta | Servidor | Sin salvaguarda si el Document Root apunta a la raíz |
-| S-04 | Alta | Repos públicos | `SGX-Visualizador-Cartera`: IP de la VPN, arquitectura de SAP y datos personales |
-| S-05 | Media | Repos públicos | `SGX-Toma-De-Pedidos---SAP`: ids de Entra ID, URL de producción y dominio interno |
+| S-04 | Alta | Repos públicos | `SGX-Visualizador-Cartera`: IP de la VPN, arquitectura de SAP y datos personales (repositorio borrado; falta revisar la VPN) |
+| S-05 | Media | Repos públicos | `SGX-Toma-De-Pedidos---SAP`: ids de Entra ID, URL de producción y dominio interno (ya es privado) |
 | S-06 | Media | Servidor | No hay cabeceras de seguridad (CSP, X-Frame-Options, nosniff, Referrer-Policy) |
 | S-07 | Media | Correo | Las copias (Cc) del cobro aceptan cualquier dominio externo |
 | S-08 | Media | Correo | Las plantillas editables salen solas, sin aprobación de un segundo usuario |
@@ -123,7 +124,7 @@ Levanté la app en `127.0.0.1:8123` con los seeders de demostración (SQLite tem
 
 ### Controles de acceso verificados
 
-- Toda ruta web tiene `auth` y su `can:`; lo comprobé en la lista completa de rutas (`php artisan route:list`).
+- Revisé la lista completa de rutas (`php artisan route:list`). Toda ruta de negocio tiene `auth` y su `can:`. Las únicas sin `can:` son las comunes a cualquier usuario con sesión (`/`, `sin-acceso`, `POST empresa`, `POST logout`). Sin `auth` quedan el ingreso con Microsoft, `/up`, las rutas `/dev/*` (solo en local) y `GET` y `PUT /storage/{path}`, que exigen una URL firmada (S-27).
 - Las rutas con id resuelven el registro con el alcance de Core y responden 404 fuera de él: `CarteraRepository::client()`, `CompromisoService::find()` y `lockForWrite`, `ClientReach` en `DeleteActivity.php:33` y `ClientDeletion.php:68-72`, `VisibleCompanies::canSee` en Bancos, `scope()` en `Cobro/RunReportController.php:70`.
 - Ningún controlador usa `CarteraRepository::asSystem()`; solo jobs, comandos y listeners.
 - La sesión se regenera al entrar (`MicrosoftCallbackController.php:45-46`) y se invalida, con token nuevo, al salir (`LogoutController.php:23-25`). No hay «recordarme».
@@ -324,7 +325,7 @@ Levanté la app en `127.0.0.1:8123` con los seeders de demostración (SQLite tem
 
 | Comando | Resultado |
 |---|---|
-| `composer audit --locked` | Sin avisos de seguridad ni paquetes abandonados. |
+| `composer audit --locked` | «No security vulnerability advisories found.» No informó paquetes abandonados. |
 | `npm audit` | `found 0 vulnerabilities`. |
 
 - Las dependencias de desarrollo están en `require-dev` y el despliegue usa `--no-dev` (`deploy/deploy.sh:66`).
@@ -356,7 +357,7 @@ En local, `php artisan serve` no aplica `public/.htaccess`, así que estas cabec
 
 - **Dónde:** no hay `.htaccess` ni `index.php` en la raíz del repositorio. Allí viven, en el servidor, `.env`, `.git/`, `storage/logs`, `legacy/` (con PHP ejecutable y semillas SQL) y `etl/`.
 - **Cómo se explotaría:** si en cPanel el dominio queda apuntando a `<app>/` en vez de `<app>/public` (§16 de la arquitectura lo pide, pero es un paso manual), `GET /.env` entrega `APP_KEY`, los secretos de Entra ID y Graph, las llaves HMAC y la contraseña de MySQL. Con `APP_KEY` se falsifican cookies y URL firmadas (S-27).
-- **Corrección:** un `.htaccess` en la raíz con `Require all denied`, más `Require all granted` al inicio de `public/.htaccess` (Apache hereda los `.htaccess` de los padres; probarlo en el hosting). Además, no dejar `legacy/` ni `etl/.env` en el servidor.
+- **Corrección:** un `.htaccess` en la raíz que rechace toda petición con `RewriteEngine On` y `RewriteRule ^ - [F]`. Las reglas de reescritura no se heredan: el `RewriteEngine On` de `public/.htaccess` las reemplaza, así que la app sigue igual cuando el Document Root es correcto. Con `Require all denied` sí habría herencia, y `public/` necesitaría su propio `Require all granted`. Hay que probarlo en el hosting. Además, no dejar `legacy/` ni `etl/.env` en el servidor.
 
 ### S-06 · Media · No hay cabeceras de seguridad
 
@@ -456,9 +457,11 @@ En local, `php artisan serve` no aplica `public/.htaccess`, así que estas cabec
 
 ## 9. Repositorios públicos
 
-Los cloné en modo espejo (sin ejecutar nada) y revisé todo su historial con los mismos patrones de la sección 5. Los dos son **públicos** en GitHub y sus commits llevan como autor `Claude@SEGUREX.LOCAL`, el nombre del dominio interno de Windows.
+Los cloné en modo espejo (sin ejecutar nada) y revisé todo su historial con los mismos patrones de la sección 5. El día de la revisión los dos eran **públicos** en GitHub, y sus commits llevan como autor `Claude@SEGUREX.LOCAL`, el nombre del dominio interno de Windows.
 
-### S-04 · Alta · `GrupoRyR/SGX-Visualizador-Cartera`
+**Estado el 26 de octubre de 2026:** el usuario borró `SGX-Visualizador-Cartera` y volvió privado `SGX-Toma-De-Pedidos---SAP`. Lo comprobé: GitHub ya no encuentra el primero, el segundo figura como privado y los dos responden 404 sin sesión. Lo que estuvo publicado pudo quedar copiado en otros sitios, así que siguen pendientes los pasos de la VPN (S-04, punto 2) y de Entra ID (S-05).
+
+### S-04 · Alta · `GrupoRyR/SGX-Visualizador-Cartera` (repositorio borrado)
 
 3 commits, último push el 22 de septiembre de 2026. Es el portal de asesores en Next.js con el robot ETL anterior.
 
@@ -474,7 +477,7 @@ Los cloné en modo espejo (sin ejecutar nada) y revisé todo su historial con lo
   2. Como la IP ya fue pública, revisar con TI los registros de la VPN Sophos, exigir MFA y bloqueo por intentos, y valorar cambiar la IP o restringir por país.
   3. Si debe seguir público, reescribir el historial para quitar esos archivos (`git filter-repo`) y rotar lo que haya pasado por él.
 
-### S-05 · Media · `GrupoRyR/SGX-Toma-De-Pedidos---SAP`
+### S-05 · Media · `GrupoRyR/SGX-Toma-De-Pedidos---SAP` (ya es privado)
 
 22 commits, último push el 7 de octubre de 2026. Es la web de pedidos en Laravel, publicada en `pedidos.segurex.com.co`.
 
@@ -494,7 +497,7 @@ PR pequeños, cada uno con una prueba que falle antes de corregir. Los que tocan
 
 | Orden | PR | Hallazgos | Archivos (fuera de módulo = pedir autorización) |
 |---|---|---|---|
-| 1 | Servidor: HTTPS, HSTS, cabeceras y salvaguarda de la raíz | S-01, S-03, S-06 (estáticas), S-26 | `public/.htaccess`, `.htaccess` nuevo en la raíz (base y Diseño) |
+| 1 | Servidor: HTTPS, HSTS, cabeceras y salvaguarda de la raíz | S-01, S-03, S-06 (estáticas), S-26 | `public/.htaccess`, `.htaccess` nuevo en la raíz, `tests/Feature/Server/HtaccessTest.php` y §16 de `docs/arquitectura.md` (todos de la base) |
 | 2 | Sesión, almacenamiento, CORS y despliegue | S-02, S-21, S-23 (sesión), S-27, S-30 | `config/session.php`, `config/filesystems.php`, `config/cors.php` nuevo, `deploy/deploy.sh` (base) |
 | 3 | Core: CSP, límites de ingreso y auditoría de acceso | S-06 (CSP), S-09, S-12, S-13 (Core), S-35 | `app/Modules/Core/**`, `tests/Modules/Core/**`; la CSP también toca el script en línea de `app/Modules/Cartera/resources/views/kanban/index.blade.php` y `public/offline.html` |
 | 4 | Ingreso de demostración con bandera explícita | S-11 | `routes/web.php`, `app/Http/Controllers/Dev/**`, `database/seeders/**`, `config/app.php` (base) |
@@ -507,7 +510,7 @@ PR pequeños, cada uno con una prueba que falle antes de corregir. Los que tocan
 
 Fuera del código, para el usuario o TI:
 
-- Volver privados los dos repositorios públicos y revisar la VPN (S-04, S-05).
+- Revisar los registros de la VPN Sophos, exigir MFA y bloqueo por intentos, y valorar cambiar su IP (S-04); revisar en Entra ID las URI de redirección y la asignación de usuarios de la app de pedidos (S-05). Los dos repositorios ya no son públicos.
 - Confirmar en GoDaddy: Document Root en `public`, proxy delante o no, `TRIGGER` en MySQL y `zend.exception_ignore_args` (S-03, S-14, S-28, S-29).
 - Confirmar en Exchange Online que la aplicación de Graph está limitada a los dos buzones (`Test-ServicePrincipalAuthorization`).
 - Definir los plazos de retención de logs y auditoría con el área legal (S-29).
@@ -515,7 +518,7 @@ Fuera del código, para el usuario o TI:
 
 ## Cómo se hizo
 
-- Lectura del código de los ocho módulos, la base, `etl/` y `deploy/`, en cuatro frentes en paralelo (acceso, entradas, API y correo, configuración y registro). Cada hallazgo se verificó leyendo el código citado.
+- Lectura del código de los ocho módulos, la base, `etl/` y `deploy/`, en cuatro frentes en paralelo (acceso, entradas, API y correo, configuración y registro). Cada frente verificó sus citas leyendo el código, y en la revisión final volví a leer las de los hallazgos altos y medios y las de S-16, S-32, S-33 y S-34.
 - Pruebas contra la app en `127.0.0.1` con los datos de demostración, sin red externa, sin SAP, sin VPN y sin bases reales.
 - `composer audit`, `npm audit` y el escaneo de secretos de la sección 5.
 - Copia espejo de los dos repositorios públicos, sin ejecutar su código.
