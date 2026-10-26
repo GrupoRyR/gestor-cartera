@@ -1,4 +1,5 @@
 @use('App\Support\Formatting\DateFormat')
+@use('App\Modules\Cobro\Http\Requests\UpdateCopiesRequest')
 @use('App\View\Components\Support\FieldStyle')
 
 {{--
@@ -17,6 +18,7 @@
     ], $companies);
     $managers = array_map(fn (array $manager) => ['grupo' => $manager['group'], 'correos' => implode(', ', $manager['emails'])], $settings->managers);
     $rows = max(count((array) old('gerentes', [])), count($managers) + $emptyRows);
+    $addressHint = __('cobro::copias.campos.ayuda_correos').' '.__('cobro::copias.campos.ayuda_dominios', ['dominios' => UpdateCopiesRequest::domainList()]);
 @endphp
 
 <x-layouts.app :title="__('cobro::copias.titulo')">
@@ -40,7 +42,7 @@
                 @csrf
                 @method('PUT')
 
-                <x-ui.textarea name="fijos" :label="__('cobro::copias.campos.fijos')" :value="implode(PHP_EOL, $settings->fixed)" :rows="4" :hint="__('cobro::copias.campos.ayuda_correos')" />
+                <x-ui.textarea name="fijos" :label="__('cobro::copias.campos.fijos')" :value="implode(PHP_EOL, $settings->fixed)" :rows="4" :hint="$addressHint" />
 
                 <x-ui.checkbox name="asesor" :label="__('cobro::copias.campos.asesor')" :checked="$settings->advisor" :hint="__('cobro::copias.campos.ayuda_asesor')" />
 
@@ -51,7 +53,7 @@
                     @for ($i = 0; $i < $rows; $i++)
                         <div class="grid gap-3 md:grid-cols-[minmax(0,1fr)_minmax(0,2fr)]" data-manager-row="{{ $i }}">
                             <x-ui.input :name="'gerentes['.$i.'][grupo]'" :label="__('cobro::copias.gerentes.grupo', ['numero' => $i + 1])" :value="$managers[$i]['grupo'] ?? ''" maxlength="100" />
-                            <x-ui.input :name="'gerentes['.$i.'][correos]'" :label="__('cobro::copias.gerentes.correos', ['numero' => $i + 1])" :value="$managers[$i]['correos'] ?? ''" :hint="__('cobro::copias.campos.ayuda_correos')" />
+                            <x-ui.input :name="'gerentes['.$i.'][correos]'" :label="__('cobro::copias.gerentes.correos', ['numero' => $i + 1])" :value="$managers[$i]['correos'] ?? ''" :hint="$addressHint" />
                         </div>
                     @endfor
                 </fieldset>

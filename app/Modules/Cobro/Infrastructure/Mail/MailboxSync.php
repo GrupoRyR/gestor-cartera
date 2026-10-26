@@ -28,7 +28,8 @@ use Illuminate\Support\Facades\Log;
  *   so a long round continues in the next run.
  * - A message linked to a client is logged in the client's activity as
  *   EmailReceived; a linked bounce also raises BounceLinked.
- * - Graph answering 410 (the sync state expired) restarts the round.
+ * - Graph answering 410 (the sync state expired), or a saved link that
+ *   GraphClient refuses (not under Graph v1.0), restarts the round.
  */
 final class MailboxSync
 {
@@ -96,8 +97,9 @@ final class MailboxSync
                 break;
             }
         } catch (GraphRequestFailed $e) {
-            if ($e->status === 410) {
-                // The saved state expired: the next run starts a new round.
+            if ($e->status === 410 || $e->graphCode === GraphClient::REJECTED_URL) {
+                // The saved state expired or points outside Graph: the next
+                // run starts a new round.
                 $cursor->delta_link = null;
                 $cursor->next_link = null;
             }

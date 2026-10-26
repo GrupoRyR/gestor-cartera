@@ -66,6 +66,12 @@ return [
         ],
     ],
 
+    // The only domains a carbon copy may go to, for both companies: an exact
+    // match without regard to case (no subdomains). /cobro/copias rejects
+    // any other address, and the send drops any other copy (an address
+    // saved before this rule, or a client's advisor with another domain).
+    'copy_domains' => ['segurex.com', 'derivadoscol.com'],
+
     // Monthly circularization at close (4.2): the 1st at 09:00, Bogotá
     // time, for both companies, in the format each one sends today. The
     // robot dates each snapshot with the day it extracts it (about 19:00),

@@ -73,3 +73,19 @@ it('reads settings from their stored shape, leaving out incomplete managers', fu
         ->and($settings->managers)->toBe([['group' => 'DISTRIBUCION', 'emails' => ['b@x.example']]])
         ->and($settings->isDefault)->toBeTrue();
 });
+
+it('keeps only the addresses of the allowed domains, in order', function () {
+    expect(CopyRecipients::allowed(
+        ['Ana@Segurex.com', 'tesoreria@cliente.example', ' diana.mora@DERIVADOSCOL.COM ', 'x@mail.segurex.com', 'sin-arroba', 'raro@cliente.example@segurex.com.co'],
+        ['segurex.com', 'Derivadoscol.com'],
+    ))->toBe(['Ana@Segurex.com', ' diana.mora@DERIVADOSCOL.COM ']);
+});
+
+it('compares the part after the last @', function () {
+    expect(CopyRecipients::allowed(['"a@b"@segurex.com', 'ana@segurex.com@cliente.example'], ['segurex.com']))
+        ->toBe(['"a@b"@segurex.com']);
+});
+
+it('allows nothing without domains', function () {
+    expect(CopyRecipients::allowed(['ana@segurex.com'], []))->toBe([]);
+});

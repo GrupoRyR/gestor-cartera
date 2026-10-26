@@ -16,6 +16,7 @@ return [
     'campos' => [
         'fijos' => 'Siempre con copia a',
         'ayuda_correos' => 'Escribe un correo por línea o sepáralos con comas.',
+        'ayuda_dominios' => 'Solo se aceptan correos de :dominios.',
         'asesor' => 'Copiar al asesor del cliente',
         'ayuda_asesor' => 'Se usa el correo del asesor registrado en SAP, cuando lo tiene.',
     ],
@@ -40,6 +41,7 @@ return [
 
     'validacion' => [
         'invalidos' => 'Estos correos no son válidos: :correos.',
+        'dominio' => 'Solo se permiten copias a correos de :dominios: :correos.',
         'grupo_obligatorio' => 'Escribe el grupo de SAP de estos correos.',
         'correos_obligatorios' => 'Escribe al menos un correo para este grupo.',
         'fijos' => 'siempre con copia a',

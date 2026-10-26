@@ -59,6 +59,11 @@ Se editan en `/cobro/copias` y se guardan en `cobro_copias`, una fila por empres
 
 Las dos clases de correo usan las mismas copias de la empresa: lo que se guarde en `/cobro/copias` aplica a ambas. La vista previa del envío muestra las copias de cada cliente; la prueba que se envía el usuario no lleva copias.
 
+Las copias solo pueden ir a los dominios de `config('cobro.copy_domains')` (`segurex.com` y `derivadoscol.com`, una sola lista para las dos empresas). El dominio es lo que va después de la última `@` y debe coincidir exactamente, sin importar mayúsculas: `ana@mail.segurex.com` no cuenta.
+
+- `/cobro/copias` rechaza los correos de otros dominios con el mensaje «Solo se permiten copias a correos de segurex.com o derivadoscol.com: …» y muestra esos dominios en la ayuda de cada campo.
+- Justo antes de enviar, `SendRunItem` quita de la copia cualquier otro correo: filas guardadas antes de esta regla o un asesor de SAP con otro dominio. Deja un aviso `cobro.copies.dropped` en el registro con la empresa, el envío, cuántos correos quitó y solo sus dominios (no las direcciones, por minimización de datos de la Ley 1581). `GraphMailSender` no filtra, porque lo comparten otros módulos.
+
 ## Microsoft Graph: lo que TI debe configurar
 
 Variables de `.env` (`docs/arquitectura.md` §15): `GRAPH_TENANT_ID`, `GRAPH_CLIENT_ID`, `GRAPH_CLIENT_SECRET`, `COBRO_MAILBOX_SGX` y `COBRO_MAILBOX_SDC`.
@@ -90,6 +95,11 @@ Variables de `.env` (`docs/arquitectura.md` §15): `GRAPH_TENANT_ID`, `GRAPH_CLI
    ```
 
 `Application Mail.Send` permite enviar y `Application Mail.ReadWrite` crear el borrador (de ahí salen los identificadores), borrarlo si el envío falla y leer la bandeja de entrada. Los cambios de permisos tardan entre 30 minutos y 2 horas en aplicarse.
+
+Protecciones de `GraphClient`:
+
+- **Token cifrado en la caché**: el token de aplicación se guarda en la caché (`cobro.graph.token`) cifrado con `APP_KEY`. Si no se puede descifrar (un token guardado en texto plano antes de este cambio o una `APP_KEY` rotada), cuenta como si no estuviera y se pide uno nuevo.
+- **Solo URLs de Graph**: un enlace absoluto (el `@odata.nextLink` o `@odata.deltaLink` guardado en `cobro_mailbox_cursors`) solo se sigue si es `https`, con host exactamente `graph.microsoft.com`, sin usuario ni puerto y con ruta bajo `/v1.0/`. Cualquier otro se rechaza antes de leer el token, así que el token nunca sale hacia otro host; el error nombra el host, nunca la consulta. La sincronización borra entonces los dos enlaces del buzón y la siguiente vuelta empieza de nuevo, igual que cuando Graph responde 410.
 
 ## Circularización (4.2)
 

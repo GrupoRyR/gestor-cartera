@@ -8,6 +8,8 @@ use App\Modules\Core\Contracts\Enums\CompanyCode;
 use App\Modules\Core\Contracts\Exceptions\MailNotSent;
 use Carbon\CarbonImmutable;
 use Illuminate\Http\Client\Request;
+use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Crypt;
 use Illuminate\Support\Facades\Http;
 use Tests\Modules\Cobro\Support\GraphFake;
 
@@ -89,6 +91,30 @@ it('reuses the cached token for later mails', function () {
 
     expect($graph->tokenRequests())->toBe(1)
         ->and($graph->requestsTo('POST', 'users/*/messages/*/send'))->toHaveCount(2);
+});
+
+it('keeps the cached token encrypted', function () {
+    cobroGraphAccepting();
+    $token = GraphFake::fixture('token.json')['access_token'];
+
+    app(GraphMailSender::class)->send(cobroOutgoing());
+
+    $cached = Cache::get('cobro.graph.token');
+
+    expect($cached)->toBeString()->not->toBe($token)->not->toContain($token)
+        ->and(Crypt::decryptString($cached))->toBe($token);
+});
+
+it('asks for a new token when the cached one cannot be decrypted', function () {
+    $graph = cobroGraphAccepting();
+    // A token cached in plain text before encryption, or under an old APP_KEY.
+    Cache::put('cobro.graph.token', 'legacy-plain-token', 3600);
+
+    app(GraphMailSender::class)->send(cobroOutgoing());
+
+    expect($graph->tokenRequests())->toBe(1)
+        ->and($graph->requests()[0]->hasHeader('Authorization', 'Bearer '.GraphFake::fixture('token.json')['access_token']))->toBeTrue()
+        ->and(Crypt::decryptString(Cache::get('cobro.graph.token')))->toBe(GraphFake::fixture('token.json')['access_token']);
 });
 
 it('sends from the SDC mailbox for SDC mail', function () {

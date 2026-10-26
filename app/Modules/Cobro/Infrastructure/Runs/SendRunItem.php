@@ -26,7 +26,8 @@ use Throwable;
 /**
  * Sends the mail of one run item: renders it with the client's data at
  * send time and hands it to MailSender (with the carbon copies the
- * definition rendered, minus the item's own recipients), then records the outcome on the
+ * definition rendered, minus the item's own recipients and any address
+ * outside config cobro.copy_domains), then records the outcome on the
  * item and the EmailSent activity of the client.
  *
  * The job first claims the item (pending → enviando in one UPDATE), so a
@@ -117,7 +118,7 @@ final class SendRunItem implements ShouldQueue
                 to: $item->recipients,
                 subject: $mail->subject,
                 html: $mail->html,
-                cc: CopyRecipients::excluding($mail->cc, $item->recipients),
+                cc: $this->copies($item, CopyRecipients::excluding($mail->cc, $item->recipients)),
                 clientId: $item->client_id,
                 category: $run->kind->value,
             ));
@@ -132,6 +133,31 @@ final class SendRunItem implements ShouldQueue
         }
 
         return null;
+    }
+
+    /**
+     * The copies of the company domains only. Copies saved before the rule,
+     * or a client's advisor with another domain, are dropped with one
+     * warning that names only their domains (no third-party addresses).
+     *
+     * @param  list<string>  $cc
+     * @return list<string>
+     */
+    private function copies(RunItem $item, array $cc): array
+    {
+        $allowed = CopyRecipients::allowed($cc, array_values(array_map(strval(...), (array) config('cobro.copy_domains', []))));
+        $dropped = array_values(array_diff($cc, $allowed));
+
+        if ($dropped !== []) {
+            Log::warning('cobro.copies.dropped', [
+                'company' => $item->run->company->value,
+                'run_item' => $item->id,
+                'count' => count($dropped),
+                'domains' => array_values(array_unique(array_map(CopyRecipients::domain(...), $dropped))),
+            ]);
+        }
+
+        return $allowed;
     }
 
     /**
