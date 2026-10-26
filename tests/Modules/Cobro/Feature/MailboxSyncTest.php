@@ -1,5 +1,7 @@
 <?php
 
+use App\Modules\Cobro\Infrastructure\Graph\GraphClient;
+use App\Modules\Cobro\Infrastructure\Graph\GraphRequestFailed;
 use App\Modules\Cobro\Infrastructure\Mail\BounceLinked;
 use App\Modules\Cobro\Infrastructure\Persistence\InboundMessage;
 use App\Modules\Cobro\Infrastructure\Persistence\MailboxCursor;
@@ -230,6 +232,66 @@ it('restarts the round when Graph says the sync state expired', function () {
 
     expect($cursor->delta_link)->toBeNull()
         ->and($cursor->last_error)->toContain('HTTP 410 (SyncStateNotFound)');
+});
+
+it('never follows a saved link outside Graph and restarts the round', function () {
+    $graph = cobroInboxGraph();
+    MailboxCursor::query()->create([
+        'mailbox' => 'segurex.info@segurex.com',
+        'next_link' => 'https://graph.evil.example/v1.0/'.COBRO_DELTA.'?$skiptoken=robado',
+        'delta_link' => 'https://graph.microsoft.com/v1.0/'.COBRO_DELTA.'?$deltatoken=valido',
+    ]);
+
+    $this->artisan('cobro:sincronizar-buzones')
+        ->expectsOutputToContain('Segurex Latam: no se pudo leer el buzón.')
+        ->assertFailed();
+
+    $cursor = MailboxCursor::query()->sole();
+
+    expect($graph->requests())->toBe([])
+        ->and($graph->tokenRequests())->toBe(0)
+        ->and($cursor->next_link)->toBeNull()
+        ->and($cursor->delta_link)->toBeNull()
+        ->and($cursor->last_error)->toContain('graph.evil.example')->not->toContain('robado');
+
+    $this->artisan('cobro:sincronizar-buzones')->assertSuccessful();
+
+    parse_str((string) parse_url($graph->requests()[0]->url(), PHP_URL_QUERY), $query);
+
+    expect($query)->toHaveKey('$filter');
+});
+
+it('refuses absolute URLs that are not Graph v1.0 before asking for a token', function (string $url) {
+    $graph = GraphFake::install();
+
+    try {
+        app(GraphClient::class)->get($url);
+        $this->fail('GraphRequestFailed was not thrown.');
+    } catch (GraphRequestFailed $e) {
+        expect($e->graphCode)->toBe(GraphClient::REJECTED_URL)
+            ->and($e->getMessage())->not->toContain('secreto');
+    }
+
+    expect($graph->requests())->toBe([])
+        ->and($graph->tokenRequests())->toBe(0);
+})->with([
+    'plain http' => ['http://graph.microsoft.com/v1.0/users/a/messages?$skiptoken=secreto'],
+    'another host' => ['https://graph.microsoft.com.evil.example/v1.0/users/a/messages?$skiptoken=secreto'],
+    'user info' => ['https://graph.microsoft.com@evil.example/v1.0/users/a/messages?$skiptoken=secreto'],
+    'credentials' => ['https://user:pw@graph.microsoft.com/v1.0/users/a/messages?$skiptoken=secreto'],
+    'a port' => ['https://graph.microsoft.com:8443/v1.0/users/a/messages?$skiptoken=secreto'],
+    'beta' => ['https://graph.microsoft.com/beta/users/a/messages?$skiptoken=secreto'],
+    'no version folder' => ['https://graph.microsoft.com/v1.0x/users/a/messages?$skiptoken=secreto'],
+    'backslash' => ['https://evil.example\@graph.microsoft.com/v1.0/users/a/messages?$skiptoken=secreto'],
+]);
+
+it('follows a Graph v1.0 link whatever the case of its host', function () {
+    $graph = GraphFake::install()->on('GET', 'users/a/messages', ['value' => []]);
+
+    app(GraphClient::class)->get('HTTPS://Graph.Microsoft.COM/v1.0/users/a/messages?$skiptoken=1');
+
+    expect($graph->requests())->toHaveCount(1)
+        ->and($graph->requests()[0]->url())->toStartWith('https://graph.microsoft.com/v1.0/users/a/messages?');
 });
 
 it('keeps reading the other inboxes when one fails', function () {

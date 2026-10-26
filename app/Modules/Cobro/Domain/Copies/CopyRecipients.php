@@ -70,6 +70,37 @@ final class CopyRecipients
     }
 
     /**
+     * $addresses whose domain (the part after the last @, trimmed) is
+     * exactly one of $domains without regard to case, in order: a
+     * subdomain (ana@mail.segurex.com) does not count.
+     *
+     * @param  list<string>  $addresses
+     * @param  list<string>  $domains
+     * @return list<string>
+     */
+    public static function allowed(array $addresses, array $domains): array
+    {
+        $allowed = array_fill_keys(array_map(fn (string $domain): string => mb_strtolower(trim($domain)), $domains), true);
+        unset($allowed['']);
+
+        return array_values(array_filter(
+            $addresses,
+            fn (string $address): bool => isset($allowed[self::domain($address)]),
+        ));
+    }
+
+    /**
+     * The domain of an address as compared: after the last @, trimmed and
+     * lowercase; empty without an @.
+     */
+    public static function domain(string $address): string
+    {
+        $at = strrpos($address, '@');
+
+        return $at === false ? '' : mb_strtolower(trim(substr($address, $at + 1)));
+    }
+
+    /**
      * @param  list<string>  $addresses
      * @return list<string>
      */

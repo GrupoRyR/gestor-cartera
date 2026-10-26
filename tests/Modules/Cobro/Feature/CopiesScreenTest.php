@@ -153,6 +153,26 @@ it('rejects an address whose domain has no dot', function () {
     expect(CopySetting::query()->count())->toBe(0);
 });
 
+it('rejects copies outside the company domains, subdomains included', function () {
+    $this->actingAs($this->analyst)
+        ->put('/cobro/copias/SGX', cobroCopiesForm([
+            'fijos' => 'miguel.martinez@segurex.com, Tesoreria@Cliente.example, diana.mora@DERIVADOSCOL.com',
+            'gerentes' => [['grupo' => 'DISTRIBUCION', 'correos' => 'jessika.quintero@segurex.com, x@mail.segurex.com']],
+        ]))
+        ->assertSessionHasErrors([
+            'fijos' => 'Solo se permiten copias a correos de segurex.com o derivadoscol.com: Tesoreria@Cliente.example.',
+            'gerentes.0.correos' => 'Solo se permiten copias a correos de segurex.com o derivadoscol.com: x@mail.segurex.com.',
+        ]);
+
+    expect(CopySetting::query()->count())->toBe(0);
+});
+
+it('tells which domains the copies accept', function () {
+    $this->actingAs($this->analyst)->get('/cobro/copias')
+        ->assertOk()
+        ->assertSeeText('Solo se aceptan correos de segurex.com o derivadoscol.com.');
+});
+
 it('answers 404 for a company the user may not choose', function () {
     $this->app->instance(CurrentCompany::class, new FakeCurrentCompany(CompanyCode::SGX, [CompanyCode::SGX]));
 

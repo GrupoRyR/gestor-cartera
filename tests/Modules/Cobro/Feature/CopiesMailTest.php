@@ -68,8 +68,38 @@ it('copies the fixed addresses, the advisor and the group manager, without dupli
 
     expect(cobroMailFor($this->distribuidor->summary->id)->cc)
         ->toBe(['miguel.martinez@segurex.com', 'Jenny.Buitrago@segurex.com', 'jessika.quintero@segurex.com'])
-        // Ferretería El Tornillo has no advisor and its group has no manager.
-        ->and(cobroMailFor($this->portfolio->tornillo->summary->id)->cc)->toBe(['miguel.martinez@segurex.com', 'PAGOS@central.example']);
+        // Ferretería El Tornillo has no advisor and its group has no manager;
+        // the fixed copy of another client's domain is never sent.
+        ->and(cobroMailFor($this->portfolio->tornillo->summary->id)->cc)->toBe(['miguel.martinez@segurex.com']);
+});
+
+it('drops, before sending, the copies outside the company domains and logs only their domains', function () {
+    Log::spy();
+    app(CopyStore::class)->save(CompanyCode::SGX, new CopySettings(
+        fixed: ['cartera@segurex.com', 'auditor@externo.example', 'ana@mail.segurex.com'],
+        advisor: true,
+        managers: [['group' => 'distribucion', 'emails' => ['nueva.gerente@derivadoscol.com']]],
+    ), null);
+    $outsider = Make::advisor(code: 63, name: 'ASESOR EXTERNO', email: 'asesor@Gmail.example');
+    $client = Make::clientDetail(
+        Make::client(name: 'Cliente De Asesor Externo SAS', balance: 200_000, overdue: 200_000, maxDaysOverdue: 9, advisor: $outsider),
+        group: 'DISTRIBUCION',
+        contacts: [Make::contact(email: 'pagos@externo-cliente.example', isPrimary: true)],
+    );
+    $this->fakes->cartera->addAdvisor($outsider)->addClient(
+        $client,
+        Make::invoice(clientId: $client->summary->id, documentNumber: 'FV-4001', amount: 200_000, daysOverdue: 9),
+    );
+
+    $this->artisan('cobro:cobro-semanal')->assertSuccessful();
+
+    $item = RunItem::query()->where('client_id', $client->summary->id)->sole();
+
+    expect(cobroMailFor($client->summary->id)->cc)->toBe(['cartera@segurex.com', 'nueva.gerente@derivadoscol.com'])
+        ->and(cobroMailFor($client->summary->id)->to)->toBe(['pagos@externo-cliente.example']);
+
+    Log::shouldHaveReceived('warning')->withArgs(fn (string $message, array $context): bool => $message === 'cobro.copies.dropped'
+        && $context === ['company' => 'SGX', 'run_item' => $item->id, 'count' => 3, 'domains' => ['externo.example', 'mail.segurex.com', 'gmail.example']])->once();
 });
 
 it('copies only the SDC fixed addresses of the configuration', function () {
@@ -100,7 +130,7 @@ it('never copies an advisor SAP lists as inactive', function () {
 
     $this->artisan('cobro:cobro-semanal')->assertSuccessful();
 
-    expect(cobroMailFor($client->summary->id)->cc)->toBe(['miguel.martinez@segurex.com', 'PAGOS@central.example']);
+    expect(cobroMailFor($client->summary->id)->cc)->toBe(['miguel.martinez@segurex.com']);
 });
 
 it('copies what the company saved instead of the configuration', function () {

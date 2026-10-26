@@ -6,13 +6,16 @@ use App\Modules\Cobro\Domain\Copies\CopyRecipients;
 use App\Modules\Cobro\Domain\Copies\CopySettings;
 use Closure;
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Support\Arr;
 
 /**
  * PUT /cobro/copias/{empresa}: the fixed addresses (fijos, one per line or
  * comma-separated), whether the client's advisor is copied (asesor) and
  * the manager rows (gerentes[n][grupo], gerentes[n][correos]). Blank rows
  * are ignored; a row needs both its group and its addresses, and every
- * address must be valid, with a dot in its domain (ana@segurex is not).
+ * address must be valid, with a dot in its domain (ana@segurex is not),
+ * and of one of the domains of config cobro.copy_domains exactly (not a
+ * subdomain).
  */
 final class UpdateCopiesRequest extends FormRequest
 {
@@ -21,15 +24,26 @@ final class UpdateCopiesRequest extends FormRequest
      */
     public function rules(): array
     {
-        $addresses = function (string $attribute, mixed $value, Closure $fail): void {
+        $domains = self::domains();
+
+        $addresses = function (string $attribute, mixed $value, Closure $fail) use ($domains): void {
+            $written = CopyRecipients::split((string) $value);
             $invalid = array_values(array_filter(
-                CopyRecipients::split((string) $value),
+                $written,
                 fn (string $address): bool => ! str_contains((string) strrchr($address, '@'), '.')
                     || validator(['correo' => $address], ['correo' => ['email']])->fails(),
             ));
 
             if ($invalid !== []) {
                 $fail(__('cobro::copias.validacion.invalidos', ['correos' => implode(', ', $invalid)]));
+
+                return;
+            }
+
+            $outside = array_values(array_diff($written, CopyRecipients::allowed($written, $domains)));
+
+            if ($outside !== []) {
+                $fail(__('cobro::copias.validacion.dominio', ['dominios' => self::domainList(), 'correos' => implode(', ', $outside)]));
             }
         };
 
@@ -64,6 +78,24 @@ final class UpdateCopiesRequest extends FormRequest
             'gerentes.*.grupo' => __('cobro::copias.validacion.grupo'),
             'gerentes.*.correos' => __('cobro::copias.validacion.correos'),
         ];
+    }
+
+    /**
+     * The domains a copy may go to (config cobro.copy_domains).
+     *
+     * @return list<string>
+     */
+    public static function domains(): array
+    {
+        return array_values(array_map(strval(...), (array) config('cobro.copy_domains', [])));
+    }
+
+    /**
+     * The domains as the screen writes them: "segurex.com o derivadoscol.com".
+     */
+    public static function domainList(): string
+    {
+        return Arr::join(self::domains(), ', ', ' o ');
     }
 
     public function settings(): CopySettings
