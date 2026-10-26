@@ -110,7 +110,7 @@ FROM (
         SELECT "TransId", "DocTotal", "VatSum" FROM "ORIN"
     ) T5 ON T0."TransId" = T5."TransId"
     WHERE T1."CardType" = 'C'
-      AND T0."Account" IN ('13050505', '13051005')
+      AND T0."Account" IN ('13050505', '13051005') -- @cuentas_por_cobrar
       AND (T0."BalDueDeb" - T0."BalDueCred") <> 0
 ) X
 ORDER BY X."Nombre SN", X."Fecha vencimiento"

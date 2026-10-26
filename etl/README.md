@@ -64,6 +64,8 @@ Cada lote es una consulta de `etl/queries` y su contrato de columnas en `etl/esq
 - **Los demás lotes** son de mejor esfuerzo: si uno falla, se registra, se avisa al final y la corrida termina con código 1, pero la cartera se publica igual.
 - Un lote que no admite 0 filas y llega vacío no se envía; Laravel conserva su última carga.
 
+**Cuentas por cobrar por empresa.** `cartera.sql` filtra `JDT1.Account` con las cuentas de Segurex (`13050505`, `13051005`), así corre tal cual en el Query Manager. Con `INGESTA_EMPRESA=SDC` el robot reemplaza esa lista (la que precede al marcador `-- @cuentas_por_cobrar`) por las de Derivados (`13050501`, `13051005`). Las cuentas de cada empresa están en `CUENTAS_POR_COBRAR` de `config.py`; si cambias la lista del `.sql`, cambia también ahí (una prueba lo verifica). Los otros lotes no filtran por cuenta.
+
 `ETL_LOTES` decide qué lotes corren. Agrega un lote nuevo solo después de validar su consulta con datos reales.
 
 | Lote | Consulta | Lo consume | Llave natural | Admite 0 filas |
@@ -147,6 +149,8 @@ Cada punto está marcado en su consulta con `VALIDAR CON DATOS REALES`. Valídal
 ```
 
 El modo diagnóstico conecta la VPN, ejecuta la consulta, baja la VPN, guarda el CSV en `etl/out` y revisa cada fila contra el contrato de `esquema.py` (tipos y columnas obligatorias). No publica en ningún lado. `--lotes` reemplaza a `ETL_LOTES` en esa corrida; acepta varios separados por comas.
+
+Para Derivados, pon `INGESTA_EMPRESA=SDC` en `etl/.env` y corre `--diagnostico --lotes cartera`: el CSV debe traer filas con «Cuenta visible» `13050501` o `13051005`, y ninguna `13050505`.
 
 Revisa el CSV y compara los totales con el informe equivalente de SAP antes de agregar el lote a `ETL_LOTES`.
 
