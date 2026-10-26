@@ -1068,6 +1068,31 @@ Variables opcionales: `PHP` (el mismo binario del cron) y `COMPOSER_BIN` (p. ej.
 - Prueba de vida: `GET /up` responde 200 cuando la app arranca.
 - Cron: la línea de §10.
 
+**Lo que hace Apache** (`public/.htaccess`, auditoría S-01, S-06 y S-26):
+
+- Redirige `http://` a `https://` con 301. La excepción es `/.well-known/`, porque AutoSSL de cPanel valida los certificados por `http`. La cabecera `X-Forwarded-Proto: https` cuenta como HTTPS, por si hay un proxy delante.
+- Responde 403 a cualquier archivo o carpeta que empiece por punto (`.env`, `.git`, `.htaccess`), salvo `.well-known`.
+- No lista directorios (`Options -Indexes`, sin depender de `mod_negotiation`).
+- Agrega en toda respuesta `Strict-Transport-Security: max-age=31536000` (solo por HTTPS y sin `includeSubDomains`, porque los otros subdominios de la empresa no son de esta app), `X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY`, `Referrer-Policy: strict-origin-when-cross-origin` y `Permissions-Policy`, y quita `X-Powered-By`. La `Content-Security-Policy` no va aquí: la pone la app, porque necesita un nonce por página.
+
+**Salvaguarda de la raíz** (`.htaccess` del repositorio, auditoría S-03): si el Document Root queda por error en `<carpeta-app>` y no en `public`, Apache responde 403 a todo, y `.env`, `.git`, `storage`, `etl` y `legacy` nunca se sirven. Usa `RewriteRule ^ - [F]` y no `Require all denied`: las reglas de reescritura no se heredan, y el `RewriteEngine On` de `public/.htaccess` las reemplaza. Un `Require` sí se heredaría y tumbaría también `public/`. Si después de desplegar todo el sitio responde 403, el hosting está heredando las reglas: revisa el Document Root antes que nada.
+
+**Comprobar después de cada despliegue** (las pruebas leen los archivos pero no pueden levantar Apache):
+
+```bash
+curl -sI http://<dominio>/login | grep -iE '^(HTTP|location)'
+curl -sI https://<dominio>/login | grep -iE '^(strict-transport|x-content-type|x-frame|referrer-policy|permissions-policy|x-powered-by)'
+curl -s -o /dev/null -w '%{http_code}\n' https://<dominio>/.env
+curl -s -o /dev/null -w '%{http_code}\n' https://<dominio>/build/
+```
+
+Lo esperado: un 301 hacia `https://`, las cinco cabeceras sin `X-Powered-By`, 403 en `/.env` y 403 o 404 en `/build/`, nunca un listado.
+
+Si algo sale distinto, depende del hosting:
+
+- **Todo el sitio responde 500:** el hosting no permite `Options` en `.htaccess` (`AllowOverride` sin `Options`). Antes la línea solo corría si existía `mod_negotiation`; ahora corre siempre. Pide a GoDaddy que permita `Options` o quita la línea `Options -Indexes` y deja el listado apagado desde cPanel (Indexes).
+- **Falta `Strict-Transport-Security` pero la redirección funciona:** hay un proxy que termina el HTTPS delante de Apache, así que la variable `HTTPS` no existe. La cabecera la debe poner ese proxy. Además, el proxy debe reemplazar `X-Forwarded-Proto`: hoy la regla confía en lo que mande el cliente, y un cliente que la envíe por `http` se salta la redirección en su propia petición.
+
 ---
 
 ## 17. Decisiones de la Fase 0a
