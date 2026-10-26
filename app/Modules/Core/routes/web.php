@@ -18,7 +18,8 @@ use App\Modules\Core\Http\Controllers\SwitchCompanyController;
 use App\Modules\Core\Http\Controllers\Team\TeamMemberController;
 use Illuminate\Support\Facades\Route;
 
-Route::middleware('guest')->group(function () {
+// Open to anyone, so throttled per route and IP (core-auth limiter).
+Route::middleware(['guest', 'throttle:core-auth'])->group(function () {
     Route::get('login', LoginController::class)->name('login');
     Route::get('auth/microsoft', MicrosoftRedirectController::class)->name('auth.redirect');
     // Must match MICROSOFT_REDIRECT_URI.

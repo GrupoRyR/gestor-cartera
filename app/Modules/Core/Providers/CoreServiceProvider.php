@@ -34,10 +34,13 @@ use App\Modules\Core\Infrastructure\Portfolio\EloquentClientStatusService;
 use App\Support\Modules\ModuleServiceProvider;
 use App\Support\Navigation\NavItem;
 use App\Support\Navigation\NavRegistry;
+use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Console\Scheduling\Schedule;
 use Illuminate\Contracts\Http\Kernel as HttpKernel;
 use Illuminate\Foundation\Http\Kernel as FoundationHttpKernel;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Event;
+use Illuminate\Support\Facades\RateLimiter;
 
 /**
  * Core: shared kernel: Microsoft sign-in, roles and permissions, active
@@ -89,6 +92,12 @@ final class CoreServiceProvider extends ModuleServiceProvider
 
         // $user->teamAdvisors(): the advisors in a sales manager's team.
         User::resolveRelationUsing('teamAdvisors', AdvisorRecord::teamOf(...));
+
+        // The sign-in routes are open to guests (audit S-09): 20 requests a
+        // minute per IP and per route. Per route because a normal sign-in
+        // uses three of them, and behind a proxy everyone may share one IP.
+        RateLimiter::for('core-auth', fn (Request $request): Limit => Limit::perMinute(20)
+            ->by($request->ip().'|'.$request->path()));
 
         // The robot batches Core consumes: cartera snapshots and SAP advisors.
         // Both listeners are queued, and only for their own dataset.

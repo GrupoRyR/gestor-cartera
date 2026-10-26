@@ -165,17 +165,39 @@ describe('a rejected sign-in', function () {
     });
 });
 
-it('reports a failure of Microsoft and asks the user to try again', function () {
+it('audits a failure of Microsoft and asks the user to try again', function (Exception $failure) {
     Exceptions::fake();
-    $this->microsoft->fails(new InvalidStateException);
+    $this->microsoft->fails($failure);
 
     $this->get(MICROSOFT_CALLBACK)
         ->assertRedirect('/login')
         ->assertSessionHas('error', 'No pudimos completar el ingreso con Microsoft. Inténtalo de nuevo.');
 
     $this->assertGuest();
-    Exceptions::assertReported(InvalidStateException::class);
     expect(User::withTrashed()->count())->toBe(0);
+
+    // The error class only: a message from Microsoft may echo the code or
+    // the state of the request.
+    $entry = AuditLogRecord::query()->sole();
+
+    expect($entry->action)->toBe('core.auth.failed')
+        ->and($entry->user_id)->toBeNull()
+        ->and($entry->context)->toEqual(['error' => class_basename($failure)]);
+})->with([
+    'invalid state' => [new InvalidStateException('state mismatch')],
+    'failed request' => [new RuntimeException('token endpoint answered 500')],
+]);
+
+it('reports unexpected failures, but not an expired or replayed state', function () {
+    Exceptions::fake();
+
+    $this->microsoft->fails(new InvalidStateException);
+    $this->get(MICROSOFT_CALLBACK);
+    Exceptions::assertNotReported(InvalidStateException::class);
+
+    $this->microsoft->fails(new RuntimeException('token endpoint answered 500'));
+    $this->get(MICROSOFT_CALLBACK);
+    Exceptions::assertReported(RuntimeException::class);
 });
 
 it('sends signed-in users home without asking Microsoft', function () {
