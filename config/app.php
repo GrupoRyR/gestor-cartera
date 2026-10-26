@@ -43,6 +43,20 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Demo Sign-In
+    |--------------------------------------------------------------------------
+    |
+    | /dev/entrar signs in as a demo user without Microsoft. It needs both
+    | APP_ENV=local and DEMO_LOGIN=true (audit S-11): an .env copied to a
+    | server with APP_ENV=local still leaves it off. deploy/check-env.sh
+    | refuses DEMO_LOGIN on in production.
+    |
+    */
+
+    'demo_login' => (bool) env('DEMO_LOGIN', false),
+
+    /*
+    |--------------------------------------------------------------------------
     | Application URL
     |--------------------------------------------------------------------------
     |

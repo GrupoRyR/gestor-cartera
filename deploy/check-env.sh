@@ -49,7 +49,7 @@ lower() {
 
 problems=()
 
-for name in APP_ENV APP_DEBUG APP_URL SESSION_SECURE_COOKIE SESSION_ENCRYPT; do
+for name in APP_ENV APP_DEBUG APP_URL SESSION_SECURE_COOKIE SESSION_ENCRYPT DEMO_LOGIN; do
     if [ -n "${!name+set}" ]; then
         problems+=("$name is set in the server environment, which wins over .env: unset it.")
     fi
@@ -59,12 +59,15 @@ if value="$(env_value APP_ENV)" && [ "$value" != 'production' ]; then
     problems+=("APP_ENV is \"$value\": it must be production or left out.")
 fi
 
-if value="$(env_value APP_DEBUG)"; then
-    case "$(lower "$value")" in
-        '' | false | '(false)' | 0) ;;
-        *) problems+=("APP_DEBUG is \"$value\": it must be false or left out.") ;;
-    esac
-fi
+# APP_DEBUG shows stack traces; DEMO_LOGIN opens /dev/entrar (audit S-11).
+for name in APP_DEBUG DEMO_LOGIN; do
+    if value="$(env_value "$name")"; then
+        case "$(lower "$value")" in
+            '' | false | '(false)' | 0) ;;
+            *) problems+=("$name is \"$value\": it must be false or left out.") ;;
+        esac
+    fi
+done
 
 if ! value="$(env_value APP_URL)"; then
     problems+=('APP_URL is missing: it must be the https:// address of the app.')

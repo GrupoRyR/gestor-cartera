@@ -1010,6 +1010,7 @@ Los secretos viven solo en `.env` (en el servidor, con `chmod 600`). `.env.examp
 | Variable | La usa | Nota |
 |---|---|---|
 | `APP_NAME`, `APP_ENV`, `APP_KEY`, `APP_DEBUG`, `APP_URL` | Base | `APP_NAME` por defecto «Gestor de cartera». `APP_DEBUG=false` en producción. |
+| `DEMO_LOGIN` | Base | `config('app.demo_login')`, `false` por defecto. Con `true` y `APP_ENV=local` existe `/dev/entrar`, que entra como un usuario de demostración sin Microsoft. Hacen falta las dos condiciones: un `.env` con `APP_ENV=local` copiado a un servidor no basta (auditoría S-11). En producción, `false` o fuera del `.env` (§16). |
 | `APP_TIMEZONE` | Base | `America/Bogota`. |
 | `APP_LOCALE`, `APP_FALLBACK_LOCALE` | Base | `es`. |
 | `APP_FAKER_LOCALE` | Factories | `es_CO`. |
@@ -1068,13 +1069,13 @@ cd ~/<carpeta-app> && bash deploy/deploy.sh
 | Variable | Debe ser |
 |---|---|
 | `APP_ENV` | `production` o no estar |
-| `APP_DEBUG` | `false`, `0`, vacía o no estar |
+| `APP_DEBUG`, `DEMO_LOGIN` | `false`, `0`, vacía o no estar |
 | `APP_URL` | una dirección `https://` (obligatoria) |
 | `SESSION_SECURE_COOKIE`, `SESSION_ENCRYPT` | `true`, `1` o no estar. Vacía cuenta como `false`. |
 
 Se puede correr solo, sin desplegar: `bash deploy/check-env.sh` (lee `.env`) o `bash deploy/check-env.sh otra/ruta/.env`.
 
-También rechaza esas cinco variables si ya vienen en el entorno de la sesión SSH, porque Laravel no deja que el `.env` las reemplace. Por la misma razón no las definas con `SetEnv` en Apache ni en el editor de PHP de cPanel: la revisión no ve esos valores y le ganarían al `.env`. La revisión que corre es la del código que ya está en el servidor, antes de `git fetch`, así que una regla nueva de `check-env.sh` se aplica desde el despliegue siguiente.
+También rechaza esas seis variables si ya vienen en el entorno de la sesión SSH, porque Laravel no deja que el `.env` las reemplace. Por la misma razón no las definas con `SetEnv` en Apache ni en el editor de PHP de cPanel: la revisión no ve esos valores y le ganarían al `.env`. La revisión que corre es la del código que ya está en el servidor, antes de `git fetch`, así que una regla nueva de `check-env.sh` se aplica desde el despliegue siguiente.
 
 El despliegue ya no corre `storage:link`. Ningún módulo usa el disco `public`, `config/filesystems.php` no define enlaces y el disco privado no se sirve por `/storage/{path}` (`'serve' => false`, auditoría S-27). Si un servidor ya tiene `public/storage` de un despliegue anterior, bórralo: hoy apunta a una carpeta vacía.
 

@@ -57,6 +57,8 @@ Los cambios llegan a `main` solo por PR: los fusiona un agente con tu aprobació
 
 **Galería de componentes:** con `APP_ENV=local`, abre http://localhost:8000/dev/componentes. En cualquier otro entorno responde 404.
 
+**Entrar sin Microsoft:** con `APP_ENV=local` y `DEMO_LOGIN=true` en tu `.env`, abre http://localhost:8000/dev/entrar y elige un usuario de los datos de demostración. Sin la bandera, o en cualquier otro entorno, la ruta no existe. `DEMO_LOGIN` vale `false` si no está, y el despliegue rechaza `DEMO_LOGIN=true` en producción.
+
 Antes de escribir código, lee [docs/arquitectura.md](docs/arquitectura.md): módulos, contratos, componentes, pruebas y despliegue.
 
 ## Cómo se construye

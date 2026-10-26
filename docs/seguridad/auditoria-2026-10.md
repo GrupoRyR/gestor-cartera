@@ -30,8 +30,8 @@ Los dos repositorios públicos (S-04 y S-05) ya se cerraron el 26 de octubre: el
 | S-08 | Media | Correo | Las plantillas editables salen solas, sin aprobación de un segundo usuario |
 | S-09 | Media | Acceso | Sin límite de intentos en el ingreso con Microsoft; cada fallo escribe una traza |
 | S-10 | Media | Acceso | Sin límite de tasa en exportaciones, PDF y ZIP |
-| S-11 | Media | Acceso | El ingreso de demostración depende solo de `APP_ENV` |
-| S-12 | Media | Acceso | Parámetros de empresa editables sin tener esa empresa asignada |
+| S-11 | Media | Acceso | El ingreso de demostración depende solo de `APP_ENV` (corregido: bandera `DEMO_LOGIN`) |
+| S-12 | Media | Acceso | Parámetros de empresa editables sin tener esa empresa asignada (excepción aceptada) |
 | S-13 | Media | Registro | Faltan eventos en la auditoría (fallos de OAuth, cambio de empresa, lotes de correo…) |
 | S-14 | Media | Registro | La auditoría es inmutable solo en el modelo, no en la base |
 | S-15 | Media | Robot | `etl/notificar.py` hace STARTTLS sin verificar el certificado |
@@ -96,12 +96,17 @@ Levanté la app en `127.0.0.1:8123` con los seeders de demostración (SQLite tem
 - **Qué está bien:** las rutas `/dev/entrar` no existen fuera de `local`; el controlador vuelve a mirar el entorno, exige `REMOTE_ADDR` de loopback y un POST con CSRF; `/dev/componentes` responde 404 fuera de `local`. Lo cubre `tests/Feature/Dev/DevLoginRouteTest.php`.
 - **Cómo se explotaría:** si el `.env` del servidor queda con `APP_ENV=local` (copiado de un equipo), el despliegue siembra los usuarios de demostración, entre ellos un administrador con las dos empresas, y deja `/dev/entrar` en la caché de rutas. El candado de loopback no basta en un hosting compartido: otra cuenta del mismo servidor puede llamar a `http://127.0.0.1` con el `Host` del dominio (por confirmar con GoDaddy). En ese caso entraría como administrador sin Microsoft.
 - **Corrección:** exigir además una bandera explícita (`DEMO_LOGIN`, falsa por defecto) en la ruta, el controlador y los `*DemoSeeder`; y que `deploy.sh` aborte si el entorno no es `production` (S-30).
+- **Estado: corregido** en el PR 4 de la Fase 2.
+  - `/dev/entrar` exige `APP_ENV=local` y `DEMO_LOGIN=true` (`config('app.demo_login')`, falso por defecto), tanto en `routes/web.php` como en el controlador.
+  - `deploy/check-env.sh` rechaza `DEMO_LOGIN` activo, y desde el PR 2 también `APP_ENV` distinto de `production`.
+  - Los `*DemoSeeder` siguen atados solo a `APP_ENV=local`: el rechazo de `APP_ENV=local` en el despliegue ya los deja fuera de producción, y atarlos a la bandera tocaría las pruebas de cinco módulos sin bajar más el riesgo.
 
 ### S-12 · Media · Parámetros de empresa editables sin tener esa empresa asignada
 
 - **Dónde:** `app/Modules/Core/Http/Controllers/Companies/CompanyParametersController.php:35` (`edit`) y `:43` (`update`). El README de Core lo declara intencional.
 - **Cómo se explotaría:** un `gerente_cartera` asignado solo a SDC envía `PUT /empresas/SGX` con `grace_days=365`. Se recalculan los estados de todos los clientes de SGX, una empresa que no puede ver.
 - **Corrección:** comprobar `$empresa` contra `CurrentCompany::available()` (404 si no está) en `edit` y `update`, y filtrar `index`. Si el negocio confirma que la gerencia es transversal a las dos empresas, dejarlo escrito como excepción a A.5.
+- **Estado: excepción aceptada** por el usuario el 26 de octubre de 2026. La gerencia de cartera y TI (permiso `core.companies.manage`) pueden editar los parámetros de cualquier empresa, aunque no la tengan asignada, porque administran las reglas de las dos. No se cambia el código. Cada cambio sigue quedando en la auditoría como `core.company.updated`.
 
 ### S-16 · Baja · El historial de Ingesta no filtra por empresa
 

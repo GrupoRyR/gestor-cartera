@@ -50,7 +50,7 @@ function runCheckEnv(string $file, array $environment = []): ProcessResult
 {
     $bash = bashBinary() ?? test()->markTestSkipped('bash is not installed; CI runs this test on Linux.');
 
-    $unset = array_fill_keys(['APP_ENV', 'APP_DEBUG', 'APP_URL', 'SESSION_SECURE_COOKIE', 'SESSION_ENCRYPT'], false);
+    $unset = array_fill_keys(['APP_ENV', 'APP_DEBUG', 'APP_URL', 'SESSION_SECURE_COOKIE', 'SESSION_ENCRYPT', 'DEMO_LOGIN'], false);
 
     return Process::env([...$unset, ...$environment])
         ->run([$bash, base_path('deploy/check-env.sh'), str_replace('\\', '/', $file)]);
@@ -126,7 +126,13 @@ it('rejects an unsafe value and names it', function (string $name, ?string $valu
     'cookie blank' => ['SESSION_SECURE_COOKIE', ''],
     'session not encrypted' => ['SESSION_ENCRYPT', 'false'],
     'session encryption blank' => ['SESSION_ENCRYPT', ''],
+    'demo sign-in on' => ['DEMO_LOGIN', 'true'],
+    'demo sign-in as 1' => ['DEMO_LOGIN', '1'],
 ]);
+
+it('accepts DEMO_LOGIN off or left out', function (?string $value) {
+    expect(checkEnv(productionEnvWith('DEMO_LOGIN', $value))->exitCode())->toBe(0);
+})->with(['off' => 'false', 'left out' => null]);
 
 it('rejects a checked variable set in the server environment, because it wins over .env', function () {
     $result = checkEnv(GOOD_PRODUCTION_ENV, ['APP_DEBUG' => 'true']);
