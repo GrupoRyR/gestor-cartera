@@ -514,6 +514,22 @@ Después de editar `.env` en producción, corre `php artisan config:cache`.
 
 Los invitados y los usuarios activos pasan sin cambios. Un usuario cargado sin la columna `is_active` cuenta como activo (el valor por defecto de la columna), en vez de fallar con los modelos estrictos. Un usuario borrado (borrado lógico) ni siquiera llega al middleware: la sesión no lo encuentra y queda como invitado.
 
+**Content-Security-Policy** (auditoría S-06). `Http\Middleware\ContentSecurityPolicy` es middleware global: Core lo agrega al kernel HTTP desde `bootModule()`. No va en el grupo `web` porque el router ordena `auth`, `can` y `throttle` antes de lo que un módulo agrega al grupo. Ahí la redirección del invitado, un 403, un 429 o el 404 de una ruta inexistente saldrían sin la política. En cada petición crea un nonce nuevo con `Vite::useCspNonce()`, y Vite lo pone en sus etiquetas `<script>`. Fuera de `local` responde con esta política:
+
+| Directiva | Valor | Por qué |
+|---|---|---|
+| `default-src`, `font-src`, `connect-src`, `manifest-src`, `worker-src` | `'self'` | Todo sale del mismo dominio: fuentes autoalojadas, `apiFetch`, el manifiesto y el service worker. |
+| `script-src` | `'self' 'nonce-…' 'unsafe-eval'` | `'unsafe-eval'` es necesario porque Alpine estándar evalúa las expresiones de `x-data` y `x-on`. Quitarlo exige pasar a la versión CSP de Alpine con `Alpine.data()`. Sin `'unsafe-inline'`: un `<script>` en línea sin nonce no corre. |
+| `style-src` | `'self' 'unsafe-inline'` | Las vistas usan atributos `style=""` y el layout pinta las variables de marca en un `<style>`. Con un nonce aquí, el navegador ignoraría `'unsafe-inline'`. |
+| `img-src` | `'self' data:` | |
+| `object-src` | `'none'` | |
+| `base-uri`, `form-action` | `'self'` | El ingreso con Microsoft es un enlace, no un formulario. |
+| `frame-ancestors` | `'none'` | Nadie enmarca la app; repite el `X-Frame-Options` de `public/.htaccess`. |
+
+En `local` no manda la política, porque el servidor de Vite sirve los scripts desde otro origen. Las demás cabeceras de seguridad las pone Apache (`docs/arquitectura.md` §16). Una prueba recorre todas las vistas y falla si un `<script>` en línea no lleva `nonce="{{ Vite::cspNonce() }}"`.
+
+La política se aplica desde el primer despliegue, sin una fase de solo reporte, y no tiene adónde enviar los reportes. Por eso, después de desplegar, conviene recorrer cada pantalla con la consola del navegador abierta. Un bloqueo aparece como «Refused to … because it violates the following Content Security Policy directive». Para Cartera, el Kanban es la pantalla que más depende de la política, porque es el único script en línea.
+
 ## Bitácora de auditoría
 
 `Infrastructure\Audit\DatabaseAuditLogger` implementa `AuditLogger` y Core la registra en el contenedor (una instancia por petición o por job). Cada llamada a `record()` agrega una fila a `audit_logs`:
