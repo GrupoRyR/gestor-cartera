@@ -176,7 +176,7 @@ La tabla `company_user` asigna empresas a los usuarios (`user_id`, `company`). C
 - `palette()` es la de la empresa activa; la vista de grupo, los invitados y los usuarios sin rol ven la paleta neutra.
 - `of($code)` devuelve cualquier empresa, sin importar el usuario (jobs, colas y plantillas de correo).
 
-**Selector.** `POST /empresa` (`core.empresa.cambiar`, solo con sesión iniciada) recibe `empresa` = `SGX`, `SDC` o `grupo`. Si funciona, vuelve atrás con el flash `status` («Ahora trabajas en …»); si la empresa no está disponible, con el flash `error`. Un valor distinto falla la validación del campo «empresa». El layout `<x-layouts.app>` muestra el selector solo cuando el usuario tiene más de una empresa.
+**Selector.** `POST /empresa` (`core.empresa.cambiar`, solo con sesión iniciada) recibe `empresa` = `SGX`, `SDC` o `grupo`. Si funciona, vuelve atrás con el flash `status` («Ahora trabajas en …»); si la empresa no está disponible, con el flash `error`. Cada cambio queda en la auditoría como `core.company.switched`, con `changes.company` = `old` y `new` (`SGX`, `SDC` o `grupo`), porque cambia los clientes que ve el usuario. Elegir la empresa que ya estaba activa no deja entrada. Un valor distinto falla la validación del campo «empresa». El layout `<x-layouts.app>` muestra el selector solo cuando el usuario tiene más de una empresa.
 
 ## Roles y permisos
 
@@ -444,6 +444,8 @@ Solo se entra con Microsoft Entra ID, en el directorio de la empresa. No hay con
 
 Un usuario con sesión que abre una ruta de invitados vuelve a `/`.
 
+**Límite de intentos** (auditoría S-09). Las tres rutas de invitados pasan por el limitador `core-auth`: 20 peticiones por minuto por IP y por ruta. La petición 21 responde 429 con la página de error de la base. Va por ruta porque un ingreso normal usa las tres, y detrás de un proxy todos los usuarios podrían compartir la misma IP.
+
 **Cómo se lee la respuesta.** `Application\Auth\IdentityProvider` es el puerto; `Infrastructure\Auth\SocialiteMicrosoftIdentityProvider` lo implementa con el driver `microsoft` de Socialite, que revisa el `state`, cambia el código por los tokens, valida el id token con las llaves del tenant y lee el perfil de Graph (`/me`, permisos `openid profile User.Read`). De ahí sale `MicrosoftIdentity`: el object id (`id`, que se guarda en `users.microsoft_id`), el tenant (el claim `tid`), el correo (`mail`, o `userPrincipalName` si la cuenta no tiene buzón; sin espacios y en minúsculas) y el nombre (`displayName`, o el correo si no viene). Las pruebas cambian el puerto por `Tests\Modules\Core\Support\FakeIdentityProvider` y nunca llaman a Microsoft.
 
 **Emparejamiento** (`Application\Auth\SignInWithMicrosoft`). Los pasos 2 a 4 van en una sola transacción.
@@ -466,13 +468,14 @@ Un usuario sin rol termina en `/sin-acceso`. El que tiene rol llega a la página
 | `identity_mismatch` | El correo tiene guardado otro object id, o el object id ya pertenece a otro correo (p. ej. le cambiaron el correo en Microsoft). | «Tu cuenta de Microsoft no coincide con la registrada para tu correo. Habla con TI para revisarlo.» |
 | `inactive` | El usuario está desactivado. | «Tu cuenta está desactivada. Habla con TI si crees que es un error.» |
 
-Si falla Microsoft (`state` inválido, una petición rechazada, un id token inválido o un perfil sin object id o sin correo), la excepción se reporta al log y el usuario vuelve a `/login` con «No pudimos completar el ingreso con Microsoft. Inténtalo de nuevo.».
+Si falla Microsoft (`state` inválido, una petición rechazada, un id token inválido o un perfil sin object id o sin correo), queda `core.auth.failed` en la auditoría y el usuario vuelve a `/login` con «No pudimos completar el ingreso con Microsoft. Inténtalo de nuevo.». La excepción también va al log, salvo un `state` inválido: es un callback vencido o repetido, que cualquiera puede enviar, y su traza llenaría el log. La entrada de auditoría sí se escribe siempre, así que callbacks falsos desde muchas IP hacen crecer `audit_logs`. El límite de 20 por minuto por IP acota ese crecimiento; la retención de la auditoría sigue pendiente (auditoría S-29).
 
 **Auditoría.** Nunca se guardan tokens.
 
 | Acción | Cuándo | Datos |
 |---|---|---|
 | `core.auth.rejected` | Cada rechazo. | `context`: `reason` y `email`. |
+| `core.auth.failed` | Falló Microsoft (sin sesión: el actor es nulo, pero quedan la IP y el navegador). | `context.error`: la clase de la excepción, p. ej. `InvalidStateException`. Nunca el mensaje, que puede repetir el código o el `state`. |
 | `core.user.created` | Primer ingreso de un correo nuevo. | `changes`: nombre, correo y object id; `context.source = microsoft`. |
 | `core.user.updated` | Se guardó el object id o cambió el nombre. | `changes` con `old` y `new`; `context.source = microsoft`. |
 | `core.advisor.linked` | Por cada asesor vinculado. | `changes.user_id`; `context`: `company` y `code`. |
