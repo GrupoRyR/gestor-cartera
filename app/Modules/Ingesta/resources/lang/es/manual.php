@@ -37,6 +37,7 @@ return [
         'sin_hojas' => 'El archivo no tiene hojas.',
         'sin_encabezados' => 'No encontramos la fila de títulos: debe estar en las primeras :filas filas y tener las columnas :columnas.',
         'columnas_faltantes' => 'Al archivo le faltan estas columnas: :columnas.',
+        'demasiadas_filas' => 'El archivo tiene más de :max filas. Revisa que sea el informe de cartera.',
         'vencida' => 'La vista previa ya no está disponible. Sube el archivo de nuevo.',
     ],
 

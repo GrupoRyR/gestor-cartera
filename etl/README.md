@@ -40,7 +40,7 @@ Copia `etl/.env.example` como `etl/.env` y complétalo. El `.env` nunca se sube 
 | `SOPHOS_*` | Usuario y conexión de la VPN Sophos. |
 | `HANA_*` | Servidor, usuario y esquema de SAP HANA. |
 | `INGESTA_URL` | Raíz del gestor de cartera, sin `/api` (por ejemplo `https://cartera.segurex.com`). Debe ser `https://`; `http://` solo se acepta para un Laravel local. |
-| `INGESTA_KEY_ID`, `INGESTA_SECRET` | Par de la llave HMAC. Debe existir en `INGESTA_HMAC_KEYS` del `.env` de Laravel como `id:secreto`. |
+| `INGESTA_KEY_ID`, `INGESTA_SECRET` | Par de la llave HMAC. Debe existir en `INGESTA_HMAC_KEYS` del `.env` de Laravel como `id:secreto`. El secreto debe tener al menos 32 bytes: Laravel ignora uno más corto y rechaza las firmas hechas con él. |
 | `INGESTA_EMPRESA` | `SGX` (Segurex, por defecto) o `SDC` (Soluciones y Derivados). |
 | `INGESTA_TIMEOUT` | Segundos de espera por envío; por defecto 120. |
 | `INGESTA_GZIP` | Comprimir el cuerpo; por defecto `true`. |
@@ -52,7 +52,7 @@ Copia `etl/.env.example` como `etl/.env` y complétalo. El `.env` nunca se sube 
 
 Sin cortar las cargas:
 
-1. En Laravel, agrega el par nuevo junto al viejo: `INGESTA_HMAC_KEYS=k2026a:<viejo>,k2026b:<nuevo>` y corre `php artisan config:cache`.
+1. En Laravel, agrega el par nuevo junto al viejo: `INGESTA_HMAC_KEYS=k2026a:<viejo>,k2026b:<nuevo>` y corre `php artisan config:cache`. El secreto nuevo debe tener al menos 32 bytes; por ejemplo, `php -r "echo bin2hex(random_bytes(32));"`.
 2. En `etl/.env`, cambia `INGESTA_KEY_ID=k2026b` e `INGESTA_SECRET=<nuevo>`.
 3. Cuando las cargas lleguen firmadas con la llave nueva, quita el par viejo en Laravel y vuelve a cachear la configuración.
 

@@ -1027,7 +1027,7 @@ Los secretos viven solo en `.env` (en el servidor, con `chmod 600`). `.env.examp
 | `MICROSOFT_TENANT_ID`, `MICROSOFT_CLIENT_ID`, `MICROSOFT_CLIENT_SECRET`, `MICROSOFT_REDIRECT_URI` | Core | `config('services.microsoft')`: `tenant`, `client_id`, `client_secret`, `redirect`. El tenant limita el ingreso al directorio de la empresa: nunca `common`. Sin `MICROSOFT_TENANT_ID`, el driver no se construye (`RuntimeException`); la app arranca y `/up` responde igual. La URI apunta a `/auth/microsoft/callback`. |
 | `GRAPH_TENANT_ID`, `GRAPH_CLIENT_ID`, `GRAPH_CLIENT_SECRET` | Cobro | `config('cobro.graph.*')`. Registro aparte del de ingreso, solo de aplicación. `Mail.Send` y `Mail.ReadWrite` (crear el borrador permite guardar `internetMessageId` y `conversationId`) se conceden con [RBAC for Applications de Exchange Online](https://learn.microsoft.com/exchange/permissions-exo/application-rbac), limitados a los dos buzones; nunca como permiso de todo el tenant en Entra ID. La lista exacta la confirma la sesión de Cobro. |
 | `COBRO_MAILBOX_SGX`, `COBRO_MAILBOX_SDC` | Cobro | `config('cobro.mailboxes.SGX')` (por defecto `segurex.info@segurex.com`) y `config('cobro.mailboxes.SDC')` (por defecto `derivados.info@derivadoscol.com`). |
-| `INGESTA_HMAC_KEYS` | Ingesta | `config('ingesta.hmac_keys')`: pares `id-llave:secreto` separados por comas, en texto; Ingesta los interpreta. |
+| `INGESTA_HMAC_KEYS` | Ingesta | `config('ingesta.hmac_keys')`: pares `id-llave:secreto` separados por comas, en texto; Ingesta los interpreta. Cada secreto debe tener al menos 32 bytes: uno más corto se ignora con una advertencia en el log. |
 | `INGESTA_HMAC_MAX_SKEW` | Ingesta | Segundos de diferencia de reloj aceptados; por defecto `300` (entero). |
 | `INGESTA_ALERT_DEADLINE` | Ingesta | Hora límite de la carga diaria; por defecto `07:00`. |
 | `INGESTA_ALERT_RECIPIENTS` | Ingesta | Correos separados por comas; `config('ingesta.alert_recipients')` los entrega como lista, sin espacios ni vacíos. |
@@ -1036,7 +1036,7 @@ Los secretos viven solo en `.env` (en el servidor, con `chmod 600`). `.env.examp
 
 **Rotar la llave HMAC del robot** sin cortar las cargas:
 
-1. Agrega el par nuevo junto al viejo: `INGESTA_HMAC_KEYS=k2026a:<viejo>,k2026b:<nuevo>` y corre `php artisan config:cache`.
+1. Agrega el par nuevo junto al viejo: `INGESTA_HMAC_KEYS=k2026a:<viejo>,k2026b:<nuevo>` y corre `php artisan config:cache`. El secreto nuevo debe tener al menos 32 bytes (p. ej. `php -r "echo bin2hex(random_bytes(32));"`).
 2. Cambia la llave del robot en su propio `.env` (`etl/.env`) para que firme con `k2026b`.
 3. Cuando las cargas lleguen firmadas con la nueva, quita el par viejo y vuelve a cachear la configuración.
 

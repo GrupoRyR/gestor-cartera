@@ -21,6 +21,10 @@ use Throwable;
  *
  * Cell values come back raw (int, float, string, DateTimeInterface or
  * null): CellConverter turns them into the contract formats.
+ *
+ * A sheet may hold at most config('ingesta.max_rows') data rows, and no
+ * more than that plus HEADER_SEARCH_ROWS lines are read, empty ones
+ * included, so a sheet of millions of empty rows also stops early.
  */
 final class CarteraWorkbookReader
 {
@@ -41,13 +45,17 @@ final class CarteraWorkbookReader
     public function read(string $path): CarteraSheet
     {
         $reader = new Reader(new Options(SHOULD_FORMAT_DATES: false, SHOULD_PRESERVE_EMPTY_ROWS: true));
+        $message = '';
 
         try {
             $reader->open($path);
 
             return $this->readSheet($this->sheet($reader));
         } catch (UnreadableWorkbook $e) {
-            throw $e;
+            // Thrown again below, without this trace: its arguments hold the
+            // sheet, whose half-read rows would keep the file open.
+            $message = $e->getMessage();
+            unset($e);
         } catch (Throwable $e) {
             throw new UnreadableWorkbook(__('ingesta::manual.errores.ilegible'), previous: $e);
         } finally {
@@ -58,6 +66,8 @@ final class CarteraWorkbookReader
             // Windows needs before the upload can be deleted.
             gc_collect_cycles();
         }
+
+        throw new UnreadableWorkbook($message);
     }
 
     /**
@@ -78,8 +88,12 @@ final class CarteraWorkbookReader
         return $first ?? throw new UnreadableWorkbook(__('ingesta::manual.errores.sin_hojas'));
     }
 
+    /**
+     * @throws UnreadableWorkbook When the header row or a required column is missing, or past ingesta.max_rows.
+     */
     private function readSheet(Sheet $sheet): CarteraSheet
     {
+        $maxRows = (int) config('ingesta.max_rows');
         $columns = null;
         $ignored = [];
         $rows = [];
@@ -87,6 +101,10 @@ final class CarteraWorkbookReader
 
         foreach ($sheet->getRowIterator() as $row) {
             $line++;
+
+            if ($line > $maxRows + self::HEADER_SEARCH_ROWS) {
+                throw $this->tooManyRows($maxRows);
+            }
 
             if ($columns === null) {
                 if ($line > self::HEADER_SEARCH_ROWS) {
@@ -104,6 +122,10 @@ final class CarteraWorkbookReader
 
             if ($values !== null) {
                 $rows[] = ['line' => $line, 'values' => $values];
+
+                if (count($rows) > $maxRows) {
+                    throw $this->tooManyRows($maxRows);
+                }
             }
         }
 
@@ -122,6 +144,11 @@ final class CarteraWorkbookReader
         }
 
         return new CarteraSheet($rows, $ignored);
+    }
+
+    private function tooManyRows(int $maxRows): UnreadableWorkbook
+    {
+        return new UnreadableWorkbook(__('ingesta::manual.errores.demasiadas_filas', ['max' => number_format($maxRows, 0, ',', '.')]));
     }
 
     private function isHeaderRow(Row $row): bool

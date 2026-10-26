@@ -12,7 +12,7 @@ final class RobotRequests
 {
     public const string KEY_ID = 'k2026a';
 
-    public const string SECRET = 'k2026a-secreto-de-prueba';
+    public const string SECRET = 'k2026a-secreto-de-prueba-de-32-bytes';
 
     /**
      * The columnar body of a batch from associative rows.

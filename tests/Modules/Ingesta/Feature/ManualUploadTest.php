@@ -353,6 +353,44 @@ it('refuses a workbook whose header row is not in the first 20 rows', function (
 
     ingestaUpload(IngestaUsers::create(Role::PortfolioAnalyst), IngestaWorkbooks::sap([IngestaWorkbooks::sapRow()], before: $before))
         ->assertSessionHasErrors(['archivo' => 'No encontramos la fila de títulos: debe estar en las primeras 20 filas y tener las columnas «Código SN» y «Nit».']);
+
+    // Reading stopped halfway, and the file is still deleted.
+    expect(Storage::disk('local')->allFiles())->toBe([]);
+});
+
+it('refuses a workbook with more data rows than ingesta.max_rows and keeps nothing', function () {
+    config(['ingesta.max_rows' => 2]);
+
+    ingestaUpload(IngestaUsers::create(Role::PortfolioAnalyst), IngestaWorkbooks::sap([
+        IngestaWorkbooks::sapRow(['Documento' => 'F-1']),
+        IngestaWorkbooks::sapRow(['Documento' => 'F-2']),
+        IngestaWorkbooks::sapRow(['Documento' => 'F-3']),
+    ]))
+        ->assertRedirect(route('ingesta.manual.create'))
+        ->assertSessionHasErrors(['archivo' => 'El archivo tiene más de 2 filas. Revisa que sea el informe de cartera.']);
+
+    expect(Storage::disk('local')->allFiles())->toBe([])
+        ->and(ingestaPendingTokens())->toBe([]);
+});
+
+it('previews a workbook with exactly ingesta.max_rows data rows', function () {
+    config(['ingesta.max_rows' => 2]);
+
+    ingestaUpload(IngestaUsers::create(Role::PortfolioAnalyst), IngestaWorkbooks::sap([
+        IngestaWorkbooks::sapRow(['Documento' => 'F-1']),
+        IngestaWorkbooks::sapRow(['Documento' => 'F-2']),
+    ]))->assertOk()->assertSessionHasNoErrors();
+});
+
+it('stops reading a workbook after ingesta.max_rows plus the header search rows, empty ones included', function () {
+    config(['ingesta.max_rows' => 2]);
+    $table = IngestaWorkbooks::table([IngestaWorkbooks::sapRow(['Documento' => 'F-1'])]);
+    $last = IngestaWorkbooks::table([IngestaWorkbooks::sapRow(['Documento' => 'F-2'])])[1];
+    // Header, one row, 25 empty rows and a second row on line 28: past 2 + 20 lines.
+    $path = IngestaWorkbooks::write(['Datos' => [...$table, ...array_fill(0, 25, [null]), $last]]);
+
+    ingestaUpload(IngestaUsers::create(Role::PortfolioAnalyst), $path)
+        ->assertSessionHasErrors(['archivo' => 'El archivo tiene más de 2 filas. Revisa que sea el informe de cartera.']);
 });
 
 it('refuses a file that is not a workbook', function () {
