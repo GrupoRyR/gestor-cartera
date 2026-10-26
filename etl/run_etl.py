@@ -197,7 +197,8 @@ def main() -> int:
                     lote = esquema.LOTES[nombre]
                     try:
                         extraidos[nombre] = hana.ejecutar(
-                            conn, leer_query(lote.consulta), nombre,
+                            conn, leer_query(lote.consulta, cfg.ingesta.empresa),
+                            nombre,
                             cfg.hana.esquema,
                         )
                     except (hana.HanaError, ConfigError) as exc:
