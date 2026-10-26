@@ -19,7 +19,6 @@ OUT_DIR = BASE_DIR / "out"
 STATE_DIR = BASE_DIR / "state"
 
 LOTES_POR_DEFECTO = "cartera,asesores"
-EMPRESAS = ("SGX", "SDC")
 # Cuentas por cobrar de clientes de cada empresa (JDT1.Account). El archivo
 # .sql lleva las de Segurex tal cual, para que corra sin cambios en el Query
 # Manager; leer_query reemplaza la lista que precede al marcador de abajo.
@@ -27,6 +26,10 @@ CUENTAS_POR_COBRAR = {
     "SGX": ("13050505", "13051005"),
     "SDC": ("13050501", "13051005"),
 }
+EMPRESAS = tuple(CUENTAS_POR_COBRAR)
+# Consultas que filtran por cuenta: sin el marcador fallan en vez de correr con
+# las cuentas de otra empresa.
+CONSULTAS_POR_EMPRESA = ("cartera.sql",)
 _MARCADOR_CUENTAS = re.compile(
     r"\([^()]*\)(?=[ \t]*--[ \t]*@cuentas_por_cobrar)"
 )
@@ -293,6 +296,12 @@ def leer_query(nombre: str, empresa: str = "SGX") -> str:
     if not ruta.exists():
         raise ConfigError(f"No existe la consulta {ruta}")
     lista = ", ".join(f"'{c}'" for c in CUENTAS_POR_COBRAR[empresa])
-    return _MARCADOR_CUENTAS.sub(
+    sql, reemplazos = _MARCADOR_CUENTAS.subn(
         lambda _: f"({lista})", ruta.read_text(encoding="utf-8")
     )
+    if nombre in CONSULTAS_POR_EMPRESA and reemplazos != 1:
+        raise ConfigError(
+            f"{ruta} debe tener exactamente un filtro de cuentas marcado con "
+            f"'-- @cuentas_por_cobrar' en la misma linea (encontrados: {reemplazos})."
+        )
+    return sql

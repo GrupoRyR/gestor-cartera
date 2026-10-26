@@ -87,6 +87,10 @@ class Escenario:
     def _conectar(self, _cfg):
         yield "conexion"
 
+    def _leer_query(self, nombre, empresa):
+        self.consultas.append((nombre, empresa))
+        return f"-- {nombre}"
+
     def _ejecutar(self, _conn, _sql, etiqueta, _esquema):
         self.eventos.append(f"hana:{etiqueta}")
         resultado = self.resultados[etiqueta]
@@ -113,9 +117,7 @@ class Escenario:
             parche(sys, "argv", self.argv)
             parche(registro, "configurar", lambda: logging.getLogger("cartera"))
             parche(run_etl, "cargar_config", lambda: self.cfg)
-            parche(run_etl, "leer_query",
-                   lambda nombre, empresa: self.consultas.append((nombre, empresa))
-                   or f"-- {nombre}")
+            parche(run_etl, "leer_query", self._leer_query)
             parche(run_etl, "RobotVPN", self._vpn)
             parche(run_etl, "hoy_colombia", lambda: self.hoy())
             parche(run_etl, "guardar_estado", lambda **datos: self.estados.append(datos))

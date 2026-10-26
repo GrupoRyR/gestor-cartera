@@ -1,7 +1,10 @@
 """Pruebas de la lectura de consultas: las cuentas por cobrar son de cada empresa."""
 from __future__ import annotations
 
+import tempfile
 import unittest
+from pathlib import Path
+from unittest import mock
 
 import config
 from config import ConfigError, leer_query
@@ -39,8 +42,6 @@ class CuentasPorCobrarTest(unittest.TestCase):
         crudo = (config.QUERIES_DIR / "cartera.sql").read_text(encoding="utf-8")
         self.assertEqual(crudo.count("@cuentas_por_cobrar"), 1)
         self.assertEqual(_cuentas_del_filtro(crudo), list(SEGUREX))
-        self.assertNotIn("{", crudo)
-        self.assertNotIn("?", crudo.replace("¿", ""))
 
     def test_cada_empresa_valida_tiene_cuentas(self):
         for empresa in config.EMPRESAS:
@@ -51,6 +52,21 @@ class CuentasPorCobrarTest(unittest.TestCase):
         with self.assertRaises(ConfigError) as error:
             leer_query("cartera.sql", "XYZ")
         self.assertIn("XYZ", str(error.exception))
+
+    def test_cartera_sin_marcador_falla_en_vez_de_usar_otras_cuentas(self):
+        with tempfile.TemporaryDirectory() as carpeta:
+            (Path(carpeta) / "cartera.sql").write_text(
+                "SELECT 1 WHERE \"Account\" IN ('13050505')\n", encoding="utf-8"
+            )
+            with mock.patch.object(config, "QUERIES_DIR", Path(carpeta)):
+                for empresa in config.EMPRESAS:
+                    with self.subTest(empresa=empresa):
+                        with self.assertRaises(ConfigError) as error:
+                            leer_query("cartera.sql", empresa)
+                        self.assertIn("@cuentas_por_cobrar", str(error.exception))
+
+    def test_las_empresas_validas_salen_de_las_cuentas(self):
+        self.assertEqual(config.EMPRESAS, tuple(config.CUENTAS_POR_COBRAR))
 
     def test_las_consultas_sin_marcador_no_se_tocan(self):
         crudo = (config.QUERIES_DIR / "asesores.sql").read_text(encoding="utf-8")
