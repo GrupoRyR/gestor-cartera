@@ -46,10 +46,12 @@ def _resultado(nombre: str, filas: int = 2):
 
 class Escenario:
     def __init__(self, resultados, lotes, *, laravel=True, supabase=False,
-                 fallos_laravel=(), argv=()):
+                 fallos_laravel=(), argv=(), empresa="SGX"):
         self.resultados = resultados
+        self.empresa = empresa
         self.fallos_laravel = set(fallos_laravel)
         self.eventos: list[str] = []
+        self.consultas: list[tuple[str, str]] = []
         self.avisos: list[tuple] = []
         self.estados: list[dict] = []
         self.cfg = Config(
@@ -61,6 +63,7 @@ class Escenario:
                 "https://cartera.example.com" if laravel else "",
                 "k2026a" if laravel else "",
                 "s3cr3t0" if laravel else "",
+                empresa=empresa,
             ),
             lotes=tuple(lotes),
         )
@@ -84,6 +87,10 @@ class Escenario:
     def _conectar(self, _cfg):
         yield "conexion"
 
+    def _leer_query(self, nombre, empresa):
+        self.consultas.append((nombre, empresa))
+        return f"-- {nombre}"
+
     def _ejecutar(self, _conn, _sql, etiqueta, _esquema):
         self.eventos.append(f"hana:{etiqueta}")
         resultado = self.resultados[etiqueta]
@@ -95,7 +102,7 @@ class Escenario:
         self.eventos.append(f"laravel:{lote}")
         if lote in self.fallos_laravel:
             raise http_sink.HttpSinkError(f"Laravel rechazo el lote '{lote}'", 422)
-        assert empresa == "SGX" and corte == date(2026, 10, 16)
+        assert empresa == self.empresa and corte == date(2026, 10, 16)
         return {"duplicate": False}
 
     @contextmanager
@@ -110,7 +117,7 @@ class Escenario:
             parche(sys, "argv", self.argv)
             parche(registro, "configurar", lambda: logging.getLogger("cartera"))
             parche(run_etl, "cargar_config", lambda: self.cfg)
-            parche(run_etl, "leer_query", lambda nombre: f"-- {nombre}")
+            parche(run_etl, "leer_query", self._leer_query)
             parche(run_etl, "RobotVPN", self._vpn)
             parche(run_etl, "hoy_colombia", lambda: self.hoy())
             parche(run_etl, "guardar_estado", lambda **datos: self.estados.append(datos))
@@ -150,6 +157,21 @@ class RunEtlTest(unittest.TestCase):
         self.assertEqual(estado["estado"], "OK")
         self.assertEqual(estado["lotes"]["cartera"]["laravel"], "nuevo")
         self.assertEqual(estado["filas_cartera"], 2)
+
+    def test_cada_consulta_se_lee_para_la_empresa_configurada(self):
+        for empresa in ("SGX", "SDC"):
+            with self.subTest(empresa=empresa):
+                escenario = Escenario(
+                    {"cartera": _resultado("cartera"),
+                     "asesores": _resultado("asesores")},
+                    ["cartera", "asesores"],
+                    empresa=empresa,
+                )
+                self.assertEqual(escenario.ejecutar(), 0)
+                self.assertEqual(
+                    escenario.consultas,
+                    [("cartera.sql", empresa), ("asesores.sql", empresa)],
+                )
 
     def test_un_lote_nuevo_que_falla_en_hana_no_frena_la_cartera(self):
         escenario = Escenario(
