@@ -1,0 +1,20 @@
+# Safeguard: Apache only reads this file when the cPanel Document Root points
+# at the repository root instead of public/ (docs/arquitectura.md §16). Then
+# every request gets a 403, so .env, .git, storage, etl and legacy are never
+# served.
+#
+# It does not touch the app when the Document Root is right: per-directory
+# rewrite rules are not inherited, and public/.htaccess turns its own rewrite
+# engine on. Do not use a top-level "Require all denied" here: authorization
+# directives are inherited and would take public/ down with them.
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+    RewriteRule ^ - [F]
+</IfModule>
+
+# Without mod_rewrite the app cannot route anyway: fail closed.
+<IfModule !mod_rewrite.c>
+    <IfModule mod_authz_core.c>
+        Require all denied
+    </IfModule>
+</IfModule>
