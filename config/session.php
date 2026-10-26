@@ -47,7 +47,9 @@ return [
     |
     */
 
-    'encrypt' => env('SESSION_ENCRYPT', false),
+    // On by default (audit S-23): a copy of the sessions table must not hand
+    // out readable session data. deploy/check-env.sh refuses an explicit false.
+    'encrypt' => env('SESSION_ENCRYPT', true),
 
     /*
     |--------------------------------------------------------------------------
@@ -169,7 +171,10 @@ return [
     |
     */
 
-    'secure' => env('SESSION_SECURE_COOKIE'),
+    // Secure whenever the app runs on https, even if .env leaves the variable
+    // out (audit S-02). An explicit value still wins; deploy/check-env.sh
+    // refuses a false or blank one in production.
+    'secure' => env('SESSION_SECURE_COOKIE', str_starts_with((string) env('APP_URL'), 'https://')),
 
     /*
     |--------------------------------------------------------------------------

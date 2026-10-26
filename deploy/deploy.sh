@@ -39,6 +39,13 @@ bring_up() {
     "$PHP" artisan up || true
 }
 
+# Before touching anything: a .env copied from a development machine
+# (APP_ENV=local, APP_DEBUG=true, http) must never reach production.
+log "Checking the production .env"
+[ -f .env ] || fail ".env is missing. Create it from .env.example first."
+chmod 600 .env
+bash deploy/check-env.sh .env || fail "Fix the .env values above and run the deploy again."
+
 log "Fetching latest code"
 git fetch --quiet
 
@@ -76,11 +83,6 @@ log "Syncing module permissions"
 
 log "Caching config, routes, views and events"
 "$PHP" artisan optimize
-
-if [ ! -e public/storage ]; then
-    log "Linking public/storage"
-    "$PHP" artisan storage:link
-fi
 
 trap - EXIT
 bring_up

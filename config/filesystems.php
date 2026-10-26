@@ -33,7 +33,11 @@ return [
         'local' => [
             'driver' => 'local',
             'root' => storage_path('app/private'),
-            'serve' => true,
+            // No route serves the private disk (audit S-27): files leave it
+            // only through controllers that authorize the user first. With
+            // true, GET and PUT /storage/{path} answer any request signed
+            // with APP_KEY.
+            'serve' => false,
             'throw' => false,
             'report' => false,
         ],
@@ -73,8 +77,8 @@ return [
     |
     */
 
-    'links' => [
-        public_path('storage') => storage_path('app/public'),
-    ],
+    // None: no module uses the public disk, and a public/storage link would
+    // make whatever lands there downloadable without signing in (audit S-27).
+    'links' => [],
 
 ];

@@ -1016,7 +1016,9 @@ Los secretos viven solo en `.env` (en el servidor, con `chmod 600`). `.env.examp
 | `DB_CONNECTION`, `DB_HOST`, `DB_PORT`, `DB_DATABASE`, `DB_USERNAME`, `DB_PASSWORD` | Base | `sqlite` en local (`database/database.sqlite`); `mysql` en producción. |
 | `DB_TIMEZONE` | Base | Opcional; no está en `.env.example` y vale `-05:00` por defecto. Zona de la sesión de MySQL y MariaDB (`config/database.php`): las conversiones de `TIMESTAMP` y `NOW()`/`useCurrent()` siguen la hora de Colombia (sin horario de verano), no la del servidor de GoDaddy. SQLite la ignora. |
 | `SESSION_DRIVER`, `SESSION_LIFETIME` | Base | `database`; 120 minutos. |
-| `SESSION_SECURE_COOKIE` | Base | `true` en producción (HTTPS). |
+| `SESSION_SECURE_COOKIE` | Base | Por defecto `true` cuando `APP_URL` empieza por `https://`, y `false` si no (local). Un valor explícito gana; vacío cuenta como `false`. En producción, `true` o fuera del `.env`: `deploy/check-env.sh` rechaza cualquier otro (§16). |
+| `SESSION_ENCRYPT` | Base | Por defecto `true`: la tabla `sessions` guarda los datos cifrados con `APP_KEY`. En producción, `true` o fuera del `.env` (§16). |
+| CORS | Base | Apagado (`config/cors.php`, `paths` vacío): ningún navegador llama a la API, que usan el robot (HMAC) y Tesorería (token). |
 | `QUEUE_CONNECTION` | Base | `database`. |
 | `CACHE_STORE` | Base | `database`. |
 | `MAIL_*` | Framework | Solo correo del framework (por defecto `log`). El correo de negocio va por Graph (`MailSender`). |
@@ -1050,15 +1052,30 @@ Se despliega de GitHub a cPanel (GoDaddy) con la skill `cpanel-deploy`. La prime
 cd ~/<carpeta-app> && bash deploy/deploy.sh
 ```
 
-1. `git fetch` y **se niega** a seguir si la rama upstream no tiene `public/build/manifest.json`.
-2. `php artisan down --retry=60` (si ya existe `vendor/`); un `trap` garantiza `php artisan up` aunque algo falle.
-3. `git merge --ff-only '@{upstream}'`: avanza exactamente al commit revisado en el paso 1, sin volver a hacer `fetch` (un `git pull` podría traer uno más nuevo sin compilados).
-4. `composer install --no-dev --optimize-autoloader --no-interaction`.
-5. `php artisan migrate --force`.
-6. `php artisan db:seed --force`: sincroniza los permisos de cada módulo (§11).
-7. `php artisan optimize` (cachea configuración, rutas, vistas y eventos).
-8. `php artisan storage:link` si falta `public/storage`.
+1. **Revisa `.env` antes de tocar nada:** se niega a seguir si no existe, le pone `chmod 600` y corre `deploy/check-env.sh`.
+2. `git fetch` y **se niega** a seguir si la rama upstream no tiene `public/build/manifest.json`.
+3. `php artisan down --retry=60` (si ya existe `vendor/`); un `trap` garantiza `php artisan up` aunque algo falle.
+4. `git merge --ff-only '@{upstream}'`: avanza exactamente al commit revisado en el paso 2, sin volver a hacer `fetch` (un `git pull` podría traer uno más nuevo sin compilados).
+5. `composer install --no-dev --optimize-autoloader --no-interaction`.
+6. `php artisan migrate --force`.
+7. `php artisan db:seed --force`: sincroniza los permisos de cada módulo (§11).
+8. `php artisan optimize` (cachea configuración, rutas, vistas y eventos).
 9. `php artisan up`.
+
+**`deploy/check-env.sh`** (auditoría S-30) lee el `.env` como lo lee Laravel: gana la primera definición de cada variable, se quitan las comillas y los comentarios al final de la línea, y un valor en blanco es una cadena vacía, que cuenta como `false`. Si encuentra algo inseguro, lista todos los problemas y el despliegue se detiene sin entrar en mantenimiento:
+
+| Variable | Debe ser |
+|---|---|
+| `APP_ENV` | `production` o no estar |
+| `APP_DEBUG` | `false`, `0`, vacía o no estar |
+| `APP_URL` | una dirección `https://` (obligatoria) |
+| `SESSION_SECURE_COOKIE`, `SESSION_ENCRYPT` | `true`, `1` o no estar. Vacía cuenta como `false`. |
+
+Se puede correr solo, sin desplegar: `bash deploy/check-env.sh` (lee `.env`) o `bash deploy/check-env.sh otra/ruta/.env`.
+
+También rechaza esas cinco variables si ya vienen en el entorno de la sesión SSH, porque Laravel no deja que el `.env` las reemplace. Por la misma razón no las definas con `SetEnv` en Apache ni en el editor de PHP de cPanel: la revisión no ve esos valores y le ganarían al `.env`. La revisión que corre es la del código que ya está en el servidor, antes de `git fetch`, así que una regla nueva de `check-env.sh` se aplica desde el despliegue siguiente.
+
+El despliegue ya no corre `storage:link`. Ningún módulo usa el disco `public`, `config/filesystems.php` no define enlaces y el disco privado no se sirve por `/storage/{path}` (`'serve' => false`, auditoría S-27). Si un servidor ya tiene `public/storage` de un despliegue anterior, bórralo: hoy apunta a una carpeta vacía.
 
 Variables opcionales: `PHP` (el mismo binario del cron) y `COMPOSER_BIN` (p. ej. `"php ~/composer.phar"`). El script no compila assets ni contiene secretos.
 
