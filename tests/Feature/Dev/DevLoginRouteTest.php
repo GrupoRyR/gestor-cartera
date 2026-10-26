@@ -14,14 +14,15 @@ use Tests\TestCase;
 
 /*
 | routes/web.php registers the demo sign-in only when the application boots in
-| local. Tests boot in "testing", so each test switches the environment and
-| loads the base routes again, as the framework does on boot. Outside
-| "testing" the CSRF check is on, so the sign-in posts the session token like
-| the form does.
+| local with DEMO_LOGIN on (config app.demo_login). Tests boot in "testing",
+| so each test switches the environment and the flag and loads the base
+| routes again, as the framework does on boot. Outside "testing" the CSRF
+| check is on, so the sign-in posts the session token like the form does.
 */
-function bootDevRoutesIn(string $environment): void
+function bootDevRoutesIn(string $environment, bool $demoLogin = true): void
 {
     app()['env'] = $environment;
+    config(['app.demo_login' => $demoLogin]);
 
     Route::middleware('web')->group(base_path('routes/web.php'));
     app('router')->getRoutes()->refreshNameLookups();
@@ -57,6 +58,58 @@ it('does not register the demo sign-in in production', function () {
 
     $this->get('/dev/entrar')->assertNotFound();
     postDemoSignIn($this, "/dev/entrar/{$user->id}")->assertNotFound();
+    $this->assertGuest();
+});
+
+it('keeps the demo sign-in off unless DEMO_LOGIN turns it on', function () {
+    // config/app.php read again without the variable: a developer's .env may
+    // turn it on for their machine.
+    $previous = [$_SERVER['DEMO_LOGIN'] ?? null, $_ENV['DEMO_LOGIN'] ?? null, getenv('DEMO_LOGIN')];
+    unset($_SERVER['DEMO_LOGIN'], $_ENV['DEMO_LOGIN']);
+    putenv('DEMO_LOGIN');
+
+    try {
+        $config = require base_path('config/app.php');
+    } finally {
+        [$server, $env, $getenv] = $previous;
+
+        if ($server !== null) {
+            $_SERVER['DEMO_LOGIN'] = $server;
+        }
+
+        if ($env !== null) {
+            $_ENV['DEMO_LOGIN'] = $env;
+        }
+
+        if ($getenv !== false) {
+            putenv("DEMO_LOGIN={$getenv}");
+        }
+    }
+
+    expect($config['demo_login'])->toBeFalse();
+});
+
+it('does not register the demo sign-in in local without DEMO_LOGIN', function () {
+    $user = CoreUsers::create(Role::PortfolioAnalyst, CompanyCode::SGX);
+
+    bootDevRoutesIn('local', demoLogin: false);
+
+    expect(Route::has('dev.entrar'))->toBeFalse()
+        ->and(Route::has('dev.entrar.usuario'))->toBeFalse();
+
+    $this->get('/dev/entrar')->assertNotFound();
+    postDemoSignIn($this, "/dev/entrar/{$user->id}")->assertNotFound();
+    $this->assertGuest();
+});
+
+it('answers 404 if the routes were cached with DEMO_LOGIN on but it is off now', function () {
+    $user = CoreUsers::create(Role::PortfolioAnalyst, CompanyCode::SGX);
+
+    bootDevRoutesIn('local');
+    config(['app.demo_login' => false]);
+
+    $this->get(route('dev.entrar'))->assertNotFound();
+    postDemoSignIn($this, route('dev.entrar.usuario', $user))->assertNotFound();
     $this->assertGuest();
 });
 

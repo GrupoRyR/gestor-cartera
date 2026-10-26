@@ -20,10 +20,11 @@ use Illuminate\Support\Str;
  * developer's machine, to walk every screen with the demo seeders' data.
  *
  * Three locks keep it away from any real server: routes/web.php registers
- * the routes only in local; this controller answers 404 outside local (a
- * route cache built in local) and to any request whose socket address is not
- * the loopback (REMOTE_ADDR, never a forwarded header); and signing in is a
- * POST checked by the CSRF middleware of the web group.
+ * the routes only in local with DEMO_LOGIN=true; this controller answers 404
+ * outside local or with the flag off (a route cache built with both on) and
+ * to any request whose socket address is not the loopback (REMOTE_ADDR, never
+ * a forwarded header); and signing in is a POST checked by the CSRF
+ * middleware of the web group.
  *
  * The page renders inline: it is a development tool, not a screen of the
  * platform, so it has no view of its own.
@@ -78,7 +79,7 @@ final class DemoLoginController
 
     private static function ensureLocalRequest(Request $request): void
     {
-        abort_unless(app()->isLocal(), 404);
+        abort_unless(app()->isLocal() && config('app.demo_login') === true, 404);
         abort_unless(in_array($request->server('REMOTE_ADDR'), self::LOOPBACK, true), 404);
     }
 

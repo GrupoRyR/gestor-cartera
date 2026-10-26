@@ -24,11 +24,12 @@ Route::get('/dev/componentes', function (): View {
     return view('design.gallery');
 })->name('dev.componentes');
 
-// Only in local: sign in as a demo user without Microsoft, to walk every
-// screen with the data of the demo seeders. The routes do not even exist in
-// another environment; the controller also checks the environment and that
-// the request comes from this machine, and the sign-in is a POST with CSRF.
-if (app()->isLocal()) {
+// Only in local with DEMO_LOGIN=true: sign in as a demo user without
+// Microsoft, to walk every screen with the data of the demo seeders. The
+// routes do not even exist otherwise; the controller checks the environment,
+// the flag and that the request comes from this machine again, and the
+// sign-in is a POST with CSRF.
+if (app()->isLocal() && config('app.demo_login') === true) {
     Route::get('/dev/entrar', [DemoLoginController::class, 'index'])->name('dev.entrar');
     Route::post('/dev/entrar/{user}', [DemoLoginController::class, 'store'])
         ->whereNumber('user')
