@@ -2,6 +2,7 @@
 
 namespace App\Modules\Comisiones\Infrastructure\Files;
 
+use Generator;
 use OpenSpout\Reader\XLSX\Options;
 use OpenSpout\Reader\XLSX\Reader;
 use Throwable;
@@ -85,64 +86,114 @@ final class TabularFile
      */
     private static function csv(string $path): array
     {
-        $content = @file_get_contents($path);
-
-        if ($content === false) {
-            throw new UnreadableFile(__('comisiones::presupuesto.archivo.ilegible'));
-        }
-
-        $content = self::utf8($content);
-        $delimiter = self::delimiter($content);
-        $stream = fopen('php://temp', 'r+');
-
-        if ($stream === false) {
-            throw new UnreadableFile(__('comisiones::presupuesto.archivo.ilegible'));
-        }
-
-        fwrite($stream, $content);
-        rewind($stream);
         $rows = [];
 
-        while (($cells = fgetcsv($stream, null, $delimiter, '"', '')) !== false) {
-            $rows[] = $cells === [null] ? [] : $cells;
+        try {
+            foreach (self::csvRows($path) as $cells) {
+                $rows[] = $cells;
 
-            if (count($rows) > self::MAX_ROWS) {
-                fclose($stream);
-
-                throw new UnreadableFile(__('comisiones::presupuesto.archivo.demasiadas_filas'));
+                if (count($rows) > self::MAX_ROWS) {
+                    break;
+                }
             }
+        } catch (UnreadableFile $e) {
+            throw new UnreadableFile(__('comisiones::presupuesto.archivo.ilegible'), previous: $e);
         }
 
-        fclose($stream);
+        if (count($rows) > self::MAX_ROWS) {
+            throw new UnreadableFile(__('comisiones::presupuesto.archivo.demasiadas_filas'));
+        }
 
         return $rows;
     }
 
     /**
-     * UTF-8 without BOM. A file that is not valid UTF-8 is read as
-     * Windows-1252, the encoding Excel uses for CSV in Spanish.
+     * Every row of a .csv, streamed and with no row cap: the cells as UTF-8
+     * strings, an empty row as []. The delimiter and the encoding are
+     * detected as for the budget; a BOM is skipped.
+     *
+     * @return Generator<int, list<string|null>>
+     *
+     * @throws UnreadableFile When the file cannot be opened; the message is
+     *                        not for the user.
      */
-    private static function utf8(string $content): string
+    public static function csvRows(string $path): Generator
     {
-        if (str_starts_with($content, "\xEF\xBB\xBF")) {
-            $content = substr($content, 3);
+        $stream = @fopen($path, 'rb');
+
+        if ($stream === false) {
+            throw new UnreadableFile('The CSV file cannot be opened.');
         }
 
-        return mb_check_encoding($content, 'UTF-8') ? $content : mb_convert_encoding($content, 'UTF-8', 'Windows-1252');
+        try {
+            $start = fread($stream, 3) === "\xEF\xBB\xBF" ? 3 : 0;
+            fseek($stream, $start);
+            $utf8 = self::isUtf8($stream);
+            fseek($stream, $start);
+            $delimiter = self::delimiter(self::sample($stream));
+            fseek($stream, $start);
+
+            // Both encodings keep delimiters and quotes in ASCII, so the raw
+            // bytes split the same and each cell is converted afterwards.
+            while (($cells = fgetcsv($stream, null, $delimiter, '"', '')) !== false) {
+                yield $cells === [null] ? [] : array_map(
+                    fn (?string $cell): ?string => $utf8 || $cell === null ? $cell : mb_convert_encoding($cell, 'UTF-8', 'Windows-1252'),
+                    $cells,
+                );
+            }
+        } finally {
+            fclose($stream);
+        }
+    }
+
+    /**
+     * Whether the rest of the stream is UTF-8. A file that is not is read as
+     * Windows-1252, the encoding Excel uses for CSV in Spanish. Checked line
+     * by line: a line break never falls inside a UTF-8 character.
+     *
+     * @param  resource  $stream
+     */
+    private static function isUtf8($stream): bool
+    {
+        while (($line = fgets($stream)) !== false) {
+            if (! mb_check_encoding($line, 'UTF-8')) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    /**
+     * The first non-empty lines of the stream.
+     *
+     * @param  resource  $stream
+     * @return list<string>
+     */
+    private static function sample($stream): array
+    {
+        $lines = [];
+
+        while (count($lines) < self::SAMPLE_LINES && ($line = fgets($stream)) !== false) {
+            foreach (preg_split('/\r\n|\r|\n/', $line) ?: [] as $piece) {
+                if (trim($piece) !== '') {
+                    $lines[] = $piece;
+                }
+            }
+        }
+
+        return array_slice($lines, 0, self::SAMPLE_LINES);
     }
 
     /**
      * The delimiter that splits the most lines into the same number of
      * cells. Counting characters would fail: Colombian amounts hold dots and
      * plain decimals hold commas.
+     *
+     * @param  list<string>  $lines
      */
-    private static function delimiter(string $content): string
+    private static function delimiter(array $lines): string
     {
-        $lines = array_slice(array_values(array_filter(
-            preg_split('/\r\n|\r|\n/', $content) ?: [],
-            fn (string $line): bool => trim($line) !== '',
-        )), 0, self::SAMPLE_LINES);
-
         $best = ';';
         $bestScore = 0;
 

