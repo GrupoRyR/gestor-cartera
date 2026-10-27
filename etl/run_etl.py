@@ -212,7 +212,6 @@ def main() -> int:
     corridas = {
         e.codigo: Corrida(orden, log, e.codigo if multi else "") for e in empresas
     }
-    corrida = corridas[empresas[0].codigo]  # para los abortos de toda la corrida
     etapa = "INICIO"
     robot = RobotVPN(cfg.vpn)
     extraidos: dict[str, dict[str, tuple[list[str], list[tuple]]]] = {}
@@ -296,14 +295,14 @@ def main() -> int:
     except (VpnError, hana.HanaError, postgres_sink.PostgresError,
             esquema.ColumnasInesperadas, FalloEtapa, ConfigError) as exc:
         etapa_fallo = getattr(exc, "etapa", etapa)
-        return _fallar(cfg, log, etapa_fallo, exc, inicio, inicio_utc, corrida)
+        return _fallar(cfg, log, etapa_fallo, exc, inicio, inicio_utc, corridas)
 
     except KeyboardInterrupt:
         log.warning("Ejecucion cancelada por el usuario.")
         return 130
 
     except Exception as exc:  # red de seguridad: nada sale sin registrar
-        return _fallar(cfg, log, etapa, exc, inicio, inicio_utc, corrida,
+        return _fallar(cfg, log, etapa, exc, inicio, inicio_utc, corridas,
                        inesperado=True)
 
 
@@ -553,7 +552,7 @@ def _cerrar_con_fallos(cfg, log: logging.Logger, corridas: dict[str, Corrida],
     return 1
 
 
-def _fallar(cfg, log, etapa, exc, inicio, inicio_utc, corrida: Corrida,
+def _fallar(cfg, log, etapa, exc, inicio, inicio_utc, corridas: dict[str, Corrida],
             inesperado: bool = False) -> int:
     """Aborto de la corrida completa (VPN, HANA o un lote base)."""
     duracion = time.monotonic() - inicio
@@ -564,10 +563,16 @@ def _fallar(cfg, log, etapa, exc, inicio, inicio_utc, corrida: Corrida,
     log.error("FALLO en la etapa %s: %s", etapa, exc)
     log.error("Los asesores conservan los datos de la ultima carga correcta.")
 
+    # El respaldo de Supabase es de Segurex; con una sola empresa, la unica.
+    corrida = corridas.get("SGX") or next(iter(corridas.values()))
     filas_cartera = corrida.filas("cartera")
     filas_asesores = corrida.filas("asesores")
+    lotes = (
+        {"lotes": corrida.lotes} if len(corridas) == 1
+        else {"empresas": {cod: {"lotes": c.lotes} for cod, c in corridas.items()}}
+    )
     guardar_estado(estado="ERROR", etapa=etapa, error=str(exc),
-                   lotes=corrida.lotes, duracion_seg=round(duracion, 1))
+                   **lotes, duracion_seg=round(duracion, 1))
 
     # Intento de dejar rastro en Supabase (puede que sea justo lo que fallo).
     if cfg.supabase_url and etapa != "SUPABASE":

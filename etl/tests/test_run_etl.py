@@ -22,6 +22,7 @@ import run_etl
 from config import AlertaConfig, Config, EmpresaConfig, HanaConfig, IngestaConfig, VpnConfig
 from esquema import ENTERO, FECHA, NUMERO, TASA, Columna, Lote
 from sinks import csv_sink, http_sink, postgres_sink
+from vpn import VpnError
 
 MUESTRA = {
     esquema.TEXTO: "x",
@@ -46,7 +47,9 @@ def _resultado(nombre: str, filas: int = 2):
 
 class Escenario:
     def __init__(self, resultados, lotes, *, laravel=True, supabase=False,
-                 fallos_laravel=(), argv=(), empresa="SGX", empresas=None):
+                 fallos_laravel=(), argv=(), empresa="SGX", empresas=None,
+                 vpn_falla=False):
+        self.vpn_falla = vpn_falla
         self.resultados = resultados
         self.empresa = empresa
         # empresas: ((codigo, esquema), ...) como ETL_EMPRESAS con dos o mas.
@@ -78,9 +81,12 @@ class Escenario:
     # -- dobles ------------------------------------------------------------
     def _vpn(self, _cfg):
         eventos = self.eventos
+        falla = self.vpn_falla
 
         class VpnFalsa:
             def conectar(self):
+                if falla:
+                    raise VpnError("Sophos no conecto")
                 eventos.append("vpn:arriba")
 
             def desconectar(self):
@@ -427,6 +433,40 @@ class DosEmpresasTest(unittest.TestCase):
         self.assertEqual(escenario.ejecutar(), 1)
         self.assertIn("csv:SGX_cartera", escenario.eventos)
         self.assertEqual(escenario.estados[-1]["estado"], "DIAGNOSTICO_CON_FALLOS")
+
+    def test_si_cae_la_vpn_no_se_publica_nada_y_el_estado_trae_las_dos_empresas(self):
+        escenario = self._escenario(vpn_falla=True)
+        self.assertEqual(escenario.ejecutar(), 1)
+        self.assertEqual(escenario.eventos, [])
+        (aviso,) = escenario.avisos
+        self.assertEqual(aviso[0], "VPN")
+        estado = escenario.estados[-1]
+        self.assertEqual(estado["estado"], "ERROR")
+        self.assertEqual(estado["etapa"], "VPN")
+        self.assertEqual(set(estado["empresas"]), {"SGX", "SDC"})
+        self.assertNotIn("lotes", estado)
+
+    def test_un_lote_no_base_que_falla_en_derivados_no_frena_nada(self):
+        resultados = {
+            **_base("SGX", "SDC"),
+            ("SGX", "prueba"): (["Valor"], [(1,)]),
+            ("SDC", "prueba"): hana.HanaError("invalid column name"),
+        }
+        escenario = Escenario(
+            resultados, ["cartera", "asesores", "prueba"], empresas=DOS_EMPRESAS
+        )
+        self.assertEqual(escenario.ejecutar(), 1)
+        for evento in ("laravel:SGX:cartera", "laravel:SGX:prueba",
+                       "laravel:SDC:cartera", "laravel:SDC:asesores"):
+            self.assertIn(evento, escenario.eventos)
+        self.assertNotIn("laravel:SDC:prueba", escenario.eventos)
+        (aviso,) = escenario.avisos
+        self.assertEqual(aviso[0], "HANA (SDC/prueba)")
+        empresas = escenario.estados[-1]["empresas"]
+        self.assertEqual(empresas["SGX"]["estado"], "OK")
+        self.assertEqual(empresas["SDC"]["estado"], "ERROR")
+        self.assertEqual(empresas["SDC"]["lotes"]["cartera"]["estado"], "OK")
+        self.assertEqual(empresas["SDC"]["lotes"]["prueba"]["estado"], "ERROR")
 
     def test_supabase_es_el_respaldo_solo_de_segurex(self):
         escenario = self._escenario(supabase=True)
