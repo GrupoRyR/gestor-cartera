@@ -6,13 +6,21 @@ use App\Models\User;
 use Carbon\CarbonImmutable;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Attributes\Table;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use LogicException;
 
 /**
  * A row of "comisiones_bitacora": one audited event of the module. Written
- * only by AuditTrail; never updated nor deleted.
+ * only by AuditTrail.
+ *
+ * Insert-only: saving changes to an existing event, or deleting one, throws a
+ * LogicException, also through saveQuietly(), deleteQuietly(), forceDelete()
+ * and withoutEvents(). Query-builder writes skip the model entirely: mass
+ * update() and delete() on AuditRecord::query() or
+ * DB::table('comisiones_bitacora') must never be used on this table; every
+ * event is also mirrored to Core's audit_logs.
  *
  * @property int $id
  * @property string $evento
@@ -42,17 +50,6 @@ final class AuditRecord extends Model
         return $this->belongsTo(User::class)->withTrashed();
     }
 
-    protected static function booted(): void
-    {
-        self::updating(function (): never {
-            throw new LogicException('The commission audit trail is insert-only.');
-        });
-
-        self::deleting(function (): never {
-            throw new LogicException('The commission audit trail is insert-only.');
-        });
-    }
-
     /**
      * @return array<string, string>
      */
@@ -63,5 +60,25 @@ final class AuditRecord extends Model
             'cambios' => 'array',
             'contexto' => 'array',
         ];
+    }
+
+    /**
+     * Every model update (save(), update(), saveQuietly()) ends here, with or
+     * without model events.
+     *
+     * @param  Builder<self>  $query
+     */
+    protected function performUpdate(Builder $query): never
+    {
+        throw new LogicException('The commission audit trail is insert-only.');
+    }
+
+    /**
+     * Every model delete (delete(), deleteQuietly(), forceDelete(), destroy())
+     * ends here, with or without model events.
+     */
+    protected function performDeleteOnModel(): never
+    {
+        throw new LogicException('The commission audit trail is insert-only.');
     }
 }

@@ -5,6 +5,8 @@ use App\Modules\Comisiones\Infrastructure\Audit\AuditTrail;
 use App\Modules\Comisiones\Infrastructure\Persistence\AuditRecord;
 use App\Modules\Core\Contracts\Enums\Dataset;
 use Carbon\CarbonImmutable;
+use Illuminate\Database\QueryException;
+use Illuminate\Support\Facades\Schema;
 use Tests\Fakes\AuditEntry;
 use Tests\Fakes\ContractFakes;
 use Tests\Modules\Comisiones\Feature\Concerns\SapBatches;
@@ -76,6 +78,63 @@ it('never updates or deletes an event', function () {
     expect(fn () => $record->update(['evento' => 'comisiones.load.deleted']))->toThrow(LogicException::class)
         ->and(fn () => $record->delete())->toThrow(LogicException::class)
         ->and(AuditRecord::query()->sole()->evento)->toBe('comisiones.load.imported');
+});
+
+it('never updates an event, even without model events', function (string $method) {
+    $record = $this->trail->record('comisiones.load.imported', changes: ['filas' => 2]);
+    $record->evento = 'comisiones.load.deleted';
+    $record->cambios = ['filas' => 0];
+
+    $update = match ($method) {
+        'withoutEvents' => fn () => AuditRecord::withoutEvents(fn () => $record->save()),
+        default => fn () => $record->{$method}(),
+    };
+
+    expect($update)->toThrow(LogicException::class, 'insert-only');
+
+    $stored = AuditRecord::query()->sole();
+
+    expect($stored->evento)->toBe('comisiones.load.imported')
+        ->and($stored->cambios)->toBe(['filas' => 2]);
+})->with(['save', 'saveQuietly', 'withoutEvents']);
+
+it('never deletes an event, even without model events', function (string $method) {
+    $record = $this->trail->record('comisiones.load.imported');
+
+    $delete = match ($method) {
+        'destroy' => fn () => AuditRecord::destroy($record->id),
+        'withoutEvents' => fn () => AuditRecord::withoutEvents(fn () => $record->delete()),
+        default => fn () => $record->{$method}(),
+    };
+
+    expect($delete)->toThrow(LogicException::class, 'insert-only')
+        ->and(AuditRecord::query()->whereKey($record->id)->exists())->toBeTrue();
+})->with(['deleteQuietly', 'forceDelete', 'destroy', 'withoutEvents']);
+
+it('refuses to remove for good a user who has events, and the event still names them', function () {
+    $user = User::factory()->create(['name' => 'Ana Gómez']);
+    $this->trail->record('comisiones.budget.updated', user: $user);
+
+    expect(fn () => $user->forceDelete())->toThrow(QueryException::class);
+
+    expect(User::withTrashed()->whereKey($user->id)->exists())->toBeTrue()
+        ->and(AuditRecord::query()->sole()->user_id)->toBe($user->id);
+});
+
+it('still removes for good a user without events', function () {
+    $user = User::factory()->create();
+
+    $user->forceDelete();
+
+    expect(User::withTrashed()->whereKey($user->id)->exists())->toBeFalse();
+});
+
+it('keeps the user link restricted and indexed', function () {
+    $foreignKey = collect(Schema::getForeignKeys('comisiones_bitacora'))->sole(fn (array $key) => $key['columns'] === ['user_id']);
+
+    expect($foreignKey['foreign_table'])->toBe('users')
+        ->and(strtolower($foreignKey['on_delete']))->toBe('restrict')
+        ->and(Schema::hasIndex('comisiones_bitacora', ['user_id', 'created_at']))->toBeTrue();
 });
 
 it('audits every staged load', function () {

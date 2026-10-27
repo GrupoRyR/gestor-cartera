@@ -335,6 +335,8 @@ Bitácora de cada cliente (gestiones): llamadas, notas, compromisos, descuentos,
 
 Bitácora de auditoría inmutable de toda la plataforma: nunca se actualiza ni se borra. La implementación agrega el actor (usuario o sistema), la IP, el navegador y la hora.
 
+El modelo bloquea todo camino de escritura de Eloquent sobre una entrada existente, también `saveQuietly()`, `deleteQuietly()` y `withoutEvents()`; el constructor de consultas no pasa por él, así que nunca lo uses sobre `audit_logs`. La llave foránea de `user_id` es `restrictOnDelete()`: el borrado definitivo de un usuario con entradas falla, y como los usuarios se borran de forma lógica, la entrada sigue apuntando a ellos.
+
 ```php
 public function record(
     string $action,                     // "<module-key>.<entity>.<verb>", p. ej. "cobro.exclusion.created"

@@ -545,6 +545,8 @@ La política se aplica desde el primer despliegue, sin una fase de solo reporte,
 
 **Inmutable.** `AuditLogRecord` lanza `LogicException` si intentas guardar cambios en una fila existente o borrarla, también con `saveQuietly()` y `deleteQuietly()`. Las escrituras del constructor de consultas no pasan por el modelo: nunca uses `update()` ni `delete()` masivos sobre `AuditLogRecord::query()` o `DB::table('audit_logs')`, ni `increment()` o `decrement()`.
 
+**Usuarios borrados.** La llave foránea de `user_id` es `restrictOnDelete()`: borrar un usuario nunca cambia la auditoría. Los usuarios se borran de forma lógica, así que la fila sigue apuntando a ellos; el borrado definitivo (`forceDelete()`) de un usuario con entradas falla con una `QueryException`.
+
 **Red de seguridad.** El contrato prohíbe guardar secretos. Aun así, en `changes` y `context`, a cualquier profundidad, el valor de toda llave que contenga `password`, `secret` o `token` (sin importar mayúsculas) se guarda como `[redacted]`.
 
 ## Pantalla Equipo
