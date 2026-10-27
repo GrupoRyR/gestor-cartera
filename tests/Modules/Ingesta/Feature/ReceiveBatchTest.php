@@ -1,5 +1,6 @@
 <?php
 
+use App\Modules\Core\Contracts\AuditLogger;
 use App\Modules\Core\Contracts\Enums\CompanyCode;
 use App\Modules\Core\Contracts\Enums\Dataset;
 use App\Modules\Core\Contracts\Enums\LoadStatus;
@@ -13,6 +14,8 @@ use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Testing\TestResponse;
+use Tests\Fakes\AuditEntry;
+use Tests\Fakes\FakeAuditLogger;
 use Tests\Modules\Ingesta\Support\IngestaRows;
 use Tests\Modules\Ingesta\Support\RobotRequests;
 
@@ -20,6 +23,7 @@ beforeEach(function () {
     Event::fake([BatchAccepted::class]);
     $this->travelTo(CarbonImmutable::parse('2026-10-15 07:00:00', 'America/Bogota'));
     config(['ingesta.hmac_keys' => RobotRequests::KEY_ID.':'.RobotRequests::SECRET]);
+    $this->app->instance(AuditLogger::class, $this->audit = new FakeAuditLogger);
 });
 
 /**
@@ -81,6 +85,11 @@ it('accepts a signed gzipped batch with 201 and stores its rows', function () {
     Log::shouldHaveReceived('info')->once()->withArgs(fn (string $message, array $context): bool => $context === [
         'dataset' => 'cartera', 'company' => 'SGX', 'rows' => 2, 'batch_id' => 'cartera-SGX-2026-10-15-0123456789abcdef', 'duplicate' => false,
     ]);
+    $this->audit->assertRecorded('ingesta.batch.accepted', fn (AuditEntry $entry): bool => $entry->subjectType === 'ingesta_load'
+        && $entry->subjectId === $load->id
+        && $entry->changes === []
+        && $entry->context === ['dataset' => 'cartera', 'company' => 'SGX', 'rows' => 2, 'batch_id' => 'cartera-SGX-2026-10-15-0123456789abcdef', 'key_id' => RobotRequests::KEY_ID]);
+    expect($this->audit->entries())->toHaveCount(1);
 });
 
 it('accepts a plain JSON body and rebuilds rows from columns in any order', function () {
@@ -99,8 +108,35 @@ it('answers 200 with the original load for a repeated batch', function () {
     $again = postRobotBatch('asesores', RobotRequests::body(robotAdvisorRows()));
 
     $again->assertOk()->assertJsonPath('duplicate', true)->assertJsonPath('load', $first->json('load'));
-    expect(IngestaLoad::query()->count())->toBe(1);
+    expect(IngestaLoad::query()->count())->toBe(1)
+        ->and($this->audit->entries())->toHaveCount(1);
     Event::assertDispatchedTimes(BatchAccepted::class, 1);
+});
+
+it('refuses the exact same signed request a second time', function () {
+    Log::spy();
+    $raw = RobotRequests::gzip(RobotRequests::body(robotAdvisorRows()));
+    $server = RobotRequests::headers('asesores', $raw, gzip: true);
+
+    $this->call('POST', '/api/ingesta/asesores', [], [], [], $server, $raw)->assertCreated();
+    $this->call('POST', '/api/ingesta/asesores', [], [], [], $server, $raw)
+        ->assertUnauthorized()
+        ->assertExactJson(['message' => 'Firma inválida.']);
+
+    expect(IngestaLoad::query()->count())->toBe(1);
+    Log::shouldHaveReceived('warning')->once()->withArgs(fn (string $message, array $context): bool => $context['reason'] === 'replayed'
+        && $context['key'] === RobotRequests::KEY_ID);
+});
+
+it('records nothing in the audit log for a rejected batch or without an audit logger', function () {
+    postRobotBatch('asesores', RobotRequests::body([IngestaRows::advisor(11, ['nombre' => null])]))->assertUnprocessable();
+
+    $this->app->forgetInstance(AuditLogger::class);
+    unset($this->app[AuditLogger::class]);
+
+    postRobotBatch('asesores', RobotRequests::body(robotAdvisorRows(), batchId: 'b-2'))->assertCreated();
+
+    expect($this->audit->entries())->toBe([]);
 });
 
 it('accepts an empty batch of a dataset that allows it', function () {
@@ -114,14 +150,16 @@ it('accepts an empty batch of a dataset that allows it', function () {
 });
 
 it('accepts every key of the keyring, so keys can rotate', function () {
-    config(['ingesta.hmac_keys' => 'k2026a:viejo,k2026b:nuevo']);
+    $old = 'k2026a-secreto-viejo-de-al-menos-32-bytes';
+    $new = 'k2026b-secreto-nuevo-de-al-menos-32-bytes';
+    config(['ingesta.hmac_keys' => "k2026a:{$old},k2026b:{$new}"]);
 
-    postRobotBatch('asesores', RobotRequests::body(robotAdvisorRows(), batchId: 'b-1'), sign: ['keyId' => 'k2026a', 'secret' => 'viejo'])->assertCreated();
-    postRobotBatch('asesores', RobotRequests::body(robotAdvisorRows(), batchId: 'b-2'), sign: ['keyId' => 'k2026b', 'secret' => 'nuevo'])->assertCreated();
+    postRobotBatch('asesores', RobotRequests::body(robotAdvisorRows(), batchId: 'b-1'), sign: ['keyId' => 'k2026a', 'secret' => $old])->assertCreated();
+    postRobotBatch('asesores', RobotRequests::body(robotAdvisorRows(), batchId: 'b-2'), sign: ['keyId' => 'k2026b', 'secret' => $new])->assertCreated();
 
-    config(['ingesta.hmac_keys' => 'k2026b:nuevo']);
+    config(['ingesta.hmac_keys' => "k2026b:{$new}"]);
 
-    postRobotBatch('asesores', RobotRequests::body(robotAdvisorRows(), batchId: 'b-3'), sign: ['keyId' => 'k2026a', 'secret' => 'viejo'])->assertUnauthorized();
+    postRobotBatch('asesores', RobotRequests::body(robotAdvisorRows(), batchId: 'b-3'), sign: ['keyId' => 'k2026a', 'secret' => $old])->assertUnauthorized();
 });
 
 it('refuses a request whose signature does not check out', function (array $sign, array $headers) {

@@ -1,6 +1,7 @@
 <?php
 
 use App\Models\User;
+use App\Modules\Core\Contracts\CurrentCompany;
 use App\Modules\Core\Contracts\Enums\CompanyCode;
 use App\Modules\Core\Contracts\Enums\Dataset;
 use App\Modules\Core\Contracts\Enums\LoadSource;
@@ -10,12 +11,14 @@ use App\Modules\Ingesta\Database\Seeders\IngestaPermissionSeeder;
 use App\Support\Navigation\NavItem;
 use App\Support\Navigation\NavRegistry;
 use Carbon\CarbonImmutable;
+use Tests\Fakes\FakeCurrentCompany;
 use Tests\Modules\Ingesta\Support\IngestaLoads;
 use Tests\Modules\Ingesta\Support\IngestaUsers;
 
 beforeEach(function () {
     $this->seed(IngestaPermissionSeeder::class);
     $this->travelTo(CarbonImmutable::parse('2026-10-15 09:30:00', 'America/Bogota'));
+    $this->app->instance(CurrentCompany::class, new FakeCurrentCompany);
 });
 
 /**
@@ -252,6 +255,33 @@ it('lists the errors of a rejected load', function () {
             'Fila 4, columna dias', 'La columna dias debe ser un número entero.', 'Otro mensaje.',
         ])
         ->assertDontSeeText('Saldo total');
+});
+
+it('limits the history to the companies the user may see', function () {
+    config(['ingesta.alert_companies' => ['SGX', 'SDC']]);
+    $this->app->instance(CurrentCompany::class, new FakeCurrentCompany(CompanyCode::SGX, [CompanyCode::SGX]));
+    $user = ingestaAnalyst();
+    $sgx = IngestaLoads::accepted(['batch_id' => 'cartera-sgx']);
+    $sdc = IngestaLoads::accepted(['batch_id' => 'cartera-sdc', 'company' => CompanyCode::SDC]);
+
+    $this->actingAs($user)->get('/ingesta')
+        ->assertOk()
+        ->assertSee('data-batch="cartera-sgx"', false)
+        ->assertDontSee('data-batch="cartera-sdc"', false)
+        ->assertSee('<option value="SGX"', false)
+        ->assertDontSee('value="SDC"', false)
+        ->assertSeeText('Cartera vigente de Segurex Latam')
+        // Neither the current cartera nor the missing-load warning of SDC.
+        ->assertDontSeeText('Soluciones y Derivados');
+
+    // A company the user may not see does not filter, like an unknown value.
+    $this->actingAs($user)->get('/ingesta?empresa=SDC')
+        ->assertOk()
+        ->assertSee('data-batch="cartera-sgx"', false)
+        ->assertDontSee('data-batch="cartera-sdc"', false);
+
+    $this->actingAs($user)->get("/ingesta/cargas/{$sgx->id}")->assertOk();
+    $this->actingAs($user)->get("/ingesta/cargas/{$sdc->id}")->assertNotFound();
 });
 
 it('answers 404 for an unknown load', function (string $id) {

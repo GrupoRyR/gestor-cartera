@@ -7,6 +7,7 @@ use App\Modules\Ingesta\Infrastructure\Robot\HmacKeyring;
 use Closure;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
 use Symfony\Component\HttpFoundation\Response;
 
@@ -15,6 +16,12 @@ use Symfony\Component\HttpFoundation\Response;
  * X-Ingesta-Key, an X-Ingesta-Timestamp within config('ingesta.hmac_max_skew')
  * seconds of now and a matching X-Ingesta-Signature over the raw body. It
  * runs before the body is decompressed or parsed.
+ *
+ * A valid signature is good once: it stays in the cache for twice the
+ * allowed skew, so the exact same request sent again is refused as
+ * replayed. Only verified signatures are cached, so an unauthenticated
+ * caller cannot fill the cache. A repeated batch must be signed again,
+ * as the robot does on every attempt.
  *
  * A request over config('ingesta.max_request_bytes') is refused with 413
  * first, by its Content-Length and then by its body, so an unauthenticated
@@ -97,6 +104,11 @@ final class VerifyRobotSignature
 
         if (! RequestSigner::verify($secret, (int) $timestamp, $lote, $request->getContent(), $signature)) {
             return 'signature_mismatch';
+        }
+
+        // After the check: only a verified signature takes a cache entry.
+        if (! Cache::add('ingesta:sig:'.$signature, true, max(1, 2 * (int) config('ingesta.hmac_max_skew')))) {
+            return 'replayed';
         }
 
         return null;

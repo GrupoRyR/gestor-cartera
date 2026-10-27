@@ -1,4 +1,3 @@
-@use('App\Modules\Core\Contracts\Enums\CompanyCode')
 @use('App\Modules\Core\Contracts\Enums\Dataset')
 @use('App\Modules\Core\Contracts\Enums\LoadStatus')
 @use('App\Support\Formatting\DateFormat')
@@ -8,9 +7,10 @@
     received first, with GET filters by dataset (lote), company (empresa)
     and status (estado). Above it, the current cartera of each company in
     ingesta.alert_companies and a warning per company still missing today's
-    robot load after the deadline.
+    robot load after the deadline. Only the companies the user may see.
     $loads: paginator of IngestaLoad with receivedBy; $filters: the valid
-    filter values; $current: list of ['company' => CompanyCode, 'load' => ?LoadRecord];
+    filter values; $companies: value => label of the companies the user may
+    see; $current: list of ['company' => CompanyCode, 'load' => ?LoadRecord];
     $missing: list<CompanyCode>; $deadline: today's deadline.
 --}}
 @php
@@ -72,7 +72,7 @@
                 <x-ui.select name="lote" :label="__('ingesta::historial.filtros.lote')" :options="Dataset::options()" :value="$filters['lote']" :placeholder="__('ingesta::historial.filtros.todos')" />
             </div>
             <div class="min-w-[min(12rem,100%)] flex-1">
-                <x-ui.select name="empresa" :label="__('ingesta::historial.filtros.empresa')" :options="CompanyCode::options()" :value="$filters['empresa']" :placeholder="__('ingesta::historial.filtros.todas')" />
+                <x-ui.select name="empresa" :label="__('ingesta::historial.filtros.empresa')" :options="$companies" :value="$filters['empresa']" :placeholder="__('ingesta::historial.filtros.todas')" />
             </div>
             <div class="min-w-[min(12rem,100%)] flex-1">
                 <x-ui.select name="estado" :label="__('ingesta::historial.filtros.estado')" :options="LoadStatus::options()" :value="$filters['estado']" :placeholder="__('ingesta::historial.filtros.todos')" />

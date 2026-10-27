@@ -29,7 +29,9 @@ POST
 
 `firma = hex(hmac_sha256(secreto, cadena))`. La ruta se arma con `{lote}` en ambos lados, nunca con la URL de la petición, así que un subdirectorio o un proxy no la rompen. `VerifyRobotSignature` revisa, antes de descomprimir o leer el JSON, que la llave exista, que el timestamp esté a menos de `INGESTA_HMAC_MAX_SKEW` segundos (300 por defecto) de la hora del servidor y que la firma coincida (`hash_equals`). Cualquier falla responde 401 `{"message": "Firma inválida."}`, el mismo texto para todas, y queda en el log con el motivo, el id de la llave y la IP, nunca con el secreto.
 
-Vector de prueba compartido con el robot (`tests/Modules/Ingesta/Unit/RequestSignerTest.php`): secreto `k2026a-secreto-de-prueba`, timestamp `1792152000`, lote `cartera` y cuerpo `{"rows":[]}` dan `sha256=ba04577457e09c8e9a6bec8983b85a09559f01b466e48a8f8fb2090e3a5b0fc9`.
+Cada firma sirve una sola vez. Ya verificada, queda en la caché (`ingesta:sig:{firma}`) por el doble de `INGESTA_HMAC_MAX_SKEW`, así que la misma petición exacta enviada otra vez responde 401 y queda en el log con el motivo `replayed`. Solo se guardan firmas válidas, para que nadie sin la llave pueda llenar la caché. Un lote repetido debe firmarse de nuevo, como hace el robot en cada intento; firmado otra vez, responde 200 con `duplicate: true`.
+
+Vector de prueba compartido con el robot (`tests/Modules/Ingesta/Unit/RequestSignerTest.php`): secreto `k2026a-secreto-de-prueba`, timestamp `1792152000`, lote `cartera` y cuerpo `{"rows":[]}` dan `sha256=ba04577457e09c8e9a6bec8983b85a09559f01b466e48a8f8fb2090e3a5b0fc9`. Ese secreto solo prueba la firma: tiene menos de 32 bytes, así que en `INGESTA_HMAC_KEYS` se ignoraría.
 
 ### Cuerpo
 
@@ -59,11 +61,13 @@ JSON por columnas, para que pese poco:
 |---|---|---|
 | 201 | Carga nueva aceptada | `{"load": {...}, "duplicate": false}` |
 | 200 | `batch_id` de una carga ya aceptada | `{"load": {...carga original}, "duplicate": true}` |
-| 401 | Firma inválida, llave desconocida, timestamp fuera de margen o sin llaves configuradas | `{"message": "Firma inválida."}` |
+| 401 | Firma inválida o ya usada, llave desconocida, timestamp fuera de margen o sin llaves configuradas | `{"message": "Firma inválida."}` |
 | 404 | `{lote}` desconocido | estándar |
 | 413 | Cuerpo de más de `ingesta.max_request_bytes` (20 MB). Se revisa antes que la firma: primero `Content-Length` y luego el cuerpo. | `{"message": ...}` |
 | 422 | Cuerpo mal formado: gzip o JSON inválido, sobre incompleto, fila con otro número de valores. No queda en el historial. | `{"message": ..., "errors": {...}}` |
 | 422 | El lote no cumple el esquema. Queda en el historial como rechazado y su `batch_id` se puede reenviar ya corregido. | `{"message": "El lote tiene N errores.", "errors": {"rows.3.saldo": [...]}}`, máximo 50 llaves |
+
+Una carga nueva aceptada queda en la auditoría como `ingesta.batch.accepted` (sujeto `ingesta_load`, con el lote, la empresa, las filas, el `batch_id` y el id de la llave) cuando hay un `AuditLogger` enlazado; un lote repetido o rechazado no deja entrada.
 
 `load` trae `id`, `dataset`, `company`, `cutoff_date` (`AAAA-MM-DD`), `source`, `status`, `row_count`, `total` y `overdue` (texto con 2 decimales, solo cartera; `null` en los demás), `received_at` (ISO 8601) y `error`. Las filas de los errores se numeran desde 0, como las llaves `rows.N`.
 
@@ -71,7 +75,7 @@ El gzip descomprimido no puede pasar de `ingesta.max_payload_bytes` (60 MB). El 
 
 ## Rotación de llaves
 
-`INGESTA_HMAC_KEYS` admite varias parejas `id:secreto` separadas por comas (el secreto puede tener `:`; se parte en el primero). Para rotar: agrega la llave nueva junto a la vieja, cambia el robot a la nueva y, cuando ya firme con ella, quita la vieja. Una pareja mal formada se ignora con una advertencia en el log. Sin ninguna llave válida, el endpoint responde 401 a todo y lo registra como error.
+`INGESTA_HMAC_KEYS` admite varias parejas `id:secreto` separadas por comas (el secreto puede tener `:`; se parte en el primero). Cada secreto debe tener al menos 32 bytes; genera uno con `php -r "echo bin2hex(random_bytes(32));"`. Para rotar: agrega la llave nueva junto a la vieja, cambia el robot a la nueva y, cuando ya firme con ella, quita la vieja. Una pareja mal formada o con un secreto de menos de 32 bytes se ignora con una advertencia en el log, que da su posición (y el id de la llave, si el secreto es corto), nunca el secreto. Sin ninguna llave válida, el endpoint responde 401 a todo y lo registra como error.
 
 ## Almacenamiento
 
@@ -91,9 +95,9 @@ Escuchan `BatchAccepted`, que se despacha una vez por carga aceptada y después 
 
 ## Historial de cargas
 
-`GET /ingesta` (ruta `ingesta.index`, menú «Cargas de datos» en Administración): todas las cargas, aceptadas y rechazadas, 25 por página y la más reciente primero, con filtros por lote, empresa y estado (`?lote=cartera&empresa=SGX&estado=rechazada`; un valor desconocido no filtra). Arriba muestra la cartera vigente (`IngestaSink::latest()`) de cada empresa de `ingesta.alert_companies` y, pasada la hora límite (`ingesta.alert_deadline`, 07:00 en Bogotá), un aviso por cada una que aún no tenga una carga de cartera **del robot**, aceptada y con corte de hoy (`DailyCarteraCheck`). Una carga manual no apaga el aviso: mantiene la plataforma al día, pero el robot igual necesita revisión.
+`GET /ingesta` (ruta `ingesta.index`, menú «Cargas de datos» en Administración): las cargas, aceptadas y rechazadas, de las empresas de `CurrentCompany::available()` (todas las del usuario, no solo la activa), 25 por página y la más reciente primero, con filtros por lote, empresa y estado (`?lote=cartera&empresa=SGX&estado=rechazada`; un valor desconocido o una empresa que el usuario no ve no filtra; el filtro de empresa solo ofrece las suyas). Arriba muestra la cartera vigente (`IngestaSink::latest()`) de cada empresa de `ingesta.alert_companies` que el usuario ve y, pasada la hora límite (`ingesta.alert_deadline`, 07:00 en Bogotá), un aviso por cada una que aún no tenga una carga de cartera **del robot**, aceptada y con corte de hoy (`DailyCarteraCheck`). Una carga manual no apaga el aviso: mantiene la plataforma al día, pero el robot igual necesita revisión.
 
-`GET /ingesta/cargas/{id}` (`ingesta.cargas.show`): los datos de una carga; si se rechazó, el resumen y los mensajes por campo (las filas se numeran desde 0, como en los mensajes); si es una cartera aceptada, el saldo total y el vencido. Un id que no existe responde 404.
+`GET /ingesta/cargas/{id}` (`ingesta.cargas.show`): los datos de una carga; si se rechazó, el resumen y los mensajes por campo (las filas se numeran desde 0, como en los mensajes); si es una cartera aceptada, el saldo total y el vencido. Un id que no existe, o una carga de una empresa que el usuario no ve, responde 404.
 
 `ingesta.alert_companies` trae solo `SGX`: el robot lee únicamente el esquema SEGUREX de HANA; SDC carga su cartera con el Excel manual hasta que se configure su esquema de SAP.
 
@@ -102,7 +106,7 @@ Escuchan `BatchAccepted`, que se despacha una vez por carga aceptada y después 
 Respaldo del robot, solo para el lote `cartera`. Desde el historial, «Carga manual» abre `GET /ingesta/carga-manual` (`ingesta.manual.create`, permiso `ingesta.upload`):
 
 1. **Formulario.** Empresa (solo las de `CurrentCompany::available()`), fecha de corte (por defecto hoy, nunca posterior) y el Excel `.xlsx` «Cartera del día» de SAP, hasta 20 MB (`upload_max_filesize` y `post_max_size` de PHP deben permitirlo).
-2. **Vista previa** (`POST /ingesta/carga-manual`, `ingesta.manual.preview`). Se lee la hoja «Datos» o, si no existe, la primera. La fila de títulos es la primera de las 20 primeras que tenga «Código SN» y «Nit»; los títulos se cruzan con el alias de HANA de cada columna (`Column::sourceHeader`), sin importar espacios ni mayúsculas (las tildes sí cuentan). Sin «Código SN», «Nit», «Documento», «Fecha vencimiento» o «Saldo» no hay vista previa. Los títulos desconocidos se ignoran y se listan; se saltan las filas vacías y las que no tienen ni código ni documento (como la fila de totales). La página muestra filas, clientes distintos, saldo total y vencido, las 20 primeras filas, cuántas quedaron sin código de asesor y, si `BatchValidator` encuentra errores, hasta 50 con su fila de Excel; con errores no se puede confirmar.
+2. **Vista previa** (`POST /ingesta/carga-manual`, `ingesta.manual.preview`). Se lee la hoja «Datos» o, si no existe, la primera. La fila de títulos es la primera de las 20 primeras que tenga «Código SN» y «Nit»; los títulos se cruzan con el alias de HANA de cada columna (`Column::sourceHeader`), sin importar espacios ni mayúsculas (las tildes sí cuentan). Sin «Código SN», «Nit», «Documento», «Fecha vencimiento» o «Saldo» no hay vista previa. Los títulos desconocidos se ignoran y se listan; se saltan las filas vacías y las que no tienen ni código ni documento (como la fila de totales). Un archivo con más de `ingesta.max_rows` filas de datos (200 000) se rechaza con «El archivo tiene más de N filas»; además, la lectura se detiene después de `ingesta.max_rows` más 20 filas de la hoja, contando las vacías. La página muestra filas, clientes distintos, saldo total y vencido, las 20 primeras filas, cuántas quedaron sin código de asesor y, si `BatchValidator` encuentra errores, hasta 50 con su fila de Excel; con errores no se puede confirmar.
 3. **Confirmar o descartar** (`POST /ingesta/carga-manual/{token}/confirmar` o `/descartar`). Mientras tanto el archivo queda en el disco `local` como `ingesta/manual/{token}.xlsx` y la sesión guarda la ruta, la empresa, el corte, el SHA-256 y el usuario. Confirmar vuelve a leer el archivo, revisa el hash y que sea el mismo usuario (otro usuario recibe 404), y entrega a `IngestaSink::receive()` el lote `manual-cartera-{empresa}-{AAAA-MM-DD}-{16 primeros hex del SHA-256}` con `LoadSource::Manual` y `receivedBy`. El mismo archivo con el mismo corte es la misma carga: la segunda vez muestra «Esta carga ya estaba registrada». Confirmar y descartar borran el archivo y la entrada de la sesión. Una carga nueva queda en la auditoría como `ingesta.load.uploaded` cuando hay un `AuditLogger` enlazado. Un archivo que se suba y nunca se confirme ni se descarte queda en `ingesta/manual/` hasta la limpieza diaria.
 
 **Limpieza de cargas sin confirmar.** El comando `ingesta:limpiar-cargas-manuales` (`Console/PruneManualUploadsCommand`) borra los archivos que están directamente en `ingesta/manual/` del disco `local` (`ManualUploadController::DISK` y `::DIRECTORY`) y cuya última modificación tiene más de `ingesta.manual_upload_ttl_days` días (7 por defecto, mínimo 1), y dice cuántos borró. No toca subcarpetas ni nada fuera de ese directorio; si el directorio no existe, no hace nada. `IngestaServiceProvider::schedule()` lo corre todos los días a las 03:00 de Bogotá con `withoutOverlapping(10)`. Correrlo a mano es seguro.

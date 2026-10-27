@@ -2,6 +2,7 @@
 
 namespace App\Modules\Ingesta\Http\Controllers;
 
+use App\Modules\Core\Contracts\AuditLogger;
 use App\Modules\Core\Contracts\Data\IncomingBatch;
 use App\Modules\Core\Contracts\Data\LoadRecord;
 use App\Modules\Core\Contracts\Enums\CompanyCode;
@@ -31,7 +32,9 @@ use UnexpectedValueException;
  * associative row per value list and hands the batch to IngestaSink, which
  * validates it against the dataset schema and stores it. A malformed
  * request answers 422 without an entry in the load history; a batch that
- * fails the schema answers 422 and is recorded as rejected.
+ * fails the schema answers 422 and is recorded as rejected. A new accepted
+ * batch goes to the audit log as ingesta.batch.accepted when Core binds an
+ * AuditLogger.
  */
 final class ReceiveBatchController
 {
@@ -66,10 +69,32 @@ final class ReceiveBatchController
             'duplicate' => $duplicate,
         ]);
 
+        if (! $duplicate) {
+            $this->audit($load, $batch, (string) $request->header('X-Ingesta-Key'));
+        }
+
         return new JsonResponse(
             ['load' => $this->present($load), 'duplicate' => $duplicate],
             $duplicate ? Response::HTTP_OK : Response::HTTP_CREATED,
         );
+    }
+
+    /**
+     * Records the new load; $keyId was already verified by VerifyRobotSignature.
+     */
+    private function audit(LoadRecord $load, IncomingBatch $batch, string $keyId): void
+    {
+        if (! app()->bound(AuditLogger::class)) {
+            return;
+        }
+
+        app(AuditLogger::class)->record('ingesta.batch.accepted', 'ingesta_load', $load->id, [], [
+            'dataset' => $load->dataset->value,
+            'company' => $load->company->value,
+            'rows' => $load->rowCount,
+            'batch_id' => $batch->batchId,
+            'key_id' => $keyId,
+        ]);
     }
 
     /**
