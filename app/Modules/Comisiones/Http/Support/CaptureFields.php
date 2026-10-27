@@ -19,15 +19,14 @@ final class CaptureFields
 {
     /**
      * The support every capture carries: pdf, jpg, png, xlsx or csv up to
-     * 10 MB. The extension is checked rather than the guessed MIME type,
-     * which reads a CSV as plain text; the file is only ever served back as
-     * a download.
+     * 10 MB, whose content fits its extension and, for a CSV, holds no
+     * formula (SupportFile). It is only ever served back as a download.
      *
-     * @return list<string>
+     * @return list<string|SupportFile>
      */
     public static function support(): array
     {
-        return ['required', 'file', 'extensions:'.implode(',', Supports::EXTENSIONS), 'max:'.Supports::MAX_KB];
+        return ['required', 'file', 'extensions:'.implode(',', Supports::EXTENSIONS), 'max:'.Supports::MAX_KB, new SupportFile];
     }
 
     /**

@@ -47,7 +47,7 @@ return [
 
     'formulario' => [
         'soporte' => 'Soporte',
-        'soporte_ayuda' => 'PDF, JPG, PNG, XLSX o CSV de hasta 10 MB.',
+        'soporte_ayuda' => 'PDF, JPG, PNG, XLSX o CSV de hasta 10 MB. En un CSV, ninguna celda puede empezar por =, +, - o @, salvo los números.',
         'cancelar' => 'Cancelar',
         'guardar' => 'Registrar',
     ],
@@ -189,6 +189,8 @@ return [
         'tipo' => 'tipo',
         'valor' => 'valor',
         'soporte' => 'soporte',
+        'soporte_contenido' => 'El contenido del soporte no corresponde a un archivo :extension.',
+        'soporte_formula' => 'El CSV tiene una fórmula en la fila :fila, columna :columna. Las celdas no pueden empezar por =, +, - o @, salvo los números.',
         'valor_invalido' => 'Escribe el valor como 1234567 o 1.234.567.',
         'valor_no_positivo' => 'El valor debe ser mayor que cero.',
         'tasa_invalida' => 'Escribe la tasa como un porcentaje mayor que cero y hasta 100, por ejemplo 2,5.',

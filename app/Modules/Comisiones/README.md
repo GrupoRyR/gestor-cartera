@@ -47,6 +47,16 @@ Permisos de `ComisionesPermissionSeeder`. Quien calcula o captura nunca aprueba 
 
 Además de los permisos, `ApprovalGuard` no deja aprobar a quien cargó capturas o cambió parámetros del período, y el motor no deja aprobar a quien calculó la versión.
 
+## Soportes de las capturas
+
+Cada OBR, ajuste, cruce manual o reasignación lleva un soporte en PDF, JPG, PNG, XLSX o CSV de hasta 10 MB (`CaptureFields::support()`). Además de la extensión, la regla `SupportFile` revisa el contenido:
+
+- El tipo real del archivo (lo que lee finfo, nunca lo que dice el navegador) debe corresponder a la extensión: un HTML renombrado como `.pdf` se rechaza.
+- En un CSV, ninguna celda puede empezar por `=`, `+`, `-` o `@` (después de los espacios, tabulaciones o saltos de línea iniciales), porque Excel la ejecutaría como fórmula al abrirla. Los números sí pasan: `-5.000,50`, `$ -5.000`, `-5000` o `+5000`. El error dice la fila y la columna de la primera celda, sin repetir su contenido. Se lee todo el archivo, en `;`, `,` o tabulación, en UTF-8 (con o sin BOM) o Windows-1252.
+- Las fórmulas dentro de un XLSX no se revisan.
+
+El soporte se guarda en el disco privado con la extensión que trae y se descarga como `application/octet-stream`, con el nombre `soporte-{tipo}-{id}.{ext}`.
+
 ## Informes de una versión cerrada
 
 En `/comisiones/periodos/{periodo}/informes` primero se genera y después se descarga:
