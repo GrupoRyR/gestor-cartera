@@ -1,9 +1,11 @@
 """Pruebas de la configuracion: lotes y destinos (sin leer ningun .env)."""
 from __future__ import annotations
 
+import os
 import sys
 import unittest
 from pathlib import Path
+from unittest import mock
 
 import config
 from config import AlertaConfig, Config, ConfigError, HanaConfig, IngestaConfig, VpnConfig
@@ -84,6 +86,51 @@ class ValidarTest(unittest.TestCase):
         with self.assertRaises(ConfigError) as error:
             _config(**{**LARAVEL, "url": "ftp://x"}).validar()
         self.assertNotIn(LARAVEL["secreto"], str(error.exception))
+
+
+class ConfigHanaTest(unittest.TestCase):
+    """Variables HANA_* leidas del entorno (patch.dict), sin cargar ningun .env."""
+
+    def _hana(self, **entorno: str) -> HanaConfig:
+        with mock.patch.dict(os.environ, entorno, clear=True):
+            return config.leer_hana()
+
+    def test_por_defecto_cifra_y_valida_sin_truststore(self):
+        hana = self._hana(HANA_HOST="10.0.0.1")
+        self.assertTrue(hana.encrypt)
+        self.assertTrue(hana.validar_certificado)
+        self.assertEqual(hana.truststore, "")
+
+    def test_se_puede_apagar_el_cifrado_y_la_validacion(self):
+        for apagado in ("false", "FALSE", "0", "no", "No"):
+            with self.subTest(valor=apagado):
+                hana = self._hana(HANA_ENCRYPT=apagado, HANA_SSL_VALIDATE=apagado)
+                self.assertFalse(hana.encrypt)
+                self.assertFalse(hana.validar_certificado)
+
+    def test_acepta_true_1_y_si(self):
+        for encendido in ("true", "True", "1", "si", "SI"):
+            with self.subTest(valor=encendido):
+                hana = self._hana(HANA_ENCRYPT=encendido, HANA_SSL_VALIDATE=encendido)
+                self.assertTrue(hana.encrypt)
+                self.assertTrue(hana.validar_certificado)
+
+    def test_un_valor_que_no_se_entiende_deja_el_cifrado_encendido(self):
+        # Un error de tipeo no debe apagar el cifrado sin querer.
+        for raro in ("ture", "flase", "apagado", "off?"):
+            with self.subTest(valor=raro):
+                hana = self._hana(HANA_ENCRYPT=raro, HANA_SSL_VALIDATE=raro)
+                self.assertTrue(hana.encrypt)
+                self.assertTrue(hana.validar_certificado)
+
+    def test_lee_la_ruta_del_truststore(self):
+        hana = self._hana(HANA_SSL_TRUSTSTORE=r"  C:\robot\certs\hana.pem ")
+        self.assertEqual(hana.truststore, r"C:\robot\certs\hana.pem")
+
+    def test_los_constructores_posicionales_siguen_funcionando(self):
+        hana = HanaConfig("10.0.0.1", 30015, "u", "p", "SEGUREX", 600)
+        self.assertTrue(hana.encrypt)
+        self.assertTrue(hana.validar_certificado)
 
 
 if __name__ == "__main__":

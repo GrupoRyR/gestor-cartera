@@ -183,7 +183,8 @@ def main() -> int:
             with hana.conectar(cfg.hana) as conn:
                 if args.diagnostico:
                     esquemas = hana.listar_esquemas(conn)
-                    log.info("Conexion OK. Esquemas visibles: %s",
+                    log.info("Conexion OK (%s). Esquemas visibles: %s",
+                             hana.describir_cifrado(cfg.hana),
                              ", ".join(esquemas) or "(ninguno)")
                     if not cfg.hana.esquema:
                         raise FalloEtapa(
@@ -224,7 +225,9 @@ def main() -> int:
             listos = _serializar(validos, corrida)
 
         if args.diagnostico:
-            return _cerrar_diagnostico(corrida, log)
+            return _cerrar_diagnostico(
+                corrida, log, hana.describir_cifrado(cfg.hana)
+            )
 
         if cfg.ingesta.habilitada:
             etapa = "LARAVEL"
@@ -388,7 +391,9 @@ def _resumen(corrida: Corrida) -> str:
     )
 
 
-def _cerrar_diagnostico(corrida: Corrida, log: logging.Logger) -> int:
+def _cerrar_diagnostico(corrida: Corrida, log: logging.Logger,
+                        cifrado: str = "") -> int:
+    """cifrado: modo TLS de HANA, para confirmar que la conexion cifrada sirve."""
     lotes = corrida.cerrar()
     if corrida.fallos:
         for f in corrida.fallos_ordenados():
@@ -396,8 +401,8 @@ def _cerrar_diagnostico(corrida: Corrida, log: logging.Logger) -> int:
                       f.lote, f.etapa, f.mensaje)
         guardar_estado(estado="DIAGNOSTICO_CON_FALLOS", lotes=lotes)
         return 1
-    log.info("Diagnostico correcto (%s). No se publico nada; revisa los CSV "
-             "en etl/out.", _resumen(corrida))
+    log.info("Diagnostico correcto (%s). HANA: %s. No se publico nada; revisa "
+             "los CSV en etl/out.", _resumen(corrida), cifrado or "-")
     guardar_estado(estado="DIAGNOSTICO_OK", lotes=lotes,
                    filas_cartera=corrida.filas("cartera"),
                    filas_asesores=corrida.filas("asesores"))

@@ -38,7 +38,7 @@ Copia `etl/.env.example` como `etl/.env` y complétalo. El `.env` nunca se sube 
 | Variable | Para qué |
 |---|---|
 | `SOPHOS_*` | Usuario y conexión de la VPN Sophos. |
-| `HANA_*` | Servidor, usuario y esquema de SAP HANA. |
+| `HANA_*` | Servidor, usuario y esquema de SAP HANA. La conexión va cifrada por defecto; ver «Conexión cifrada a HANA». |
 | `INGESTA_URL` | Raíz del gestor de cartera, sin `/api` (por ejemplo `https://cartera.segurex.com`). Debe ser `https://`; `http://` solo se acepta para un Laravel local. |
 | `INGESTA_KEY_ID`, `INGESTA_SECRET` | Par de la llave HMAC. Debe existir en `INGESTA_HMAC_KEYS` del `.env` de Laravel como `id:secreto`. El secreto debe tener al menos 32 bytes: Laravel ignora uno más corto y rechaza las firmas hechas con él. |
 | `INGESTA_EMPRESA` | `SGX` (Segurex, por defecto) o `SDC` (Soluciones y Derivados). |
@@ -46,7 +46,25 @@ Copia `etl/.env.example` como `etl/.env` y complétalo. El `.env` nunca se sube 
 | `INGESTA_GZIP` | Comprimir el cuerpo; por defecto `true`. |
 | `ETL_LOTES` | Lotes que se extraen y publican, separados por comas; por defecto `cartera,asesores`. |
 | `SUPABASE_DB_URL` | Respaldo en Supabase (opcional). |
-| `ALERTA_*` | Correo de alerta cuando algo falla (opcional). |
+| `ALERTA_*` | Correo de alerta cuando algo falla (opcional). El robot verifica el certificado del servidor SMTP al hacer STARTTLS: con un certificado autofirmado o de otro nombre la alerta no sale. Ese error queda en `etl/logs/etl.log` y no cambia el resultado de la corrida. |
+
+### Conexión cifrada a HANA
+
+El robot conecta a HANA con TLS y valida el certificado del servidor. Se controla desde `etl/.env`:
+
+| Variable | Por defecto | Para qué |
+|---|---|---|
+| `HANA_ENCRYPT` | `true` | Cifra la conexión. `false` solo si el servidor HANA no soporta TLS. |
+| `HANA_SSL_VALIDATE` | `true` | Valida el certificado del servidor. `false` cifra, pero no detecta a un intermediario. |
+| `HANA_SSL_TRUSTSTORE` | (vacío) | Ruta al certificado del servidor HANA (PEM) o al almacén de confianza, cuando Windows no confía en él. |
+
+`HANA_ENCRYPT` y `HANA_SSL_VALIDATE` solo se apagan con `false`, `0` o `no`. Un valor que el robot no entiende, como un error de tipeo (`ture`), deja el cifrado encendido.
+
+Antes de dejarla así, pruébala:
+
+1. Desde `etl/`, corre `python run_etl.py --diagnostico`. El log debe decir `Conexion a HANA cifrada (TLS), validacion de certificado si.` y el diagnóstico debe terminar con `Diagnostico correcto (...). HANA: cifrado si, validacion de certificado si.`
+2. Si falla con un error de certificado, pide a TI el certificado del servidor HANA, expórtalo a un archivo (por ejemplo `C:\robot\certs\hana.pem`), ponlo en `HANA_SSL_TRUSTSTORE` y vuelve a correr el diagnóstico.
+3. Solo si el servidor no soporta TLS, pon `HANA_ENCRYPT=false` en `etl/.env` y avisa a TI. El log lo marca con un aviso «sin cifrar» en cada corrida.
 
 ### Rotar la llave HMAC
 
