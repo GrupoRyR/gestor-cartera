@@ -59,6 +59,17 @@ it('records actions of the system without a user, IP address or browser', functi
         ->and($entry->context)->toBe(['batch' => 12]);
 });
 
+it('chains every recorded row with a hash', function () {
+    app(AuditLogger::class)->record('core.user.created', 'user', 1);
+    app(AuditLogger::class)->record('core.user.updated', 'user', 1, ['name' => ['old' => 'Ana', 'new' => 'Ana María']]);
+
+    $hashes = DB::table('audit_logs')->orderBy('id')->pluck('chain_hash')->all();
+
+    expect($hashes)->toHaveCount(2)
+        ->each->toMatch('/^[0-9a-f]{64}$/')
+        ->and($hashes[0])->not->toBe($hashes[1]);
+});
+
 it('stores the subject id as a string', function (int|string $id, string $stored) {
     app(AuditLogger::class)->record('cobro.exclusion.created', 'cobro_exclusion', $id);
 

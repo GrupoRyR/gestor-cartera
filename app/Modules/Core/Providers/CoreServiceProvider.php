@@ -10,6 +10,7 @@ use App\Modules\Core\Console\Migracion\MigrateActivitiesCommand;
 use App\Modules\Core\Console\Migracion\MigrateCommitmentsCommand;
 use App\Modules\Core\Console\Migracion\MigrateStatusesCommand;
 use App\Modules\Core\Console\Migracion\MigrateUsersCommand;
+use App\Modules\Core\Console\VerifyAuditChainCommand;
 use App\Modules\Core\Contracts\AuditLogger;
 use App\Modules\Core\Contracts\CarteraRepository;
 use App\Modules\Core\Contracts\ClientStatusService;
@@ -104,7 +105,7 @@ final class CoreServiceProvider extends ModuleServiceProvider
         Event::listen(BatchAccepted::class, ImportReceivablesSnapshot::class);
         Event::listen(BatchAccepted::class, ImportAdvisors::class);
 
-        $this->commands([BreakOverdueCommitmentsCommand::class, MigrateUsersCommand::class, MigrateActivitiesCommand::class, MigrateCommitmentsCommand::class, MigrateStatusesCommand::class]);
+        $this->commands([BreakOverdueCommitmentsCommand::class, MigrateUsersCommand::class, MigrateActivitiesCommand::class, MigrateCommitmentsCommand::class, MigrateStatusesCommand::class, VerifyAuditChainCommand::class]);
 
         // Every web page signs out a deactivated user, with or without auth.
         // Appended through the HTTP kernel, not only the router: resolving the
@@ -127,6 +128,10 @@ final class CoreServiceProvider extends ModuleServiceProvider
      * Pending commitments due before today become broken shortly after
      * midnight in Bogotá. The run takes seconds, so a lock left by a killed
      * process expires after 10 minutes instead of the default day.
+     *
+     * The hash chain of the audit trail is checked every night at 02:30,
+     * away from the working day; walking every entry takes minutes at most,
+     * so its lock expires after 60.
      */
     protected function schedule(Schedule $schedule): void
     {
@@ -134,6 +139,11 @@ final class CoreServiceProvider extends ModuleServiceProvider
             ->dailyAt('00:15')
             ->timezone(BreakOverdueCommitments::TIMEZONE)
             ->withoutOverlapping(10);
+
+        $schedule->command(VerifyAuditChainCommand::class)
+            ->dailyAt('02:30')
+            ->timezone(VerifyAuditChainCommand::TIMEZONE)
+            ->withoutOverlapping(60);
     }
 
     /**

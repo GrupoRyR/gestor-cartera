@@ -337,6 +337,8 @@ Bitácora de auditoría inmutable de toda la plataforma: nunca se actualiza ni s
 
 El modelo bloquea todo camino de escritura de Eloquent sobre una entrada existente, también `saveQuietly()`, `deleteQuietly()` y `withoutEvents()`; el constructor de consultas no pasa por él, así que nunca lo uses sobre `audit_logs`. La llave foránea de `user_id` es `restrictOnDelete()`: el borrado definitivo de un usuario con entradas falla, y como los usuarios se borran de forma lógica, la entrada sigue apuntando a ellos.
 
+Cada entrada lleva un hash encadenado con la anterior (HMAC con una llave derivada de `APP_KEY`), y `core:verificar-auditoria` recalcula la cadena cada noche: si alguien cambia, borra o inserta filas por fuera del modelo, la revisión falla y avisa por correo a `CORE_AUDIT_ALERT_RECIPIENTS`. Detecta, no impide. Al rotar `APP_KEY`, la vieja debe quedar en `APP_PREVIOUS_KEYS`. El detalle está en `app/Modules/Core/README.md`.
+
 ```php
 public function record(
     string $action,                     // "<module-key>.<entity>.<verb>", p. ej. "cobro.exclusion.created"
@@ -1032,6 +1034,7 @@ Los secretos viven solo en `.env` (en el servidor, con `chmod 600`). `.env.examp
 | `INGESTA_HMAC_KEYS` | Ingesta | `config('ingesta.hmac_keys')`: pares `id-llave:secreto` separados por comas, en texto; Ingesta los interpreta. Cada secreto debe tener al menos 32 bytes: uno más corto se ignora con una advertencia en el log. |
 | `INGESTA_HMAC_MAX_SKEW` | Ingesta | Segundos de diferencia de reloj aceptados; por defecto `300` (entero). |
 | `INGESTA_ALERT_DEADLINE` | Ingesta | Hora límite de la carga diaria; por defecto `07:00`. |
+| `CORE_AUDIT_ALERT_RECIPIENTS` | Core | Correos separados por comas que reciben la alerta de `core:verificar-auditoria`; `config('core.audit.alert_recipients')` los entrega como lista, sin espacios ni vacíos. Sin destinatarios, la falla queda solo en el log. |
 | `INGESTA_ALERT_RECIPIENTS` | Ingesta | Correos separados por comas; `config('ingesta.alert_recipients')` los entrega como lista, sin espacios ni vacíos. |
 | `BANCOS_IMPORT_PATH` | Bancos | Carpeta de los extractos; por defecto `bancos/entrada`. |
 | `BANCOS_API_TOKEN` | Bancos | Token de Tesorería para `GET /api/recaudo`. Debe tener al menos 32 bytes: uno más corto, igual que uno vacío, deja la API cerrada (401 a todo) con una advertencia en el log. |

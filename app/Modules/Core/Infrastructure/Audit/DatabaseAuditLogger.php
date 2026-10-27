@@ -4,7 +4,7 @@ namespace App\Modules\Core\Infrastructure\Audit;
 
 use App\Models\User;
 use App\Modules\Core\Contracts\AuditLogger;
-use App\Modules\Core\Infrastructure\Persistence\AuditLogRecord;
+use Carbon\CarbonImmutable;
 use Illuminate\Contracts\Auth\Factory as AuthFactory;
 use Illuminate\Contracts\Foundation\Application;
 use Illuminate\Http\Request;
@@ -18,6 +18,10 @@ use InvalidArgumentException;
  * from the HTTP request being handled, if any. Values in $changes and
  * $context must be JSON-encodable; keys that look like secrets are redacted
  * as a safety net, although the contract already forbids secrets.
+ *
+ * Every entry is chained to the one before it through AuditChain (audit
+ * S-14), inside the caller's transaction when there is one: if the caller
+ * rolls back, the entry and the move of the chain head roll back with it.
  */
 final class DatabaseAuditLogger implements AuditLogger
 {
@@ -38,6 +42,7 @@ final class DatabaseAuditLogger implements AuditLogger
     public function __construct(
         private readonly AuthFactory $auth,
         private readonly Application $app,
+        private readonly AuditChain $chain,
     ) {}
 
     public function record(
@@ -55,7 +60,7 @@ final class DatabaseAuditLogger implements AuditLogger
         $request = $this->request();
         $userAgent = $request?->userAgent();
 
-        AuditLogRecord::query()->create([
+        $this->chain->append([
             'action' => $action,
             'subject_type' => $subjectType,
             'subject_id' => $subjectId === null ? null : (string) $subjectId,
@@ -66,6 +71,8 @@ final class DatabaseAuditLogger implements AuditLogger
             'ip_address' => $request?->ip(),
             // Scrubbed: invalid UTF-8 in a header must not make MySQL reject the entry.
             'user_agent' => $userAgent === null ? null : mb_substr(mb_scrub($userAgent, 'UTF-8'), 0, self::USER_AGENT_LENGTH),
+            // Set here, not by Eloquent, because the hash covers it.
+            'created_at' => CarbonImmutable::now(),
         ]);
     }
 
