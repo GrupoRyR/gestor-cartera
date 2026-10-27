@@ -31,6 +31,15 @@ return [
         'max_pages' => 10,
     ],
 
+    // Who receives the notice with the differences each time a company's
+    // weekly collection template is saved with other texts or restored
+    // (audit S-08): the same comma-separated list as Core's audit chain
+    // alert (IT and internal control).
+    'template_alert_recipients' => array_values(array_filter(
+        array_map(trim(...), explode(',', (string) env('CORE_AUDIT_ALERT_RECIPIENTS', ''))),
+        fn (string $recipient): bool => $recipient !== '',
+    )),
+
     // Collection mails handed to Graph per minute across both mailboxes;
     // Exchange Online accepts 30 a minute per mailbox.
     'send_per_minute' => 25,

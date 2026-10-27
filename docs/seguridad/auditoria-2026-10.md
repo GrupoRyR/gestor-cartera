@@ -296,6 +296,10 @@ Levanté la app en `127.0.0.1:8123` con los seeders de demostración (SQLite tem
 - **Dónde:** `app/Modules/Cobro/Http/Requests/UpdateTemplateRequest.php:33-35` (solo longitud y variables).
 - **Cómo se explotaría:** con el mismo permiso `cobro.manage`, alguien cambia el texto por «Nueva cuenta para pagos: Bancolombia 123…» o un enlace falso. El envío programado lo manda desde `segurex.info@segurex.com` a todos los clientes con saldo vencido: un fraude de cambio de cuenta (BEC) con el remitente real de la empresa. No hay inyección de HTML, pero Outlook convierte las URL en enlaces.
 - **Corrección:** que una persona distinta apruebe la plantilla antes de usarla en un envío programado, aviso con las diferencias a gerencia o TI y, opcional, señalar URL y números de cuenta en el texto.
+- **Estado: corregido** en el PR 11b de la Fase 2.
+  - Por decisión del usuario, en vez de la aprobación de una segunda persona, cada cambio efectivo de la plantilla (guardar con otros textos o volver a los por defecto si eran distintos) envía un aviso con las diferencias a `CORE_AUDIT_ALERT_RECIPIENTS`, desde el buzón de la empresa de la plantilla.
+  - El aviso dice quién y cuándo cambió la plantilla, con un enlace a ella, y muestra cada texto cambiado línea por línea, con las quitadas y las agregadas marcadas. Todo va escapado, así que un enlace o un número de cuenta se ven tal como se escribieron.
+  - Si no hay destinatarios o Graph no acepta el aviso, queda en el log y la plantilla se guarda igual. No se señalan aparte las URL ni los números de cuenta.
 
 ### S-22 · Baja · `GraphClient` manda el token a cualquier URL https
 

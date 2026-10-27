@@ -41,6 +41,25 @@ return [
         'desconocidas' => 'Estos datos no existen: :variables. Revisa la lista de datos que puedes usar.',
     ],
 
+    // Notice to IT and internal control when a template changes (audit S-08).
+    'aviso' => [
+        'asunto' => 'Cambió la plantilla del cobro semanal de :empresa',
+        'titulo' => 'Cambió la plantilla del cobro semanal',
+        'intro' => 'El cobro semanal sale solo, desde el buzón de la empresa, a todos los clientes con saldo vencido. Revisa que el cambio sea legítimo: un texto con otra cuenta para pagos o un enlace desconocido puede ser un fraude.',
+        'empresa' => 'Empresa: :empresa',
+        'quien' => 'Quién: :nombre (:correo)',
+        'quien_desconocido' => 'Quién: un usuario que ya no existe',
+        'cuando' => 'Cuándo: :fecha',
+        'cambio' => 'Cambio: :cambio',
+        'cambios' => [
+            'updated' => 'edición de los textos',
+            'reset' => 'volvió a los textos por defecto',
+        ],
+        'abrir' => 'Abrir la plantilla',
+        'leyenda' => 'Las líneas con − se quitaron y las líneas con + se agregaron; las demás no cambiaron.',
+        'pie' => 'Si no reconoces el cambio, corrige la plantilla y avisa a TI. Este aviso sale con cada cambio de la plantilla.',
+    ],
+
     'validacion' => [
         'asunto' => 'asunto',
         'inicio' => 'texto antes de la tabla',
