@@ -105,7 +105,7 @@ Ventas, recaudos y cruces traen el mes en curso más los últimos 7 días del me
 
 - **Canal:** es el grupo del cliente (`OCRG.GroupName`, unido por `OCRD.GroupCode`), en `maestro_clientes` y en `ventas` (el cliente de la factura). Es el mismo valor que la columna «Grupo» de la cartera.
 - **Id pedido app:** `OINV.U_SGX_IdPedidoApp`. Las notas crédito lo traen vacío, y Derivados también (el campo no existe en su base).
-- **Líneas «Solo impuesto»:** las líneas con `TaxOnly = 'Y'` (`INV1`, `RIN1`) solo cobran el IVA y SAP no las cuenta como venta: `total` llega en 0. La línea se conserva con su cantidad y su IVA. El contrato de ventas no tiene una columna que las marque.
+- **Líneas «Solo impuesto»:** las líneas con `TaxOnly = 'Y'` (`INV1`, `RIN1`) solo cobran el IVA y SAP no las cuenta como venta: `total`, `costo_unitario` y `costo_total` llegan en 0 (ganancia bruta 0, como en el Análisis de ventas de SAP). La línea se conserva con su cantidad y su IVA. El contrato de ventas no tiene una columna que las marque.
 - **Período de ventas:** la fecha de la factura (`DocDate`), que llega en `fecha_contabilizacion`. `fecha_documento` (`TaxDate`) se conserva como referencia. La ventana de ventas también va por `DocDate`.
 - **Cruces:** solo cruces de anticipos y compensaciones cliente-proveedor. Una reconciliación que no es ninguna de las dos no se extrae.
 - **Zona del vendedor:** queda vacía; SAP no la maneja.

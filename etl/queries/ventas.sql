@@ -30,8 +30,9 @@
 -- de IVA, ya con el descuento de la linea) menos el descuento global del
 -- documento (DiscPrcnt), redondeado a 2 decimales y con signo.
 -- Las lineas "Solo impuesto" (TaxOnly = 'Y' en INV1/RIN1) solo cobran el IVA y
--- SAP no las cuenta como venta: su "Total" es 0. La linea se conserva, con su
--- cantidad y su IVA.
+-- SAP no las cuenta como venta: su "Total", "Costo unitario" y "Costo total"
+-- son 0 (ganancia bruta 0, como en el Analisis de ventas de SAP). La linea se
+-- conserva, con su cantidad y su IVA.
 -- Precios y costos unitarios van sin signo; solo los totales llevan signo.
 --
 -- Valores de texto:
@@ -91,8 +92,12 @@ SELECT
     -- VALIDAR CON DATOS REALES: costo = StockPrice de la linea (costo de
     -- inventario al contabilizar). Confirmar contra el margen del informe
     -- actual; en lineas de servicio puede venir en 0 o NULL.
-    ROUND(X."StockPrice", 2)                                   AS "Costo unitario",
-    ROUND(X."StockPrice" * X."Quantity", 2) * X."Signo"        AS "Costo total",
+    CASE WHEN X."TaxOnly" = 'Y' THEN 0
+         ELSE ROUND(X."StockPrice", 2)
+    END                                                        AS "Costo unitario",
+    CASE WHEN X."TaxOnly" = 'Y' THEN 0
+         ELSE ROUND(X."StockPrice" * X."Quantity", 2) * X."Signo"
+    END                                                        AS "Costo total",
     -- VALIDAR CON DATOS REALES: precio lista = precio antes del descuento de
     -- la linea (PriceBefDi), no el de la lista de precios del articulo (ITM1).
     ROUND(X."PriceBefDi", 2)                                   AS "Precio lista",

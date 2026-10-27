@@ -184,6 +184,13 @@ class DecisionesConfirmadasTest(unittest.TestCase):
             "* (1 - IFNULL(X.\"DiscPrcnt\", 0) / 100), 2) * X.\"Signo\" END AS \"Total\"",
             sql,
         )
+        # El costo tambien va en 0, para que el margen cuadre con SAP.
+        self.assertIn(
+            "CASE WHEN X.\"TaxOnly\" = 'Y' THEN 0 ELSE ROUND(X.\"StockPrice\", 2) END "
+            "AS \"Costo unitario\"", sql)
+        self.assertIn(
+            "CASE WHEN X.\"TaxOnly\" = 'Y' THEN 0 ELSE ROUND(X.\"StockPrice\" "
+            "* X.\"Quantity\", 2) * X.\"Signo\" END AS \"Costo total\"", sql)
         # La linea se conserva y el IVA no se toca.
         self.assertIn('ROUND(X."VatSum", 2) * X."Signo" AS "IVA"', sql)
         self.assertIn('IFNULL(X."Quantity", 0) * X."Signo" AS "Cantidad"', sql)
