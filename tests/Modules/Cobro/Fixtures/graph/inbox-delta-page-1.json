@@ -20,7 +20,13 @@
                     "name": "Laura Martínez",
                     "address": "Tesoreria@Cliente.example"
                 }
-            }
+            },
+            "singleValueExtendedProperties": [
+                {
+                    "id": "String 0x1a",
+                    "value": "IPM.Note"
+                }
+            ]
         },
         {
             "@odata.type": "#microsoft.graph.message",
@@ -40,7 +46,13 @@
                     "name": "Microsoft Outlook",
                     "address": "MicrosoftExchange329e71ec88ae4615bbc36ab6ce41109e@segurex.com"
                 }
-            }
+            },
+            "singleValueExtendedProperties": [
+                {
+                    "id": "String 0x1a",
+                    "value": "REPORT.IPM.Note.NDR"
+                }
+            ]
         },
         {
             "@odata.type": "#microsoft.graph.message",
@@ -60,7 +72,39 @@
                     "name": "Proveedor",
                     "address": "noticias@proveedor.example"
                 }
-            }
+            },
+            "singleValueExtendedProperties": [
+                {
+                    "id": "String 0x1a",
+                    "value": "IPM.Note"
+                }
+            ]
+        },
+        {
+            "@odata.type": "#microsoft.graph.message",
+            "@odata.etag": "W/\"CQAAABYAAADEqK7a2wb0TL7aFRAAAAAF\"",
+            "id": "AAMkAGVmMDEzMTM4LTZmYWUtNDdkNC1hMDZiLTU1OGY5OTZhYmY4OABGAAAAAAAiQ8W967B7TKBjgx9rVEURBwAiIsqMbYjsT5e-T7KzowPTAAAAAAEMAAAiIsqMbYjsT5e-T7KzowPTAAAa_WLFAAA=",
+            "receivedDateTime": "2026-10-22T15:03:12Z",
+            "internetMessageId": "<CY4PR19MB1527FALSO0001@CY4PR19MB1527.namprd19.prod.outlook.com>",
+            "subject": "Undeliverable: RE: Facturas vencidas de Ferretería El Tornillo SAS",
+            "bodyPreview": "Your message to tesoreria@cliente.example couldn't be delivered. Remote server returned '550 5.1.1 User unknown'",
+            "conversationId": "AAQkAGVmMDEzMTM4LTZmYWUtNDdkNC1hMDZiLTU1OGY5OTZhYmY4OAAQAMgYG7yRyxxIinFHsTyGfWo=",
+            "body": {
+                "contentType": "text",
+                "content": "Your message to tesoreria@cliente.example couldn't be delivered.\r\nRemote server returned '550 5.1.1 User unknown'\r\n\r\nOriginal message headers:\r\n\r\nMessage-ID: <SA1PR11MB8471E2C1A6B0D3F94C2E7A11D2B12@SA1PR11MB8471.namprd11.prod.outlook.com>\r\nSubject: Facturas vencidas de Ferretería El Tornillo SAS\r\nFrom: Segurex Latam <segurex.info@segurex.com>\r\nTo: <tesoreria@cliente.example>"
+            },
+            "from": {
+                "emailAddress": {
+                    "name": "Laura Martínez",
+                    "address": "tesoreria@cliente.example"
+                }
+            },
+            "singleValueExtendedProperties": [
+                {
+                    "id": "String 0x1a",
+                    "value": "IPM.Note"
+                }
+            ]
         }
     ]
 }

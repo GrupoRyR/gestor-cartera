@@ -27,6 +27,7 @@ Permisos (`CobroPermissionSeeder`): `cobro.view` para administrador, gerente y a
 | `cobro:cobro-semanal` | Miércoles 17:00 (`cobro.weekly`) | Para Segurex y Derivados, cada una con su plantilla y sus copias: prepara el envío y pone en cola un trabajo `SendRunItem` por cliente. Correrlo de nuevo el mismo día no envía nada. |
 | `cobro:circularizacion` | Día 1 a las 09:00 (`cobro.circularizacion`) | Igual, una vez al mes, para Segurex y Derivados: **envía de verdad** (ver «Circularización»), pero no envía una empresa cuya cartera cargada no sea la del cierre del mes; `--con-corte-actual` la envía con el último corte. Solo si se vuelve a poner `cobro.circularizacion.draft` en `true` deja de enviar; entonces `--aun-en-borrador` permite probar el motor. |
 | `cobro:cerrar-envios-interrumpidos` | Cada 10 minutos | Marca «No se pudo enviar» a los clientes que un proceso interrumpido dejó «enviando» más de 30 minutos, para que el envío se cierre y el informe lo muestre. |
+| `cobro:diagnosticar-rebote` | A mano | Muestra cómo la regla de rebotes clasifica un mensaje del buzón, sin guardar nada (ver «Qué cuenta como rebote»). |
 
 **Derivados entra al cobro semanal**: el primer miércoles después de desplegar sale de verdad para sus clientes vencidos desde `COBRO_MAILBOX_SDC`. Antes, confirma que ese buzón está en el alcance de Graph (ver «Microsoft Graph») y envíate una prueba desde `/cobro/semanal`.
 
@@ -41,6 +42,31 @@ Cada trabajo reclama su cliente antes de enviar (pendiente → enviando), así q
 3. si es una respuesta, por el remitente, al último envío a esa dirección en los últimos 90 días.
 
 Un rebote unido marca su cliente como «Rebotado» en el informe, con el código SMTP y la dirección que falló. Si el informe nombra varias direcciones del envío, cuenta primero la del cliente (Para) y después las copias. Si la dirección que falló es una copia (CC), el cliente sí recibió el correo: queda «Enviado» y la dirección queda en el registro.
+
+### Qué cuenta como rebote
+
+El remitente y el asunto no prueban nada: cualquiera puede escribir «Undeliverable: …» desde cualquier dirección (hallazgo S-24 de la auditoría). Por eso `BounceDetector::classify()` exige que Exchange le haya dado al mensaje la clase de un informe de no entrega, `REPORT.<clase>.NDR`. Exchange solo la pone cuando el correo trae de verdad la estructura DSN (un `multipart/report` con su parte `message/delivery-status`); una respuesta común queda como `IPM.Note`. Además, el mensaje debe ser uno de estos dos:
+
+1. **Un informe de nuestro Exchange**: el encabezado `X-MS-Exchange-Organization-AuthAs` dice `Internal` (Exchange lo borra en el correo que entra de afuera), el remitente es `postmaster` o `MicrosoftExchange` seguido de 32 dígitos hexadecimales, y su dominio es exactamente el de uno de los buzones de `cobro.mailboxes` (hoy `segurex.com` y `derivadoscol.com`) o uno de `COBRO_TENANT_DOMAINS`; un subdominio no cuenta.
+2. **Un informe de otro servidor**: el remitente es un buzón de sistema (`postmaster`, `mailer-daemon`, `mail-daemon` o `mail.delivery.subsystem` y sus variantes sin puntos) de cualquier dominio y el texto cita el `Message-ID` de uno de nuestros envíos. Si solo coincide la conversación y no cita ningún `Message-ID`, no es un rebote.
+
+Los dos marcan el envío como «Rebotado» sin más confirmación. Todo lo demás es una respuesta normal: un asunto «Undeliverable:» con clase `IPM.Note`, los avisos de retraso (`*.Delayed.DR`), las confirmaciones de entrega (`*.DR`) y las respuestas automáticas.
+
+- **Los rebotes en texto plano ya no se detectan.** Un servidor que avisa del fallo con un correo común, sin la estructura DSN, queda como una respuesta normal en la bandeja; alguien debe leerlo y revisar el envío a mano.
+- **Cómo se lee:** la consulta delta pide la clase de cada mensaje con `$expand=singleValueExtendedProperties($filter=id eq 'String 0x001A')`. Solo cuando la clase es de no entrega, la sincronización pide los encabezados del mensaje (`GET /users/{buzón}/messages/{id}?$select=internetMessageHeaders`). Si ese GET falla, el remitente cuenta como no autenticado: no puede ser un informe de nuestro Exchange, pero sí uno de otro servidor. Un mensaje sin clase queda como respuesta. Los dos casos dejan un `warning` en el registro con el buzón y el id de Graph, nunca con el contenido.
+- **El dominio del inquilino:** si Exchange firma sus informes con el dominio de Microsoft 365 (`postmaster@gruporyr.onmicrosoft.com`), ponlo en `COBRO_TENANT_DOMAINS`, separado por comas si hay más de uno: `COBRO_TENANT_DOMAINS=gruporyr.onmicrosoft.com`. Vacía por defecto. Estos dominios solo cuentan como remitente de un informe de nuestro Exchange (con `AuthAs` `Internal` y clase de no entrega); no son buzones de la empresa ni dominios de copias.
+- **Si Graph rechaza la clase:** cuando la primera página de una vuelta nueva falla con HTTP 400 o 501 (Graph no acepta la consulta, casi siempre por el `$expand`), la sincronización la pide una sola vez más sin el `$expand` y sigue la vuelta normal. Deja un `warning` por buzón y ejecución con el buzón y el código HTTP (`Graph refused the message class in the inbox delta query`), sin contenido. Mientras dure, ningún mensaje trae clase, así que **los rebotes se guardan como respuestas** y no marcan el envío. Otros errores (401, 403, 429, 5xx) y los enlaces guardados no se reintentan. Ejecuta `cobro:diagnosticar-rebote <buzón> --probar-delta`: siempre prueba la consulta con el `$expand` y muestra el código con que Graph la rechaza. Como Graph guarda la consulta en los enlaces, la vuelta sin clase sigue así aunque Graph vuelva a aceptarla: después de corregirlo hay que empezar una vuelta nueva (borrar `next_link` y `delta_link` del buzón en `cobro_mailbox_cursors`, como hace la migración de abajo). En esas ejecuciones siguientes, cada mensaje sin clase deja su propio `warning`.
+- **Una sola vuelta nueva:** Graph guarda la consulta dentro de los enlaces `@odata.nextLink` y `@odata.deltaLink`, así que la migración `2026_10_05_000007_reset_mailbox_cursors_for_bounce_class` los borra en `cobro_mailbox_cursors`. La siguiente sincronización vuelve a leer los últimos `cobro.sync.initial_days` días con la consulta nueva; los mensajes ya guardados se saltan por su id de Graph y se quedan como estaban.
+- **Riesgo que queda:** un cliente con su propio servidor de correo puede armar un informe DSN real que cite el `Message-ID` del envío que recibió y marcarlo como rebotado. Solo afecta la exactitud del informe.
+
+**Antes de confiar en la regla, córrela una vez contra un rebote real** de cada buzón. Envía un correo de prueba desde el buzón a una dirección que no exista, copia el id de Graph del informe que llega y ejecuta:
+
+```bash
+php artisan cobro:diagnosticar-rebote SGX "<id de Graph>"
+php artisan cobro:diagnosticar-rebote SGX --probar-delta
+```
+
+El primero muestra la clase del mensaje, `X-MS-Exchange-Organization-AuthAs`, el remitente, si trae `multipart/report`, los dominios propios y la decisión de la regla; nunca muestra el cuerpo ni el asunto. Debe decir «rebote de nuestro Exchange»: si el remitente llega con otro dominio (por ejemplo `…onmicrosoft.com`), agrégalo a `COBRO_TENANT_DOMAINS` y vuelve a correrlo; la línea de dominios propios ya lo incluye. `--probar-delta` pide una sola página de un mensaje de la consulta delta con la clase y solo dice si Graph la aceptó y, si no, el código HTTP. El comando no escribe en la base ni mueve los enlaces de la sincronización.
 
 ## Copias del cobro semanal y de la circularización
 
@@ -76,7 +102,7 @@ El cobro semanal sale solo a todos los clientes con saldo vencido, así que cada
 
 ## Microsoft Graph: lo que TI debe configurar
 
-Variables de `.env` (`docs/arquitectura.md` §15): `GRAPH_TENANT_ID`, `GRAPH_CLIENT_ID`, `GRAPH_CLIENT_SECRET`, `COBRO_MAILBOX_SGX` y `COBRO_MAILBOX_SDC`.
+Variables de `.env` (`docs/arquitectura.md` §15): `GRAPH_TENANT_ID`, `GRAPH_CLIENT_ID`, `GRAPH_CLIENT_SECRET`, `COBRO_MAILBOX_SGX`, `COBRO_MAILBOX_SDC` y, si hace falta, `COBRO_TENANT_DOMAINS` (dominios del inquilino que firman los rebotes de Exchange, ver «Qué cuenta como rebote»).
 
 1. Registrar en Entra ID una aplicación aparte de la de ingreso, de un solo inquilino, con un secreto de cliente. **No** agregarle permisos de Microsoft Graph ni dar consentimiento de administrador: un permiso de Entra ID abre todos los buzones del inquilino, y los de Exchange se suman a él en vez de limitarlo.
 2. En Exchange Online PowerShell (rol Organization Management), crear el apuntador a la aplicación con los ids de **Aplicaciones empresariales** (no los de Registros de aplicaciones):

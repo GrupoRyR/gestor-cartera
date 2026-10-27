@@ -210,7 +210,8 @@ function cobroAndinasSend(array $to, array $cc): RunItem
 }
 
 /**
- * Reads the two recorded delta pages of the SGX inbox.
+ * Reads the two recorded delta pages of the SGX inbox, with the headers of
+ * the recorded Exchange report (sent inside the organization).
  */
 function cobroSyncRecordedInbox(): void
 {
@@ -221,11 +222,48 @@ function cobroSyncRecordedInbox(): void
         [GraphFake::fixture('inbox-delta-page-1.json'), 200],
         [GraphFake::fixture('inbox-delta-page-2.json'), 200],
         [['value' => [], '@odata.deltaLink' => 'https://graph.microsoft.com/v1.0/'.$delta.'?$deltatoken=siguiente'], 200],
-    );
+    )->on('GET', 'users/segurex.info@segurex.com/messages/*', GraphFake::fixture('message-headers-ndr.json'));
     config(['cobro.mailboxes.SDC' => '']);
 
     test()->artisan('cobro:sincronizar-buzones')->assertSuccessful();
 }
+
+/**
+ * Reads an SGX inbox holding only the recorded Exchange report, sent by
+ * $sender, with the headers of $headersFixture.
+ */
+function cobroSyncReport(string $sender, string $headersFixture): void
+{
+    $delta = 'users/segurex.info@segurex.com/mailFolders/inbox/messages/delta';
+    $report = array_replace((array) ((array) GraphFake::fixture('inbox-delta-page-1.json')['value'])[1], [
+        'from' => ['emailAddress' => ['name' => 'Mail Delivery Subsystem', 'address' => $sender]],
+    ]);
+    GraphFake::install()
+        ->on('GET', $delta, ['value' => [$report], '@odata.deltaLink' => 'https://graph.microsoft.com/v1.0/'.$delta.'?$deltatoken=siguiente'])
+        ->on('GET', 'users/segurex.info@segurex.com/messages/*', GraphFake::fixture($headersFixture));
+    config(['cobro.mailboxes.SDC' => '']);
+
+    test()->artisan('cobro:sincronizar-buzones')->assertSuccessful();
+}
+
+it('marks the item bounced when another server\'s report quotes its Message-ID', function () {
+    $item = cobroAndinasSend(['pagos@andinas-inexistente.example'], []);
+
+    cobroSyncReport('mailer-daemon@googlemail.com', 'message-headers-forged.json');
+
+    expect($item->refresh()->status)->toBe(ItemStatus::Bounced)
+        ->and($item->bounced_recipient)->toBe('pagos@andinas-inexistente.example');
+});
+
+it('keeps the item sent when a report with our Exchange sender came from outside', function () {
+    $item = cobroAndinasSend(['pagos@andinas-inexistente.example'], []);
+
+    cobroSyncReport('MicrosoftExchange329e71ec88ae4615bbc36ab6ce41109e@segurex.com', 'message-headers-forged.json');
+
+    expect($item->refresh()->status)->toBe(ItemStatus::Sent)
+        ->and($item->bounced_recipient)->toBeNull()
+        ->and(InboundMessage::query()->sole()->is_bounce)->toBeFalse();
+});
 
 it('marks the item bounced when one of its To addresses bounced', function () {
     $item = cobroAndinasSend(['tesoreria@andinas.example', 'Pagos@Andinas-Inexistente.example'], ['miguel.martinez@segurex.com']);

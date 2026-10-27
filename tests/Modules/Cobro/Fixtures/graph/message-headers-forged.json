@@ -1,0 +1,39 @@
+{
+    "@odata.context": "https://graph.microsoft.com/v1.0/$metadata#users('segurex.info%40segurex.com')/messages(internetMessageHeaders)/$entity",
+    "@odata.etag": "W/\"CQAAABYAAADEqK7a2wb0TL7aFRAAAAAG\"",
+    "id": "AAMkAGVmMDEzMTM4LTZmYWUtNDdkNC1hMDZiLTU1OGY5OTZhYmY4OABGAAAAAAAiQ8W967B7TKBjgx9rVEURBwAiIsqMbYjsT5e-T7KzowPTAAAAAAEMAAAiIsqMbYjsT5e-T7KzowPTAAAa_WLGAAA=",
+    "internetMessageHeaders": [
+        {
+            "name": "Received",
+            "value": "from mx.cliente.example (203.0.113.25) by BN8NAM12FT045.mail.protection.outlook.com (10.13.182.214) with Microsoft SMTP Server; Wed, 22 Oct 2026 15:03:12 +0000"
+        },
+        {
+            "name": "Content-Type",
+            "value": "text/plain; charset=\"utf-8\""
+        },
+        {
+            "name": "From",
+            "value": "Microsoft Outlook <MicrosoftExchange329e71ec88ae4615bbc36ab6ce41109e@segurex.com>"
+        },
+        {
+            "name": "To",
+            "value": "<segurex.info@segurex.com>"
+        },
+        {
+            "name": "Subject",
+            "value": "Undeliverable: RE: Facturas vencidas de Ferretería El Tornillo SAS"
+        },
+        {
+            "name": "X-MS-Exchange-Organization-AuthAs",
+            "value": "Anonymous"
+        },
+        {
+            "name": "X-MS-Exchange-CrossTenant-AuthAs",
+            "value": "Internal"
+        },
+        {
+            "name": "X-MS-Exchange-Organization-SCL",
+            "value": "1"
+        }
+    ]
+}
