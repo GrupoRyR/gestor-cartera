@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import smtplib
 import socket
+import ssl
 from email.message import EmailMessage
 
 from config import AlertaConfig
@@ -36,7 +37,9 @@ def avisar_fallo(cfg: AlertaConfig, etapa: str, error: str, detalle: str = "") -
 
     try:
         with smtplib.SMTP(cfg.smtp_host, cfg.smtp_port, timeout=30) as smtp:
-            smtp.starttls()
+            # Sin context, smtplib no verifica el certificado ni el nombre del
+            # servidor: un intermediario capturaria el usuario y la contrasena.
+            smtp.starttls(context=ssl.create_default_context())
             if cfg.smtp_user:
                 smtp.login(cfg.smtp_user, cfg.smtp_password)
             smtp.send_message(msg)

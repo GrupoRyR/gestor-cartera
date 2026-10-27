@@ -13,9 +13,58 @@ log = obtener("hana")
 
 LOTE = 5000  # filas por fetch, para no cargar todo en memoria de golpe
 
+# Texto (en minusculas) de los errores del driver que vienen del TLS.
+_PISTAS_TLS = ("ssl", "tls", "certificate", "handshake")
+
+AYUDA_TLS = (
+    "El fallo parece del cifrado TLS con HANA. Para corregirlo, en etl/.env:\n"
+    "  1. Exporta el certificado del servidor HANA (pidelo a TI) y pon su ruta "
+    "en HANA_SSL_TRUSTSTORE.\n"
+    "  2. Solo como ultimo recurso, HANA_SSL_VALIDATE=false (cifra, pero no "
+    "comprueba el certificado).\n"
+    "  3. Si el servidor no soporta TLS, HANA_ENCRYPT=false y avisa a TI.\n"
+    "Despues vuelve a correr: python run_etl.py --diagnostico"
+)
+
 
 class HanaError(RuntimeError):
     """No se pudo conectar a HANA o ejecutar la consulta."""
+
+
+def describir_cifrado(cfg: HanaConfig) -> str:
+    """Modo TLS de la conexion, para el log y el resumen del diagnostico."""
+    validacion = cfg.encrypt and cfg.validar_certificado
+    return (
+        f"cifrado {'si' if cfg.encrypt else 'no'}, "
+        f"validacion de certificado {'si' if validacion else 'no'}"
+    )
+
+
+def _opciones_tls(cfg: HanaConfig) -> dict[str, Any]:
+    """Argumentos TLS de dbapi.connect; registra una vez el modo elegido."""
+    if not cfg.encrypt:
+        log.warning("Conexion a HANA sin cifrar (HANA_ENCRYPT=false): el trafico "
+                    "entre la VPN y HANA viaja en claro.")
+        return {"encrypt": False, "sslValidateCertificate": False}
+
+    log.info("Conexion a HANA cifrada (TLS), validacion de certificado %s%s.",
+             "si" if cfg.validar_certificado else "no",
+             f", truststore {cfg.truststore}" if cfg.truststore else "")
+    if not cfg.validar_certificado:
+        log.warning("No se valida el certificado de HANA (HANA_SSL_VALIDATE=false): "
+                    "cifra, pero no detecta a un intermediario.")
+    opciones: dict[str, Any] = {
+        "encrypt": True,
+        "sslValidateCertificate": cfg.validar_certificado,
+    }
+    if cfg.truststore:
+        opciones["sslTrustStore"] = cfg.truststore
+    return opciones
+
+
+def _es_error_tls(exc: BaseException) -> bool:
+    texto = str(exc).lower()
+    return any(pista in texto for pista in _PISTAS_TLS)
 
 
 def _esperar_puerto(host: str, port: int, espera_total: int = 60) -> bool:
@@ -66,11 +115,13 @@ def conectar(cfg: HanaConfig, intentos: int = 3) -> Iterator[Any]:
 
     conn = None
     ultimo: Exception | None = None
+    tls = _opciones_tls(cfg)
     for intento in range(1, intentos + 1):
         try:
             log.info("Conectando a HANA %s:%s (esquema %s), intento %d/%d...",
                      cfg.host, cfg.port, cfg.esquema, intento, intentos)
             extra = {"currentSchema": cfg.esquema} if cfg.esquema else {}
+            extra.update(tls)
             conn = dbapi.connect(
                 address=cfg.host,
                 port=cfg.port,
@@ -97,9 +148,10 @@ def conectar(cfg: HanaConfig, intentos: int = 3) -> Iterator[Any]:
                 time.sleep(5 * intento)
 
     if conn is None:
-        raise HanaError(
-            f"No se pudo conectar a HANA tras {intentos} intentos: {ultimo}"
-        ) from ultimo
+        mensaje = f"No se pudo conectar a HANA tras {intentos} intentos: {ultimo}"
+        if cfg.encrypt and ultimo is not None and _es_error_tls(ultimo):
+            mensaje = f"{mensaje}\n{AYUDA_TLS}"
+        raise HanaError(mensaje) from ultimo
 
     try:
         yield conn

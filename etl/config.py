@@ -47,6 +47,18 @@ def _bool(valor: str | None, por_defecto: bool = False) -> bool:
     return valor.strip().lower() in {"1", "true", "si", "sí", "yes", "y"}
 
 
+def _bool_seguro(valor: str | None, por_defecto: bool) -> bool:
+    """Como _bool, pero un valor que no se reconoce deja el valor por
+    defecto: para banderas de seguridad, donde un error de tipeo
+    (HANA_ENCRYPT=ture) no debe apagar la proteccion sin querer."""
+    texto = (valor or "").strip().lower()
+    if texto in {"1", "true", "si", "sí", "yes", "y"}:
+        return True
+    if texto in {"0", "false", "no", "n"}:
+        return False
+    return por_defecto
+
+
 def _int(valor: str | None, por_defecto: int) -> int:
     try:
         return int(str(valor).strip())
@@ -72,6 +84,10 @@ class HanaConfig:
     password: str
     esquema: str
     timeout: int
+    # TLS hacia HANA. Se apaga desde etl/.env solo si el servidor no lo soporta.
+    encrypt: bool = True
+    validar_certificado: bool = True
+    truststore: str = ""  # CA/PEM o almacen de confianza del servidor (opcional)
 
 
 @dataclass(frozen=True)
@@ -218,6 +234,21 @@ def parsear_lotes(texto: str | None) -> tuple[str, ...]:
     return tuple(nombres)
 
 
+def leer_hana() -> HanaConfig:
+    """Variables HANA_* del entorno (cargar_config ya cargo etl/.env)."""
+    return HanaConfig(
+        host=os.getenv("HANA_HOST", "").strip(),
+        port=_int(os.getenv("HANA_PORT"), 30015),
+        usuario=os.getenv("HANA_USER", "").strip(),
+        password=os.getenv("HANA_PASSWORD", ""),
+        esquema=os.getenv("HANA_SCHEMA", "").strip(),
+        timeout=_int(os.getenv("HANA_TIMEOUT"), 600),
+        encrypt=_bool_seguro(os.getenv("HANA_ENCRYPT"), True),
+        validar_certificado=_bool_seguro(os.getenv("HANA_SSL_VALIDATE"), True),
+        truststore=os.getenv("HANA_SSL_TRUSTSTORE", "").strip(),
+    )
+
+
 def cargar_config() -> Config:
     """Lee etl/.env. Lanza ConfigError si ETL_LOTES trae un lote desconocido."""
     load_dotenv(ENV_PATH, override=True)
@@ -252,14 +283,7 @@ def cargar_config() -> Config:
                 os.getenv("SOPHOS_DISCONNECT_AL_FINAL"), True
             ),
         ),
-        hana=HanaConfig(
-            host=os.getenv("HANA_HOST", "").strip(),
-            port=_int(os.getenv("HANA_PORT"), 30015),
-            usuario=os.getenv("HANA_USER", "").strip(),
-            password=os.getenv("HANA_PASSWORD", ""),
-            esquema=os.getenv("HANA_SCHEMA", "").strip(),
-            timeout=_int(os.getenv("HANA_TIMEOUT"), 600),
-        ),
+        hana=leer_hana(),
         supabase_url=os.getenv("SUPABASE_DB_URL", "").strip(),
         alertas=AlertaConfig(
             smtp_host=os.getenv("ALERTA_SMTP_HOST", "").strip(),
