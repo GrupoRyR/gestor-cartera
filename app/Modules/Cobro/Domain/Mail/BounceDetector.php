@@ -4,29 +4,55 @@ namespace App\Modules\Cobro\Domain\Mail;
 
 /**
  * Tells delivery failure reports (NDR, DSN) apart from human replies and
- * reads the reason and the failed address from them.
+ * reads the reason and the failed address from them (audit S-24).
  *
- * A message is a bounce when it comes from a delivery system mailbox
- * (postmaster, mailer-daemon, Microsoft Exchange's system sender) or its
- * subject starts like the usual failure reports, in English or Spanish.
- * Auto-replies ("fuera de la oficina"), delay warnings and delivery
- * receipts are not bounces: they stay replies.
+ * The sender and the subject alone prove nothing: anyone can write
+ * "Undeliverable:" from any address. A message is a failure report only
+ * when Exchange gave it a REPORT.*.NDR message class, which it computes
+ * from a real multipart/report with a message/delivery-status part, and
+ * then only when it is (classify()):
+ *
+ * - OWN_REPORT: our Exchange's own report: authenticated as Internal
+ *   (X-MS-Exchange-Organization-AuthAs, which Exchange strips from mail
+ *   entering from outside), from postmaster or Exchange's system sender
+ *   (MicrosoftExchange + 32 hex digits) at one of our domains (the company
+ *   mailboxes' or the Microsoft 365 tenant's);
+ * - EXTERNAL_REPORT: another server's report, from a delivery system
+ *   mailbox of any domain. It is a bounce only if it quotes the
+ *   Message-ID of one of our sends; the caller checks that.
+ *
+ * Everything else is a REPLY: an "Undeliverable:" subject on an IPM.Note,
+ * delay reports (*.Delayed.DR), delivery receipts (*.DR), auto-replies and
+ * plain-text reports without the DSN structure.
  */
 final class BounceDetector
 {
+    public const string OWN_REPORT = 'own_report';
+
+    public const string EXTERNAL_REPORT = 'external_report';
+
+    public const string REPLY = 'reply';
+
     /**
      * Local parts of delivery system senders.
      */
     private const string SYSTEM_SENDER = '/^(postmaster|mailer-daemon|mail-daemon|microsoftexchange[0-9a-f]*|mail\.?delivery\.?(subsystem|system)?)@/i';
 
-    private const string FAILURE_SUBJECT = '/^\s*(undeliverable|undelivered mail returned to sender|delivery status notification \(failure\)|mail delivery failed|returned mail|failure notice|delivery failure|message not delivered|no se puede entregar|no se pudo entregar|no entregable|mensaje no entregado|error de entrega|notificaci[oó]n de estado de entrega \(error\))(?!\w)/iu';
+    /**
+     * Message class of a non-delivery report; delay reports end in
+     * ".Delayed.DR" and delivery receipts in ".DR".
+     */
+    private const string FAILURE_CLASS = '/^REPORT\..+\.NDR$/i';
 
     /**
-     * Reports from the same system senders that are not failures: delivery
-     * still being retried, or delivered. The mail may still arrive, so they
-     * never mark a send as bounced.
+     * Local parts of our Exchange's own report senders.
      */
-    private const string NOT_A_FAILURE_SUBJECT = '/^\s*(delivery delayed|delivery status notification \(delay\)|delayed mail|warning: message .* delayed|entrega retrasada|retraso en la entrega|delivered|relayed|entregado|retransmitido)(?!\w)/iu';
+    private const string OWN_REPORT_SENDER = '/^(postmaster|microsoftexchange[0-9a-f]{32})$/i';
+
+    /**
+     * Local parts of other servers' report senders.
+     */
+    private const string EXTERNAL_REPORT_SENDER = '/^(postmaster|mailer-daemon|mail-daemon|mail\.?delivery\.?(subsystem|system)?)$/i';
 
     /**
      * SMTP enhanced status codes (RFC 3463) of a permanent or transient failure.
@@ -40,14 +66,32 @@ final class BounceDetector
 
     private const string EMAIL = '/[A-Z0-9._%+\'-]+@[A-Z0-9.-]+\.[A-Z]{2,}/i';
 
-    public function isBounce(string $from, string $subject): bool
+    /**
+     * OWN_REPORT, EXTERNAL_REPORT or REPLY.
+     */
+    public function classify(InboundEnvelope $envelope): string
     {
-        if (preg_match(self::NOT_A_FAILURE_SUBJECT, $subject) === 1) {
-            return false;
+        if (! self::isFailureClass($envelope->messageClass)) {
+            return self::REPLY;
         }
 
-        return preg_match(self::SYSTEM_SENDER, trim($from)) === 1
-            || preg_match(self::FAILURE_SUBJECT, $subject) === 1;
+        $local = $envelope->localPart();
+
+        if ($envelope->internal() && $envelope->fromOwnDomain() && preg_match(self::OWN_REPORT_SENDER, $local) === 1) {
+            return self::OWN_REPORT;
+        }
+
+        return $envelope->domain() !== '' && preg_match(self::EXTERNAL_REPORT_SENDER, $local) === 1
+            ? self::EXTERNAL_REPORT
+            : self::REPLY;
+    }
+
+    /**
+     * Whether a message class is a non-delivery report's.
+     */
+    public static function isFailureClass(?string $class): bool
+    {
+        return $class !== null && preg_match(self::FAILURE_CLASS, trim($class)) === 1;
     }
 
     /**

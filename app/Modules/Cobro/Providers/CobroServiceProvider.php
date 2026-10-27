@@ -4,6 +4,7 @@ namespace App\Modules\Cobro\Providers;
 
 use App\Modules\Cobro\Circularizacion\CircularizationRun;
 use App\Modules\Cobro\Circularizacion\Console\SendCircularizationCommand;
+use App\Modules\Cobro\Console\DiagnoseBounceCommand;
 use App\Modules\Cobro\Console\ExpireStaleSendsCommand;
 use App\Modules\Cobro\Console\SendWeeklyCollectionCommand;
 use App\Modules\Cobro\Console\SyncMailboxesCommand;
@@ -59,6 +60,7 @@ final class CobroServiceProvider extends ModuleServiceProvider
             SendWeeklyCollectionCommand::class,
             SendCircularizationCommand::class,
             ExpireStaleSendsCommand::class,
+            DiagnoseBounceCommand::class,
         ]);
 
         // Exchange Online accepts 30 mails a minute per mailbox; the send

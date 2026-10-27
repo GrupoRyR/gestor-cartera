@@ -322,6 +322,12 @@ Levanté la app en `127.0.0.1:8123` con los seeders de demostración (SQLite tem
 - **Dónde:** `app/Modules/Cobro/Domain/Mail/BounceDetector.php:49-50` decide solo por remitente o asunto; `InboundLinker.php:28-56` une por conversación, Message-ID citado o remitente.
 - **Cómo se explotaría:** un cliente responde con el asunto «Undeliverable: …» y su envío queda marcado como rebotado en el informe y en la bitácora. Solo afecta la exactitud de los informes; todo se muestra escapado.
 - **Corrección:** exigir además un remitente de sistema y una estructura DSN (`multipart/report`).
+- **Estado: corregido** en la Fase 2.
+  - Un mensaje solo es rebote si Exchange le dio la clase `REPORT.*.NDR` y, además, es un informe de nuestro Exchange (`X-MS-Exchange-Organization-AuthAs: Internal`, remitente `postmaster` o `MicrosoftExchange…` de un dominio propio) o el informe de otro servidor que cita el `Message-ID` de un envío. Un asunto «Undeliverable:» de un cliente queda como respuesta.
+  - Riesgo que queda: un cliente con su propio servidor de correo puede armar un informe DSN real sobre el envío que recibió. Por decisión del usuario, los rebotes en texto plano sin estructura DSN ya no se detectan y quedan como respuestas.
+  - Si Graph rechaza el `$expand` de la clase (HTTP 400 o 501) en la primera página de una vuelta, la sincronización la pide una vez sin él y deja un `warning`; mientras dure, los rebotes quedan como respuestas. `cobro:diagnosticar-rebote --probar-delta` muestra el rechazo.
+  - `COBRO_TENANT_DOMAINS` (por ejemplo `gruporyr.onmicrosoft.com`) suma el dominio del inquilino a los propios, solo para el remitente de un informe de nuestro Exchange.
+  - Pendiente: correr `cobro:diagnosticar-rebote` contra un rebote real de cada buzón para confirmar la clase, el encabezado y el remitente que entrega Exchange.
 
 ---
 

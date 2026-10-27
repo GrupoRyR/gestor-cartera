@@ -21,6 +21,16 @@ return [
         'SDC' => env('COBRO_MAILBOX_SDC') ?: 'derivados.info@derivadoscol.com',
     ],
 
+    // Domains of the Microsoft 365 tenant (for example
+    // gruporyr.onmicrosoft.com), comma-separated in COBRO_TENANT_DOMAINS.
+    // They count as ours only for the sender of our Exchange's own delivery
+    // reports (postmaster@… or MicrosoftExchange…@, audit S-24), never as a
+    // company mailbox or a copy domain. Empty: only the mailbox domains.
+    'tenant_domains' => array_values(array_filter(
+        array_map(fn (string $domain): string => mb_strtolower(trim($domain)), explode(',', (string) env('COBRO_TENANT_DOMAINS', ''))),
+        fn (string $domain): bool => $domain !== '',
+    )),
+
     // Inbox synchronization (cobro:sincronizar-buzones, every five minutes).
     'sync' => [
         // The first synchronization of a mailbox reads the messages received

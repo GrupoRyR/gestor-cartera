@@ -1,0 +1,43 @@
+{
+    "@odata.context": "https://graph.microsoft.com/v1.0/$metadata#users('segurex.info%40segurex.com')/messages(internetMessageHeaders)/$entity",
+    "@odata.etag": "W/\"CQAAABYAAADEqK7a2wb0TL7aFRAAAAAC\"",
+    "id": "AAMkAGVmMDEzMTM4LTZmYWUtNDdkNC1hMDZiLTU1OGY5OTZhYmY4OABGAAAAAAAiQ8W967B7TKBjgx9rVEURBwAiIsqMbYjsT5e-T7KzowPTAAAAAAEMAAAiIsqMbYjsT5e-T7KzowPTAAAa_WLBAAA=",
+    "internetMessageHeaders": [
+        {
+            "name": "Received",
+            "value": "from SA1PR11MB8471.namprd11.prod.outlook.com (2603:10b6:806:3a9::14) by SA1PR11MB8471.namprd11.prod.outlook.com with mapi id 15.20.8093.000; Tue, 21 Oct 2026 22:00:09 +0000"
+        },
+        {
+            "name": "Content-Type",
+            "value": "multipart/report; report-type=delivery-status; boundary=\"9f2c4a1e-7b3d-4c5e-8a6f-0d1e2f3a4b5c\""
+        },
+        {
+            "name": "From",
+            "value": "Microsoft Outlook <MicrosoftExchange329e71ec88ae4615bbc36ab6ce41109e@segurex.com>"
+        },
+        {
+            "name": "To",
+            "value": "<segurex.info@segurex.com>"
+        },
+        {
+            "name": "Subject",
+            "value": "Undeliverable: Facturas vencidas de Distribuciones Andinas SAS"
+        },
+        {
+            "name": "Auto-Submitted",
+            "value": "auto-replied"
+        },
+        {
+            "name": "X-MS-Exchange-Organization-AuthAs",
+            "value": "Internal"
+        },
+        {
+            "name": "X-MS-Exchange-Organization-AuthSource",
+            "value": "SA1PR11MB8471.namprd11.prod.outlook.com"
+        },
+        {
+            "name": "X-MS-Exchange-Organization-SCL",
+            "value": "-1"
+        }
+    ]
+}

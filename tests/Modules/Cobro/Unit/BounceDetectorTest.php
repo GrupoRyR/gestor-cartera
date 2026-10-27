@@ -1,24 +1,55 @@
 <?php
 
 use App\Modules\Cobro\Domain\Mail\BounceDetector;
+use App\Modules\Cobro\Domain\Mail\InboundEnvelope;
 use App\Modules\Cobro\Domain\Mail\MessageIds;
 
-it('tells delivery reports from replies', function (string $from, string $subject, bool $bounce) {
-    expect((new BounceDetector)->isBounce($from, $subject))->toBe($bounce);
+// The mailbox domains and the tenant's (cobro.tenant_domains).
+const COBRO_OWN_DOMAINS = ['segurex.com', 'derivadoscol.com', 'gruporyr.onmicrosoft.com'];
+
+const COBRO_EXCHANGE_SENDER = 'MicrosoftExchange329e71ec88ae4615bbc36ab6ce41109e@segurex.com';
+
+it('tells delivery reports from replies by their message class, sender and authentication', function (string $from, ?string $class, ?string $authAs, string $kind) {
+    expect((new BounceDetector)->classify(new InboundEnvelope($from, $class, $authAs, COBRO_OWN_DOMAINS)))->toBe($kind);
 })->with([
-    'Exchange system sender' => ['MicrosoftExchange329e71ec88ae4615bbc36ab6ce41109e@segurex.com', 'Undeliverable: Facturas vencidas', true],
-    'postmaster' => ['postmaster@cliente.example', 'Aviso', true],
-    'mailer-daemon' => ['MAILER-DAEMON@mx.cliente.example', 'Returned mail: see transcript for details', true],
-    'English subject' => ['someone@cliente.example', 'Undelivered Mail Returned to Sender', true],
-    'failure DSN from an ordinary sender' => ['notificaciones@cliente.example', 'Delivery Status Notification (Failure)', true],
-    'Gmail DSN' => ['mailer-daemon@googlemail.com', 'Delivery Status Notification (Failure)', true],
-    'Spanish subject' => ['sistema@cliente.example', 'No se puede entregar: Facturas vencidas', true],
-    'human reply' => ['tesoreria@cliente.example', 'RE: Facturas vencidas', false],
-    'out of office' => ['tesoreria@cliente.example', 'Respuesta automática: Facturas vencidas', false],
-    'Exchange delay' => ['MicrosoftExchange329e71ec88ae4615bbc36ab6ce41109e@segurex.com', 'Delivery delayed: Facturas vencidas', false],
-    'Gmail delay' => ['mailer-daemon@googlemail.com', 'Delivery Status Notification (Delay)', false],
-    'Spanish delay' => ['MicrosoftExchange329e71ec88ae4615bbc36ab6ce41109e@segurex.com', 'Entrega retrasada: Facturas vencidas', false],
-    'delivery receipt' => ['MicrosoftExchange329e71ec88ae4615bbc36ab6ce41109e@segurex.com', 'Delivered: Facturas vencidas', false],
+    'our Exchange report' => [COBRO_EXCHANGE_SENDER, 'REPORT.IPM.Note.NDR', 'Internal', BounceDetector::OWN_REPORT],
+    'our postmaster, in any case' => ['Postmaster@Derivadoscol.com', 'report.ipm.note.ndr', 'internal', BounceDetector::OWN_REPORT],
+    'our tenant postmaster' => ['postmaster@gruporyr.onmicrosoft.com', 'REPORT.IPM.Note.NDR', 'Internal', BounceDetector::OWN_REPORT],
+    'our tenant Exchange sender' => ['MicrosoftExchange329e71ec88ae4615bbc36ab6ce41109e@gruporyr.onmicrosoft.com', 'REPORT.IPM.Note.NDR', 'Internal', BounceDetector::OWN_REPORT],
+    'our tenant postmaster from outside' => ['postmaster@gruporyr.onmicrosoft.com', 'REPORT.IPM.Note.NDR', 'Anonymous', BounceDetector::EXTERNAL_REPORT],
+    'an Exchange sender of another tenant' => ['MicrosoftExchange329e71ec88ae4615bbc36ab6ce41109e@attacker.onmicrosoft.com', 'REPORT.IPM.Note.NDR', 'Internal', BounceDetector::REPLY],
+    'our Exchange sender from outside' => [COBRO_EXCHANGE_SENDER, 'REPORT.IPM.Note.NDR', 'Anonymous', BounceDetector::REPLY],
+    'our Exchange sender, authentication unknown' => [COBRO_EXCHANGE_SENDER, 'REPORT.IPM.Note.NDR', null, BounceDetector::REPLY],
+    'an Exchange sender of another domain' => ['MicrosoftExchange329e71ec88ae4615bbc36ab6ce41109e@attacker.example', 'REPORT.IPM.Note.NDR', 'Internal', BounceDetector::REPLY],
+    'a subdomain of ours' => ['MicrosoftExchange329e71ec88ae4615bbc36ab6ce41109e@mail.segurex.com', 'REPORT.IPM.Note.NDR', 'Internal', BounceDetector::REPLY],
+    'an Exchange sender without its 32-digit id' => ['MicrosoftExchange@segurex.com', 'REPORT.IPM.Note.NDR', 'Internal', BounceDetector::REPLY],
+    'an employee of ours' => ['miguel.martinez@segurex.com', 'REPORT.IPM.Note.NDR', 'Internal', BounceDetector::REPLY],
+    'a client reply titled as a report' => ['tesoreria@cliente.example', 'IPM.Note', 'Anonymous', BounceDetector::REPLY],
+    'our Exchange, an ordinary mail' => [COBRO_EXCHANGE_SENDER, 'IPM.Note', 'Internal', BounceDetector::REPLY],
+    'a delay report' => [COBRO_EXCHANGE_SENDER, 'REPORT.IPM.Note.Delayed.DR', 'Internal', BounceDetector::REPLY],
+    'a delivery receipt' => [COBRO_EXCHANGE_SENDER, 'REPORT.IPM.Note.DR', 'Internal', BounceDetector::REPLY],
+    'a read receipt' => [COBRO_EXCHANGE_SENDER, 'REPORT.IPM.Note.IPNRN', 'Internal', BounceDetector::REPLY],
+    'Gmail report' => ['mailer-daemon@googlemail.com', 'REPORT.IPM.Note.NDR', 'Anonymous', BounceDetector::EXTERNAL_REPORT],
+    'a postmaster elsewhere' => ['postmaster@cliente.example', 'REPORT.IPM.Note.NDR', null, BounceDetector::EXTERNAL_REPORT],
+    'mail delivery subsystem' => ['Mail.Delivery.Subsystem@cliente.example', 'REPORT.IPM.Note.NDR', 'Anonymous', BounceDetector::EXTERNAL_REPORT],
+    'a client mailbox with a report class' => ['tesoreria@cliente.example', 'REPORT.IPM.Note.NDR', 'Anonymous', BounceDetector::REPLY],
+    'Gmail delay' => ['mailer-daemon@googlemail.com', 'REPORT.IPM.Note.Delayed.DR', 'Anonymous', BounceDetector::REPLY],
+    'Gmail plain-text report' => ['mailer-daemon@googlemail.com', 'IPM.Note', 'Anonymous', BounceDetector::REPLY],
+    'no message class' => [COBRO_EXCHANGE_SENDER, null, 'Internal', BounceDetector::REPLY],
+    'no sender' => ['', 'REPORT.IPM.Note.NDR', 'Internal', BounceDetector::REPLY],
+]);
+
+it('knows the message class of a delivery failure report', function (?string $class, bool $failure) {
+    expect(BounceDetector::isFailureClass($class))->toBe($failure);
+})->with([
+    ['REPORT.IPM.Note.NDR', true],
+    ['Report.IPM.Note.SMIME.NDR', true],
+    ['REPORT.IPM.Note.Delayed.DR', false],
+    ['REPORT.IPM.Note.DR', false],
+    ['REPORT.NDR', false],
+    ['IPM.Note', false],
+    ['IPM.Note.NDR', false],
+    [null, false],
 ]);
 
 it('reads the SMTP status line as the reason, skipping header lines', function () {
