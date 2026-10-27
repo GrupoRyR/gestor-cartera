@@ -13,8 +13,9 @@ use Illuminate\Support\Facades\Route;
 
 Route::middleware(['auth', 'can:comisiones.view'])->prefix('ajustes')->name('ajustes.')->group(function () {
     Route::get('{pestana?}', [CapturesController::class, 'index'])->whereIn('pestana', CaptureKind::tabs())->name('index');
+    // A download: 10 a minute per user (comisiones-exports).
     Route::get('{tipo}/{captura}/soporte', CaptureSupportController::class)
-        ->whereIn('tipo', CaptureKind::values())->whereNumber('captura')->name('soporte');
+        ->whereIn('tipo', CaptureKind::values())->whereNumber('captura')->middleware('throttle:comisiones-exports')->name('soporte');
 });
 
 Route::middleware(['auth', 'can:comisiones.capture'])->prefix('ajustes')->name('ajustes.')->group(function () {

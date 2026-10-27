@@ -12,7 +12,10 @@ use App\Modules\Core\Contracts\Enums\CommitmentStatus;
 use App\Support\Modules\ModuleServiceProvider;
 use App\Support\Navigation\NavItem;
 use App\Support\Navigation\NavRegistry;
+use Illuminate\Cache\RateLimiting\Limit;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Gate;
+use Illuminate\Support\Facades\RateLimiter;
 
 /**
  * Asesores: sales advisor viewer: each advisor sees only their own portfolio
@@ -35,6 +38,15 @@ final class AsesoresServiceProvider extends ModuleServiceProvider
         // are registered by hand.
         Gate::policy(ClientDetail::class, ClientPolicy::class);
         Gate::policy(Commitment::class, CommitmentPolicy::class);
+
+        // The two Excel files and the account statement (audit S-10): 10 a
+        // minute per user, counted together, so a script cannot pull a
+        // portfolio in a loop and one advisor at the limit never blocks another.
+        RateLimiter::for('asesores-exports', function (Request $request): Limit {
+            $user = $request->user();
+
+            return Limit::perMinute(10)->by($user === null ? 'ip:'.$request->ip() : 'user:'.$user->getAuthIdentifier());
+        });
     }
 
     /**

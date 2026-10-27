@@ -14,7 +14,10 @@ use App\Modules\Core\Contracts\Events\BatchAccepted;
 use App\Support\Modules\ModuleServiceProvider;
 use App\Support\Navigation\NavItem;
 use App\Support\Navigation\NavRegistry;
+use Illuminate\Cache\RateLimiting\Limit;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Event;
+use Illuminate\Support\Facades\RateLimiter;
 
 /**
  * Comisiones: sales commission settlement, SGX only (rules in
@@ -42,6 +45,15 @@ final class ComisionesServiceProvider extends ModuleServiceProvider
         Event::listen(BatchAccepted::class, ImportCommissionBatch::class);
 
         $this->commands([AssignModuleRoleCommand::class]);
+
+        // Every file the module hands out (audit S-10): 10 a minute per user,
+        // counted together, so a script cannot pull every report in a loop and
+        // one user at the limit never blocks another.
+        RateLimiter::for('comisiones-exports', function (Request $request): Limit {
+            $user = $request->user();
+
+            return Limit::perMinute(10)->by($user === null ? 'ip:'.$request->ip() : 'user:'.$user->getAuthIdentifier());
+        });
     }
 
     /**

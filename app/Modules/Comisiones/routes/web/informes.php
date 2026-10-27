@@ -25,8 +25,9 @@ Route::middleware(['auth', 'can:comisiones.reports'])
     ->group(function () {
         Route::get('informes', [ReportsController::class, 'index'])->name('index');
         Route::post('informes/generar', [ReportsController::class, 'generate'])->name('generar');
-        Route::get('informes.zip', [ReportsController::class, 'zip'])->name('zip');
-        Route::get('informes/nomina.xlsx', [ReportsController::class, 'payroll'])->name('nomina');
+        // The downloads take 10 a minute per user (comisiones-exports).
+        Route::get('informes.zip', [ReportsController::class, 'zip'])->middleware('throttle:comisiones-exports')->name('zip');
+        Route::get('informes/nomina.xlsx', [ReportsController::class, 'payroll'])->middleware('throttle:comisiones-exports')->name('nomina');
         // A code ("14") or a derived commission ("85.1").
-        Route::get('informes/{referencia}.pdf', [ReportsController::class, 'pdf'])->where('referencia', '\d+(\.\d+)?')->name('pdf');
+        Route::get('informes/{referencia}.pdf', [ReportsController::class, 'pdf'])->where('referencia', '\d+(\.\d+)?')->middleware('throttle:comisiones-exports')->name('pdf');
     });

@@ -10,6 +10,7 @@ use App\Modules\Core\Infrastructure\Persistence\ClientRecord;
 use App\Modules\Core\Infrastructure\Persistence\CommitmentRecord;
 use App\Support\Formatting\Money;
 use Carbon\CarbonImmutable;
+use Illuminate\Routing\Middleware\ThrottleRequests;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Testing\TestResponse;
 use Symfony\Component\HttpFoundation\BinaryFileResponse;
@@ -130,6 +131,8 @@ function asesoresTamperedQueries(array $canary): array
 const ASESORES_LISTING_ROUTES = ['asesores.inicio', 'asesores.clientes.index', 'asesores.historico', 'asesores.agenda', 'asesores.clientes.exportar'];
 
 it('never shows an advisor anything of another advisor in any page or file, whatever the query says', function (string $viewer, string $other) {
+    // More than 10 downloads in a minute: the limit has its own test (ExportThrottleTest).
+    $this->withoutMiddleware(ThrottleRequests::class);
     $viewer = $this->world->{$viewer};
     $secrets = array_merge(...array_map(fn (string $key): array => $this->{$key}['secrets'], [$other, 'sdcCanary']));
 
@@ -203,6 +206,9 @@ it('answers 404 with the same body for a client of another advisor and for one t
 });
 
 it('keeps a sales manager to the team: the clients of advisors outside it do not exist', function () {
+    // More than 10 downloads in a minute: the limit has its own test (ExportThrottleTest).
+    $this->withoutMiddleware(ThrottleRequests::class);
+
     foreach (['anaCanary', 'brunoCanary', 'sdcCanary'] as $canary) {
         $client = $this->{$canary}['client']->id;
 

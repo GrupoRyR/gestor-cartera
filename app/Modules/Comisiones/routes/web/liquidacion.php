@@ -19,8 +19,9 @@ Route::middleware(['auth', 'can:comisiones.view'])->group(function () {
         Route::get('/', [SettlementController::class, 'show'])->name('show');
         Route::get('codigos/{codigo}', [CodeSettlementController::class, 'show'])->whereNumber('codigo')->name('codigo');
         Route::get('consolidado', [ConsolidatedController::class, 'show'])->name('consolidado');
-        Route::get('consolidado.xlsx', [ConsolidatedController::class, 'spreadsheet'])->name('consolidado.xlsx');
-        Route::get('consolidado.pdf', [ConsolidatedController::class, 'pdf'])->name('consolidado.pdf');
+        // The downloads take 10 a minute per user (comisiones-exports).
+        Route::get('consolidado.xlsx', [ConsolidatedController::class, 'spreadsheet'])->middleware('throttle:comisiones-exports')->name('consolidado.xlsx');
+        Route::get('consolidado.pdf', [ConsolidatedController::class, 'pdf'])->middleware('throttle:comisiones-exports')->name('consolidado.pdf');
     });
 });
 
