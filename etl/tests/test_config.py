@@ -8,10 +8,12 @@ from pathlib import Path
 from unittest import mock
 
 import config
-from config import AlertaConfig, Config, ConfigError, HanaConfig, IngestaConfig, VpnConfig
+from config import (
+    AlertaConfig, Config, ConfigError, EmpresaConfig, HanaConfig, IngestaConfig, VpnConfig,
+)
 
 
-def _config(supabase_url: str = "", **ingesta) -> Config:
+def _config(supabase_url: str = "", empresas=(), **ingesta) -> Config:
     return Config(
         # Un archivo que existe seguro, para no depender de Sophos instalado.
         vpn=VpnConfig(Path(sys.executable), "vpn", "usuario", "clave", 90, True),
@@ -20,6 +22,7 @@ def _config(supabase_url: str = "", **ingesta) -> Config:
         alertas=AlertaConfig("", 587, "", ""),
         ingesta=IngestaConfig(**{"url": "", "key_id": "", "secreto": "", **ingesta}),
         lotes=("cartera", "asesores"),
+        empresas=tuple(EmpresaConfig(*e) for e in empresas),
     )
 
 
@@ -46,6 +49,58 @@ class ParsearLotesTest(unittest.TestCase):
     def test_vacio_es_un_error(self):
         with self.assertRaises(ConfigError):
             config.parsear_lotes(" , ")
+
+
+class EmpresasTest(unittest.TestCase):
+    def test_sin_configurar_corre_solo_la_empresa_de_hoy(self):
+        self.assertEqual(
+            _config().empresas_efectivas, (EmpresaConfig("SGX", "SEGUREX"),)
+        )
+        self.assertEqual(
+            _config(empresa="SDC").empresas_efectivas, (EmpresaConfig("SDC", "SEGUREX"),)
+        )
+
+    def test_las_empresas_configuradas_salen_en_su_orden(self):
+        entorno = {
+            "ETL_EMPRESAS": " sgx, SDC,sgx ",
+            "HANA_SCHEMA_SGX": "SEGUREX",
+            "HANA_SCHEMA_SDC": "HBT_SDERIVADOS",
+        }
+        with mock.patch.dict(os.environ, entorno):
+            self.assertEqual(
+                config.leer_empresas(),
+                (EmpresaConfig("SGX", "SEGUREX"), EmpresaConfig("SDC", "HBT_SDERIVADOS")),
+            )
+
+    def test_sin_etl_empresas_no_lee_nada(self):
+        with mock.patch.dict(os.environ, {"HANA_SCHEMA_SGX": "SEGUREX"}):
+            os.environ.pop("ETL_EMPRESAS", None)
+            self.assertEqual(config.leer_empresas(), ())
+
+    def test_varias_empresas_no_necesitan_hana_schema(self):
+        cfg = _config(
+            **LARAVEL, empresas=(("SGX", "SEGUREX"), ("SDC", "HBT_SDERIVADOS"))
+        )
+        cfg = Config(**{**cfg.__dict__, "hana": HanaConfig("h", 30015, "u", "p", "", 600)})
+        cfg.validar()
+
+    def test_cada_empresa_necesita_su_esquema(self):
+        with self.assertRaises(ConfigError) as error:
+            _config(**LARAVEL, empresas=(("SGX", "SEGUREX"), ("SDC", ""))).validar()
+        self.assertIn("HANA_SCHEMA_SDC", str(error.exception))
+
+    def test_una_empresa_desconocida_o_repetida_es_un_error(self):
+        with self.assertRaises(ConfigError) as error:
+            _config(**LARAVEL, empresas=(("XYZ", "A"),)).validar()
+        self.assertIn("ETL_EMPRESAS", str(error.exception))
+        with self.assertRaises(ConfigError) as error:
+            _config(**LARAVEL, empresas=(("SGX", "A"), ("SGX", "B"))).validar()
+        self.assertIn("ETL_EMPRESAS", str(error.exception))
+
+    def test_el_diagnostico_exige_los_esquemas_de_cada_empresa_solo_si_se_piden(self):
+        _config(empresas=(("SGX", ""), ("SDC", ""))).validar(
+            requiere_destino=False, requiere_esquema=False
+        )
 
 
 class ValidarTest(unittest.TestCase):

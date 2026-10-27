@@ -19,7 +19,7 @@ import hana
 import notificar
 import registro
 import run_etl
-from config import AlertaConfig, Config, HanaConfig, IngestaConfig, VpnConfig
+from config import AlertaConfig, Config, EmpresaConfig, HanaConfig, IngestaConfig, VpnConfig
 from esquema import ENTERO, FECHA, NUMERO, TASA, Columna, Lote
 from sinks import csv_sink, http_sink, postgres_sink
 
@@ -46,9 +46,13 @@ def _resultado(nombre: str, filas: int = 2):
 
 class Escenario:
     def __init__(self, resultados, lotes, *, laravel=True, supabase=False,
-                 fallos_laravel=(), argv=(), empresa="SGX"):
+                 fallos_laravel=(), argv=(), empresa="SGX", empresas=None):
         self.resultados = resultados
         self.empresa = empresa
+        # empresas: ((codigo, esquema), ...) como ETL_EMPRESAS con dos o mas.
+        self.multi = bool(empresas) and len(empresas) > 1
+        self.por_esquema = {esq: cod for cod, esq in empresas or ()}
+        self.esquemas_conectados: list[str] = []
         self.fallos_laravel = set(fallos_laravel)
         self.eventos: list[str] = []
         self.consultas: list[tuple[str, str]] = []
@@ -66,6 +70,7 @@ class Escenario:
                 empresa=empresa,
             ),
             lotes=tuple(lotes),
+            empresas=tuple(EmpresaConfig(*e) for e in empresas or ()),
         )
         self.argv = ["run_etl.py", *argv]
         self.hoy = lambda: date(2026, 10, 16)
@@ -84,25 +89,29 @@ class Escenario:
         return VpnFalsa()
 
     @contextmanager
-    def _conectar(self, _cfg):
+    def _conectar(self, cfg):
+        self.esquemas_conectados.append(cfg.esquema)
         yield "conexion"
 
     def _leer_query(self, nombre, empresa):
         self.consultas.append((nombre, empresa))
         return f"-- {nombre}"
 
-    def _ejecutar(self, _conn, _sql, etiqueta, _esquema):
-        self.eventos.append(f"hana:{etiqueta}")
-        resultado = self.resultados[etiqueta]
+    def _ejecutar(self, _conn, _sql, etiqueta, esquema_hana):
+        empresa = self.por_esquema.get(esquema_hana, self.empresa)
+        self.eventos.append(
+            f"hana:{empresa}:{etiqueta}" if self.multi else f"hana:{etiqueta}"
+        )
+        resultado = self.resultados.get((empresa, etiqueta), self.resultados.get(etiqueta))
         if isinstance(resultado, Exception):
             raise resultado
         return resultado
 
     def _publicar(self, _cfg, lote, empresa, corte, columnas, filas):
-        self.eventos.append(f"laravel:{lote}")
-        if lote in self.fallos_laravel:
+        self.eventos.append(f"laravel:{empresa}:{lote}" if self.multi else f"laravel:{lote}")
+        if lote in self.fallos_laravel or (empresa, lote) in self.fallos_laravel:
             raise http_sink.HttpSinkError(f"Laravel rechazo el lote '{lote}'", 422)
-        assert empresa == self.empresa and corte == date(2026, 10, 16)
+        assert (self.multi or empresa == self.empresa) and corte == date(2026, 10, 16)
         return {"duplicate": False}
 
     @contextmanager
@@ -310,6 +319,134 @@ class RunEtlTest(unittest.TestCase):
         escenario = Escenario({}, ["cartera"], argv=["--lotes", "ventitas"])
         self.assertEqual(escenario.ejecutar(), 2)
         self.assertEqual(escenario.eventos, [])
+
+
+DOS_EMPRESAS = (("SGX", "SEGUREX"), ("SDC", "HBT_SDERIVADOS"))
+
+
+def _base(*empresas: str) -> dict:
+    """Cartera y asesores correctos de cada empresa."""
+    return {
+        (e, lote): _resultado(lote) for e in empresas for lote in ("cartera", "asesores")
+    }
+
+
+class DosEmpresasTest(unittest.TestCase):
+    def _escenario(self, resultados=None, **opciones):
+        return Escenario(
+            resultados if resultados is not None else _base("SGX", "SDC"),
+            ["cartera", "asesores"],
+            empresas=DOS_EMPRESAS,
+            **opciones,
+        )
+
+    def test_una_sola_vpn_primero_segurex_y_luego_derivados(self):
+        escenario = self._escenario()
+        self.assertEqual(escenario.ejecutar(), 0)
+        self.assertEqual(
+            escenario.eventos,
+            ["vpn:arriba",
+             "hana:SGX:cartera", "hana:SGX:asesores",
+             "hana:SDC:cartera", "hana:SDC:asesores",
+             "vpn:abajo",
+             "csv:SGX_cartera", "csv:SGX_asesores",
+             "laravel:SGX:cartera", "laravel:SGX:asesores",
+             "csv:SDC_cartera", "csv:SDC_asesores",
+             "laravel:SDC:cartera", "laravel:SDC:asesores"],
+        )
+        self.assertEqual(escenario.avisos, [])
+        estado = escenario.estados[-1]
+        self.assertEqual(estado["estado"], "OK")
+        self.assertEqual(estado["empresas"]["SDC"]["lotes"]["cartera"]["laravel"], "nuevo")
+
+    def test_cada_empresa_usa_su_esquema_y_sus_consultas(self):
+        escenario = self._escenario()
+        escenario.ejecutar()
+        self.assertEqual(escenario.esquemas_conectados, ["SEGUREX", "HBT_SDERIVADOS"])
+        self.assertEqual(
+            escenario.consultas,
+            [("cartera.sql", "SGX"), ("asesores.sql", "SGX"),
+             ("cartera.sql", "SDC"), ("asesores.sql", "SDC")],
+        )
+
+    def test_si_falla_segurex_derivados_igual_se_publica(self):
+        resultados = {**_base("SGX", "SDC"),
+                      ("SGX", "cartera"): hana.HanaError("sin conexion")}
+        escenario = self._escenario(resultados)
+        self.assertEqual(escenario.ejecutar(), 1)
+        self.assertFalse([e for e in escenario.eventos if e.startswith("laravel:SGX")])
+        self.assertIn("laravel:SDC:cartera", escenario.eventos)
+        self.assertIn("laravel:SDC:asesores", escenario.eventos)
+        (aviso,) = escenario.avisos
+        self.assertIn("SGX", aviso[0])
+        self.assertNotIn("SDC", aviso[1])
+        estado = escenario.estados[-1]
+        self.assertEqual(estado["estado"], "ERROR")
+        self.assertEqual(estado["empresas"]["SGX"]["estado"], "ERROR")
+        self.assertEqual(estado["empresas"]["SDC"]["estado"], "OK")
+
+    def test_si_falla_derivados_segurex_ya_estaba_publicado(self):
+        resultados = {**_base("SGX", "SDC"), ("SDC", "asesores"): (["Otra"], [])}
+        escenario = self._escenario(resultados)
+        self.assertEqual(escenario.ejecutar(), 1)
+        self.assertIn("laravel:SGX:cartera", escenario.eventos)
+        self.assertIn("laravel:SGX:asesores", escenario.eventos)
+        (aviso,) = escenario.avisos
+        self.assertIn("SDC", aviso[0])
+        self.assertNotIn("SGX", aviso[1])
+
+    def test_el_rechazo_de_laravel_a_una_empresa_no_frena_a_la_otra(self):
+        escenario = self._escenario(fallos_laravel={("SGX", "cartera")})
+        self.assertEqual(escenario.ejecutar(), 1)
+        self.assertIn("laravel:SGX:asesores", escenario.eventos)
+        self.assertIn("laravel:SDC:cartera", escenario.eventos)
+        (aviso,) = escenario.avisos
+        self.assertEqual(aviso[0], "LARAVEL (SGX/cartera)")
+
+    def test_el_aviso_nombra_a_las_dos_empresas_si_fallan_las_dos(self):
+        escenario = self._escenario(fallos_laravel={("SGX", "cartera"), ("SDC", "cartera")})
+        self.assertEqual(escenario.ejecutar(), 1)
+        (aviso,) = escenario.avisos
+        self.assertIn("SGX/cartera", aviso[1])
+        self.assertIn("SDC/cartera", aviso[1])
+
+    def test_el_diagnostico_hace_las_dos_con_csv_por_empresa_y_no_publica(self):
+        escenario = self._escenario(argv=["--diagnostico"], supabase=True)
+        self.assertEqual(escenario.ejecutar(), 0)
+        self.assertEqual(escenario.eventos.count("vpn:arriba"), 1)
+        for csv in ("SGX_cartera", "SGX_asesores", "SDC_cartera", "SDC_asesores"):
+            self.assertIn(f"csv:{csv}", escenario.eventos)
+        self.assertFalse(
+            [e for e in escenario.eventos if e.startswith(("laravel", "supabase"))]
+        )
+        self.assertEqual(escenario.estados[-1]["estado"], "DIAGNOSTICO_OK")
+
+    def test_el_diagnostico_falla_si_una_empresa_falla(self):
+        resultados = {**_base("SGX", "SDC"), ("SDC", "cartera"): hana.HanaError("x")}
+        escenario = self._escenario(resultados, argv=["--diagnostico"])
+        self.assertEqual(escenario.ejecutar(), 1)
+        self.assertIn("csv:SGX_cartera", escenario.eventos)
+        self.assertEqual(escenario.estados[-1]["estado"], "DIAGNOSTICO_CON_FALLOS")
+
+    def test_supabase_es_el_respaldo_solo_de_segurex(self):
+        escenario = self._escenario(supabase=True)
+        self.assertEqual(escenario.ejecutar(), 0)
+        self.assertEqual(
+            [e for e in escenario.eventos if e.startswith("supabase:")],
+            ["supabase:cartera", "supabase:asesores"],
+        )
+
+    def test_una_sola_empresa_en_etl_empresas_se_porta_como_hoy(self):
+        escenario = Escenario(
+            {"cartera": _resultado("cartera"), "asesores": _resultado("asesores")},
+            ["cartera", "asesores"],
+            empresas=(("SDC", "HBT_SDERIVADOS"),),
+            empresa="SDC",
+        )
+        self.assertEqual(escenario.ejecutar(), 0)
+        self.assertEqual(escenario.eventos[1], "hana:cartera")
+        self.assertIn("csv:cartera", escenario.eventos)
+        self.assertEqual(escenario.esquemas_conectados, ["HBT_SDERIVADOS"])
 
 
 class FechaDeCorteTest(unittest.TestCase):

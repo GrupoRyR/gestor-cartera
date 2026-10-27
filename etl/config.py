@@ -133,6 +133,14 @@ class IngestaConfig:
 
 
 @dataclass(frozen=True)
+class EmpresaConfig:
+    """Una empresa de la corrida y el esquema HANA de donde se extrae."""
+
+    codigo: str
+    esquema: str
+
+
+@dataclass(frozen=True)
 class Config:
     vpn: VpnConfig
     hana: HanaConfig
@@ -140,6 +148,15 @@ class Config:
     alertas: AlertaConfig
     ingesta: IngestaConfig
     lotes: tuple[str, ...]
+    # ETL_EMPRESAS: vacio = una sola empresa (INGESTA_EMPRESA con HANA_SCHEMA).
+    empresas: tuple[EmpresaConfig, ...] = ()
+
+    @property
+    def empresas_efectivas(self) -> tuple[EmpresaConfig, ...]:
+        """Las empresas que corre el robot, en orden."""
+        return self.empresas or (
+            EmpresaConfig(self.ingesta.empresa, self.hana.esquema),
+        )
 
     def validar(
         self, *, requiere_destino: bool = True, requiere_esquema: bool = True
@@ -160,7 +177,9 @@ class Config:
             faltantes.append("HANA_USER")
         if not self.hana.password:
             faltantes.append("HANA_PASSWORD")
-        if requiere_esquema and not self.hana.esquema:
+        if self.empresas:
+            faltantes.extend(self._faltantes_empresas(requiere_esquema))
+        elif requiere_esquema and not self.hana.esquema:
             faltantes.append("HANA_SCHEMA (esquema de SAP B1, ej: SBO_SEGUREX)")
         if self.ingesta.empresa not in EMPRESAS:
             faltantes.append(
@@ -182,6 +201,25 @@ class Config:
                 f"{ENV_PATH}:\n  - {detalle}\n\n"
                 "Edita ese archivo y vuelve a ejecutar."
             )
+
+    def _faltantes_empresas(self, requiere_esquema: bool) -> list[str]:
+        codigos = [e.codigo for e in self.empresas]
+        faltantes: list[str] = []
+        desconocidas = [c for c in codigos if c not in EMPRESAS]
+        if desconocidas:
+            faltantes.append(
+                f"ETL_EMPRESAS tiene empresas desconocidas ({', '.join(desconocidas)}); "
+                f"las validas son {', '.join(EMPRESAS)}"
+            )
+        if len(set(codigos)) != len(codigos):
+            faltantes.append("ETL_EMPRESAS repite una empresa")
+        if requiere_esquema:
+            faltantes.extend(
+                f"HANA_SCHEMA_{e.codigo} (esquema de SAP B1 de la empresa {e.codigo})"
+                for e in self.empresas
+                if not e.esquema
+            )
+        return faltantes
 
     def _faltantes_destino(self) -> list[str]:
         ingesta = self.ingesta
@@ -262,6 +300,21 @@ def leer_hana() -> HanaConfig:
     )
 
 
+def leer_empresas() -> tuple[EmpresaConfig, ...]:
+    """ETL_EMPRESAS ("SGX,SDC") con el esquema de HANA_SCHEMA_<EMPRESA> de cada una.
+
+    Vacio si ETL_EMPRESAS no esta: el robot sigue con una sola empresa.
+    """
+    codigos: list[str] = []
+    for parte in os.getenv("ETL_EMPRESAS", "").split(","):
+        codigo = parte.strip().upper()
+        if codigo and codigo not in codigos:
+            codigos.append(codigo)
+    return tuple(
+        EmpresaConfig(c, os.getenv(f"HANA_SCHEMA_{c}", "").strip()) for c in codigos
+    )
+
+
 def cargar_config() -> Config:
     """Lee etl/.env. Lanza ConfigError si ETL_LOTES trae un lote desconocido."""
     load_dotenv(ENV_PATH, override=True)
@@ -316,6 +369,7 @@ def cargar_config() -> Config:
         lotes=parsear_lotes(
             os.getenv("ETL_LOTES", "").strip() or LOTES_POR_DEFECTO
         ),
+        empresas=leer_empresas(),
     )
 
 
