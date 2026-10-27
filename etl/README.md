@@ -84,6 +84,8 @@ Cada lote es una consulta de `etl/queries` y su contrato de columnas en `etl/esq
 
 **Cuentas por cobrar por empresa.** `cartera.sql` filtra `JDT1.Account` con las cuentas de Segurex (`13050505`, `13051005`), así corre tal cual en el Query Manager. Con `INGESTA_EMPRESA=SDC` el robot reemplaza esa lista (la que precede al marcador `-- @cuentas_por_cobrar`) por las de Derivados (`13050501`, `13051005`). Las cuentas de cada empresa están en `CUENTAS_POR_COBRAR` de `config.py`; si cambias la lista del `.sql`, cambia también ahí (una prueba lo verifica). Los otros lotes no filtran por cuenta.
 
+**Campos que solo existen en Segurex.** `ventas.sql` lee `OINV.U_SGX_IdPedidoApp`, un campo de usuario que no existe en `HBT_SDERIVADOS`. Con `INGESTA_EMPRESA=SDC` el robot reemplaza esa expresión (la que precede al marcador `-- @id_pedido_app`) por `CAST(NULL AS NVARCHAR(254))`, igual que con las cuentas. La expresión de cada empresa está en `ID_PEDIDO_APP` de `config.py`. Si el marcador falta, la consulta falla en vez de correr con el campo de Segurex.
+
 `ETL_LOTES` decide qué lotes corren. Agrega un lote nuevo solo después de validar su consulta con datos reales.
 
 | Lote | Consulta | Lo consume | Llave natural | Admite 0 filas |
@@ -102,7 +104,8 @@ Ventas, recaudos y cruces traen el mes en curso más los últimos 7 días del me
 ### Confirmado con Miguel
 
 - **Canal:** es el grupo del cliente (`OCRG.GroupName`, unido por `OCRD.GroupCode`), en `maestro_clientes` y en `ventas` (el cliente de la factura). Es el mismo valor que la columna «Grupo» de la cartera.
-- **Id pedido app:** `OINV.U_SGX_IdPedidoApp`. Las notas crédito lo traen vacío.
+- **Id pedido app:** `OINV.U_SGX_IdPedidoApp`. Las notas crédito lo traen vacío, y Derivados también (el campo no existe en su base).
+- **Líneas «Solo impuesto»:** las líneas con `TaxOnly = 'Y'` (`INV1`, `RIN1`) solo cobran el IVA y SAP no las cuenta como venta: `total` llega en 0. La línea se conserva con su cantidad y su IVA. El contrato de ventas no tiene una columna que las marque.
 - **Período de ventas:** la fecha de la factura (`DocDate`), que llega en `fecha_contabilizacion`. `fecha_documento` (`TaxDate`) se conserva como referencia. La ventana de ventas también va por `DocDate`.
 - **Cruces:** solo cruces de anticipos y compensaciones cliente-proveedor. Una reconciliación que no es ninguna de las dos no se extrae.
 - **Zona del vendedor:** queda vacía; SAP no la maneja.
@@ -130,7 +133,8 @@ Cada punto está marcado en su consulta con `VALIDAR CON DATOS REALES`. Valídal
 
 **ventas.sql**
 
-- [ ] `canal` e `id_pedido_app`: confirmar que llegan llenos (ver «Confirmado con Miguel»).
+- [ ] `canal` e `id_pedido_app`: confirmar que llegan llenos (ver «Confirmado con Miguel»); en Derivados `id_pedido_app` es siempre `NULL`.
+- [ ] `total`: con `--diagnostico` en SGX y SDC, comparar la suma del mes con el informe de SAP (las líneas «Solo impuesto» deben sumar 0).
 - [ ] `pedido`: solo cuando la línea viene de un pedido (`BaseType` 17). Si la factura sale de una entrega, queda `NULL`.
 - [ ] `ciudad_envio`: va en `NULL`; candidata `INV12.CityS` / `RIN12.CityS`.
 - [ ] `costo_unitario` y `costo_total`: salen de `StockPrice`. Confirmar contra el margen del informe actual.
