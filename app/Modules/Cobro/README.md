@@ -64,6 +64,16 @@ Las copias solo pueden ir a los dominios de `config('cobro.copy_domains')` (`seg
 - `/cobro/copias` rechaza los correos de otros dominios con el mensaje «Solo se permiten copias a correos de segurex.com o derivadoscol.com: …» y muestra esos dominios en la ayuda de cada campo.
 - Justo antes de enviar, `SendRunItem` quita de la copia cualquier otro correo: filas guardadas antes de esta regla o un asesor de SAP con otro dominio. Deja un aviso `cobro.copies.dropped` en el registro con la empresa, el envío, cuántos correos quitó y solo sus dominios (no las direcciones, por minimización de datos de la Ley 1581). `GraphMailSender` no filtra, porque lo comparten otros módulos.
 
+## Aviso de cambios en la plantilla
+
+El cobro semanal sale solo a todos los clientes con saldo vencido, así que cada cambio de la plantilla avisa a TI y a control interno (hallazgo S-08 de la auditoría), en vez de pedir la aprobación de una segunda persona:
+
+- **Cuándo:** al guardar la plantilla con algún texto distinto (guardar sin cambios no avisa) y al volver a los textos por defecto si los guardados eran otros.
+- **A quién:** a los correos de `CORE_AUDIT_ALERT_RECIPIENTS`, los mismos de la alerta de la auditoría, que Cobro lee como `config('cobro.template_alert_recipients')`.
+- **Desde dónde:** desde el buzón de la empresa de la plantilla (Segurex o Derivados), con la categoría `alerta`.
+- **Qué dice:** la empresa, quién hizo el cambio (nombre y correo), cuándo (hora de Bogotá), si fue una edición o una vuelta a los textos por defecto, un enlace a la plantilla y, por cada texto que cambió, sus líneas con `−` (se quitó) y `+` (se agregó). Los textos van escapados: un enlace, un número de cuenta o una etiqueta HTML se ven tal como se escribieron.
+- **Si falla:** lo envía el trabajo en cola `SendTemplateChangeNotice`, una sola vez. Sin destinatarios deja un `warning` en el registro y si Graph no lo acepta un `error`; en los dos casos la plantilla queda guardada.
+
 ## Microsoft Graph: lo que TI debe configurar
 
 Variables de `.env` (`docs/arquitectura.md` §15): `GRAPH_TENANT_ID`, `GRAPH_CLIENT_ID`, `GRAPH_CLIENT_SECRET`, `COBRO_MAILBOX_SGX` y `COBRO_MAILBOX_SDC`.
