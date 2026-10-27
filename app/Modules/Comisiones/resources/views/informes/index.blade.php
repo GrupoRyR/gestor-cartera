@@ -11,6 +11,7 @@
     $closed: whether the version shown is closed; $reports: list<CollectionReport>;
     $stored: array<"tipo:referencia", DocumentRecord>; $lastClosed: the last
     closed version of the period when the one shown is not closed.
+    Only «Generar» generates: a download link shows once its document is stored.
 --}}
 @php
     $settlement = $selected->settlement;
@@ -18,6 +19,7 @@
     $query = ['periodo' => $period->key(), ...($version === null ? [] : ['version' => $version])];
     $title = __('comisiones::informes.titulo_pagina', ['mes' => Labels::month($period)]);
     $columns = [];
+    $allStored = $reports !== [] && array_diff(array_map(fn ($report): string => ReportArchive::key(ReportArchive::COLLECTION, $report->reference), $reports), array_keys($stored)) === [];
 
     foreach (['codigo' => 'start', 'comercial' => 'start', 'transacciones' => 'end', 'valor_pagado' => 'end', 'consolidado' => 'end', 'total_pdf' => 'end', 'cuadre' => 'start', 'archivo' => 'start', 'acciones' => 'end'] as $column => $align) {
         $columns[] = ['key' => $column, 'label' => __('comisiones::informes.recaudo.columnas.'.$column), 'align' => $align];
@@ -26,13 +28,15 @@
 
 <x-layouts.app :title="$title">
     <x-comisiones::period-header :period="$period" :title="$title" current="informes" :version="$version" :description="__('comisiones::informes.descripcion')">
-        @if ($closed && $reports !== [])
+        @if ($closed)
             <x-slot:actions>
                 <form method="POST" action="{{ route('comisiones.periodos.informes.generar', $query) }}">
                     @csrf
                     <x-ui.button type="submit" icon="document">{{ __('comisiones::informes.acciones.generar') }}</x-ui.button>
                 </form>
-                <x-ui.link-button :href="route('comisiones.periodos.informes.zip', $query)" variant="secondary" icon="download">{{ __('comisiones::informes.acciones.zip') }}</x-ui.link-button>
+                @if ($allStored)
+                    <x-ui.link-button :href="route('comisiones.periodos.informes.zip', $query)" variant="secondary" icon="download">{{ __('comisiones::informes.acciones.zip') }}</x-ui.link-button>
+                @endif
             </x-slot:actions>
         @endif
     </x-comisiones::period-header>
@@ -81,7 +85,7 @@
                                 @endif
                             </td>
                             <td data-align="end">
-                                @if ($report->matches())
+                                @if ($document !== null)
                                     <x-ui.link-button :href="route('comisiones.periodos.informes.pdf', [...$query, 'referencia' => $report->reference])" variant="ghost" icon="download"
                                         aria-label="{{ __('comisiones::informes.acciones.descargar_de', ['referencia' => $report->reference]) }}">{{ __('comisiones::informes.acciones.descargar') }}</x-ui.link-button>
                                 @endif
@@ -93,9 +97,11 @@
 
             @php($payroll = $stored[ReportArchive::key(ReportArchive::PAYROLL, ReportArchive::PAYROLL)] ?? null)
             <x-ui.card :title="__('comisiones::informes.nomina.titulo_tarjeta')" :description="__('comisiones::informes.nomina.descripcion')" data-document="nomina">
-                <x-slot:actions>
-                    <x-ui.link-button :href="route('comisiones.periodos.informes.nomina', $query)" variant="secondary" icon="download">{{ __('comisiones::informes.nomina.descargar') }}</x-ui.link-button>
-                </x-slot:actions>
+                @if ($payroll !== null)
+                    <x-slot:actions>
+                        <x-ui.link-button :href="route('comisiones.periodos.informes.nomina', $query)" variant="secondary" icon="download">{{ __('comisiones::informes.nomina.descargar') }}</x-ui.link-button>
+                    </x-slot:actions>
+                @endif
                 <div class="text-[0.9375rem]">
                     @if ($payroll !== null)
                         <p>{{ __('comisiones::informes.recaudo.generado', ['fecha' => DateFormat::dateTime($payroll->created_at), 'nombre' => $payroll->generator?->name ?? AuditTrail::SYSTEM]) }}</p>

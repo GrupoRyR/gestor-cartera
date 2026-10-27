@@ -15,6 +15,7 @@ use App\Modules\Comisiones\Domain\Shared\Period;
 use App\Modules\Comisiones\Infrastructure\Persistence\SettlementRecord;
 use App\Modules\Comisiones\Infrastructure\Settlement\CorruptSettlement;
 use App\Modules\Comisiones\Infrastructure\Settlement\EloquentSettlements;
+use Tests\Modules\Comisiones\Feature\Concerns\SettlementRows;
 use Tests\Modules\Comisiones\Support\Lines;
 
 /*
@@ -67,7 +68,7 @@ it('gives back the stored version with its result and frozen parameters', functi
         ->and($row->estado)->toBe('borrador')
         ->and($row->alertas_bloqueantes)->toBe(1)
         ->and($row->total_nomina)->toBe(Money::sum(array_map(fn (PersonSettlement $person) => $person->total, $this->draft->result->persons()))->decimal()->toScale(2)->toString())
-        ->and($row->resultado_sha256)->toBe(hash('sha256', $row->resultado));
+        ->and($row->resultado_sha256)->toBe(SettlementRows::fingerprint($row->resultado));
 });
 
 it('replaces an open version in place and refuses a save from an older revision', function () {

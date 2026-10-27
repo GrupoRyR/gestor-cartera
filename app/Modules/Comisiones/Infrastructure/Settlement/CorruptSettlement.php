@@ -14,7 +14,7 @@ final class CorruptSettlement extends RuntimeException
 {
     public static function fingerprint(string $period, int $version): self
     {
-        return new self("The stored result of version {$version} of the {$period} settlement does not match its sha256.");
+        return new self("The stored result of version {$version} of the {$period} settlement does not match its fingerprint.");
     }
 
     public static function unreadable(string $period, int $version, ?Throwable $previous = null): self

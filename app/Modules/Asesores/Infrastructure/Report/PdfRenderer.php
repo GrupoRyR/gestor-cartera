@@ -18,8 +18,12 @@ final class PdfRenderer
     {
         return Pdf::loadView($view, $data)
             ->setPaper('a4', 'portrait')
-            // dompdf only reads local files: nothing in the view may call out.
+            // Nothing in the view may call out, read a local file (the views
+            // load none; dompdf always reaches its own DejaVu Sans under its
+            // root) nor leave a script in the PDF for the reader to run.
             ->setOption('isRemoteEnabled', false)
+            ->setOption('chroot', [base_path('vendor/dompdf/dompdf/lib/fonts')])
+            ->setOption('isJavascriptEnabled', false)
             ->output();
     }
 }

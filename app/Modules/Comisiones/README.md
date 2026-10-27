@@ -47,6 +47,21 @@ Permisos de `ComisionesPermissionSeeder`. Quien calcula o captura nunca aprueba 
 
 Además de los permisos, `ApprovalGuard` no deja aprobar a quien cargó capturas o cambió parámetros del período, y el motor no deja aprobar a quien calculó la versión.
 
+## Informes de una versión cerrada
+
+En `/comisiones/periodos/{periodo}/informes` primero se genera y después se descarga:
+
+1. **Generar.** El botón «Generar los informes pendientes» (`POST …/informes/generar`) guarda los PDF de recaudo que faltan y el archivo de nómina. Cada documento se guarda una sola vez, con su sha256, y deja `comisiones.report.generated` en la bitácora. Un PDF cuyo total no cuadra con el consolidado (§9.3) no se genera.
+2. **Descargar.** El PDF de cada código (`…/informes/{referencia}.pdf`), el ZIP (`…/informes.zip`) y la nómina (`…/informes/nomina.xlsx`) solo leen lo guardado, revisan su sha256 y dejan `comisiones.report.downloaded`. Si el documento todavía no existe (o, para el ZIP, falta alguno), te devuelven a la lista con «Ese informe todavía no se ha generado…» y no generan nada ni escriben en la bitácora. La lista muestra cada enlace de descarga solo cuando su documento ya está guardado.
+
+Los PDF los dibuja dompdf sin JavaScript, sin archivos remotos y con un `chroot` que solo deja leer sus propias fuentes (`vendor/dompdf/dompdf/lib/fonts`): las plantillas no cargan imágenes ni archivos locales.
+
+## Huella del resultado guardado
+
+Cada versión guarda su resultado serializado en `comisiones_liquidaciones.resultado` y su huella en `resultado_sha256`: un HMAC-SHA256 con una clave derivada de `APP_KEY`, no un sha256 simple, así que quien pueda escribir en la tabla sin conocer `APP_KEY` no logra que la app acepte un resultado alterado. Una huella que no coincide se rechaza (`CorruptSettlement`) y la versión no se usa.
+
+**Si rotas `APP_KEY`**, pon la clave anterior en `APP_PREVIOUS_KEYS` (separadas por coma si son varias). La app verifica las huellas con la clave actual y después con cada clave anterior, así que las liquidaciones cerradas se siguen leyendo; lo que se guarda desde entonces lleva la clave nueva. Si quitas de `APP_PREVIOUS_KEYS` una clave con la que hay versiones guardadas, esas versiones dejan de leerse.
+
 ## Correo al aprobar
 
 Cuando el aprobador aprueba una liquidación (`POST /comisiones/periodos/{periodo}/aprobar`), sale un correo con el consolidado de la versión aprobada. Se envía **en segundo plano**: la aprobación pone en la cola un trabajo `SendApprovalMail` y el aprobador no espera el PDF ni a Microsoft Graph.
