@@ -14,4 +14,14 @@ return [
         'SDC' => ['grace_days' => 5, 'due_soon_days' => 5],
     ],
 
+    // Who receives the alert of core:verificar-auditoria when the hash chain
+    // of the audit trail is broken (IT and internal control), from a
+    // comma-separated list.
+    'audit' => [
+        'alert_recipients' => array_values(array_filter(
+            array_map(trim(...), explode(',', (string) env('CORE_AUDIT_ALERT_RECIPIENTS', ''))),
+            fn (string $recipient): bool => $recipient !== '',
+        )),
+    ],
+
 ];

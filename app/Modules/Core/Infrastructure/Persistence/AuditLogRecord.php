@@ -17,7 +17,11 @@ use LogicException;
  * LogicException, also through saveQuietly(), deleteQuietly() and
  * withoutEvents(). Query-builder writes skip the model entirely: mass
  * update() and delete() on AuditLogRecord::query() or DB::table('audit_logs'),
- * and increment() or decrement(), must never be used on this table.
+ * and increment() or decrement(), must never be used on this table. They
+ * are not blocked, but the hash chain detects them: rows are created only
+ * through Infrastructure\Audit\AuditChain, which sets chain_hash, and
+ * core:verificar-auditoria fails on any row changed, deleted or added
+ * outside it (audit S-14).
  *
  * @property int $id
  * @property string $action
@@ -30,9 +34,10 @@ use LogicException;
  * @property string|null $ip_address
  * @property string|null $user_agent
  * @property CarbonImmutable|null $created_at
+ * @property string|null $chain_hash
  */
 #[Table(name: 'audit_logs')]
-#[Fillable(['action', 'subject_type', 'subject_id', 'changes', 'context', 'user_id', 'actor', 'ip_address', 'user_agent'])]
+#[Fillable(['action', 'subject_type', 'subject_id', 'changes', 'context', 'user_id', 'actor', 'ip_address', 'user_agent', 'created_at', 'chain_hash'])]
 final class AuditLogRecord extends Model
 {
     /**
