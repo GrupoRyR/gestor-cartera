@@ -29,6 +29,10 @@
 -- Montos en moneda local (COP). "Total" (base de comision) = LineTotal (antes
 -- de IVA, ya con el descuento de la linea) menos el descuento global del
 -- documento (DiscPrcnt), redondeado a 2 decimales y con signo.
+-- Las lineas "Solo impuesto" (TaxOnly = 'Y' en INV1/RIN1) solo cobran el IVA y
+-- SAP no las cuenta como venta: su "Total", "Costo unitario" y "Costo total"
+-- son 0 (ganancia bruta 0, como en el Analisis de ventas de SAP). La linea se
+-- conserva, con su cantidad y su IVA.
 -- Precios y costos unitarios van sin signo; solo los totales llevan signo.
 --
 -- Valores de texto:
@@ -69,7 +73,8 @@ SELECT
     CASE WHEN X."BaseType" = 17 THEN X."BaseRef" END           AS "Pedido",
     -- Id del pedido de la app de ventas: campo de usuario de la factura
     -- (OINV."U_SGX_IdPedidoApp"), confirmado por Miguel. Las notas credito lo
-    -- traen en NULL.
+    -- traen en NULL. El campo solo existe en SEGUREX: para Derivados el robot
+    -- reemplaza la expresion marcada al final de la linea por un NULL (config.py).
     -- VALIDAR CON DATOS REALES: si el campo tiene otro nombre en SEGUREX, HANA
     -- responde "invalid column name" y falla todo el lote de ventas.
     X."IdPedidoApp"                                            AS "Id pedido app",
@@ -87,14 +92,20 @@ SELECT
     -- VALIDAR CON DATOS REALES: costo = StockPrice de la linea (costo de
     -- inventario al contabilizar). Confirmar contra el margen del informe
     -- actual; en lineas de servicio puede venir en 0 o NULL.
-    ROUND(X."StockPrice", 2)                                   AS "Costo unitario",
-    ROUND(X."StockPrice" * X."Quantity", 2) * X."Signo"        AS "Costo total",
+    CASE WHEN X."TaxOnly" = 'Y' THEN 0
+         ELSE ROUND(X."StockPrice", 2)
+    END                                                        AS "Costo unitario",
+    CASE WHEN X."TaxOnly" = 'Y' THEN 0
+         ELSE ROUND(X."StockPrice" * X."Quantity", 2) * X."Signo"
+    END                                                        AS "Costo total",
     -- VALIDAR CON DATOS REALES: precio lista = precio antes del descuento de
     -- la linea (PriceBefDi), no el de la lista de precios del articulo (ITM1).
     ROUND(X."PriceBefDi", 2)                                   AS "Precio lista",
     ROUND(X."Price", 2)                                        AS "Precio unitario",
-    ROUND(IFNULL(X."LineTotal", 0)
-          * (1 - IFNULL(X."DiscPrcnt", 0) / 100), 2) * X."Signo" AS "Total",
+    CASE WHEN X."TaxOnly" = 'Y' THEN 0
+         ELSE ROUND(IFNULL(X."LineTotal", 0)
+                    * (1 - IFNULL(X."DiscPrcnt", 0) / 100), 2) * X."Signo"
+    END                                                        AS "Total",
     ROUND(X."VatSum", 2) * X."Signo"                           AS "IVA",
     X."DocCur"                                                 AS "Moneda",
     X."DocRate"                                                AS "TRM",
@@ -109,8 +120,8 @@ FROM (
         T0."Comments",
         T1."LineNum", T1."ItemCode", T1."Dscription", T1."Quantity", T1."Price",
         T1."PriceBefDi", T1."StockPrice", T1."LineTotal", T1."VatSum",
-        T1."BaseType", T1."BaseRef",
-        CAST(T0."U_SGX_IdPedidoApp" AS NVARCHAR(254)) AS "IdPedidoApp"
+        T1."TaxOnly", T1."BaseType", T1."BaseRef",
+        CAST(T0."U_SGX_IdPedidoApp" AS NVARCHAR(254)) AS "IdPedidoApp" -- @id_pedido_app
     FROM "OINV" T0
     INNER JOIN "INV1" T1 ON T1."DocEntry" = T0."DocEntry"
     WHERE T0."DocDate" >= ADD_DAYS(CURRENT_DATE, -6 - DAYOFMONTH(CURRENT_DATE))
@@ -127,7 +138,7 @@ FROM (
         T0."Comments",
         T1."LineNum", T1."ItemCode", T1."Dscription", T1."Quantity", T1."Price",
         T1."PriceBefDi", T1."StockPrice", T1."LineTotal", T1."VatSum",
-        T1."BaseType", T1."BaseRef",
+        T1."TaxOnly", T1."BaseType", T1."BaseRef",
         CAST(NULL AS NVARCHAR(254)) AS "IdPedidoApp"
     FROM "ORIN" T0
     INNER JOIN "RIN1" T1 ON T1."DocEntry" = T0."DocEntry"

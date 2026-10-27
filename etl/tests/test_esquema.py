@@ -172,7 +172,28 @@ class DecisionesConfirmadasTest(unittest.TestCase):
 
     def test_el_id_del_pedido_de_la_app_sale_de_la_factura(self):
         self.assertIn('T0."U_SGX_IdPedidoApp"', _codigo("ventas"))
+        self.assertEqual(_sql(esquema.LOTES["ventas"]).count("@id_pedido_app"), 1)
         self.assertIn('X."IdPedidoApp" AS "Id pedido app"', _codigo("ventas"))
+
+    def test_las_lineas_solo_impuesto_no_suman_venta(self):
+        sql = _codigo("ventas")
+        # Las dos ramas (factura y nota credito) traen la marca de la linea.
+        self.assertEqual(sql.count('T1."TaxOnly"'), 2)
+        self.assertIn(
+            "CASE WHEN X.\"TaxOnly\" = 'Y' THEN 0 ELSE ROUND(IFNULL(X.\"LineTotal\", 0) "
+            "* (1 - IFNULL(X.\"DiscPrcnt\", 0) / 100), 2) * X.\"Signo\" END AS \"Total\"",
+            sql,
+        )
+        # El costo tambien va en 0, para que el margen cuadre con SAP.
+        self.assertIn(
+            "CASE WHEN X.\"TaxOnly\" = 'Y' THEN 0 ELSE ROUND(X.\"StockPrice\", 2) END "
+            "AS \"Costo unitario\"", sql)
+        self.assertIn(
+            "CASE WHEN X.\"TaxOnly\" = 'Y' THEN 0 ELSE ROUND(X.\"StockPrice\" "
+            "* X.\"Quantity\", 2) * X.\"Signo\" END AS \"Costo total\"", sql)
+        # La linea se conserva y el IVA no se toca.
+        self.assertIn('ROUND(X."VatSum", 2) * X."Signo" AS "IVA"', sql)
+        self.assertIn('IFNULL(X."Quantity", 0) * X."Signo" AS "Cantidad"', sql)
 
     def test_la_ventana_de_ventas_va_por_la_fecha_de_la_factura(self):
         sql = _codigo("ventas")

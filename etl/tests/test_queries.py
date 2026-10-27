@@ -73,5 +73,46 @@ class CuentasPorCobrarTest(unittest.TestCase):
         self.assertEqual(leer_query("asesores.sql", "SDC"), crudo)
 
 
+def _sin_comentarios(sql: str) -> str:
+    return "\n".join(l.split("--", 1)[0] for l in sql.splitlines())
+
+
+class IdPedidoAppPorEmpresaTest(unittest.TestCase):
+    """OINV.U_SGX_IdPedidoApp solo existe en Segurex; Derivados lo manda NULL."""
+
+    def test_segurex_no_cambia_la_consulta(self):
+        crudo = (config.QUERIES_DIR / "ventas.sql").read_text(encoding="utf-8")
+        self.assertEqual(leer_query("ventas.sql", "SGX"), crudo)
+        self.assertIn('T0."U_SGX_IdPedidoApp"', _sin_comentarios(crudo))
+
+    def test_derivados_no_lee_el_campo_de_usuario(self):
+        sql = _sin_comentarios(leer_query("ventas.sql", "SDC"))
+        self.assertNotIn("U_SGX_IdPedidoApp", sql)
+        self.assertIn('CAST(NULL AS NVARCHAR(254)) AS "IdPedidoApp"', sql)
+
+    def test_derivados_solo_cambia_la_linea_del_campo(self):
+        crudo = leer_query("ventas.sql", "SGX").splitlines()
+        derivados = leer_query("ventas.sql", "SDC").splitlines()
+        self.assertEqual(len(crudo), len(derivados))
+        self.assertEqual(sum(a != b for a, b in zip(crudo, derivados)), 1)
+
+    def test_ventas_sin_marcador_falla_en_vez_de_leer_el_campo(self):
+        with tempfile.TemporaryDirectory() as carpeta:
+            (Path(carpeta) / "ventas.sql").write_text(
+                'SELECT CAST(T0."U_SGX_IdPedidoApp" AS NVARCHAR(254)) AS "IdPedidoApp"\n',
+                encoding="utf-8",
+            )
+            with mock.patch.object(config, "QUERIES_DIR", Path(carpeta)):
+                for empresa in config.EMPRESAS:
+                    with self.subTest(empresa=empresa):
+                        with self.assertRaises(ConfigError) as error:
+                            leer_query("ventas.sql", empresa)
+                        self.assertIn("@id_pedido_app", str(error.exception))
+
+    def test_cartera_no_se_ve_afectada(self):
+        sql = leer_query("cartera.sql", "SDC")
+        self.assertEqual(_cuentas_del_filtro(sql), list(DERIVADOS))
+
+
 if __name__ == "__main__":
     unittest.main()

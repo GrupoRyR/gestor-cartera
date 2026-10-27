@@ -27,11 +27,24 @@ CUENTAS_POR_COBRAR = {
     "SDC": ("13050501", "13051005"),
 }
 EMPRESAS = tuple(CUENTAS_POR_COBRAR)
-# Consultas que filtran por cuenta: sin el marcador fallan en vez de correr con
-# las cuentas de otra empresa.
-CONSULTAS_POR_EMPRESA = ("cartera.sql",)
+# Id del pedido de la app de ventas en OINV: campo de usuario que solo existe
+# en Segurex. El .sql lleva la expresion de Segurex tal cual; para Derivados
+# leer_query reemplaza la que precede al marcador `-- @id_pedido_app`.
+ID_PEDIDO_APP = {
+    "SGX": 'CAST(T0."U_SGX_IdPedidoApp" AS NVARCHAR(254))',
+    "SDC": "CAST(NULL AS NVARCHAR(254))",
+}
+# Consultas que dependen de la empresa y los marcadores que deben llevar: sin
+# ellos fallan en vez de correr con datos de otra empresa.
+CONSULTAS_POR_EMPRESA = {
+    "cartera.sql": ("@cuentas_por_cobrar",),
+    "ventas.sql": ("@id_pedido_app",),
+}
 _MARCADOR_CUENTAS = re.compile(
     r"\([^()]*\)(?=[ \t]*--[ \t]*@cuentas_por_cobrar)"
+)
+_MARCADOR_ID_PEDIDO_APP = re.compile(
+    r'CAST\([^\n]*?\)(?=[ \t]+AS[ \t]+"IdPedidoApp"[ \t]*--[ \t]*@id_pedido_app)'
 )
 # http:// solo se acepta contra un Laravel local de desarrollo.
 HOSTS_LOCALES = ("localhost", "127.0.0.1", "::1")
@@ -307,10 +320,10 @@ def cargar_config() -> Config:
 
 
 def leer_query(nombre: str, empresa: str = "SGX") -> str:
-    """Lee la consulta y pone las cuentas por cobrar de la empresa.
+    """Lee la consulta y pone los valores propios de la empresa.
 
-    Solo cambia la lista que lleva el marcador `-- @cuentas_por_cobrar`; para
-    SGX el resultado es el archivo sin tocar.
+    Solo cambia lo que lleva un marcador (`-- @cuentas_por_cobrar`,
+    `-- @id_pedido_app`); para SGX el resultado es el archivo sin tocar.
     """
     if empresa not in CUENTAS_POR_COBRAR:
         raise ConfigError(
@@ -320,12 +333,17 @@ def leer_query(nombre: str, empresa: str = "SGX") -> str:
     if not ruta.exists():
         raise ConfigError(f"No existe la consulta {ruta}")
     lista = ", ".join(f"'{c}'" for c in CUENTAS_POR_COBRAR[empresa])
-    sql, reemplazos = _MARCADOR_CUENTAS.subn(
-        lambda _: f"({lista})", ruta.read_text(encoding="utf-8")
+    sql = ruta.read_text(encoding="utf-8")
+    sql, cuentas = _MARCADOR_CUENTAS.subn(lambda _: f"({lista})", sql)
+    sql, pedido_app = _MARCADOR_ID_PEDIDO_APP.subn(
+        lambda _: ID_PEDIDO_APP[empresa], sql
     )
-    if nombre in CONSULTAS_POR_EMPRESA and reemplazos != 1:
-        raise ConfigError(
-            f"{ruta} debe tener exactamente un filtro de cuentas marcado con "
-            f"'-- @cuentas_por_cobrar' en la misma linea (encontrados: {reemplazos})."
-        )
+    encontrados = {"@cuentas_por_cobrar": cuentas, "@id_pedido_app": pedido_app}
+    for marcador in CONSULTAS_POR_EMPRESA.get(nombre, ()):
+        if encontrados[marcador] != 1:
+            raise ConfigError(
+                f"{ruta} debe tener exactamente un valor marcado con "
+                f"'-- {marcador}' en la misma linea (encontrados: "
+                f"{encontrados[marcador]})."
+            )
     return sql
