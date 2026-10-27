@@ -7,12 +7,16 @@ use App\Modules\Cobro\Domain\Templates\TemplateContent;
 use App\Modules\Cobro\Infrastructure\Persistence\Template;
 use App\Modules\Core\Contracts\AuditLogger;
 use App\Modules\Core\Contracts\Enums\CompanyCode;
+use Carbon\CarbonImmutable;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Lang;
 
 /**
  * The texts of each company's mail: the saved ones (cobro_templates) or
  * the defaults of cobro::plantillas.por_defecto. Saving and restoring the
- * defaults go to the audit log ("cobro.template.updated|reset").
+ * defaults go to the audit log ("cobro.template.updated|reset"); when the
+ * texts really change, SendTemplateChangeNotice mails the differences to
+ * IT and internal control (audit S-08).
  */
 final class TemplateStore
 {
@@ -62,18 +66,14 @@ final class TemplateStore
             'updated_by' => $userId,
         ])->save();
 
-        $changes = [];
-
-        foreach (['subject', 'intro', 'closing'] as $field) {
-            if ($before->{$field} !== $content->{$field}) {
-                $changes[$field] = ['old' => $before->{$field}, 'new' => $content->{$field}];
-            }
-        }
+        $changes = self::changes($before, $content);
 
         $this->audit->record('cobro.template.updated', 'cobro_template', $template->id, $changes, [
             'company' => $company->value,
             'kind' => $kind->value,
         ]);
+
+        $this->notify($company, $kind, SendTemplateChangeNotice::UPDATED, $userId, $changes);
     }
 
     public function reset(CompanyCode $company, RunKind $kind): void
@@ -84,11 +84,53 @@ final class TemplateStore
             return;
         }
 
+        $changes = self::changes(
+            new TemplateContent($template->subject, $template->intro, $template->closing),
+            self::default($kind, $company),
+        );
+
         $template->delete();
 
         $this->audit->record('cobro.template.reset', 'cobro_template', $template->id, [], [
             'company' => $company->value,
             'kind' => $kind->value,
         ]);
+
+        $userId = Auth::id();
+        $this->notify($company, $kind, SendTemplateChangeNotice::RESET, is_numeric($userId) ? (int) $userId : null, $changes);
+    }
+
+    /**
+     * The fields whose text differs, with the old and the new text.
+     *
+     * @return array<string, array{old: string, new: string}>
+     */
+    private static function changes(TemplateContent $before, TemplateContent $after): array
+    {
+        $changes = [];
+
+        foreach (['subject', 'intro', 'closing'] as $field) {
+            if ($before->{$field} !== $after->{$field}) {
+                $changes[$field] = ['old' => $before->{$field}, 'new' => $after->{$field}];
+            }
+        }
+
+        return $changes;
+    }
+
+    /**
+     * Queues the change notice once the change is committed; a save that
+     * leaves every text as it was sends none.
+     *
+     * @param  array<string, array{old: string, new: string}>  $changes
+     */
+    private function notify(CompanyCode $company, RunKind $kind, string $change, ?int $userId, array $changes): void
+    {
+        if ($changes === []) {
+            return;
+        }
+
+        SendTemplateChangeNotice::dispatch($company, $kind, $change, $userId, CarbonImmutable::now()->toIso8601String(), $changes)
+            ->afterCommit();
     }
 }
