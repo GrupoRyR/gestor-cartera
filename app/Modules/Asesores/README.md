@@ -53,6 +53,7 @@ Los crea, edita y marca el asesor del cliente, **en SGX**; en SDC los escribe la
 
 - **Excel (`.xlsx`).** OpenSpout, por flujo. Dos hojas: *Clientes* y *Documentos*. Valores y fechas son números y fechas de Excel (se pueden sumar y ordenar). El de la lista respeta los filtros y el orden de la pantalla. Por consultar las facturas cliente por cliente, pasados `export.max_clients_with_invoices` clientes (1.500) la hoja de documentos se corta y lo dice en su última fila.
 - **PDF.** dompdf. Es un estado de cuenta **para el cliente**: no lleva compromisos ni bitácora, y toma el nombre y los colores de la empresa del cliente (la paleta sale de `CurrentCompany::of()`, no de una constante en la vista). Las vistas de `documentos/` son la única excepción a «sin `<style>` en las vistas»: dompdf no puede usar los componentes de la app.
+- **Límite.** Entre los dos Excel y el PDF, máximo 10 descargas por minuto por usuario (`asesores-exports`); la siguiente recibe un 429.
 - **WhatsApp.** El número sale de los contactos que trae SAP: el primero con celular colombiano (10 dígitos que empiezan por 3), con o sin indicativo, o un celular de otro país con su indicativo. Sin celular, el enlace abre WhatsApp para que el asesor elija el contacto. El mensaje habla de «usted» al cliente.
 
 ## Qué cambió frente al portal anterior

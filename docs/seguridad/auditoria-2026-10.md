@@ -89,6 +89,10 @@ Levanté la app en `127.0.0.1:8123` con los seeders de demostración (SQLite tem
 - **Dónde:** `app/Modules/Cartera/routes/web.php:42-43`, `app/Modules/Asesores/routes/web.php:27,29-30`, `app/Modules/Comisiones/routes/web/informes.php:27-31` y `app/Modules/Comisiones/routes/web/liquidacion.php:22-23`.
 - **Cómo se explotaría:** una cuenta comprometida descarga toda la cartera a la que tiene alcance (NIT, saldos, contactos) a máxima velocidad. Las peticiones a dompdf o al ZIP también pueden saturar la CPU del plan compartido.
 - **Corrección:** un limitador `exports` (`Limit::perMinute(10)->by($request->user()?->id ?: $request->ip())`) aplicado desde el proveedor de cada módulo. Ya existe el patrón: `throttle:10,1` en la prueba de Cobro (`app/Modules/Cobro/routes/web.php:30`).
+- **Estado: corregido** en el PR 9a de la Fase 2.
+  - Cada módulo define su limitador en su proveedor: `cartera-exports`, `asesores-exports` y `comisiones-exports`. Son 10 descargas por minuto por usuario (por IP si no hay sesión), contadas juntas entre todas las descargas del módulo; la siguiente recibe un 429.
+  - También quedan limitadas dos descargas de Comisiones que este hallazgo no listaba: el soporte de una captura (`ajustes/{tipo}/{captura}/soporte`) y la plantilla del presupuesto (`presupuesto/{periodo}/plantilla`).
+  - Bancos no tiene descargas de archivos; su API ya tenía `throttle:bancos-api`.
 
 ### S-11 · Media · El ingreso de demostración depende solo de `APP_ENV`
 

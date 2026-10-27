@@ -56,6 +56,8 @@ En `/comisiones/periodos/{periodo}/informes` primero se genera y después se des
 
 Los PDF los dibuja dompdf sin JavaScript, sin archivos remotos y con un `chroot` que solo deja leer sus propias fuentes (`vendor/dompdf/dompdf/lib/fonts`): las plantillas no cargan imágenes ni archivos locales.
 
+Todas las descargas del módulo (PDF, ZIP y nómina de los informes, consolidado en Excel y PDF, soportes de las capturas y plantilla del presupuesto) comparten un máximo de 10 por minuto por usuario (`comisiones-exports`); la siguiente recibe un 429.
+
 ## Huella del resultado guardado
 
 Cada versión guarda su resultado serializado en `comisiones_liquidaciones.resultado` y su huella en `resultado_sha256`: un HMAC-SHA256 con una clave derivada de `APP_KEY`, no un sha256 simple, así que quien pueda escribir en la tabla sin conocer `APP_KEY` no logra que la app acepte un resultado alterado. Una huella que no coincide se rechaza (`CorruptSettlement`) y la versión no se usa.

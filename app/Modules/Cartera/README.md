@@ -11,7 +11,7 @@ Gestor de cartera para la analista (María Paula) y el gerente (Miguel). Spec: `
 | `/cartera/clientes` | `cartera.clientes.index` | Lista con búsqueda por nombre o NIT, filtros, orden por columna y paginación. |
 | `/cartera/clientes/{id}` | `cartera.clientes.show` | Ficha: datos, cupo, facturas abiertas, contactos de SAP, compromisos, bitácora, respuestas de correo. |
 | `/cartera/compromisos` | `cartera.compromisos.index` | Bandeja de compromisos con filtros por estado, asesor y fecha. |
-| `/cartera/clientes/exportar`, `/cartera/clientes/{id}/exportar` | `cartera.clientes.exportar*` | Excel de la lista y de la ficha. |
+| `/cartera/clientes/exportar`, `/cartera/clientes/{id}/exportar` | `cartera.clientes.exportar*` | Excel de la lista y de la ficha. Entre las dos, máximo 10 descargas por minuto por usuario (`cartera-exports`); la siguiente recibe un 429. |
 
 ## Permisos (`CarteraPermissionSeeder`)
 
