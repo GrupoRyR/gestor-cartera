@@ -5,6 +5,9 @@ namespace App\Modules\Cartera\Providers;
 use App\Support\Modules\ModuleServiceProvider;
 use App\Support\Navigation\NavItem;
 use App\Support\Navigation\NavRegistry;
+use Illuminate\Cache\RateLimiting\Limit;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\RateLimiter;
 
 /**
  * Cartera: receivables manager: dashboard, clients, follow-ups and payment
@@ -17,6 +20,18 @@ use App\Support\Navigation\NavRegistry;
  */
 final class CarteraServiceProvider extends ModuleServiceProvider
 {
+    protected function bootModule(): void
+    {
+        // The Excel downloads (audit S-10): 10 a minute per user, counted
+        // together, so a script cannot pull the whole portfolio in a loop and
+        // one user at the limit never blocks another.
+        RateLimiter::for('cartera-exports', function (Request $request): Limit {
+            $user = $request->user();
+
+            return Limit::perMinute(10)->by($user === null ? 'ip:'.$request->ip() : 'user:'.$user->getAuthIdentifier());
+        });
+    }
+
     /**
      * The dashboard comes first (order 10): it is the home of the portfolio
      * manager and the analyst, because Core sends each user to the first menu

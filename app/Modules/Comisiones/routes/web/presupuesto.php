@@ -13,5 +13,6 @@ Route::middleware(['auth', 'can:comisiones.capture'])->prefix('presupuesto/{peri
     Route::put('{codigo}', [BudgetController::class, 'update'])->whereNumber('codigo')->name('update');
     Route::delete('{codigo}', [BudgetController::class, 'destroy'])->whereNumber('codigo')->name('destroy');
     Route::post('carga', [BudgetController::class, 'import'])->name('import');
-    Route::get('plantilla', [BudgetController::class, 'template'])->name('template');
+    // A download: 10 a minute per user (comisiones-exports).
+    Route::get('plantilla', [BudgetController::class, 'template'])->middleware('throttle:comisiones-exports')->name('template');
 });

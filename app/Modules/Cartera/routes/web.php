@@ -37,8 +37,9 @@ Route::middleware(['auth', 'can:cartera.view'])->group(function () {
         ->middleware('can:cartera.manage')
         ->name('gestiones.store');
 
-    // Excel exports of the client list and of one client file: cartera.export.
-    Route::middleware('can:cartera.export')->group(function () {
+    // Excel exports of the client list and of one client file: cartera.export,
+    // 10 a minute per user (cartera-exports, CarteraServiceProvider).
+    Route::middleware(['can:cartera.export', 'throttle:cartera-exports'])->group(function () {
         Route::get('clientes/exportar', ClientListExportController::class)->name('clientes.exportar');
         Route::get('clientes/{client}/exportar', ClientFileExportController::class)->whereNumber('client')->name('clientes.exportar-ficha');
     });
