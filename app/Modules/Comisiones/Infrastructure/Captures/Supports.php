@@ -24,6 +24,8 @@ final class Supports
 
     /**
      * Stores the file under a random name and returns its path on the disk.
+     * It keeps the extension the user gave, which SupportFile already
+     * checked against the content.
      */
     public function store(UploadedFile $file, CaptureKind $kind): string
     {
@@ -47,13 +49,19 @@ final class Supports
     }
 
     /**
-     * Streams the file as a download named "soporte-<tipo>-<id>.<ext>".
+     * Streams the file as a download named "soporte-<tipo>-<id>.<ext>", as
+     * application/octet-stream so the browser never renders it; nosniff
+     * comes from public/.htaccess.
      */
     public function download(string $path, CaptureKind $kind, int $id): StreamedResponse
     {
         $extension = pathinfo($path, PATHINFO_EXTENSION);
 
-        return $this->disk()->download($path, "soporte-{$kind->value}-{$id}".($extension === '' ? '' : '.'.$extension));
+        return $this->disk()->download(
+            $path,
+            "soporte-{$kind->value}-{$id}".($extension === '' ? '' : '.'.$extension),
+            ['Content-Type' => 'application/octet-stream'],
+        );
     }
 
     public function delete(?string $path): void
