@@ -9,18 +9,27 @@ use Brick\Math\BigNumber;
 use Brick\Math\BigRational;
 use DateTimeImmutable;
 use DateTimeZone;
+use Illuminate\Encryption\MissingAppKeyException;
 use Throwable;
 
 /**
  * Turns a SettlementResult into the text stored in comisiones_liquidaciones
- * and back: serialize, gzcompress and base64, fingerprinted with sha256.
+ * and back: serialize, gzcompress and base64, fingerprinted with an
+ * HMAC-SHA256 under a key derived from the app key, so whoever can write the
+ * table but lacks APP_KEY cannot forge a result the app accepts.
  *
- * Reading back checks the fingerprint first and unserializes only the
- * engine's own classes (everything under Comisiones\Domain), dates and the
- * Brick\Math numbers, so a tampered row never builds another object.
+ * Reading back checks the fingerprint first, against the current key and
+ * then each of APP_PREVIOUS_KEYS, so a key rotation keeps the closed
+ * settlements readable; a new text always takes the current key. It then
+ * unserializes only the engine's own classes (everything under
+ * Comisiones\Domain), dates and the Brick\Math numbers, so a tampered row
+ * never builds another object.
  */
 final class ResultSerializer
 {
+    /** What the fingerprint key is derived for, so it never equals the encryption key. */
+    private const string PURPOSE = 'comisiones.liquidacion';
+
     /**
      * Every class and enum under Comisiones\Domain, relative to it. A static
      * list, so decoding neither scans the directory nor autoloads the domain;
@@ -106,13 +115,13 @@ final class ResultSerializer
     ];
 
     /**
-     * @return array{string, string} The stored text and its sha256.
+     * @return array{string, string} The stored text and its fingerprint.
      */
     public function encode(SettlementResult $result): array
     {
         $payload = base64_encode((string) gzcompress(serialize($result)));
 
-        return [$payload, hash('sha256', $payload)];
+        return [$payload, self::fingerprint($payload, self::keys()[0])];
     }
 
     /**
@@ -120,9 +129,9 @@ final class ResultSerializer
      *
      * @throws CorruptSettlement when the fingerprint differs or the text is not a result.
      */
-    public function decode(string $payload, string $sha256, string $period, int $version): SettlementResult
+    public function decode(string $payload, string $fingerprint, string $period, int $version): SettlementResult
     {
-        if (! hash_equals($sha256, hash('sha256', $payload))) {
+        if (! self::verifies($payload, $fingerprint)) {
             throw CorruptSettlement::fingerprint($period, $version);
         }
 
@@ -153,5 +162,46 @@ final class ResultSerializer
         $domain = array_map(fn (string $class): string => 'App\Modules\Comisiones\Domain\\'.$class, self::DOMAIN);
 
         return [...$domain, DateTimeImmutable::class, DateTimeZone::class, BigNumber::class, BigDecimal::class, BigInteger::class, BigRational::class];
+    }
+
+    private static function verifies(string $payload, string $fingerprint): bool
+    {
+        foreach (self::keys() as $key) {
+            if (hash_equals(self::fingerprint($payload, $key), $fingerprint)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static function fingerprint(string $payload, string $appKey): string
+    {
+        return hash_hmac('sha256', $payload, hash_hmac('sha256', self::PURPOSE, $appKey, true));
+    }
+
+    /**
+     * The raw app key, then the raw previous keys, decoded like the
+     * encrypter does ("base64:…").
+     *
+     * @return non-empty-list<string>
+     *
+     * @throws MissingAppKeyException when APP_KEY is not set.
+     */
+    private static function keys(): array
+    {
+        $current = config('app.key');
+
+        if (! is_string($current) || $current === '') {
+            throw new MissingAppKeyException;
+        }
+
+        $previous = config('app.previous_keys', []);
+        $keys = [$current, ...(is_array($previous) ? array_filter($previous, fn (mixed $key): bool => is_string($key) && $key !== '') : [])];
+
+        return array_values(array_map(
+            fn (string $key): string => str_starts_with($key, 'base64:') ? (string) base64_decode(substr($key, 7)) : $key,
+            $keys,
+        ));
     }
 }

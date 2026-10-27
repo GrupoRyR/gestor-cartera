@@ -46,13 +46,14 @@ return [
         'ya_generados' => 'Todos los informes ya estaban generados; no cambiamos ninguno.',
         'no_cuadra' => '{1} No generamos el informe :referencias porque su total no coincide con la comisión de recaudo del consolidado (:detalle).|[0,*] No generamos los informes :referencias porque su total no coincide con la comisión de recaudo del consolidado (:detalle).',
         'diferencia' => ':referencia: PDF :pdf, consolidado :consolidado',
+        'sin_generar' => 'Ese informe todavía no se ha generado. Pulsa «Generar los informes pendientes» primero.',
         'alterado' => 'El archivo guardado del informe :referencia no coincide con su huella o ya no está. No lo entregamos; avísale a TI.',
     ],
 
     // The payroll file (§8.1 annex, §6 step 6).
     'nomina' => [
         'titulo_tarjeta' => 'Archivo para nómina',
-        'descripcion' => 'Cada persona con los roles por los que cobra y su valor pago nómina. Se genera la primera vez que lo descargas y después se entrega la misma copia.',
+        'descripcion' => 'Cada persona con los roles por los que cobra y su valor pago nómina. Se genera con «Generar los informes pendientes» y después siempre se entrega la misma copia.',
         'descargar' => 'Descargar el archivo de nómina',
         'hoja' => 'Nómina',
         'titulo' => 'Archivo de nómina — :mes',

@@ -8,6 +8,7 @@ use App\Modules\Comisiones\Infrastructure\Persistence\DocumentRecord;
 use App\Modules\Comisiones\Infrastructure\Persistence\SettlementRecord;
 use App\Modules\Comisiones\Infrastructure\Report\CollectionReport;
 use App\Modules\Comisiones\Infrastructure\Report\CollectionReports;
+use App\Modules\Comisiones\Infrastructure\Report\PdfRenderer;
 use App\Modules\Comisiones\Infrastructure\Report\ReportArchive;
 use App\Modules\Comisiones\Infrastructure\Report\ReportMismatch;
 use App\Modules\Comisiones\Infrastructure\Settlement\EloquentSettlements;
@@ -16,6 +17,7 @@ use App\Modules\Core\Contracts\Enums\CompanyCode;
 use App\Modules\Core\Contracts\Enums\Dataset;
 use App\Support\Formatting\Money;
 use Carbon\CarbonImmutable;
+use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Storage;
 use Tests\Fakes\ContractFakes;
 use Tests\Modules\Comisiones\Feature\Concerns\AugustCollections;
@@ -78,6 +80,26 @@ function augustReportHtml(CollectionReport $report): string
 function augustReportText(string $html): string
 {
     return (string) preg_replace('/[ \t\r\n]+/', ' ', strip_tags($html));
+}
+
+/**
+ * The PDF the collection reports renderer draws from a page that runs a script and
+ * shows a local image inside the project but outside the dompdf fonts.
+ */
+function comisionesPdfProbe(): string
+{
+    $directory = storage_path('framework/testing/'.uniqid('comisiones-pdf-probe-'));
+    File::ensureDirectoryExists($directory);
+    $image = $directory.DIRECTORY_SEPARATOR.'probe.png';
+    file_put_contents($image, (string) base64_decode('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAIAAACQd1PeAAAADElEQVR4nGP4z8AAAAMBAQDJ/pLvAAAAAElFTkSuQmCC'));
+    file_put_contents($directory.DIRECTORY_SEPARATOR.'probe.blade.php', '<html><body><img src="{{ $image }}" width="40" height="40"><script type="text/javascript">app.alert("probe");</script></body></html>');
+    view()->addNamespace('comisiones-pdf-probe', $directory);
+
+    try {
+        return app(PdfRenderer::class)->render('comisiones-pdf-probe::probe', ['image' => $image]);
+    } finally {
+        File::deleteDirectory($directory);
+    }
 }
 
 it('serves the reports under the period', function () {
@@ -152,7 +174,11 @@ it('lists one report per code with collections and 85.1, pending until generated
         ->assertSeeText(Money::format('83231'))
         ->assertSeeText(Money::format('55487'))
         ->assertSeeText('Cuadra')
-        ->assertSee('data-report="14" data-state="pendiente"', false);
+        ->assertSee('data-report="14" data-state="pendiente"', false)
+        // Nothing to download until it is generated.
+        ->assertDontSee(augustReports().'/14.pdf', false)
+        ->assertDontSee(augustReports().'.zip', false)
+        ->assertSeeText('Generar los informes pendientes');
 
     expect(preg_match('/\p{Lu}{4,}/u', strip_tags($response->getContent())))->toBe(0);
 });
@@ -177,14 +203,14 @@ it('gives the batch more time without ever shortening a longer or unlimited limi
     'already longer' => ['600', '600'],
 ]);
 
-it('generates and stores every missing report of the closed version, once', function () {
+it('generates and stores every missing report of the closed version and its payroll file, once', function () {
     AugustCollections::close($this, $this->analyst, $this->approver);
 
     $this->actingAs($this->approver)->post(augustReports().'/generar')
         ->assertRedirect(augustReports())
         ->assertSessionHas('status');
 
-    $documents = DocumentRecord::query()->orderBy('id')->get();
+    $documents = DocumentRecord::query()->where('tipo', 'recaudo')->orderBy('id')->get();
     $settlementId = SettlementRecord::query()->where('periodo', '2026-08')->value('id');
 
     expect($documents)->toHaveCount(3)
@@ -207,8 +233,10 @@ it('generates and stores every missing report of the closed version, once', func
             ->and(strlen($bytes))->toBe($document->bytes);
     }
 
+    expect(DocumentRecord::query()->where('tipo', 'nomina')->sole()->generado_por)->toBe($this->approver->id);
+
     $generated = AuditRecord::query()->where('evento', 'comisiones.report.generated')->orderBy('id')->get();
-    expect($generated)->toHaveCount(3)
+    expect($generated)->toHaveCount(4)
         ->and($generated->first()->periodo)->toBe('2026-08')
         ->and($generated->first()->contexto)->toMatchArray(['version' => 1, 'referencia' => '14', 'sha256' => $documents->first()->sha256]);
 
@@ -216,15 +244,17 @@ it('generates and stores every missing report of the closed version, once', func
     $this->travel(1)->hours();
     $this->actingAs($this->analyst)->post(augustReports().'/generar')->assertRedirect(augustReports());
 
-    expect(DocumentRecord::query()->count())->toBe(3)
-        ->and(DocumentRecord::query()->orderBy('id')->pluck('sha256')->all())->toBe($documents->pluck('sha256')->all())
-        ->and(AuditRecord::query()->where('evento', 'comisiones.report.generated')->count())->toBe(3);
+    expect(DocumentRecord::query()->count())->toBe(4)
+        ->and(DocumentRecord::query()->where('tipo', 'recaudo')->orderBy('id')->pluck('sha256')->all())->toBe($documents->pluck('sha256')->all())
+        ->and(AuditRecord::query()->where('evento', 'comisiones.report.generated')->count())->toBe(4);
 
     $this->actingAs($this->approver)->get(augustReports())->assertOk()
         ->assertSeeText('Beto Ruiz')
         ->assertSeeText(substr($documents->first()->sha256, 0, 12))
         ->assertSee('data-report="14" data-state="generado"', false)
-        ->assertDontSee('data-state="pendiente"', false);
+        ->assertDontSee('data-state="pendiente"', false)
+        ->assertSee(augustReports().'/14.pdf', false)
+        ->assertSee(augustReports().'.zip', false);
 });
 
 it('downloads a stored report and audits the download', function () {
@@ -245,16 +275,16 @@ it('downloads a stored report and audits the download', function () {
         ->and($audit->contexto)->toMatchArray(['version' => 1, 'referencia' => '85.1', 'sha256' => $document->sha256]);
 });
 
-it('generates a missing report before downloading it', function () {
+it('never generates a missing report on a download', function () {
     AugustCollections::close($this, $this->analyst, $this->approver);
 
     $this->actingAs($this->analyst)->get(augustReports().'/14.pdf')
-        ->assertOk()
-        ->assertDownload('Informe_Recaudo_14_Monica_Rivera.pdf');
+        ->assertRedirect(augustReports())
+        ->assertSessionHas('error', 'Ese informe todavía no se ha generado. Pulsa «Generar los informes pendientes» primero.');
 
-    expect(DocumentRecord::query()->pluck('referencia')->all())->toBe(['14'])
-        ->and(AuditRecord::query()->where('evento', 'comisiones.report.generated')->count())->toBe(1)
-        ->and(AuditRecord::query()->where('evento', 'comisiones.report.downloaded')->count())->toBe(1);
+    expect(DocumentRecord::query()->count())->toBe(0)
+        ->and(AuditRecord::query()->where('evento', 'like', 'comisiones.report.%')->count())->toBe(0)
+        ->and(Storage::disk('local')->allFiles())->toBe([]);
 });
 
 it('refuses a stored report whose file changed or is missing', function (string $damage) {
@@ -280,6 +310,7 @@ it('refuses a stored report whose file changed or is missing', function (string 
 
 it('downloads every report of the version in one ZIP', function () {
     AugustCollections::close($this, $this->analyst, $this->approver);
+    $this->actingAs($this->approver)->post(augustReports().'/generar');
 
     $response = $this->actingAs($this->approver)->get(augustReports().'.zip')
         ->assertOk()
@@ -299,16 +330,33 @@ it('downloads every report of the version in one ZIP', function () {
         'Informe_Recaudo_85.1_Sergio_Caballero.pdf',
     ]);
 
-    foreach (DocumentRecord::query()->get() as $document) {
+    foreach (DocumentRecord::query()->where('tipo', 'recaudo')->get() as $document) {
         expect(hash('sha256', (string) $zip->getFromName($document->archivo)))->toBe($document->sha256);
     }
 
     $zip->close();
 
-    expect(DocumentRecord::query()->count())->toBe(3)
+    expect(DocumentRecord::query()->count())->toBe(4)
         ->and(AuditRecord::query()->where('evento', 'comisiones.report.downloaded')->sole()->contexto)
         ->toMatchArray(['version' => 1, 'referencia' => 'zip', 'archivo' => 'Informes_Recaudo_2026-08_v1.zip']);
 });
+
+it('never generates the reports a ZIP needs on its download', function (bool $partly) {
+    AugustCollections::close($this, $this->analyst, $this->approver);
+
+    if ($partly) {
+        $settlement = app(EloquentSettlements::class)->latest(Period::fromString('2026-08'));
+        app(ReportArchive::class)->collection($settlement, augustCollectionReports()['14'], $this->approver);
+    }
+
+    $this->actingAs($this->approver)->get(augustReports().'.zip')
+        ->assertRedirect(augustReports())
+        ->assertSessionHas('error', 'Ese informe todavía no se ha generado. Pulsa «Generar los informes pendientes» primero.');
+
+    expect(DocumentRecord::query()->pluck('referencia')->all())->toBe($partly ? ['14'] : [])
+        ->and(AuditRecord::query()->where('evento', 'comisiones.report.generated')->count())->toBe($partly ? 1 : 0)
+        ->and(AuditRecord::query()->where('evento', 'comisiones.report.downloaded')->count())->toBe(0);
+})->with(['none generated' => false, 'one generated' => true]);
 
 it('draws the collection report of a code as §8.2 asks', function () {
     AugustCollections::close($this, $this->analyst, $this->approver);
@@ -409,6 +457,14 @@ it('generates the reports of about thirty codes well under two minutes (§11)', 
     $seconds = microtime(true) - $started;
 
     // Every code with collections plus 85.1.
-    expect(DocumentRecord::query()->count())->toBe(count($codes) + 1)
+    expect(DocumentRecord::query()->where('tipo', 'recaudo')->count())->toBe(count($codes) + 1)
         ->and($seconds)->toBeLessThan(120.0);
+});
+
+it('draws its PDFs without JavaScript nor files outside the dompdf fonts', function () {
+    $pdf = comisionesPdfProbe();
+
+    expect($pdf)->toStartWith('%PDF')
+        ->not->toContain('/Subtype /Image')
+        ->not->toContain('/JavaScript');
 });

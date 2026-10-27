@@ -15,7 +15,6 @@ use App\Modules\Comisiones\Infrastructure\Report\CollectionReport;
 use App\Modules\Comisiones\Infrastructure\Report\CollectionReports;
 use App\Modules\Comisiones\Infrastructure\Report\DocumentTampered;
 use App\Modules\Comisiones\Infrastructure\Report\ReportArchive;
-use App\Modules\Comisiones\Infrastructure\Report\ReportMismatch;
 use App\Modules\Comisiones\Infrastructure\Settlement\CorruptSettlement;
 use App\Modules\Comisiones\Infrastructure\Settlement\EloquentSettlements;
 use App\Support\Formatting\Money;
@@ -33,14 +32,15 @@ use Symfony\Component\HttpFoundation\StreamedResponse;
  *   collections and 85.1) with its figures, its §9.3 check against the
  *   consolidated report and its stored file; an explanation when the
  *   version is not closed;
- * - POST …/informes/generar: stores every report not stored yet;
- * - GET …/informes/{referencia}.pdf: one stored report, generated first
- *   when missing;
+ * - POST …/informes/generar: stores every report and the payroll file
+ *   (§8.1 annex) not stored yet;
+ * - GET …/informes/{referencia}.pdf: one stored report;
  * - GET …/informes.zip: every report of the version in one ZIP;
- * - GET …/informes/nomina.xlsx: the payroll file (§8.1 annex), stored on
- *   its first download and served from the stored copy after that.
+ * - GET …/informes/nomina.xlsx: the stored payroll file.
  *
- * A stored report is never generated again; a download checks its sha256.
+ * Only the POST generates: a download only reads, and sends back to the list
+ * when what it asks for is not stored yet. A stored report is never
+ * generated again; a download checks its sha256.
  */
 final class ReportsController
 {
@@ -90,10 +90,12 @@ final class ReportsController
             return $settlement;
         }
 
+        $user = self::user($request);
         self::allowBatchTime();
-        $outcome = $this->archive->generateMissing($settlement, $this->reports->of($settlement), self::user($request));
+        $outcome = $this->archive->generateMissing($settlement, $this->reports->of($settlement), $user);
+        $payroll = $this->archive->payroll($settlement, $user);
         $back = $this->back($request, $settlement);
-        $count = count($outcome->generated);
+        $count = count($outcome->generated) + ($payroll->wasRecentlyCreated ? 1 : 0);
 
         if ($outcome->mismatched !== []) {
             $back->with('error', self::mismatchMessage($outcome->mismatched));
@@ -118,13 +120,14 @@ final class ReportsController
 
         $report = $this->reports->find($settlement, $referencia);
         abort_if($report === null, 404);
-        $user = self::user($request);
+        $document = $this->archive->find($settlement, ReportArchive::COLLECTION, $report->reference);
+
+        if ($document === null) {
+            return $this->back($request, $settlement)->with('error', self::missingMessage([$report]));
+        }
 
         try {
-            $document = $this->archive->collection($settlement, $report, $user);
-            $bytes = $this->archive->download($settlement, $document, $user);
-        } catch (ReportMismatch $mismatch) {
-            return $this->back($request, $settlement)->with('error', self::mismatchMessage([$mismatch->report]));
+            $bytes = $this->archive->download($settlement, $document, self::user($request));
         } catch (DocumentTampered $tampered) {
             return $this->tampered($request, $settlement, $tampered->document);
         }
@@ -142,26 +145,31 @@ final class ReportsController
             return $settlement;
         }
 
-        $user = self::user($request);
-        $reports = $this->reports->of($settlement);
-        self::allowBatchTime();
-        $outcome = $this->archive->generateMissing($settlement, $reports, $user);
-
-        if ($outcome->mismatched !== []) {
-            return $this->back($request, $settlement)->with('error', self::mismatchMessage($outcome->mismatched));
-        }
-
         $stored = $this->archive->stored($settlement);
         $documents = [];
+        $missing = [];
 
-        foreach ($reports as $report) {
-            $documents[] = $stored[ReportArchive::key(ReportArchive::COLLECTION, $report->reference)];
+        foreach ($this->reports->of($settlement) as $report) {
+            $document = $stored[ReportArchive::key(ReportArchive::COLLECTION, $report->reference)] ?? null;
+
+            if ($document === null) {
+                $missing[] = $report;
+            } else {
+                $documents[] = $document;
+            }
+        }
+
+        if ($missing !== []) {
+            return $this->back($request, $settlement)->with('error', self::missingMessage($missing));
         }
 
         $fileName = sprintf('Informes_Recaudo_%s_v%d.zip', $settlement->period->key(), $settlement->version);
 
+        // Reading and zipping thirty stored PDFs can still take a while.
+        self::allowBatchTime();
+
         try {
-            $path = $this->archive->zip($settlement, $documents, $fileName, $user);
+            $path = $this->archive->zip($settlement, $documents, $fileName, self::user($request));
         } catch (DocumentTampered $tampered) {
             return $this->tampered($request, $settlement, $tampered->document);
         }
@@ -177,11 +185,14 @@ final class ReportsController
             return $settlement;
         }
 
-        $user = self::user($request);
+        $document = $this->archive->find($settlement, ReportArchive::PAYROLL, ReportArchive::PAYROLL);
+
+        if ($document === null) {
+            return $this->back($request, $settlement)->with('error', __('comisiones::informes.mensajes.sin_generar'));
+        }
 
         try {
-            $document = $this->archive->payroll($settlement, $user);
-            $bytes = $this->archive->download($settlement, $document, $user);
+            $bytes = $this->archive->download($settlement, $document, self::user($request));
         } catch (DocumentTampered $tampered) {
             return $this->tampered($request, $settlement, $tampered->document);
         }
@@ -228,6 +239,20 @@ final class ReportsController
     private function tampered(Request $request, Settlement $settlement, DocumentRecord $document): RedirectResponse
     {
         return $this->back($request, $settlement)->with('error', __('comisiones::informes.mensajes.alterado', ['referencia' => $document->referencia]));
+    }
+
+    /**
+     * Why reports a download asked for are not stored: the ones whose total
+     * does not match can never be generated (§9.3); the others wait for the
+     * «Generar» button.
+     *
+     * @param  non-empty-list<CollectionReport>  $reports
+     */
+    private static function missingMessage(array $reports): string
+    {
+        $mismatched = array_values(array_filter($reports, fn (CollectionReport $report): bool => ! $report->matches()));
+
+        return $mismatched !== [] ? self::mismatchMessage($mismatched) : __('comisiones::informes.mensajes.sin_generar');
     }
 
     /**

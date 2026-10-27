@@ -19,7 +19,8 @@ use Tests\Modules\Comisiones\Feature\Concerns\SapBatches;
 /*
 | The payroll file of a closed version (§3, §6 step 6, §8.1 annex): every
 | person with each role they are paid for and their «valor pago nómina»,
-| stored once like the PDFs and served from the stored copy.
+| generated with the PDFs by «Generar los informes pendientes», stored once
+| and served from the stored copy; a download never generates it.
 */
 
 beforeEach(function () {
@@ -34,6 +35,8 @@ beforeEach(function () {
 });
 
 const PAYROLL_URL = '/comisiones/periodos/2026-08/informes/nomina.xlsx';
+
+const PAYROLL_GENERATE_URL = '/comisiones/periodos/2026-08/informes/generar';
 
 /**
  * The rows of the first sheet of a streamed workbook.
@@ -90,6 +93,7 @@ it('refuses the payroll file of a version that is not closed', function () {
 it('lists every person with each role and their payroll value, plus the grand total', function () {
     AugustCollections::close($this, $this->analyst, $this->approver);
     $result = app(EloquentSettlements::class)->latest(Period::fromString('2026-08'))->result;
+    $this->actingAs($this->approver)->post(PAYROLL_GENERATE_URL);
 
     $response = $this->actingAs($this->approver)->get(PAYROLL_URL)
         ->assertOk()
@@ -122,9 +126,10 @@ it('lists every person with each role and their payroll value, plus the grand to
 
 it('stores the payroll file once and serves the stored copy, audited', function () {
     AugustCollections::close($this, $this->analyst, $this->approver);
+    $this->actingAs($this->approver)->post(PAYROLL_GENERATE_URL)->assertSessionHas('status');
 
     $first = $this->actingAs($this->approver)->get(PAYROLL_URL)->assertOk()->streamedContent();
-    $document = DocumentRecord::query()->sole();
+    $document = DocumentRecord::query()->where('tipo', 'nomina')->sole();
 
     expect($document->tipo)->toBe('nomina')
         ->and($document->referencia)->toBe('nomina')
@@ -133,24 +138,43 @@ it('stores the payroll file once and serves the stored copy, audited', function 
         ->and(hash('sha256', $first))->toBe($document->sha256);
 
     $this->travel(1)->hours();
+    $this->actingAs($this->analyst)->post(PAYROLL_GENERATE_URL);
     $second = $this->actingAs($this->analyst)->get(PAYROLL_URL)->assertOk()->streamedContent();
 
     expect($second)->toBe($first)
-        ->and(DocumentRecord::query()->count())->toBe(1)
-        ->and(AuditRecord::query()->where('evento', 'comisiones.report.generated')->count())->toBe(1)
+        ->and(DocumentRecord::query()->where('tipo', 'nomina')->count())->toBe(1)
+        ->and(AuditRecord::query()->where('evento', 'comisiones.report.generated')->get()->where('contexto.tipo', 'nomina'))->toHaveCount(1)
         ->and(AuditRecord::query()->where('evento', 'comisiones.report.downloaded')->count())->toBe(2)
         ->and(AuditRecord::query()->where('evento', 'comisiones.report.downloaded')->first()->contexto)
         ->toMatchArray(['version' => 1, 'referencia' => 'nomina', 'sha256' => $document->sha256]);
 
     $this->actingAs($this->approver)->get('/comisiones/periodos/2026-08/informes')->assertOk()
         ->assertSee('data-document="nomina"', false)
-        ->assertSeeText('Nomina_Comisiones_2026-08_v1.xlsx');
+        ->assertSeeText('Nomina_Comisiones_2026-08_v1.xlsx')
+        ->assertSee(PAYROLL_URL, false);
+});
+
+it('never generates the payroll file on a download', function () {
+    AugustCollections::close($this, $this->analyst, $this->approver);
+
+    $this->actingAs($this->approver)->get('/comisiones/periodos/2026-08/informes')->assertOk()
+        ->assertSee('data-document="nomina"', false)
+        ->assertDontSee(PAYROLL_URL, false);
+
+    $this->actingAs($this->approver)->get(PAYROLL_URL)
+        ->assertRedirect('/comisiones/periodos/2026-08/informes')
+        ->assertSessionHas('error', 'Ese informe todavía no se ha generado. Pulsa «Generar los informes pendientes» primero.');
+
+    expect(DocumentRecord::query()->count())->toBe(0)
+        ->and(AuditRecord::query()->where('evento', 'like', 'comisiones.report.%')->count())->toBe(0)
+        ->and(Storage::disk('local')->allFiles())->toBe([]);
 });
 
 it('refuses a stored payroll file that changed', function () {
     AugustCollections::close($this, $this->analyst, $this->approver);
+    $this->actingAs($this->approver)->post(PAYROLL_GENERATE_URL);
     $this->actingAs($this->approver)->get(PAYROLL_URL)->assertOk();
-    Storage::disk('local')->put(DocumentRecord::query()->sole()->ruta, 'otro');
+    Storage::disk('local')->put(DocumentRecord::query()->where('tipo', 'nomina')->sole()->ruta, 'otro');
 
     $this->actingAs($this->approver)->get(PAYROLL_URL)
         ->assertRedirect('/comisiones/periodos/2026-08/informes')

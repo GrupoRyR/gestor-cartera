@@ -25,7 +25,8 @@ use ZipArchive;
  * The reports of closed settlement versions, the collection PDFs and the
  * payroll file, stored once and never changed (§8.1, §8.2, §10):
  *
- * - a report is generated only from a closed version, rendered, written to
+ * - a report is generated only from a closed version, on purpose (the
+ *   «Generar» POST, never a download), rendered, written to
  *   the documents disk under <directory>/<periodo>/v<N>/<archivo> and
  *   recorded in comisiones_documentos with its sha256, size and author;
  * - a report that already exists is never generated again: generating it
@@ -74,6 +75,15 @@ final class ReportArchive
             ->get()
             ->keyBy(fn (DocumentRecord $document): string => self::key($document->tipo, $document->referencia))
             ->all();
+    }
+
+    /**
+     * The stored document of the version, or null when it was not generated
+     * yet. Only reads: a download never generates.
+     */
+    public function find(Settlement $settlement, string $type, string $reference): ?DocumentRecord
+    {
+        return $this->stored($settlement)[self::key($type, $reference)] ?? null;
     }
 
     /** "recaudo:14": the key of stored(). */

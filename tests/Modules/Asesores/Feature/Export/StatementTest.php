@@ -1,6 +1,7 @@
 <?php
 
 use App\Modules\Asesores\Application\Export\ClientStatement;
+use App\Modules\Asesores\Infrastructure\Report\PdfRenderer;
 use App\Modules\Core\Contracts\CarteraRepository;
 use App\Modules\Core\Contracts\CurrentCompany;
 use App\Modules\Core\Contracts\Data\BrandPalette;
@@ -8,6 +9,7 @@ use App\Modules\Core\Contracts\Enums\CompanyCode;
 use App\Modules\Core\Infrastructure\Persistence\AuditLogRecord;
 use App\Support\Formatting\Money;
 use Carbon\CarbonImmutable;
+use Illuminate\Support\Facades\File;
 use Tests\Modules\Asesores\Support\AdvisorWorld;
 use Tests\Modules\Core\Support\CommitmentRecords;
 
@@ -25,6 +27,26 @@ function asesoresStatementHtml(int $clientId): string
     $detail = app(CarteraRepository::class)->client($clientId);
 
     return view(ClientStatement::VIEW, app(ClientStatement::class)->data($detail, CarbonImmutable::now()))->render();
+}
+
+/**
+ * The PDF the account statement renderer draws from a page that runs a script and
+ * shows a local image inside the project but outside the dompdf fonts.
+ */
+function asesoresPdfProbe(): string
+{
+    $directory = storage_path('framework/testing/'.uniqid('asesores-pdf-probe-'));
+    File::ensureDirectoryExists($directory);
+    $image = $directory.DIRECTORY_SEPARATOR.'probe.png';
+    file_put_contents($image, (string) base64_decode('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAIAAACQd1PeAAAADElEQVR4nGP4z8AAAAMBAQDJ/pLvAAAAAElFTkSuQmCC'));
+    file_put_contents($directory.DIRECTORY_SEPARATOR.'probe.blade.php', '<html><body><img src="{{ $image }}" width="40" height="40"><script type="text/javascript">app.alert("probe");</script></body></html>');
+    view()->addNamespace('asesores-pdf-probe', $directory);
+
+    try {
+        return app(PdfRenderer::class)->render('asesores-pdf-probe::probe', ['image' => $image]);
+    } finally {
+        File::deleteDirectory($directory);
+    }
 }
 
 it('downloads the account statement of a client as a PDF', function () {
@@ -103,4 +125,12 @@ it('lets a sales manager draw the clients of the team only', function () {
 it('is closed to guests and to the roles that have their own screens', function () {
     $this->get(route('asesores.clientes.estado_cuenta', $this->agro->id))->assertRedirect(route('core.login'));
     $this->actingAs($this->world->mariaPaula)->get(route('asesores.clientes.estado_cuenta', $this->agro->id))->assertForbidden();
+});
+
+it('draws its PDFs without JavaScript nor files outside the dompdf fonts', function () {
+    $pdf = asesoresPdfProbe();
+
+    expect($pdf)->toStartWith('%PDF')
+        ->not->toContain('/Subtype /Image')
+        ->not->toContain('/JavaScript');
 });
