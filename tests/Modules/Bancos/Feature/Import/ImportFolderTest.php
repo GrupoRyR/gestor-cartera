@@ -8,6 +8,7 @@ use App\Modules\Core\Contracts\Enums\Bank;
 use Carbon\CarbonImmutable;
 use Illuminate\Console\Scheduling\Event;
 use Illuminate\Console\Scheduling\Schedule;
+use Illuminate\Support\Facades\Exceptions;
 use Illuminate\Support\Facades\File;
 use Tests\Fakes\ContractFakes;
 use Tests\Modules\Bancos\Support\Fixtures;
@@ -100,6 +101,37 @@ it('moves a file that is not a statement of that bank to errores, says why, and 
     expect($failed->failed)->toBeTrue()
         ->and($failed->file_name)->toBe('extracto.csv')
         ->and($failed->errors[0]['message'])->toContain('Davivienda');
+});
+
+it('shows a generic message, never the exception, when a file fails unexpectedly', function () {
+    Exceptions::fake();
+    $internal = "SQLSTATE[42S02]: Base table or view not found: 1146 Table 'cartera.bancos_movimientos' doesn't exist (/home/ryr/app)";
+
+    // Something outside the module's own errors (the database, a bug): the
+    // import of the statement throws before anything is stored.
+    BankLoad::creating(function (BankLoad $load) use ($internal): void {
+        if (! $load->failed) {
+            throw new RuntimeException($internal);
+        }
+    });
+
+    bancosDrop($this->folder, 'SGX', 'bogota', Bank::Bogota);
+
+    $this->artisan('bancos:importar-carpeta')
+        ->expectsOutputToContain(__('bancos::cargas.error_inesperado'))
+        ->doesntExpectOutputToContain('SQLSTATE')
+        ->assertFailed();
+
+    Exceptions::assertReported(fn (RuntimeException $e): bool => $e->getMessage() === $internal);
+
+    $failed = BankLoad::query()->sole();
+    $moved = glob($this->folder.'/errores/SGX-bogota-*-extracto.csv');
+
+    expect($failed->failed)->toBeTrue()
+        ->and($failed->errors)->toBe([['row' => null, 'message' => __('bancos::cargas.error_inesperado')]])
+        ->and($moved)->toHaveCount(1)
+        ->and(file_get_contents($moved[0].'.error.txt'))->toBe(__('bancos::cargas.error_inesperado').PHP_EOL)
+        ->and(BankMovement::query()->count())->toBe(0);
 });
 
 it('keeps importing the other files when one fails', function () {
