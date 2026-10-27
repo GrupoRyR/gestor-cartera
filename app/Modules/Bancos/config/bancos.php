@@ -14,10 +14,12 @@ return [
     'import_at' => env('BANCOS_IMPORT_AT', '06:30'),
 
     // Token Treasury sends to the read-only collections API (GET /api/recaudo).
+    // At least 32 bytes: a shorter one, like a missing one, closes the API.
     'api_token' => env('BANCOS_API_TOKEN'),
 
     // Token Treasury sends to push movements (POST /api/movimientos). Apart from
-    // the read token so that a leaked read token cannot write.
+    // the read token so that a leaked read token cannot write. At least 32
+    // bytes too: a shorter one closes the endpoint.
     'ingest_token' => env('BANCOS_INGEST_TOKEN'),
 
     // Currency of each account when it differs from what the reader of the bank

@@ -148,9 +148,11 @@ final class FolderImporter
         } catch (UnreadableFile|UnrecognizedStatement $e) {
             return $this->fail($root, $path, $company, $bank, $e->getMessage(), $sha);
         } catch (Throwable $e) {
+            // Its message may carry server paths or SQL: it goes to the error
+            // log, and the history, errores/ and the console get a generic one.
             report($e);
 
-            return $this->fail($root, $path, $company, $bank, 'Error inesperado al leer el archivo: '.$e->getMessage(), $sha);
+            return $this->fail($root, $path, $company, $bank, __('bancos::cargas.error_inesperado'), $sha);
         }
 
         $this->move($path, $root.DIRECTORY_SEPARATOR.self::PROCESSED.DIRECTORY_SEPARATOR.now()->format('Y-m'), $company, $bank);

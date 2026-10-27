@@ -69,6 +69,7 @@ return [
         'cargado' => ':nuevos créditos nuevos de :banco (:empresa); :repetidos ya estaban cargados.',
         'con_errores' => ':errores filas no se pudieron cargar. Revisa el detalle.',
     ],
+    'error_inesperado' => 'No pude leer el archivo por un error inesperado. TI ya tiene el detalle.',
     'validacion' => [
         'formato' => 'Sube un archivo .xlsx, .xls, .csv o .txt.',
         'peso' => 'El extracto pesa más de 10 MB. Descarga solo el rango de fechas que necesitas.',

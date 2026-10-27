@@ -8,18 +8,20 @@ use App\Modules\Core\Contracts\Enums\Bank;
 use App\Modules\Core\Contracts\Enums\CompanyCode;
 use Carbon\CarbonImmutable;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Testing\TestResponse;
+use Tests\Fakes\AuditEntry;
 use Tests\Fakes\ContractFakes;
 use Tests\Modules\Bancos\Support\Fixtures;
 
-const BANCOS_INGEST_TOKEN = 'token-de-escritura-de-prueba';
+const BANCOS_INGEST_TOKEN = 'token-de-escritura-de-prueba-con-32-bytes';
 
 beforeEach(function () {
     $this->travelTo(CarbonImmutable::parse('2026-10-16 09:00:00', 'America/Bogota'));
     $this->fakes = ContractFakes::install($this->app);
     config()->set('bancos.ingest_token', BANCOS_INGEST_TOKEN);
-    config()->set('bancos.api_token', 'token-de-lectura-de-prueba');
+    config()->set('bancos.api_token', 'token-de-lectura-de-prueba-con-32-bytes');
     RateLimiter::clear('bancos-api');
 });
 
@@ -64,7 +66,7 @@ describe('authentication', function () {
     });
 
     it('refuses the read token: a leaked read token cannot write', function () {
-        bancosPost(bancosPayload(), 'token-de-lectura-de-prueba')->assertUnauthorized();
+        bancosPost(bancosPayload(), 'token-de-lectura-de-prueba-con-32-bytes')->assertUnauthorized();
 
         expect(BankMovement::query()->count())->toBe(0);
     });
@@ -87,6 +89,58 @@ describe('authentication', function () {
         }
 
         bancosPost(bancosPayload(), BANCOS_INGEST_TOKEN)->assertStatus(429);
+    });
+
+    it('stays closed while the configured token is shorter than 32 bytes, and warns without showing it', function () {
+        $short = str_repeat('k', 31);
+        config()->set('bancos.ingest_token', $short);
+        Log::spy();
+
+        bancosPost(bancosPayload(), $short)->assertUnauthorized()->assertHeader('WWW-Authenticate', 'Bearer');
+
+        expect(BankMovement::query()->count())->toBe(0);
+        Log::shouldHaveReceived('warning')->once()->withArgs(fn (string $message, array $context): bool => str_contains($message, '32 bytes')
+            && ! str_contains($message, $short)
+            && $context === ['setting' => 'ingest_token']);
+    });
+
+    it('accepts a configured token of exactly 32 bytes', function () {
+        config()->set('bancos.ingest_token', str_repeat('k', 32));
+
+        bancosPost(bancosPayload(), str_repeat('k', 32))->assertCreated();
+    });
+});
+
+describe('the trail of refusals', function () {
+    it('records each refusal with its reason, never the token', function (?string $configured, ?string $given, string $reason) {
+        config()->set('bancos.ingest_token', $configured);
+
+        bancosPost(bancosPayload(), $given)->assertUnauthorized();
+
+        $entries = $this->fakes->audit->entries();
+
+        expect($entries)->toHaveCount(1);
+        $this->fakes->audit->assertRecorded('bancos.api.refused', fn (AuditEntry $entry): bool => $entry->subjectType === null
+            && $entry->changes === []
+            && $entry->context === ['setting' => 'ingest_token', 'reason' => $reason, 'path' => 'api/movimientos']);
+
+        $stored = json_encode($entries, JSON_THROW_ON_ERROR);
+
+        foreach (array_filter([$configured, $given]) as $token) {
+            expect($stored)->not->toContain($token)->not->toContain(hash('sha256', $token));
+        }
+    })->with([
+        'no token configured' => [null, BANCOS_INGEST_TOKEN, 'not_configured'],
+        'a token shorter than 32 bytes' => [str_repeat('k', 31), str_repeat('k', 31), 'too_short'],
+        'no bearer token in the request' => [BANCOS_INGEST_TOKEN, null, 'missing'],
+        'an empty bearer token' => [BANCOS_INGEST_TOKEN, '', 'missing'],
+        'the read token' => [BANCOS_INGEST_TOKEN, 'token-de-lectura-de-prueba-con-32-bytes', 'mismatch'],
+    ]);
+
+    it('records no refusal for an accepted request', function () {
+        bancosPost(bancosPayload())->assertCreated();
+
+        expect(array_filter($this->fakes->audit->entries(), fn (AuditEntry $entry): bool => $entry->action === 'bancos.api.refused'))->toBe([]);
     });
 });
 

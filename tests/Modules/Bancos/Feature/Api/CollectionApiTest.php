@@ -3,14 +3,17 @@
 use App\Modules\Bancos\Infrastructure\Persistence\BankMovement;
 use App\Modules\Core\Contracts\Enums\Bank;
 use App\Modules\Core\Contracts\Enums\CompanyCode;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Testing\TestResponse;
+use Tests\Fakes\AuditEntry;
+use Tests\Fakes\ContractFakes;
 
-const BANCOS_READ_TOKEN = 'token-de-lectura-de-prueba';
+const BANCOS_READ_TOKEN = 'token-de-lectura-de-prueba-con-32-bytes';
 
 beforeEach(function () {
     config()->set('bancos.api_token', BANCOS_READ_TOKEN);
-    config()->set('bancos.ingest_token', 'token-de-escritura-de-prueba');
+    config()->set('bancos.ingest_token', 'token-de-escritura-de-prueba-con-32-bytes');
     RateLimiter::clear('bancos-api');
 });
 
@@ -29,7 +32,7 @@ describe('authentication', function () {
     });
 
     it('refuses the write token', function () {
-        bancosGet('desde=2026-10-01&hasta=2026-10-31', 'token-de-escritura-de-prueba')->assertUnauthorized();
+        bancosGet('desde=2026-10-01&hasta=2026-10-31', 'token-de-escritura-de-prueba-con-32-bytes')->assertUnauthorized();
     });
 
     it('is closed while no token is configured', function (mixed $configured) {
@@ -41,6 +44,60 @@ describe('authentication', function () {
 
     it('is read-only', function () {
         $this->postJson('/api/recaudo', [], ['Authorization' => 'Bearer '.BANCOS_READ_TOKEN])->assertStatus(405);
+    });
+
+    it('stays closed while the configured token is shorter than 32 bytes, and warns without showing it', function () {
+        $short = str_repeat('k', 31);
+        config()->set('bancos.api_token', $short);
+        Log::spy();
+
+        bancosGet('desde=2026-10-01&hasta=2026-10-31', $short)->assertUnauthorized()->assertHeader('WWW-Authenticate', 'Bearer');
+
+        Log::shouldHaveReceived('warning')->once()->withArgs(fn (string $message, array $context): bool => str_contains($message, '32 bytes')
+            && ! str_contains($message, $short)
+            && $context === ['setting' => 'api_token']);
+    });
+
+    it('accepts a configured token of exactly 32 bytes', function () {
+        config()->set('bancos.api_token', str_repeat('k', 32));
+
+        bancosGet('desde=2026-10-01&hasta=2026-10-31', str_repeat('k', 32))->assertOk();
+    });
+});
+
+describe('the trail of refusals', function () {
+    beforeEach(function () {
+        $this->fakes = ContractFakes::install($this->app);
+    });
+
+    it('records each refusal with its reason, never the token', function (?string $configured, ?string $given, string $reason) {
+        config()->set('bancos.api_token', $configured);
+
+        bancosGet('desde=2026-10-01&hasta=2026-10-31', $given)->assertUnauthorized();
+
+        $entries = $this->fakes->audit->entries();
+
+        expect($entries)->toHaveCount(1);
+        $this->fakes->audit->assertRecorded('bancos.api.refused', fn (AuditEntry $entry): bool => $entry->subjectType === null
+            && $entry->changes === []
+            && $entry->context === ['setting' => 'api_token', 'reason' => $reason, 'path' => 'api/recaudo']);
+
+        $stored = json_encode($entries, JSON_THROW_ON_ERROR);
+
+        foreach (array_filter([$configured, $given]) as $token) {
+            expect($stored)->not->toContain($token)->not->toContain(hash('sha256', $token));
+        }
+    })->with([
+        'no token configured' => [null, BANCOS_READ_TOKEN, 'not_configured'],
+        'a token shorter than 32 bytes' => [str_repeat('k', 31), str_repeat('k', 31), 'too_short'],
+        'no bearer token in the request' => [BANCOS_READ_TOKEN, null, 'missing'],
+        'the write token' => [BANCOS_READ_TOKEN, 'token-de-escritura-de-prueba-con-32-bytes', 'mismatch'],
+    ]);
+
+    it('records nothing for an accepted request', function () {
+        bancosGet('desde=2026-10-01&hasta=2026-10-31')->assertOk();
+
+        $this->fakes->audit->assertNothingRecorded();
     });
 });
 

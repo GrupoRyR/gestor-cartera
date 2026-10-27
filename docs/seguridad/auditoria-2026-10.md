@@ -198,6 +198,9 @@ Levanté la app en `127.0.0.1:8123` con los seeders de demostración (SQLite tem
 - **Dónde:** `app/Modules/Bancos/Application/Import/FolderImporter.php:150-153` guarda `$e->getMessage()` en los errores de la carga, que ve cualquiera con `bancos.view`.
 - **Cómo se explotaría:** el mensaje puede traer rutas del servidor, SQL o nombres de tablas que ayudan a preparar otro ataque.
 - **Corrección:** mensaje genérico para el usuario; el detalle ya va a `report($e)`.
+- **Estado: corregido** en el PR 9b de la Fase 2.
+  - Un error inesperado deja el mensaje genérico `bancos::cargas.error_inesperado` en el historial de cargas, en el `.error.txt` de `errores/` y en la consola; el detalle solo va al log de errores con `report($e)`.
+  - Los mensajes propios del módulo (archivo ilegible, extracto de otro banco) no cambian.
 
 ### S-38 · Baja · dompdf con `chroot` en la raíz y JavaScript activo
 
@@ -232,6 +235,9 @@ Levanté la app en `127.0.0.1:8123` con los seeders de demostración (SQLite tem
 - **Dónde:** `app/Modules/Ingesta/Infrastructure/Robot/HmacKeyring.php:36` y `app/Modules/Bancos/Http/Middleware/VerifyTreasuryToken.php:31` aceptan cualquier valor no vacío.
 - **Cómo se explotaría:** con un secreto corto, una sola petición firmada capturada permite adivinarlo por fuerza bruta fuera de línea y firmar lotes falsos de cartera.
 - **Corrección:** rechazar secretos de menos de 32 bytes, con aviso en el log, igual que hoy se tratan los pares mal formados.
+- **Estado: corregido** en los PR 6 (Ingesta) y 9b (Tesorería) de la Fase 2.
+  - `HmacKeyring` ignora, con una advertencia en el log, los pares cuyo secreto tiene menos de 32 bytes.
+  - `VerifyTreasuryToken` trata un token de menos de 32 bytes (`MIN_TOKEN_BYTES`) como uno sin configurar: la API queda cerrada y el log avisa con el nombre del ajuste, nunca con el token.
 
 ### S-19 · Baja · Lotes de hasta 60 MB: un emisor con llave agota la memoria
 
@@ -439,6 +445,9 @@ En local, `php artisan serve` no aplica `public/.htaccess`, así que estas cabec
   - Token inválido en la API de Tesorería: no deja rastro (`VerifyTreasuryToken.php:38-40`).
 - **Cómo se explotaría:** ante un incidente (S-07, S-08, una cuenta robada) no hay forma de reconstruir qué pasó, y la Ley 1581 pide poder demostrar quién accedió a los datos.
 - **Corrección:** auditar `core.auth.failed`, `core.company.switched`, `cobro.run.started` y `cobro.run.finished`, `cobro.reply.viewed`, `ingesta.batch.accepted`, `core.migration.completed` y `bancos.api.refused`.
+- **Estado de la API de Tesorería: corregido** en el PR 9b de la Fase 2.
+  - Cada rechazo de `VerifyTreasuryToken` queda como `bancos.api.refused` con el ajuste (`api_token` o `ingest_token`), el motivo (`not_configured`, `too_short`, `missing` o `mismatch`) y la ruta; la auditoría agrega IP y agente. Nunca guarda el token ni su hash.
+  - El límite `bancos-api` (60 por minuto por IP) corre antes y acota cuántos rechazos se auditan.
 
 ### S-14 · Media · La auditoría es inmutable solo en el modelo
 

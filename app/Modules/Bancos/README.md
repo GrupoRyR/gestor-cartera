@@ -59,7 +59,7 @@ Rules the readers follow:
 
 ## Loading
 
-- **Folder.** `bancos:importar-carpeta`, scheduled every day at `BANCOS_IMPORT_AT` (06:30, America/Bogota). Layout: `<BANCOS_IMPORT_PATH>/<SGX|SDC>/<bogota|davivienda|bancolombia|miami>/<file>`. A relative path is on the `local` disk (`storage/app/private`); an absolute one is used as it is. Imported files move to `procesados/<year-month>/`; a file that cannot be imported moves to `errores/` next to a `.error.txt`, is recorded in the history as a failed load, and makes the command exit with failure (so the cron mail shows it). Files touched in the last minute are left for the next run.
+- **Folder.** `bancos:importar-carpeta`, scheduled every day at `BANCOS_IMPORT_AT` (06:30, America/Bogota). Layout: `<BANCOS_IMPORT_PATH>/<SGX|SDC>/<bogota|davivienda|bancolombia|miami>/<file>`. A relative path is on the `local` disk (`storage/app/private`); an absolute one is used as it is. Imported files move to `procesados/<year-month>/`; a file that cannot be imported moves to `errores/` next to a `.error.txt`, is recorded in the history as a failed load, and makes the command exit with failure (so the cron mail shows it). The reason is the module's own message (wrong bank, unreadable file); an unexpected error shows a generic one (`cargas.error_inesperado`) there, in the history and in the console, and its detail only goes to the error log (`report()`), since it may carry server paths or SQL. Files touched in the last minute are left for the next run.
 - **App.** `/bancos/cargas`: company, bank and file. Needs `bancos.import`.
 - **API.** `POST /api/movimientos` (below).
 
@@ -74,6 +74,9 @@ All three go through `MovementImporter`:
 ## Treasury API
 
 Both endpoints are JSON, behind a bearer token, rate-limited (60 per minute per IP) and **closed while their token is not configured**. They use different tokens so a leaked read token cannot write.
+
+- Each token must be **at least 32 bytes** (`VerifyTreasuryToken::MIN_TOKEN_BYTES`), e.g. `php -r "echo bin2hex(random_bytes(32));"`. A shorter one closes its endpoint like a missing one: every request gets the `401` and the log a warning that names the setting, never the token.
+- Every refusal is audited as `bancos.api.refused`, with `setting` (`api_token` or `ingest_token`), `reason` (`not_configured`, `too_short`, `missing` for no bearer token, `mismatch`) and the path; the audit log adds the IP and the user agent. The token, given or expected, and its hash are never stored. The rate limit runs first, so it also bounds the refusals audited.
 
 ### `POST /api/movimientos` — `BANCOS_INGEST_TOKEN`
 
@@ -140,8 +143,8 @@ The Bancos entries use orders 60, 70 and 80 (Recaudo, Movimientos, Cargas de ext
 |---|---|---|
 | `BANCOS_IMPORT_PATH` | `bancos/entrada` | The drop folder. |
 | `BANCOS_IMPORT_AT` | `06:30` | Time of the daily folder import (Bogotá). |
-| `BANCOS_API_TOKEN` | — | Read token of `GET /api/recaudo`. |
-| `BANCOS_INGEST_TOKEN` | — | Write token of `POST /api/movimientos`. |
+| `BANCOS_API_TOKEN` | — | Read token of `GET /api/recaudo`. At least 32 bytes; a shorter one closes the endpoint. |
+| `BANCOS_INGEST_TOKEN` | — | Write token of `POST /api/movimientos`. At least 32 bytes; a shorter one closes the endpoint. |
 | `BANCOS_MIAMI_CURRENCY` | `USD` (the reader's) | Set to `COP` if the Miami account is kept in pesos. |
 
 `.env.example` belongs to the base and only lists `BANCOS_IMPORT_PATH` and `BANCOS_API_TOKEN`; the other three need a line there.

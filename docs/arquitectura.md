@@ -1032,7 +1032,8 @@ Los secretos viven solo en `.env` (en el servidor, con `chmod 600`). `.env.examp
 | `INGESTA_ALERT_DEADLINE` | Ingesta | Hora límite de la carga diaria; por defecto `07:00`. |
 | `INGESTA_ALERT_RECIPIENTS` | Ingesta | Correos separados por comas; `config('ingesta.alert_recipients')` los entrega como lista, sin espacios ni vacíos. |
 | `BANCOS_IMPORT_PATH` | Bancos | Carpeta de los extractos; por defecto `bancos/entrada`. |
-| `BANCOS_API_TOKEN` | Bancos | Token de Tesorería para `GET /api/recaudo`. |
+| `BANCOS_API_TOKEN` | Bancos | Token de Tesorería para `GET /api/recaudo`. Debe tener al menos 32 bytes: uno más corto, igual que uno vacío, deja la API cerrada (401 a todo) con una advertencia en el log. |
+| `BANCOS_INGEST_TOKEN` | Bancos | Token de Tesorería para `POST /api/movimientos`, distinto del de lectura. Misma regla: al menos 32 bytes, o la API queda cerrada. |
 
 **Rotar la llave HMAC del robot** sin cortar las cargas:
 
