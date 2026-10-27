@@ -455,9 +455,12 @@ En local, `php artisan serve` no aplica `public/.htaccess`, así que estas cabec
 
 ### S-14 · Media · La auditoría es inmutable solo en el modelo
 
-- **Dónde:** `app/Modules/Core/Infrastructure/Persistence/AuditLogRecord.php:166-177` bloquea `update` y `delete` del modelo, pero `DB::table('audit_logs')` pasa sin control. La migración `2026_10_01_000003_create_audit_logs_table.php:26` define la llave foránea con `nullOnDelete()`, así que borrar un usuario **cambia** filas de la auditoría. `comisiones_bitacora` tiene la misma protección.
+- **Dónde:** `app/Modules/Core/Infrastructure/Persistence/AuditLogRecord.php:61-72` bloquea `update` y `delete` del modelo, pero `DB::table('audit_logs')` pasa sin control. La migración `2026_10_01_000003_create_audit_logs_table.php:26` define la llave foránea con `nullOnDelete()`, así que borrar un usuario **cambia** filas de la auditoría. `comisiones_bitacora` tiene la misma protección.
 - **Cómo se explotaría:** con acceso a phpMyAdmin de cPanel o por otra falla, alguien borra o altera entradas sin dejar evidencia.
 - **Corrección:** triggers de MySQL que rechacen `UPDATE` y `DELETE` (por confirmar que GoDaddy da el privilegio `TRIGGER`); si no, encadenar hashes y verificarlos con una tarea programada. Cambiar la llave foránea a `restrictOnDelete()` (los usuarios usan borrado lógico).
+- **Estado: en curso** en la Fase 2.
+  - PR 10a, corregido: la llave foránea de `user_id` es `restrictOnDelete()` en `audit_logs` y en `comisiones_bitacora` (migraciones `2026_10_01_000012` y `2026_10_08_000009`), así que borrar un usuario ya no cambia la auditoría y el borrado definitivo de un usuario con entradas falla. `AuditRecord` de Comisiones bloquea ahora `saveQuietly()`, `deleteQuietly()`, `forceDelete()` y `withoutEvents()`, igual que `AuditLogRecord`.
+  - PR 10b, pendiente: una cadena de hashes en `audit_logs`, verificada cada día con una tarea programada, en vez de triggers de MySQL. El hosting compartido de GoDaddy puede no dar los privilegios `TRIGGER` o `SUPER`, y un trigger no impide insertar entradas falsas ni un `DROP TRIGGER`. Como cada evento de `comisiones_bitacora` también va a `audit_logs`, la cadena cubre las dos.
 
 ### S-29 · Baja · Datos personales en los logs y retención sin definir
 

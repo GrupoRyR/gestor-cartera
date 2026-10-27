@@ -64,6 +64,14 @@ Cada versión guarda su resultado serializado en `comisiones_liquidaciones.resul
 
 **Si rotas `APP_KEY`**, pon la clave anterior en `APP_PREVIOUS_KEYS` (separadas por coma si son varias). La app verifica las huellas con la clave actual y después con cada clave anterior, así que las liquidaciones cerradas se siguen leyendo; lo que se guarda desde entonces lleva la clave nueva. Si quitas de `APP_PREVIOUS_KEYS` una clave con la que hay versiones guardadas, esas versiones dejan de leerse.
 
+## Bitácora
+
+Cada evento del módulo es una fila de `comisiones_bitacora` (la escribe solo `AuditTrail`) y una entrada de la auditoría de Core. La bitácora solo agrega:
+
+- `AuditRecord` lanza `LogicException` si intentas guardar cambios en un evento o borrarlo, por cualquier camino del modelo: `save()`, `update()`, `saveQuietly()`, `delete()`, `deleteQuietly()`, `forceDelete()`, `destroy()` y también dentro de `withoutEvents()`.
+- Las escrituras del constructor de consultas no pasan por el modelo: nunca uses `update()` ni `delete()` masivos sobre `AuditRecord::query()` o `DB::table('comisiones_bitacora')`.
+- La llave foránea de `user_id` es `restrictOnDelete()`: borrar un usuario nunca cambia la bitácora. Los usuarios se borran de forma lógica; el borrado definitivo (`forceDelete()`) de un usuario con eventos falla con una `QueryException`.
+
 ## Correo al aprobar
 
 Cuando el aprobador aprueba una liquidación (`POST /comisiones/periodos/{periodo}/aprobar`), sale un correo con el consolidado de la versión aprobada. Se envía **en segundo plano**: la aprobación pone en la cola un trabajo `SendApprovalMail` y el aprobador no espera el PDF ni a Microsoft Graph.

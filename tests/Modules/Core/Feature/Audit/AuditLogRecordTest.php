@@ -1,7 +1,10 @@
 <?php
 
+use App\Models\User;
 use App\Modules\Core\Contracts\AuditLogger;
 use App\Modules\Core\Infrastructure\Persistence\AuditLogRecord;
+use Illuminate\Database\QueryException;
+use Illuminate\Support\Facades\Schema;
 
 beforeEach(function () {
     app(AuditLogger::class)->record('core.user.deactivated', 'user', 7, ['is_active' => ['old' => true, 'new' => false]]);
@@ -27,3 +30,29 @@ it('refuses to delete an entry and keeps the row', function (string $method) {
 
     expect(AuditLogRecord::query()->whereKey($this->entry->id)->exists())->toBeTrue();
 })->with(['delete', 'deleteQuietly', 'forceDelete']);
+
+it('refuses to remove for good a user who has entries, and the entry still names them', function () {
+    $this->actingAs($user = User::factory()->create());
+    app(AuditLogger::class)->record('core.user.updated', 'user', $user->id);
+
+    expect(fn () => $user->forceDelete())->toThrow(QueryException::class);
+
+    expect(User::withTrashed()->whereKey($user->id)->exists())->toBeTrue()
+        ->and(AuditLogRecord::query()->where('action', 'core.user.updated')->sole()->user_id)->toBe($user->id);
+});
+
+it('still removes for good a user without entries', function () {
+    $user = User::factory()->create();
+
+    $user->forceDelete();
+
+    expect(User::withTrashed()->whereKey($user->id)->exists())->toBeFalse();
+});
+
+it('keeps the user link restricted and indexed', function () {
+    $foreignKey = collect(Schema::getForeignKeys('audit_logs'))->sole(fn (array $key) => $key['columns'] === ['user_id']);
+
+    expect($foreignKey['foreign_table'])->toBe('users')
+        ->and(strtolower($foreignKey['on_delete']))->toBe('restrict')
+        ->and(Schema::hasIndex('audit_logs', ['user_id']))->toBeTrue();
+});
