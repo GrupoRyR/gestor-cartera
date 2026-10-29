@@ -197,7 +197,8 @@ class FirmaTest(unittest.TestCase):
 
 
 class TransporteFalso:
-    """Devuelve respuestas en orden; una excepcion en la cola se lanza."""
+    """Devuelve respuestas en orden, (status, datos) o (status, datos,
+    cabeceras); una excepcion en la cola se lanza."""
 
     def __init__(self, *respuestas):
         self.respuestas = list(respuestas)
@@ -210,8 +211,9 @@ class TransporteFalso:
         respuesta = self.respuestas.pop(0)
         if isinstance(respuesta, Exception):
             raise respuesta
-        status, datos = respuesta
-        return status, json.dumps(datos).encode("utf-8")
+        status, datos, *resto = respuesta
+        cabeceras_respuesta = resto[0] if resto else {}
+        return status, json.dumps(datos).encode("utf-8"), cabeceras_respuesta
 
 
 class Reloj:
@@ -368,6 +370,51 @@ class PublicarTest(unittest.TestCase):
         self.assertEqual(error.exception.status, 500)
         self.assertIn("HTTP 500: Boom", str(error.exception))
 
+    def test_429_espera_lo_que_dice_retry_after_y_reintenta_con_firma_nueva(self):
+        transporte = TransporteFalso(
+            (429, {"message": "Too Many Attempts."}, {"retry-after": "30"}), (201, {})
+        )
+        self._publicar(transporte)
+        self.assertEqual(self.esperas, [30])
+        primera, segunda = transporte.llamadas
+        self.assertEqual(primera["cuerpo"], segunda["cuerpo"])
+        self.assertNotEqual(
+            primera["cabeceras"]["X-Ingesta-Signature"],
+            segunda["cabeceras"]["X-Ingesta-Signature"],
+        )
+        self._verificar_firma(segunda)
+
+    def test_429_sin_retry_after_valido_espera_60_s(self):
+        for cabeceras in ({}, {"retry-after": "mañana"}, {"retry-after": "-5"}):
+            with self.subTest(cabeceras=cabeceras):
+                transporte = TransporteFalso((429, {}, cabeceras), (201, {}))
+                self._publicar(transporte)
+                self.assertEqual(self.esperas, [60])
+
+    def test_429_persistente_falla_tras_3_reintentos(self):
+        transporte = TransporteFalso(*[(429, {}, {"retry-after": "5"})] * 4)
+        with self.assertRaises(HttpSinkError) as error:
+            self._publicar(transporte)
+        self.assertEqual(len(transporte.llamadas), 4)
+        self.assertEqual(self.esperas, [5, 5, 5])
+        self.assertEqual(error.exception.status, 429)
+        self.assertIn("HTTP 429", str(error.exception))
+
+    def test_429_no_espera_mas_de_10_minutos_en_total(self):
+        transporte = TransporteFalso(*[(429, {}, {"retry-after": "400"})] * 2)
+        with self.assertRaises(HttpSinkError) as error:
+            self._publicar(transporte)
+        self.assertEqual(len(transporte.llamadas), 2)
+        self.assertEqual(self.esperas, [400])
+        self.assertEqual(error.exception.status, 429)
+
+    def test_429_y_5xx_llevan_cuentas_separadas(self):
+        transporte = TransporteFalso(
+            (429, {}, {"retry-after": "1"}), (503, {}), (429, {}, {"retry-after": "1"}), (201, {})
+        )
+        self._publicar(transporte)
+        self.assertEqual(self.esperas, [1, 2, 1])
+
 
 class _Manejador(http.server.BaseHTTPRequestHandler):
     """Servidor local de prueba: responde segun la ruta pedida."""
@@ -390,6 +437,8 @@ class _Manejador(http.server.BaseHTTPRequestHandler):
         contenido = json.dumps({"message": "ok" if status == 201 else "Malo."}).encode()
         self.send_response(status)
         self.send_header("Content-Type", "application/json")
+        if status == 422:
+            self.send_header("Retry-After", "17")
         self.send_header("Content-Length", str(len(contenido)))
         self.end_headers()
         self.wfile.write(contenido)
@@ -414,21 +463,23 @@ class EnviarHttpLocalTest(unittest.TestCase):
         cls.servidor.server_close()
 
     def test_devuelve_codigo_y_cuerpo(self):
-        status, cuerpo = http_sink.enviar_http(
+        status, cuerpo, cabeceras = http_sink.enviar_http(
             f"{self.base}/api/ingesta/cartera", b"hola", {"X-Ingesta-Signature": "s"}, 5
         )
         self.assertEqual(status, 201)
+        self.assertEqual(cabeceras["content-type"], "application/json")
         self.assertEqual(json.loads(cuerpo)["message"], "ok")
         self.assertEqual(_Manejador.recibido["cuerpo"], b"hola")
         self.assertEqual(_Manejador.recibido["firma"], "s")
 
     def test_un_error_http_no_lanza_y_trae_el_cuerpo(self):
-        status, cuerpo = http_sink.enviar_http(f"{self.base}/malo", b"{}", {}, 5)
+        status, cuerpo, cabeceras = http_sink.enviar_http(f"{self.base}/malo", b"{}", {}, 5)
         self.assertEqual(status, 422)
+        self.assertEqual(cabeceras["retry-after"], "17")
         self.assertEqual(json.loads(cuerpo)["message"], "Malo.")
 
     def test_no_sigue_redirecciones(self):
-        status, _ = http_sink.enviar_http(f"{self.base}/redirige", b"{}", {}, 5)
+        status, _, _ = http_sink.enviar_http(f"{self.base}/redirige", b"{}", {}, 5)
         self.assertEqual(status, 302)
 
     def test_puerto_cerrado_es_error_de_conexion(self):

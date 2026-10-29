@@ -4,7 +4,7 @@ Recibe los lotes del robot de SAP (`etl/`), los valida contra el esquema de cada
 
 ## Endpoint del robot
 
-`POST /api/ingesta/{lote}` (ruta `ingesta.api.lotes.store`), donde `{lote}` es un valor de `Dataset`: `cartera`, `asesores`, `contactos`, `ventas`, `recaudos`, `cruces`, `maestro_clientes` o `maestro_vendedores`. Otro valor responde 404. Límite (`throttle:ingesta-robot`): 60 peticiones por minuto por IP y 120 por minuto entre todas las IP; pasado cualquiera de los dos responde 429.
+`POST /api/ingesta/{lote}` (ruta `ingesta.api.lotes.store`), donde `{lote}` es un valor de `Dataset`: `cartera`, `asesores`, `contactos`, `ventas`, `recaudos`, `cruces`, `maestro_clientes` o `maestro_vendedores`. Otro valor responde 404. Límite (`throttle:ingesta-robot`): 60 peticiones por minuto por IP y 120 por minuto entre todas las IP; pasado cualquiera de los dos responde 429. El robot reintenta un 429 esperando lo que diga `Retry-After` (60 s si no viene), hasta 3 veces y 10 minutos de espera en total; después el lote queda fallido y se avisa como cualquier otro fallo.
 
 ### Encabezados
 
