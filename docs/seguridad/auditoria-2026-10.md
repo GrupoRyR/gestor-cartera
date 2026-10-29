@@ -194,6 +194,10 @@ Levanté la app en `127.0.0.1:8123` con los seeders de demostración (SQLite tem
 - **Dónde:** `app/Modules/Core/Application/Team/TeamDirectory.php:166-169`.
 - **Cómo se explotaría:** no es inyección SQL (va con parámetros); un administrador que busca `%` ve a todos. Impacto mínimo.
 - **Corrección:** reutilizar el escape de `ClientListing`.
+- **Estado: corregido** en el PR 13 de la Fase 2.
+  - El escape de `ClientListing` pasó a `Core/Infrastructure/Persistence/LikePattern.php` (`LIKE ? ESCAPE '!'`, porque SQLite no tiene carácter de escape por defecto). `ClientListing` lo usa sin cambiar lo que hace.
+  - La búsqueda de Equipo usa el mismo patrón en el nombre y en el correo; el correo se normaliza (`User::normalizeEmail`) antes de escaparlo. Buscar `%` o `_` solo encuentra a quien los tiene.
+  - Las otras búsquedas con `LIKE` no tienen el problema: Bancos (`MovementSearch`) cambia `%` y `_` por espacios, y Cobro (`InboundLinker`) usa el `LIKE` solo para acotar candidatos y luego compara el correo exacto.
 
 ### S-36 · Baja · La huella de la liquidación es un SHA-256 sin llave
 

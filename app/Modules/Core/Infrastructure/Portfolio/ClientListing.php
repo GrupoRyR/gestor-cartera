@@ -5,6 +5,7 @@ namespace App\Modules\Core\Infrastructure\Portfolio;
 use App\Modules\Core\Contracts\Data\ClientQuery;
 use App\Modules\Core\Contracts\Enums\ClientStatus;
 use App\Modules\Core\Infrastructure\Persistence\ClientRecord;
+use App\Modules\Core\Infrastructure\Persistence\LikePattern;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 
@@ -16,11 +17,6 @@ use Illuminate\Database\Eloquent\Model;
  */
 final class ClientListing
 {
-    /**
-     * Escape character of the LIKE patterns of the search.
-     */
-    private const string LIKE_ESCAPE = '!';
-
     /**
      * Narrows $clients to the ones that match every filter of $query:
      *
@@ -38,11 +34,11 @@ final class ClientListing
         $search = trim((string) $query->search);
 
         if ($search !== '') {
-            $pattern = '%'.self::escapeLike(mb_strtolower($search)).'%';
+            $pattern = LikePattern::contains(mb_strtolower($search));
 
             $clients->where(function (Builder $matches) use ($pattern): void {
                 foreach (['clients.name', 'clients.code', 'clients.tax_id'] as $column) {
-                    $matches->orWhereRaw("LOWER({$column}) LIKE ? ESCAPE '".self::LIKE_ESCAPE."'", [$pattern]);
+                    $matches->orWhereRaw(LikePattern::sql("LOWER({$column})"), [$pattern]);
                 }
             });
         }
@@ -121,14 +117,5 @@ final class ClientListing
         }
 
         return $query->orderByRaw("CASE {$column}{$cases} END ".($direction === 'desc' ? 'desc' : 'asc'), $values);
-    }
-
-    private static function escapeLike(string $value): string
-    {
-        return str_replace(
-            [self::LIKE_ESCAPE, '%', '_'],
-            [self::LIKE_ESCAPE.self::LIKE_ESCAPE, self::LIKE_ESCAPE.'%', self::LIKE_ESCAPE.'_'],
-            $value,
-        );
     }
 }

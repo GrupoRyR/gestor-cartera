@@ -80,6 +80,22 @@ it('searches by name or e-mail within the tab', function (string $tab, string $s
     'a name in another tab' => ['activos', 'Pendiente', []],
 ]);
 
+it('searches % and _ as themselves, not as wildcards', function (string $search, array $names) {
+    TeamUsers::member('Rosa 50% Ventas', 'rosa_ventas@segurex.com', Role::PortfolioAnalyst, [CompanyCode::SGX]);
+
+    $response = $this->actingAs($this->admin)
+        ->get(route('core.equipo.index', ['buscar' => $search]))
+        ->assertOk();
+
+    expect(TeamUsers::listedNames($response))->toBe($names);
+})->with([
+    'a percent sign' => ['%', ['Rosa 50% Ventas']],
+    'an underscore' => ['_', ['Rosa 50% Ventas']],
+    'an underscore between letters' => ['a_a', []],
+    'the escape character' => ['!', []],
+    'an e-mail in capitals, normalized before escaping' => ['ROSA_V', ['Rosa 50% Ventas']],
+]);
+
 it('counts the matches of the search in every tab', function () {
     $response = $this->actingAs($this->admin)->get(route('core.equipo.index', ['buscar' => 'derivados']));
 
