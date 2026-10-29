@@ -28,7 +28,9 @@ Necesitas al menos un destino: Laravel completo (`INGESTA_URL`, `INGESTA_KEY_ID`
 - `POST {INGESTA_URL}/api/ingesta/{lote}`, con el cuerpo JSON por columnas y comprimido con gzip.
 - La firma es HMAC-SHA256 de la hora, la ruta y el hash del cuerpo exacto que se envía. Laravel rechaza una firma vencida (más de 5 minutos de diferencia), así que el reloj de este equipo debe estar en hora.
 - El `batch_id` sale del contenido: si el robot reenvía la misma extracción, Laravel responde «duplicado» y no la carga dos veces.
-- Reintenta hasta 3 veces (a los 2, 5 y 10 segundos) solo si no hubo respuesta o si Laravel respondió 5xx. Un 4xx (firma, lote desconocido, cuerpo inválido) no se reintenta: el lote queda fallido con el mensaje de Laravel.
+- Reintenta hasta 3 veces (a los 2, 5 y 10 segundos) si no hubo respuesta o si Laravel respondió 5xx.
+- Un 429 (Laravel limitó las peticiones) se reintenta aparte: espera lo que diga `Retry-After` (60 segundos si no viene), hasta 3 veces y 10 minutos de espera en total. Después el lote queda fallido y se avisa como cualquier otro fallo.
+- El resto de 4xx (firma, lote desconocido, cuerpo inválido) no se reintenta: el lote queda fallido con el mensaje de Laravel.
 - La fecha de corte es el día en Colombia (UTC−5) en que empieza la extracción de HANA: si la corrida extrae antes de medianoche y publica después, el lote conserva el día de la extracción.
 
 ## Configuración
