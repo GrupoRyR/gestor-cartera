@@ -5,6 +5,7 @@ namespace App\Modules\Core\Application\Team;
 use App\Models\User;
 use App\Modules\Core\Contracts\Enums\CompanyCode;
 use App\Modules\Core\Infrastructure\Persistence\AdvisorRecord;
+use App\Modules\Core\Infrastructure\Persistence\LikePattern;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Database\ConnectionInterface;
 use Illuminate\Database\Eloquent\Builder;
@@ -164,9 +165,11 @@ final class TeamDirectory
         };
 
         if ($search !== '') {
+            // % and _ match themselves (audit S-35); the e-mail is normalized
+            // before it is escaped.
             $query->where(fn (Builder $matches) => $matches
-                ->where('name', 'like', "%{$search}%")
-                ->orWhere('email', 'like', '%'.User::normalizeEmail($search).'%'));
+                ->whereRaw(LikePattern::sql('name'), [LikePattern::contains($search)])
+                ->orWhereRaw(LikePattern::sql('email'), [LikePattern::contains(User::normalizeEmail($search))]));
         }
 
         return $query;
