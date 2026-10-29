@@ -39,10 +39,11 @@ Copia `etl/.env.example` como `etl/.env` y complétalo. El `.env` nunca se sube 
 |---|---|
 | `SOPHOS_*` | Usuario y conexión de la VPN Sophos. |
 | `HANA_*` | Servidor, usuario y esquema de SAP HANA. La conexión va cifrada por defecto; ver «Conexión cifrada a HANA». |
+| `HANA_USER_<EMPRESA>`, `HANA_PASSWORD_<EMPRESA>` | Usuario y contraseña de HANA de cada empresa (`HANA_USER_SGX`, `HANA_PASSWORD_SDC`...): en SAP cada empresa tiene el suyo y ninguno entra a la otra. Si una empresa no los define, usa `HANA_USER` / `HANA_PASSWORD`. Valen también con una sola empresa (la de `INGESTA_EMPRESA`). |
 | `INGESTA_URL` | Raíz del gestor de cartera, sin `/api` (por ejemplo `https://cartera.segurex.com`). Debe ser `https://`; `http://` solo se acepta para un Laravel local. |
 | `INGESTA_KEY_ID`, `INGESTA_SECRET` | Par de la llave HMAC. Debe existir en `INGESTA_HMAC_KEYS` del `.env` de Laravel como `id:secreto`. El secreto debe tener al menos 32 bytes: Laravel ignora uno más corto y rechaza las firmas hechas con él. |
 | `INGESTA_EMPRESA` | `SGX` (Segurex, por defecto) o `SDC` (Soluciones y Derivados). |
-| `ETL_EMPRESAS` | Opcional y temporal. Empresas de una misma corrida, en orden (por ejemplo `SGX,SDC`); cada una necesita `HANA_SCHEMA_<EMPRESA>`. Sin ella corre solo `INGESTA_EMPRESA` con `HANA_SCHEMA`, como siempre. Ver «Dos empresas en una corrida». |
+| `ETL_EMPRESAS` | Opcional y temporal. Empresas de una misma corrida, en orden (por ejemplo `SGX,SDC`); cada una necesita `HANA_SCHEMA_<EMPRESA>` y su usuario y contraseña (`HANA_USER_<EMPRESA>` / `HANA_PASSWORD_<EMPRESA>`, o `HANA_USER` / `HANA_PASSWORD`). Sin ella corre solo `INGESTA_EMPRESA` con `HANA_SCHEMA_<INGESTA_EMPRESA>` o, si no existe, `HANA_SCHEMA`, como siempre. Ver «Dos empresas en una corrida». |
 | `HANA_SCHEMA_SGX`, `HANA_SCHEMA_SDC` | Esquema de SAP B1 de cada empresa cuando se usa `ETL_EMPRESAS` (`SEGUREX` y `HBT_SDERIVADOS`). |
 | `INGESTA_TIMEOUT` | Segundos de espera por envío; por defecto 120. |
 | `INGESTA_GZIP` | Comprimir el cuerpo; por defecto `true`. |
@@ -90,6 +91,7 @@ Cada lote es una consulta de `etl/queries` y su contrato de columnas en `etl/esq
 
 **Dos empresas en una corrida.** Con `ETL_EMPRESAS=SGX,SDC` el robot conecta la VPN una sola vez y, dentro, extrae primero Segurex (`HANA_SCHEMA_SGX`) y luego Derivados (`HANA_SCHEMA_SDC`), cada una con todos sus lotes y con sus propias consultas por empresa. Luego publica cada empresa en Ingesta con su código. Es temporal, hasta que lo reemplace el robot de Bases SAP.
 
+- Cada empresa abre su propia conexión a HANA con su usuario, su contraseña y su esquema. Si una no logra conectarse (por ejemplo, la contraseña vencida), la otra se publica igual.
 - Si una empresa falla (HANA, validación, contrato o Laravel), la otra se publica igual; el log y el aviso por correo dicen cuál falló (`SDC/cartera`) y la corrida termina con código 1.
 - Los CSV de `etl/out` llevan la empresa en el nombre (`SGX_cartera_…csv`, `SDC_cartera_…csv`); con una sola empresa se llaman como siempre.
 - El archivo de estado trae un bloque por empresa en `empresas`.

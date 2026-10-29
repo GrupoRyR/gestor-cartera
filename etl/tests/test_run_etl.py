@@ -48,8 +48,11 @@ def _resultado(nombre: str, filas: int = 2):
 class Escenario:
     def __init__(self, resultados, lotes, *, laravel=True, supabase=False,
                  fallos_laravel=(), argv=(), empresa="SGX", empresas=None,
-                 vpn_falla=False):
+                 vpn_falla=False, conexion_falla=()):
         self.vpn_falla = vpn_falla
+        # Esquemas cuya conexion HANA rechaza (por ejemplo, contrasena vencida).
+        self.conexion_falla = set(conexion_falla)
+        self.credenciales: list[tuple[str, str, str]] = []
         self.resultados = resultados
         self.empresa = empresa
         # empresas: ((codigo, esquema), ...) como ETL_EMPRESAS con dos o mas.
@@ -73,7 +76,10 @@ class Escenario:
                 empresa=empresa,
             ),
             lotes=tuple(lotes),
-            empresas=tuple(EmpresaConfig(*e) for e in empresas or ()),
+            # Cada empresa entra a HANA con su propio usuario.
+            empresas=tuple(
+                EmpresaConfig(*e, f"usuario_{e[0]}", f"clave_{e[0]}") for e in empresas or ()
+            ),
         )
         self.argv = ["run_etl.py", *argv]
         self.hoy = lambda: date(2026, 10, 16)
@@ -97,6 +103,9 @@ class Escenario:
     @contextmanager
     def _conectar(self, cfg):
         self.esquemas_conectados.append(cfg.esquema)
+        self.credenciales.append((cfg.usuario, cfg.password, cfg.esquema))
+        if cfg.esquema in self.conexion_falla:
+            raise hana.HanaError(f"HANA rechazo el usuario {cfg.usuario}")
         yield "conexion"
 
     def _leer_query(self, nombre, empresa):
@@ -374,6 +383,36 @@ class DosEmpresasTest(unittest.TestCase):
             [("cartera.sql", "SGX"), ("asesores.sql", "SGX"),
              ("cartera.sql", "SDC"), ("asesores.sql", "SDC")],
         )
+
+    def test_cada_empresa_abre_su_conexion_con_su_usuario_y_su_contrasena(self):
+        escenario = self._escenario()
+        escenario.ejecutar()
+        self.assertEqual(
+            escenario.credenciales,
+            [("usuario_SGX", "clave_SGX", "SEGUREX"),
+             ("usuario_SDC", "clave_SDC", "HBT_SDERIVADOS")],
+        )
+
+    def test_si_derivados_no_logra_conectarse_segurex_igual_se_publica(self):
+        escenario = self._escenario(conexion_falla={"HBT_SDERIVADOS"})
+        self.assertEqual(escenario.ejecutar(), 1)
+        self.assertIn("laravel:SGX:cartera", escenario.eventos)
+        self.assertIn("laravel:SGX:asesores", escenario.eventos)
+        self.assertFalse([e for e in escenario.eventos if e.startswith("laravel:SDC")])
+        (aviso,) = escenario.avisos
+        self.assertIn("SDC", aviso[0])
+        self.assertNotIn("SGX", aviso[1])
+        empresas = escenario.estados[-1]["empresas"]
+        self.assertEqual(empresas["SGX"]["estado"], "OK")
+        self.assertEqual(empresas["SDC"]["estado"], "ERROR")
+
+    def test_si_segurex_no_logra_conectarse_derivados_igual_se_publica(self):
+        escenario = self._escenario(conexion_falla={"SEGUREX"})
+        self.assertEqual(escenario.ejecutar(), 1)
+        self.assertIn("laravel:SDC:cartera", escenario.eventos)
+        self.assertFalse([e for e in escenario.eventos if e.startswith("laravel:SGX")])
+        (aviso,) = escenario.avisos
+        self.assertIn("SGX", aviso[0])
 
     def test_si_falla_segurex_derivados_igual_se_publica(self):
         resultados = {**_base("SGX", "SDC"),

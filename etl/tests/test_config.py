@@ -22,7 +22,9 @@ def _config(supabase_url: str = "", empresas=(), **ingesta) -> Config:
         alertas=AlertaConfig("", 587, "", ""),
         ingesta=IngestaConfig(**{"url": "", "key_id": "", "secreto": "", **ingesta}),
         lotes=("cartera", "asesores"),
-        empresas=tuple(EmpresaConfig(*e) for e in empresas),
+        # (codigo, esquema[, usuario, contrasena]); sin ellos, credenciales validas.
+        empresas=tuple(EmpresaConfig(*e) if len(e) > 2 else EmpresaConfig(*e, "u", "p")
+                       for e in empresas),
     )
 
 
@@ -54,10 +56,12 @@ class ParsearLotesTest(unittest.TestCase):
 class EmpresasTest(unittest.TestCase):
     def test_sin_configurar_corre_solo_la_empresa_de_hoy(self):
         self.assertEqual(
-            _config().empresas_efectivas, (EmpresaConfig("SGX", "SEGUREX"),)
+            _config().empresas_efectivas,
+            (EmpresaConfig("SGX", "SEGUREX", "usuario", "clave"),),
         )
         self.assertEqual(
-            _config(empresa="SDC").empresas_efectivas, (EmpresaConfig("SDC", "SEGUREX"),)
+            _config(empresa="SDC").empresas_efectivas,
+            (EmpresaConfig("SDC", "SEGUREX", "usuario", "clave"),),
         )
 
     def test_las_empresas_configuradas_salen_en_su_orden(self):
@@ -66,7 +70,7 @@ class EmpresasTest(unittest.TestCase):
             "HANA_SCHEMA_SGX": "SEGUREX",
             "HANA_SCHEMA_SDC": "HBT_SDERIVADOS",
         }
-        with mock.patch.dict(os.environ, entorno):
+        with mock.patch.dict(os.environ, entorno, clear=True):
             self.assertEqual(
                 config.leer_empresas(),
                 (EmpresaConfig("SGX", "SEGUREX"), EmpresaConfig("SDC", "HBT_SDERIVADOS")),
@@ -101,6 +105,107 @@ class EmpresasTest(unittest.TestCase):
         _config(empresas=(("SGX", ""), ("SDC", ""))).validar(
             requiere_destino=False, requiere_esquema=False
         )
+
+
+class CredencialesPorEmpresaTest(unittest.TestCase):
+    """HANA_USER_<EMPRESA> / HANA_PASSWORD_<EMPRESA> con respaldo a las sueltas."""
+
+    def _entorno(self, **entorno: str):
+        return mock.patch.dict(os.environ, entorno, clear=True)
+
+    def test_cada_empresa_lee_su_usuario_y_su_contrasena(self):
+        with self._entorno(
+            ETL_EMPRESAS="SGX,SDC",
+            HANA_USER_SGX="u_sgx", HANA_PASSWORD_SGX="p_sgx", HANA_SCHEMA_SGX="SEGUREX",
+            HANA_USER_SDC="u_sdc", HANA_PASSWORD_SDC="p_sdc", HANA_SCHEMA_SDC="HBT_SDERIVADOS",
+        ):
+            self.assertEqual(
+                config.leer_empresas(),
+                (EmpresaConfig("SGX", "SEGUREX", "u_sgx", "p_sgx"),
+                 EmpresaConfig("SDC", "HBT_SDERIVADOS", "u_sdc", "p_sdc")),
+            )
+
+    def test_sin_las_de_la_empresa_usa_hana_user_y_hana_password(self):
+        with self._entorno(
+            ETL_EMPRESAS="SGX,SDC", HANA_USER="comun", HANA_PASSWORD="clave",
+            HANA_USER_SDC="u_sdc", HANA_PASSWORD_SDC="p_sdc",
+            HANA_SCHEMA_SGX="SEGUREX", HANA_SCHEMA_SDC="HBT_SDERIVADOS",
+        ):
+            sgx, sdc = config.leer_empresas()
+        self.assertEqual((sgx.usuario, sgx.password), ("comun", "clave"))
+        self.assertEqual((sdc.usuario, sdc.password), ("u_sdc", "p_sdc"))
+
+    def test_las_credenciales_no_se_mezclan_entre_empresas(self):
+        with self._entorno(
+            ETL_EMPRESAS="SGX,SDC", HANA_USER_SGX="u_sgx", HANA_PASSWORD_SGX="p_sgx",
+            HANA_SCHEMA_SGX="SEGUREX", HANA_SCHEMA_SDC="HBT_SDERIVADOS",
+        ):
+            _, sdc = config.leer_empresas()
+        self.assertEqual((sdc.usuario, sdc.password), ("", ""))
+
+    def test_una_sola_empresa_lee_las_de_ingesta_empresa(self):
+        with self._entorno(
+            HANA_USER_SDC="u_sdc", HANA_PASSWORD_SDC="p_sdc", HANA_SCHEMA_SDC="HBT_SDERIVADOS",
+            HANA_USER="otro", HANA_PASSWORD="otra", HANA_SCHEMA="SEGUREX",
+        ):
+            hana = config.leer_hana("SDC")
+        self.assertEqual(
+            (hana.usuario, hana.password, hana.esquema), ("u_sdc", "p_sdc", "HBT_SDERIVADOS")
+        )
+
+    def test_una_sola_empresa_cae_a_las_sueltas(self):
+        with self._entorno(HANA_USER="u", HANA_PASSWORD="p", HANA_SCHEMA="SEGUREX"):
+            hana = config.leer_hana("SGX")
+        self.assertEqual((hana.usuario, hana.password, hana.esquema), ("u", "p", "SEGUREX"))
+
+    def test_la_empresa_efectiva_de_una_sola_lleva_sus_credenciales(self):
+        cfg = _config()
+        self.assertEqual(
+            cfg.empresas_efectivas, (EmpresaConfig("SGX", "SEGUREX", "usuario", "clave"),)
+        )
+
+    def test_faltan_el_usuario_y_la_contrasena_de_una_empresa(self):
+        with self.assertRaises(ConfigError) as error:
+            _config(
+                **LARAVEL,
+                empresas=(("SGX", "SEGUREX", "u", "p"), ("SDC", "HBT_SDERIVADOS", "", "")),
+            ).validar()
+        mensaje = str(error.exception)
+        self.assertIn("HANA_USER_SDC", mensaje)
+        self.assertIn("HANA_PASSWORD_SDC", mensaje)
+        self.assertNotIn("HANA_USER_SGX", mensaje)
+        self.assertNotIn("HANA_PASSWORD_SGX", mensaje)
+
+    def test_nombra_la_variable_exacta_de_cada_faltante(self):
+        with self.assertRaises(ConfigError) as error:
+            _config(
+                **LARAVEL, empresas=(("SGX", "", "", "p"), ("SDC", "HBT_SDERIVADOS", "u", "")),
+            ).validar()
+        mensaje = str(error.exception)
+        for esperada in ("HANA_USER_SGX", "HANA_SCHEMA_SGX", "HANA_PASSWORD_SDC"):
+            self.assertIn(esperada, mensaje)
+        for sobrante in ("HANA_PASSWORD_SGX", "HANA_USER_SDC", "HANA_SCHEMA_SDC"):
+            self.assertNotIn(sobrante, mensaje)
+
+    def test_una_sola_empresa_sin_credenciales_nombra_las_dos_variables(self):
+        cfg = Config(**{
+            **_config(**LARAVEL, empresa="SDC").__dict__,
+            "hana": HanaConfig("h", 30015, "", "", "", 600),
+        })
+        with self.assertRaises(ConfigError) as error:
+            cfg.validar()
+        mensaje = str(error.exception)
+        for esperada in ("HANA_USER_SDC", "HANA_PASSWORD_SDC", "HANA_SCHEMA_SDC o HANA_SCHEMA"):
+            self.assertIn(esperada, mensaje)
+
+    def test_el_mensaje_no_incluye_las_contrasenas(self):
+        with self.assertRaises(ConfigError) as error:
+            _config(
+                **{**LARAVEL, "url": "ftp://x"},
+                empresas=(("SGX", "SEGUREX", "u", "clave_sgx"), ("SDC", "", "u", "clave_sdc")),
+            ).validar()
+        self.assertNotIn("clave_sgx", str(error.exception))
+        self.assertNotIn("clave_sdc", str(error.exception))
 
 
 class ValidarTest(unittest.TestCase):

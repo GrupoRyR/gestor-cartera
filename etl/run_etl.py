@@ -308,10 +308,12 @@ def main() -> int:
 
 # ------------------------------------------------------------------ etapas
 def _cfg_empresa(cfg, emp: EmpresaConfig):
-    """La configuracion con el esquema HANA y la empresa de Ingesta de emp."""
+    """La configuracion con el usuario y el esquema HANA y la empresa de Ingesta de emp."""
     return replace(
         cfg,
-        hana=replace(cfg.hana, esquema=emp.esquema),
+        hana=replace(
+            cfg.hana, usuario=emp.usuario, password=emp.password, esquema=emp.esquema
+        ),
         ingesta=replace(cfg.ingesta, empresa=emp.codigo),
     )
 
