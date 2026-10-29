@@ -86,7 +86,7 @@ it('lets an explicit SESSION_SECURE_COOKIE win, so deploy/check-env.sh must catc
     expect($config['secure'])->toBeFalse();
 });
 
-it('logs from info in production and from debug elsewhere when LOG_LEVEL is not set', function (string $environment, string $level) {
+it('logs from info in production and from debug elsewhere when LOG_LEVEL is not set', function (?string $environment, string $level) {
     $channels = baseConfigWith('logging', ['APP_ENV' => $environment, 'LOG_LEVEL' => null])['channels'];
 
     foreach (['single', 'daily', 'papertrail', 'stderr', 'syslog', 'errorlog'] as $channel) {
@@ -96,6 +96,7 @@ it('logs from info in production and from debug elsewhere when LOG_LEVEL is not 
     expect($channels['slack']['level'])->toBe('critical');
 })->with([
     'production' => ['production', 'info'],
+    'APP_ENV not set, which config/app.php reads as production' => [null, 'info'],
     'local' => ['local', 'debug'],
 ]);
 

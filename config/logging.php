@@ -7,8 +7,9 @@ use Monolog\Processor\PsrLogMessageProcessor;
 
 // Without LOG_LEVEL, production logs from info (operation notices such as an
 // accepted Ingesta batch stay, debug detail does not; audit S-29) and every
-// other environment from debug. An explicit LOG_LEVEL always wins.
-$defaultLevel = env('APP_ENV') === 'production' ? 'info' : 'debug';
+// other environment from debug. An explicit LOG_LEVEL always wins. An unset
+// APP_ENV is production, as config/app.php reads it.
+$defaultLevel = env('APP_ENV', 'production') === 'production' ? 'info' : 'debug';
 
 return [
 
