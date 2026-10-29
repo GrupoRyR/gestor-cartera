@@ -104,7 +104,7 @@ it('refuses more rows than the configured maximum', function () {
 });
 
 it('ships a row limit in the module configuration', function () {
-    expect(config('ingesta.max_rows'))->toBe(200000);
+    expect(config('ingesta.max_rows'))->toBe(20000);
 });
 
 it('reports missing and unknown columns once per row', function () {

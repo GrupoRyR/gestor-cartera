@@ -37,6 +37,12 @@ log = obtener("http")
 USER_AGENT = "gestor-cartera-robot/1"
 # Esperas entre reintentos (segundos): 3 reintentos tras el primer intento.
 ESPERAS = (2, 5, 10)
+# Un 429 (limite de peticiones de Laravel) se reintenta aparte: espera lo que
+# diga Retry-After (60 s si no viene o no es un numero de segundos), hasta 3
+# veces y sin pasar de 10 minutos de espera en total.
+REINTENTOS_429 = 3
+ESPERA_429 = 60
+ESPERA_429_TOTAL = 600
 # Maximo de errores de validacion (422) que se copian al log y al aviso.
 MAX_ERRORES = 10
 
@@ -47,8 +53,9 @@ _DECIMALES = {
     TASA: (Decimal("0.000001"), 13),    # ^-?\d{1,13}(\.\d{1,6})?$
 }
 
-# Respuesta del transporte: (codigo HTTP, cuerpo en bytes).
-Transporte = Callable[[str, bytes, dict[str, str], int], tuple[int, bytes]]
+# Respuesta del transporte: (codigo HTTP, cuerpo en bytes, cabeceras con el
+# nombre en minusculas).
+Transporte = Callable[[str, bytes, dict[str, str], int], tuple[int, bytes, dict[str, str]]]
 
 
 class HttpSinkError(RuntimeError):
@@ -215,15 +222,15 @@ _ABRIDOR = urllib.request.build_opener(_SinRedirecciones)
 
 def enviar_http(
     url: str, cuerpo: bytes, cabeceras: dict[str, str], timeout: int
-) -> tuple[int, bytes]:
-    """POST real. Devuelve (codigo, cuerpo) para cualquier respuesta HTTP y
-    lanza ErrorConexion cuando no hubo respuesta."""
+) -> tuple[int, bytes, dict[str, str]]:
+    """POST real. Devuelve (codigo, cuerpo, cabeceras) para cualquier
+    respuesta HTTP y lanza ErrorConexion cuando no hubo respuesta."""
     peticion = urllib.request.Request(
         url, data=cuerpo, headers=cabeceras, method="POST"
     )
     try:
         with _ABRIDOR.open(peticion, timeout=timeout) as respuesta:
-            return respuesta.status, respuesta.read()
+            return respuesta.status, respuesta.read(), _cabeceras(respuesta.headers)
     except urllib.error.HTTPError as exc:
         try:
             contenido = exc.read()
@@ -231,13 +238,23 @@ def enviar_http(
             contenido = b""
         finally:
             exc.close()
-        return exc.code, contenido
+        return exc.code, contenido, _cabeceras(exc.headers)
     except (urllib.error.URLError, http.client.HTTPException, OSError) as exc:
         motivo = getattr(exc, "reason", None) or exc
         raise ErrorConexion(f"{type(exc).__name__}: {motivo}") from exc
 
 
+def _cabeceras(mensaje: Any) -> dict[str, str]:
+    return {nombre.lower(): valor for nombre, valor in (mensaje or {}).items()}
+
+
 # ----------------------------------------------------------------- publicar
+def _espera_429(cabeceras: dict[str, str]) -> int:
+    """Segundos de Retry-After; ESPERA_429 si no viene o no es un entero."""
+    valor = cabeceras.get("retry-after", "").strip()
+    return max(1, int(valor)) if valor.isdigit() else ESPERA_429
+
+
 def _leer_json(contenido: bytes) -> dict[str, Any]:
     try:
         datos = json.loads(contenido.decode("utf-8"))
@@ -300,10 +317,12 @@ def publicar(
 ) -> dict[str, Any]:
     """Envia un lote ya serializado y devuelve el JSON de la respuesta.
 
-    Reintenta solo sin respuesta (red, timeout) o con 5xx, hasta 3 veces
+    Reintenta sin respuesta (red, timeout) o con 5xx, hasta 3 veces
     (esperas de 2, 5 y 10 s), con el mismo cuerpo y una firma nueva en cada
-    intento. Un 4xx no se reintenta: lanza HttpSinkError con el mensaje del
-    servidor. 201 = carga nueva; 200 = Laravel ya tenia ese batch_id.
+    intento. Un 429 lleva su propia cuenta: espera Retry-After (60 s si no
+    viene), hasta 3 veces y 10 minutos en total. Otro 4xx no se reintenta:
+    lanza HttpSinkError con el mensaje del servidor. 201 = carga nueva;
+    200 = Laravel ya tenia ese batch_id.
     """
     registrar_secreto(cfg_http.secreto)
     enviar = transporte or enviar_http
@@ -326,9 +345,13 @@ def publicar(
     )
 
     intentos = len(ESPERAS) + 1
+    intento = 0
+    reintentos_429 = 0
+    espera_429_total = 0
     ultimo_error = ""
     ultimo_status: int | None = None
-    for intento in range(1, intentos + 1):
+    while intento < intentos:
+        intento += 1
         timestamp = int(reloj())
         cabeceras = {
             "Content-Type": "application/json",
@@ -342,12 +365,36 @@ def publicar(
             cabeceras["Content-Encoding"] = "gzip"
         inicio = time.monotonic()
         try:
-            status, contenido = enviar(url, cuerpo, cabeceras, cfg_http.timeout)
+            status, contenido, respuesta = enviar(url, cuerpo, cabeceras, cfg_http.timeout)
         except ErrorConexion as exc:
             ultimo_status = None
             ultimo_error = f"sin respuesta del servidor ({exc})"
         else:
             datos = _leer_json(contenido)
+            if status == 429:
+                espera = _espera_429(respuesta)
+                if (
+                    reintentos_429 >= REINTENTOS_429
+                    or espera_429_total + espera > ESPERA_429_TOTAL
+                ):
+                    raise HttpSinkError(
+                        f"Laravel limito las peticiones del lote '{lote}' (HTTP 429) "
+                        f"tras {reintentos_429} reintentos y {espera_429_total} s de "
+                        f"espera; pedia esperar {espera} s mas. Revisa si alguien "
+                        "esta saturando la API de ingesta.",
+                        status,
+                    )
+                reintentos_429 += 1
+                espera_429_total += espera
+                # Un 429 no gasta los reintentos de red y 5xx.
+                intento -= 1
+                log.warning(
+                    "Laravel limito las peticiones del lote '%s' (HTTP 429): "
+                    "reintento %d/%d en %d s.",
+                    lote, reintentos_429, REINTENTOS_429, espera,
+                )
+                dormir(espera)
+                continue
             if 200 <= status < 300:
                 duplicado = status == 200 or datos.get("duplicate") is True
                 if duplicado:

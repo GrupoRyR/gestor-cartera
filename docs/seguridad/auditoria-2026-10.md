@@ -252,6 +252,12 @@ Levanté la app en `127.0.0.1:8123` con los seeders de demostración (SQLite tem
 - **Dónde:** `app/Modules/Ingesta/config/ingesta.php:16,19` (20 MB comprimidos y 60 MB descomprimidos), `ReceiveBatchController.php:101` (`json_decode` completo), `:128-129` (sin tope de columnas) y `Application/BatchValidator.php:110` (`max_rows` se mira después de construir todas las filas).
 - **Cómo se explotaría:** quien tenga una llave, o un atacante que conozca un id de llave y haga calcular el SHA-256 de 20 MB desde muchas IP, provoca errores 500 o satura la CPU del plan compartido.
 - **Corrección:** bajar los topes a lo real (una cartera de miles de filas ocupa pocos MB), exigir que las columnas coincidan con el esquema antes de recorrer filas, cortar al pasar `max_rows` y agregar un límite global además del de IP.
+- **Estado: corregido** en el PR 12 de la Fase 2.
+  - Topes a la medida de los lotes reales (el más grande trae 1458 filas; los maestros, hasta 6178): 4 MB por petición, 16 MB descomprimidos y 20 000 filas. Como `gzdecode` puede pasarse un poco de su límite, el largo descomprimido se revisa otra vez.
+  - Antes de leer las filas, el controlador exige exactamente las columnas del esquema (y no más de 100, antes de la regla `distinct`) y corta al pasar `max_rows`; los dos casos responden 422 sin entrada en el historial.
+  - `ingesta-robot` suma un límite global de 120 peticiones por minuto al de 60 por IP. Ese límite se cuenta antes de revisar la firma, así que alguien sin llave puede agotarlo; por eso el robot (`etl/sinks/http_sink.py`) reintenta los 429 esperando lo que diga `Retry-After` (60 s si no viene), hasta 3 veces y 10 minutos en total, y después falla y avisa como cualquier otro fallo.
+  - **Para el despliegue:** cuando TI confirme la IP fija del PC del robot, se puede dejar fuera del límite global (sigue con su límite de 60 por IP y con la firma). Así nadie puede bloquear al robot agotando el cupo compartido. Antes hay que confirmar que `request()->ip()` es la IP real y no la de un proxy (S-28).
+  - Cada 422 deja una advertencia en el log con el lote, la empresa, las filas, el motivo, hasta 10 llaves de error y el id de la llave; nunca valores ni mensajes del lote.
 
 ### S-20 · Baja · Sin nonce dentro de la ventana de 300 s
 
@@ -549,6 +555,7 @@ Fuera del código, para el usuario o TI:
 - Confirmar en GoDaddy: Document Root en `public`, proxy delante o no, `TRIGGER` en MySQL y `zend.exception_ignore_args` (S-03, S-14, S-28, S-29).
 - Confirmar en Exchange Online que la aplicación de Graph está limitada a los dos buzones (`Test-ServicePrincipalAuthorization`).
 - Definir los plazos de retención de logs y auditoría con el área legal (S-29).
+- Confirmar la IP fija del PC del robot, para valorar dejarla fuera del límite global de la API de ingesta (S-19).
 - Decidir si la gerencia de cartera puede editar parámetros de una empresa que no tiene asignada (S-12) y si la asignación automática del rol `asesor` sigue (S-17).
 
 ## Cómo se hizo

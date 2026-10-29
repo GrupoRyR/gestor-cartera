@@ -34,8 +34,16 @@ final class IngestaServiceProvider extends ModuleServiceProvider
     protected function bootModule(): void
     {
         // The robot sends a handful of batches a day; this only caps a
-        // runaway loop or a flood of forged requests.
-        RateLimiter::for('ingesta-robot', fn (Request $request): Limit => Limit::perMinute(60)->by((string) $request->ip()));
+        // runaway loop or a flood of forged requests: 60 a minute from one
+        // IP and 120 from all of them, so many IPs cannot keep the server
+        // hashing bodies (audit S-19). The throttle checks both before
+        // counting either, so a blocked IP does not use up the global quota.
+        // The throttle keys each counter as the limiter name plus by(), so
+        // the two by() values ("ip:…" and "global") must never collide.
+        RateLimiter::for('ingesta-robot', fn (Request $request): array => [
+            Limit::perMinute(60)->by('ip:'.$request->ip()),
+            Limit::perMinute(120)->by('global'),
+        ]);
 
         $this->commands([CheckDailyLoadCommand::class, PruneManualUploadsCommand::class]);
     }
