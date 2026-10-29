@@ -3,10 +3,10 @@
 use Illuminate\Support\Facades\Route;
 
 /*
-| Production defaults of the base configuration (audit S-02, S-21, S-23 and
-| S-27). The session settings are read again from config/session.php with a
-| controlled environment, because CI copies .env.example to .env and that file
-| may set the same variables.
+| Production defaults of the base configuration (audit S-02, S-21, S-23, S-27
+| and S-29). The session and logging settings are read again from their config
+| files with a controlled environment, because CI copies .env.example to .env
+| and that file may set the same variables.
 */
 
 /**
@@ -18,6 +18,18 @@ use Illuminate\Support\Facades\Route;
  */
 function sessionConfigWith(array $variables): array
 {
+    return baseConfigWith('session', $variables);
+}
+
+/**
+ * config/{$file}.php evaluated with $variables set (a null value unsets the
+ * variable), restoring the environment afterwards.
+ *
+ * @param  array<string, string|null>  $variables
+ * @return array<string, mixed>
+ */
+function baseConfigWith(string $file, array $variables): array
+{
     $previous = [];
 
     foreach ($variables as $name => $value) {
@@ -26,7 +38,7 @@ function sessionConfigWith(array $variables): array
     }
 
     try {
-        return require base_path('config/session.php');
+        return require base_path("config/{$file}.php");
     } finally {
         foreach ($previous as $name => [$server, $env, $getenv]) {
             setTestEnvironmentVariable($name, null);
@@ -72,6 +84,25 @@ it('lets an explicit SESSION_SECURE_COOKIE win, so deploy/check-env.sh must catc
     $config = sessionConfigWith(['APP_URL' => 'https://cartera.segurex.com', 'SESSION_SECURE_COOKIE' => 'false']);
 
     expect($config['secure'])->toBeFalse();
+});
+
+it('logs from info in production and from debug elsewhere when LOG_LEVEL is not set', function (string $environment, string $level) {
+    $channels = baseConfigWith('logging', ['APP_ENV' => $environment, 'LOG_LEVEL' => null])['channels'];
+
+    foreach (['single', 'daily', 'papertrail', 'stderr', 'syslog', 'errorlog'] as $channel) {
+        expect($channels[$channel]['level'])->toBe($level, $channel);
+    }
+
+    expect($channels['slack']['level'])->toBe('critical');
+})->with([
+    'production' => ['production', 'info'],
+    'local' => ['local', 'debug'],
+]);
+
+it('lets an explicit LOG_LEVEL win, so IT must check production does not say debug', function () {
+    $channels = baseConfigWith('logging', ['APP_ENV' => 'production', 'LOG_LEVEL' => 'debug'])['channels'];
+
+    expect($channels['daily']['level'])->toBe('debug');
 });
 
 it('encrypts the session by default', function () {

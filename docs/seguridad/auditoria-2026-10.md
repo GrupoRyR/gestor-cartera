@@ -497,6 +497,11 @@ En local, `php artisan serve` no aplica `public/.htaccess`, así que estas cabec
   - `comisiones_bitacora` no redacta secretos como sí lo hace Core (`Comisiones/Infrastructure/Audit/AuditTrail.php:58-69`).
   - Core no tiene pantalla para consultar `audit_logs`: solo se ve por base de datos.
 - **Corrección:** `LOG_LEVEL=warning` en producción; `zend.exception_ignore_args=On` en el PHP del hosting; enmascarar el correo en `MarkItemBounced`; plazos de retención escritos (los define el área legal) con `model:prune`; definir quién consulta la auditoría y registrar esa consulta.
+- **Estado: corregido en parte** en el PR 14 de la Fase 2.
+  - Sin `LOG_LEVEL`, producción registra desde `info` (no `warning`, para no perder avisos de operación como el lote aceptado de Ingesta) y los demás entornos desde `debug`; el canal `slack` sigue en `critical`. Si el `.env` define `LOG_LEVEL`, manda ese valor: TI debe revisar que en producción no diga `debug`.
+  - `MarkItemBounced` deja en el log solo el dominio de la copia que rebotó (`CopyRecipients::domain`), como `cobro.copies.dropped`.
+  - `comisiones_bitacora` oculta las claves que contienen `password`, `secret` o `token`, sin distinguir mayúsculas y en los arreglos anidados, con la misma regla de Core.
+  - Quedan fuera del código: `zend.exception_ignore_args=On` en el PHP del hosting (TI), los plazos de retención de logs, auditoría, mensajes de buzón y sesiones (área legal) y definir quién consulta la auditoría.
 
 ---
 

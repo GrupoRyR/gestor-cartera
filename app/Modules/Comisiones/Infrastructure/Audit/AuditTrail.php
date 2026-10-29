@@ -23,6 +23,14 @@ final class AuditTrail
     /** Core's naming rule for audit actions. */
     private const string EVENT = '/^[a-z][a-z0-9_]*(\.[a-z][a-z0-9_]*){2,}$/';
 
+    /**
+     * Keys whose value is never stored, at any depth and in any case: the
+     * same rule as Core's DatabaseAuditLogger (audit S-29).
+     */
+    private const string SECRET_KEY = '/password|secret|token/i';
+
+    private const string REDACTED = '[redacted]';
+
     /** Shown as the user of the events without one (loads, scheduled tasks). */
     public const string SYSTEM = 'Sistema';
 
@@ -55,6 +63,8 @@ final class AuditTrail
         }
 
         $user ??= Auth::user() instanceof User ? Auth::user() : null;
+        $changes = self::redact($changes);
+        $context = self::redact($context);
 
         $record = AuditRecord::query()->create([
             'evento' => $event,
@@ -78,5 +88,24 @@ final class AuditTrail
         );
 
         return $record;
+    }
+
+    /**
+     * @template T of array<array-key, mixed>
+     *
+     * @param  T  $values
+     * @return T
+     */
+    private static function redact(array $values): array
+    {
+        foreach ($values as $key => $value) {
+            if (is_string($key) && preg_match(self::SECRET_KEY, $key) === 1) {
+                $values[$key] = self::REDACTED;
+            } elseif (is_array($value)) {
+                $values[$key] = self::redact($value);
+            }
+        }
+
+        return $values;
     }
 }

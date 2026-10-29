@@ -1018,7 +1018,7 @@ Los secretos viven solo en `.env` (en el servidor, con `chmod 600`). `.env.examp
 | `APP_TIMEZONE` | Base | `America/Bogota`. |
 | `APP_LOCALE`, `APP_FALLBACK_LOCALE` | Base | `es`. |
 | `APP_FAKER_LOCALE` | Factories | `es_CO`. |
-| `LOG_CHANNEL`, `LOG_STACK`, `LOG_DAILY_DAYS`, `LOG_LEVEL` | Base | `LOG_STACK=daily` y `LOG_DAILY_DAYS=14`; son también los valores por defecto de `config/logging.php`. |
+| `LOG_CHANNEL`, `LOG_STACK`, `LOG_DAILY_DAYS`, `LOG_LEVEL` | Base | `LOG_STACK=daily` y `LOG_DAILY_DAYS=14`; son también los valores por defecto de `config/logging.php`. Sin `LOG_LEVEL`, producción registra desde `info` y los demás entornos desde `debug` (el canal `slack` sigue en `critical`). Si el `.env` de producción define `LOG_LEVEL`, manda ese valor: TI debe revisar que no diga `debug`. |
 | `DB_CONNECTION`, `DB_HOST`, `DB_PORT`, `DB_DATABASE`, `DB_USERNAME`, `DB_PASSWORD` | Base | `sqlite` en local (`database/database.sqlite`); `mysql` en producción. |
 | `DB_TIMEZONE` | Base | Opcional; no está en `.env.example` y vale `-05:00` por defecto. Zona de la sesión de MySQL y MariaDB (`config/database.php`): las conversiones de `TIMESTAMP` y `NOW()`/`useCurrent()` siguen la hora de Colombia (sin horario de verano), no la del servidor de GoDaddy. SQLite la ignora. |
 | `SESSION_DRIVER`, `SESSION_LIFETIME` | Base | `database`; 120 minutos. |
