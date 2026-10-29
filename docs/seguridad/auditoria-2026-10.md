@@ -252,6 +252,11 @@ Levanté la app en `127.0.0.1:8123` con los seeders de demostración (SQLite tem
 - **Dónde:** `app/Modules/Ingesta/config/ingesta.php:16,19` (20 MB comprimidos y 60 MB descomprimidos), `ReceiveBatchController.php:101` (`json_decode` completo), `:128-129` (sin tope de columnas) y `Application/BatchValidator.php:110` (`max_rows` se mira después de construir todas las filas).
 - **Cómo se explotaría:** quien tenga una llave, o un atacante que conozca un id de llave y haga calcular el SHA-256 de 20 MB desde muchas IP, provoca errores 500 o satura la CPU del plan compartido.
 - **Corrección:** bajar los topes a lo real (una cartera de miles de filas ocupa pocos MB), exigir que las columnas coincidan con el esquema antes de recorrer filas, cortar al pasar `max_rows` y agregar un límite global además del de IP.
+- **Estado: corregido** en el PR 12 de la Fase 2.
+  - Topes a la medida de los lotes reales (el más grande trae 1458 filas; los maestros, hasta 6178): 4 MB por petición, 16 MB descomprimidos y 20 000 filas. Como `gzdecode` puede pasarse un poco de su límite, el largo descomprimido se revisa otra vez.
+  - Antes de leer las filas, el controlador exige exactamente las columnas del esquema (y no más de 100, antes de la regla `distinct`) y corta al pasar `max_rows`; los dos casos responden 422 sin entrada en el historial.
+  - `ingesta-robot` suma un límite global de 120 peticiones por minuto al de 60 por IP.
+  - Cada 422 deja una advertencia en el log con el lote, la empresa, las filas, el motivo, hasta 10 llaves de error y el id de la llave; nunca valores ni mensajes del lote.
 
 ### S-20 · Baja · Sin nonce dentro de la ventana de 300 s
 

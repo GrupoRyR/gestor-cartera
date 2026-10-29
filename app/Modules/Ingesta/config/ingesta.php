@@ -11,16 +11,24 @@ return [
     // Maximum clock difference, in seconds, accepted on a signed request.
     'hmac_max_skew' => (int) env('INGESTA_HMAC_MAX_SKEW', 300),
 
+    // The three caps below are sized to the real batches (audit S-19): the
+    // largest one has 1,458 rows (ventas SGX) and the masters at most
+    // 6,178. 20,000 rows of the widest dataset, cartera with 38
+    // columns, measured about 15.8 MB of JSON, 1.8 MB gzipped and 86 MB of
+    // peak memory to decode.
+
     // Largest robot request body, in bytes, as sent (gzipped or not); a
-    // bigger one answers 413. PHP's post_max_size must be at least this.
-    'max_request_bytes' => 20 * 1024 * 1024,
+    // bigger one answers 413. Without gzip it fits about 5,000 cartera rows.
+    // PHP's post_max_size must be at least this.
+    'max_request_bytes' => 4 * 1024 * 1024,
 
     // Largest body once gunzipped, in bytes; a bigger one answers 422.
-    'max_payload_bytes' => 60 * 1024 * 1024,
+    'max_payload_bytes' => 16 * 1024 * 1024,
 
-    // Most rows one batch may carry. A cartera of a company has a few
-    // thousand installments; this only stops a runaway extraction.
-    'max_rows' => 200000,
+    // Most rows one batch may carry, from the robot (checked before the rows
+    // are read) and in a manual cartera Excel (CarteraWorkbookReader). It
+    // only stops a runaway extraction.
+    'max_rows' => 20000,
 
     // Days a manual cartera upload may wait on the local disk for confirm or
     // discard; ingesta:limpiar-cargas-manuales deletes older ones every day.

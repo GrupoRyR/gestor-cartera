@@ -4,7 +4,7 @@ Recibe los lotes del robot de SAP (`etl/`), los valida contra el esquema de cada
 
 ## Endpoint del robot
 
-`POST /api/ingesta/{lote}` (ruta `ingesta.api.lotes.store`), donde `{lote}` es un valor de `Dataset`: `cartera`, `asesores`, `contactos`, `ventas`, `recaudos`, `cruces`, `maestro_clientes` o `maestro_vendedores`. Otro valor responde 404. Límite: 60 peticiones por minuto por IP (`throttle:ingesta-robot`).
+`POST /api/ingesta/{lote}` (ruta `ingesta.api.lotes.store`), donde `{lote}` es un valor de `Dataset`: `cartera`, `asesores`, `contactos`, `ventas`, `recaudos`, `cruces`, `maestro_clientes` o `maestro_vendedores`. Otro valor responde 404. Límite (`throttle:ingesta-robot`): 60 peticiones por minuto por IP y 120 por minuto entre todas las IP; pasado cualquiera de los dos responde 429.
 
 ### Encabezados
 
@@ -49,9 +49,10 @@ JSON por columnas, para que pese poco:
 
 - `batch_id`: hasta 120 caracteres de `A-Z a-z 0-9 . _ : -`. Es la llave de idempotencia: el mismo lote reenviado devuelve la carga original.
 - `company`: `SGX` o `SDC`. `cutoff_date`: `AAAA-MM-DD`, no posterior a hoy en Bogotá.
-- `columns`: los nombres «pg» de `etl/esquema.py`, en cualquier orden y sin repetir; cada fila de `rows` es una lista con un valor por columna.
+- `columns`: exactamente los nombres «pg» de `etl/esquema.py` del lote, en cualquier orden y sin repetir (máximo 100); cada fila de `rows` es una lista con un valor por columna.
 - Valores: enteros como número JSON; montos (`NUMERO`, hasta 16 cifras enteras y 2 decimales, el rango de `decimal(18,2)`) y tasas o cantidades (`TASA`, 6 decimales) como texto decimal con punto y sin separador de miles (`"1234567.89"`); fechas `"AAAA-MM-DD"`; texto hasta 4000 caracteres; `null` si falta. Las columnas obligatorias no pueden llegar nulas ni en blanco.
-- Cada fila debe traer exactamente las columnas del lote; un lote con llave natural no puede repetirla; solo `ventas`, `recaudos` y `cruces` pueden llegar vacíos; máximo `ingesta.max_rows` filas (200 000).
+- Un lote con llave natural no puede repetirla; solo `ventas`, `recaudos` y `cruces` pueden llegar vacíos; máximo `ingesta.max_rows` filas (20 000).
+- Las columnas y la cantidad de filas se revisan antes de leer cualquier fila: unas columnas distintas de las del lote (faltan o sobran) responden 422 en `columns` y más de `ingesta.max_rows` filas responden 422 en `rows`, sin entrada en el historial. `BatchValidator` vuelve a revisar el tope para los demás orígenes.
 
 `Domain/Schema/DatasetSchemas.php` replica `etl/esquema.py`; `DatasetSchemasTest` lee el archivo de Python y falla si los dos se separan. Si cambias el esquema, cambia ambos.
 
@@ -63,15 +64,17 @@ JSON por columnas, para que pese poco:
 | 200 | `batch_id` de una carga ya aceptada | `{"load": {...carga original}, "duplicate": true}` |
 | 401 | Firma inválida o ya usada, llave desconocida, timestamp fuera de margen o sin llaves configuradas | `{"message": "Firma inválida."}` |
 | 404 | `{lote}` desconocido | estándar |
-| 413 | Cuerpo de más de `ingesta.max_request_bytes` (20 MB). Se revisa antes que la firma: primero `Content-Length` y luego el cuerpo. | `{"message": ...}` |
-| 422 | Cuerpo mal formado: gzip o JSON inválido, sobre incompleto, fila con otro número de valores. No queda en el historial. | `{"message": ..., "errors": {...}}` |
+| 413 | Cuerpo de más de `ingesta.max_request_bytes` (4 MB). Se revisa antes que la firma: primero `Content-Length` y luego el cuerpo. | `{"message": ...}` |
+| 422 | Cuerpo mal formado: gzip o JSON inválido, sobre incompleto, columnas distintas de las del lote, más de `ingesta.max_rows` filas, fila con otro número de valores. No queda en el historial. | `{"message": ..., "errors": {...}}` |
 | 422 | El lote no cumple el esquema. Queda en el historial como rechazado y su `batch_id` se puede reenviar ya corregido. | `{"message": "El lote tiene N errores.", "errors": {"rows.3.saldo": [...]}}`, máximo 50 llaves |
 
 Una carga nueva aceptada queda en la auditoría como `ingesta.batch.accepted` (sujeto `ingesta_load`, con el lote, la empresa, las filas, el `batch_id` y el id de la llave) cuando hay un `AuditLogger` enlazado; un lote repetido o rechazado no deja entrada.
 
 `load` trae `id`, `dataset`, `company`, `cutoff_date` (`AAAA-MM-DD`), `source`, `status`, `row_count`, `total` y `overdue` (texto con 2 decimales, solo cartera; `null` en los demás), `received_at` (ISO 8601) y `error`. Las filas de los errores se numeran desde 0, como las llaves `rows.N`.
 
-El gzip descomprimido no puede pasar de `ingesta.max_payload_bytes` (60 MB). El `post_max_size` de PHP en el servidor debe ser al menos `ingesta.max_request_bytes`.
+Cada 422 deja en el log una advertencia «Ingesta: rejected a robot batch.» con `dataset`, `company` (solo si es una empresa válida; si no, `null`), `rows` (cuántas filas trae, o `null` si `rows` no es una lista), `reason` (`encoding`, `gzip`, `json`, `columns`, `envelope`, `too_many_rows`, `rows` o `schema`), `fields` (hasta 10 llaves de error, como `rows.12.saldo`) y `key_id` (el id de la llave que firmó). Nunca lleva datos del lote: ni valores de las filas, ni mensajes de error (algunos citan valores, como la llave repetida), ni el `batch_id`.
+
+Los topes salen de los lotes reales: el más grande trae 1458 filas (ventas de SGX) y los maestros, hasta 6178. 20 000 filas de cartera, el lote más ancho (38 columnas), ocupan unos 15,8 MB de JSON y 1,8 MB en gzip, y decodificarlas usa unos 86 MB de memoria. Sin gzip, los 4 MB alcanzan para unas 5000 filas de cartera. El gzip descomprimido no puede pasar de `ingesta.max_payload_bytes` (16 MB). `ingesta.max_rows` también limita el Excel de la carga manual. El `post_max_size` de PHP en el servidor debe ser al menos `ingesta.max_request_bytes`.
 
 ## Rotación de llaves
 
@@ -106,7 +109,7 @@ Escuchan `BatchAccepted`, que se despacha una vez por carga aceptada y después 
 Respaldo del robot, solo para el lote `cartera`. Desde el historial, «Carga manual» abre `GET /ingesta/carga-manual` (`ingesta.manual.create`, permiso `ingesta.upload`):
 
 1. **Formulario.** Empresa (solo las de `CurrentCompany::available()`), fecha de corte (por defecto hoy, nunca posterior) y el Excel `.xlsx` «Cartera del día» de SAP, hasta 20 MB (`upload_max_filesize` y `post_max_size` de PHP deben permitirlo).
-2. **Vista previa** (`POST /ingesta/carga-manual`, `ingesta.manual.preview`). Se lee la hoja «Datos» o, si no existe, la primera. La fila de títulos es la primera de las 20 primeras que tenga «Código SN» y «Nit»; los títulos se cruzan con el alias de HANA de cada columna (`Column::sourceHeader`), sin importar espacios ni mayúsculas (las tildes sí cuentan). Sin «Código SN», «Nit», «Documento», «Fecha vencimiento» o «Saldo» no hay vista previa. Los títulos desconocidos se ignoran y se listan; se saltan las filas vacías y las que no tienen ni código ni documento (como la fila de totales). Un archivo con más de `ingesta.max_rows` filas de datos (200 000) se rechaza con «El archivo tiene más de N filas»; además, la lectura se detiene después de `ingesta.max_rows` más 20 filas de la hoja, contando las vacías. La página muestra filas, clientes distintos, saldo total y vencido, las 20 primeras filas, cuántas quedaron sin código de asesor y, si `BatchValidator` encuentra errores, hasta 50 con su fila de Excel; con errores no se puede confirmar.
+2. **Vista previa** (`POST /ingesta/carga-manual`, `ingesta.manual.preview`). Se lee la hoja «Datos» o, si no existe, la primera. La fila de títulos es la primera de las 20 primeras que tenga «Código SN» y «Nit»; los títulos se cruzan con el alias de HANA de cada columna (`Column::sourceHeader`), sin importar espacios ni mayúsculas (las tildes sí cuentan). Sin «Código SN», «Nit», «Documento», «Fecha vencimiento» o «Saldo» no hay vista previa. Los títulos desconocidos se ignoran y se listan; se saltan las filas vacías y las que no tienen ni código ni documento (como la fila de totales). Un archivo con más de `ingesta.max_rows` filas de datos (20 000) se rechaza con «El archivo tiene más de N filas»; además, la lectura se detiene después de `ingesta.max_rows` más 20 filas de la hoja, contando las vacías. La página muestra filas, clientes distintos, saldo total y vencido, las 20 primeras filas, cuántas quedaron sin código de asesor y, si `BatchValidator` encuentra errores, hasta 50 con su fila de Excel; con errores no se puede confirmar.
 3. **Confirmar o descartar** (`POST /ingesta/carga-manual/{token}/confirmar` o `/descartar`). Mientras tanto el archivo queda en el disco `local` como `ingesta/manual/{token}.xlsx` y la sesión guarda la ruta, la empresa, el corte, el SHA-256 y el usuario. Confirmar vuelve a leer el archivo, revisa el hash y que sea el mismo usuario (otro usuario recibe 404), y entrega a `IngestaSink::receive()` el lote `manual-cartera-{empresa}-{AAAA-MM-DD}-{16 primeros hex del SHA-256}` con `LoadSource::Manual` y `receivedBy`. El mismo archivo con el mismo corte es la misma carga: la segunda vez muestra «Esta carga ya estaba registrada». Confirmar y descartar borran el archivo y la entrada de la sesión. Una carga nueva queda en la auditoría como `ingesta.load.uploaded` cuando hay un `AuditLogger` enlazado. Un archivo que se suba y nunca se confirme ni se descarte queda en `ingesta/manual/` hasta la limpieza diaria.
 
 **Limpieza de cargas sin confirmar.** El comando `ingesta:limpiar-cargas-manuales` (`Console/PruneManualUploadsCommand`) borra los archivos que están directamente en `ingesta/manual/` del disco `local` (`ManualUploadController::DISK` y `::DIRECTORY`) y cuya última modificación tiene más de `ingesta.manual_upload_ttl_days` días (7 por defecto, mínimo 1), y dice cuántos borró. No toca subcarpetas ni nada fuera de ese directorio; si el directorio no existe, no hace nada. `IngestaServiceProvider::schedule()` lo corre todos los días a las 03:00 de Bogotá con `withoutOverlapping(10)`. Correrlo a mano es seguro.

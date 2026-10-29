@@ -264,7 +264,7 @@ it('answers 422 without a history entry for a malformed request', function (stri
     'repeated columns' => [RobotRequests::body([IngestaRows::advisor()], columns: ['slp_code', 'slp_code', 'email', 'activo', 'clientes']), true, [], 'columns.1'],
     'rows missing' => ['{"batch_id": "b-1", "company": "SGX", "cutoff_date": "2026-10-15", "columns": ["slp_code"]}', true, [], 'rows'],
     'rows not a list' => ['{"batch_id": "b-1", "company": "SGX", "cutoff_date": "2026-10-15", "columns": ["slp_code"], "rows": {"a": [1]}}', true, [], 'rows'],
-    'short row' => [RobotRequests::body([IngestaRows::advisor()], columns: ['slp_code', 'nombre']), true, [], 'rows.0'],
+    'short row' => [RobotRequests::body([['slp_code' => 11, 'nombre' => 'Asesor 11']], columns: array_keys(IngestaRows::advisor())), true, [], 'rows.0'],
     'nested value' => [str_replace('"Asesor 11"', '["Asesor 11"]', RobotRequests::body([IngestaRows::advisor()])), true, [], 'rows.0'],
 ]);
 
@@ -303,11 +303,104 @@ it('answers 422 instead of failing the totals for a saldo of 17 integer digits',
     Event::assertNotDispatched(BatchAccepted::class);
 });
 
-it('answers 422 for a batch whose columns do not match the dataset', function () {
-    $row = IngestaRows::advisor();
-    unset($row['clientes']);
+it('answers 422 without a history entry for a batch whose columns do not match the dataset', function (array $columns, array $messages) {
+    $rows = [array_fill(0, count($columns), 1)];
+    $body = json_encode(['batch_id' => 'b-1', 'company' => 'SGX', 'cutoff_date' => '2026-10-15', 'columns' => $columns, 'rows' => $rows], JSON_THROW_ON_ERROR);
 
-    postRobotBatch('asesores', RobotRequests::body([$row]))
+    postRobotBatch('asesores', $body)
         ->assertUnprocessable()
-        ->assertJsonPath('errors', ['rows.0' => ['A la fila le faltan estas columnas: clientes.']]);
+        ->assertJsonPath('errors', ['columns' => $messages]);
+
+    expect(IngestaLoad::query()->count())->toBe(0);
+    Event::assertNotDispatched(BatchAccepted::class);
+})->with([
+    'a missing column' => [['slp_code', 'nombre', 'email', 'activo'], ['Al lote le faltan estas columnas: clientes.']],
+    'an unknown column' => [['slp_code', 'nombre', 'email', 'activo', 'clientes', 'saldo'], ['El lote trae columnas que no existen en asesores: saldo.']],
+    'both' => [['slp_code', 'nombre', 'email', 'activo', 'zona'], [
+        'Al lote le faltan estas columnas: clientes.',
+        'El lote trae columnas que no existen en asesores: zona.',
+    ]],
+    'more columns than any dataset, before checking each one' => [array_map(fn (int $i): string => "c{$i}", range(1, 101)), ['El lote trae 101 columnas y el máximo es 100.']],
+]);
+
+it('answers 422 without a history entry for more rows than ingesta.max_rows, before reading them', function () {
+    config(['ingesta.max_rows' => 2]);
+    $rows = [IngestaRows::advisor(11), IngestaRows::advisor(12), IngestaRows::advisor(13)];
+    // A malformed row would answer rows.2 if the rows were read.
+    $body = str_replace('"Asesor 13"', '["Asesor 13"]', RobotRequests::body($rows));
+
+    postRobotBatch('asesores', $body)
+        ->assertUnprocessable()
+        ->assertJsonPath('errors', ['rows' => ['El lote trae 3 filas y el máximo es 2.']]);
+
+    expect(IngestaLoad::query()->count())->toBe(0);
+});
+
+it('accepts exactly ingesta.max_rows rows', function () {
+    config(['ingesta.max_rows' => 2]);
+
+    postRobotBatch('asesores', RobotRequests::body(robotAdvisorRows()))->assertCreated();
+});
+
+it('ships size and row limits sized to the real batches', function () {
+    expect(config('ingesta.max_request_bytes'))->toBe(4 * 1024 * 1024)
+        ->and(config('ingesta.max_payload_bytes'))->toBe(16 * 1024 * 1024)
+        ->and(config('ingesta.max_rows'))->toBe(20000);
+});
+
+it('answers 413 for a body over 4 MB', function () {
+    $this->call('POST', '/api/ingesta/asesores', [], [], [], ['CONTENT_TYPE' => 'application/json', 'HTTP_ACCEPT' => 'application/json'], str_repeat(' ', 4 * 1024 * 1024 + 1))
+        ->assertStatus(413)
+        ->assertExactJson(['message' => 'El lote pesa más de 4194304 bytes, el máximo que se acepta.']);
+});
+
+it('answers 422 for a gzip that unpacks to more than 16 MB', function () {
+    $body = RobotRequests::body(robotAdvisorRows()).str_repeat(' ', 16 * 1024 * 1024);
+
+    postRobotBatch('asesores', $body)
+        ->assertUnprocessable()
+        ->assertJsonPath('errors', ['body' => ['El cuerpo no es un gzip válido o descomprimido pasa de 16777216 bytes.']]);
+
+    expect(IngestaLoad::query()->count())->toBe(0);
+});
+
+it('logs every rejected batch with its reason and no batch data', function (string $body, bool $gzip, array $headers, array $context) {
+    Log::spy();
+    config(['ingesta.max_rows' => 12]);
+    $raw = $gzip ? RobotRequests::gzip($body) : $body;
+    $server = array_merge(RobotRequests::headers('asesores', $raw, $gzip), $headers);
+
+    $this->call('POST', '/api/ingesta/asesores', [], [], [], $server, $raw)->assertUnprocessable();
+
+    Log::shouldHaveReceived('warning')->once()->withArgs(fn (string $message, array $logged): bool => $message === 'Ingesta: rejected a robot batch.'
+        && $logged === ['dataset' => 'asesores', ...$context, 'key_id' => RobotRequests::KEY_ID]);
+    Log::shouldNotHaveReceived('info');
+})->with([
+    'unsupported encoding' => ['{"rows": []}', false, ['HTTP_CONTENT_ENCODING' => 'br'], ['company' => null, 'rows' => null, 'reason' => 'encoding', 'fields' => ['body']]],
+    'gzip header on plain bytes' => ['{"rows": []}', false, ['HTTP_CONTENT_ENCODING' => 'gzip'], ['company' => null, 'rows' => null, 'reason' => 'gzip', 'fields' => ['body']]],
+    'broken JSON' => ['{"batch_id": ', true, [], ['company' => null, 'rows' => null, 'reason' => 'json', 'fields' => ['body']]],
+    'JSON that is not an object' => ['[1, 2]', true, [], ['company' => null, 'rows' => null, 'reason' => 'json', 'fields' => ['body']]],
+    'unknown company' => [RobotRequests::body([IngestaRows::advisor()], company: 'XYZ'), true, [], ['company' => null, 'rows' => 1, 'reason' => 'envelope', 'fields' => ['company']]],
+    'columns that are not a list' => [
+        '{"batch_id": "b-1", "company": "SDC", "cutoff_date": "2026-10-15", "columns": {"evil\nkey": 1}, "rows": "x"}', true, [],
+        ['company' => 'SDC', 'rows' => null, 'reason' => 'envelope', 'fields' => ['columns']],
+    ],
+    'wrong columns' => [RobotRequests::body([IngestaRows::advisor()], columns: ['slp_code', 'nombre', 'email', 'activo', 'zona']), true, [], ['company' => 'SGX', 'rows' => 1, 'reason' => 'columns', 'fields' => ['columns']]],
+    'too many rows' => [RobotRequests::body(array_map(fn (int $code): array => IngestaRows::advisor($code), range(1, 13))), true, [], ['company' => 'SGX', 'rows' => 13, 'reason' => 'too_many_rows', 'fields' => ['rows']]],
+    'short row' => [RobotRequests::body([['slp_code' => 11, 'nombre' => 'Asesor 11']], columns: array_keys(IngestaRows::advisor())), true, [], ['company' => 'SGX', 'rows' => 1, 'reason' => 'rows', 'fields' => ['rows.0']]],
+    // The sink keeps this one in the history too; the log shows only the first 10 error keys.
+    'schema, with 12 errors' => [
+        RobotRequests::body(array_map(fn (int $code): array => IngestaRows::advisor($code, ['nombre' => null]), range(1, 12))), true, [],
+        ['company' => 'SGX', 'rows' => 12, 'reason' => 'schema', 'fields' => array_map(fn (int $i): string => "rows.{$i}.nombre", range(0, 9))],
+    ],
+]);
+
+it('logs a repeated natural key without its values', function () {
+    Log::spy();
+
+    postRobotBatch('asesores', RobotRequests::body([IngestaRows::advisor(4321), IngestaRows::advisor(4321)]))->assertUnprocessable();
+
+    Log::shouldHaveReceived('warning')->once()->withArgs(fn (string $message, array $context): bool => $context['fields'] === ['rows.1']
+        && ! str_contains(json_encode($context, JSON_THROW_ON_ERROR), '4321')
+        && preg_grep('/token|secret|password/i', array_keys($context)) === []);
 });
