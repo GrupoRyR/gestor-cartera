@@ -18,6 +18,7 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Validator;
+use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 use JsonException;
@@ -47,6 +48,9 @@ final class ReceiveBatchController
      * compares every column with all the others.
      */
     private const int MAX_COLUMNS = 100;
+
+    /** Characters of an unknown column name quoted back in a 422. */
+    private const int QUOTED_COLUMN_LENGTH = 40;
 
     /** Most error keys one rejection log line lists. */
     private const int LOGGED_FIELDS = 10;
@@ -273,6 +277,8 @@ final class ReceiveBatchController
         }
 
         if (($unknown = array_diff($columns, $names)) !== []) {
+            // The caller chose these names: each one is cut so the answer stays short.
+            $unknown = array_map(fn (string $name): string => Str::limit($name, self::QUOTED_COLUMN_LENGTH), $unknown);
             $messages[] = __('ingesta::robot.columnas_desconocidas', ['lote' => mb_strtolower($dataset->label()), 'columnas' => implode(', ', $unknown)]);
         }
 

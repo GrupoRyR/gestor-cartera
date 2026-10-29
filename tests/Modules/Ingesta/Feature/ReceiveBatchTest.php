@@ -320,6 +320,9 @@ it('answers 422 without a history entry for a batch whose columns do not match t
         'Al lote le faltan estas columnas: clientes.',
         'El lote trae columnas que no existen en asesores: zona.',
     ]],
+    'an unknown column with a long name, cut in the message' => [['slp_code', 'nombre', 'email', 'activo', 'clientes', str_repeat('z', 200)], [
+        'El lote trae columnas que no existen en asesores: '.str_repeat('z', 40).'....',
+    ]],
     'more columns than any dataset, before checking each one' => [array_map(fn (int $i): string => "c{$i}", range(1, 101)), ['El lote trae 101 columnas y el máximo es 100.']],
 ]);
 
