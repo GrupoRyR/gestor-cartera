@@ -39,9 +39,12 @@ Copia `etl/.env.example` como `etl/.env` y complétalo. El `.env` nunca se sube 
 |---|---|
 | `SOPHOS_*` | Usuario y conexión de la VPN Sophos. |
 | `HANA_*` | Servidor, usuario y esquema de SAP HANA. La conexión va cifrada por defecto; ver «Conexión cifrada a HANA». |
+| `HANA_USER_<EMPRESA>`, `HANA_PASSWORD_<EMPRESA>` | Usuario y contraseña de HANA de cada empresa (`HANA_USER_SGX`, `HANA_PASSWORD_SDC`...): en SAP cada empresa tiene el suyo y ninguno entra a la otra. Si una empresa no los define, usa `HANA_USER` / `HANA_PASSWORD`. Valen también con una sola empresa (la de `INGESTA_EMPRESA`). |
 | `INGESTA_URL` | Raíz del gestor de cartera, sin `/api` (por ejemplo `https://cartera.segurex.com`). Debe ser `https://`; `http://` solo se acepta para un Laravel local. |
 | `INGESTA_KEY_ID`, `INGESTA_SECRET` | Par de la llave HMAC. Debe existir en `INGESTA_HMAC_KEYS` del `.env` de Laravel como `id:secreto`. El secreto debe tener al menos 32 bytes: Laravel ignora uno más corto y rechaza las firmas hechas con él. |
 | `INGESTA_EMPRESA` | `SGX` (Segurex, por defecto) o `SDC` (Soluciones y Derivados). |
+| `ETL_EMPRESAS` | Opcional y temporal. Empresas de una misma corrida, en orden (por ejemplo `SGX,SDC`); cada una necesita `HANA_SCHEMA_<EMPRESA>` y su usuario y contraseña (`HANA_USER_<EMPRESA>` / `HANA_PASSWORD_<EMPRESA>`, o `HANA_USER` / `HANA_PASSWORD`). Sin ella corre solo `INGESTA_EMPRESA` con `HANA_SCHEMA_<INGESTA_EMPRESA>` o, si no existe, `HANA_SCHEMA`, como siempre. Ver «Dos empresas en una corrida». |
+| `HANA_SCHEMA_SGX`, `HANA_SCHEMA_SDC` | Esquema de SAP B1 de cada empresa cuando se usa `ETL_EMPRESAS` (`SEGUREX` y `HBT_SDERIVADOS`). |
 | `INGESTA_TIMEOUT` | Segundos de espera por envío; por defecto 120. |
 | `INGESTA_GZIP` | Comprimir el cuerpo; por defecto `true`. |
 | `ETL_LOTES` | Lotes que se extraen y publican, separados por comas; por defecto `cartera,asesores`. |
@@ -85,6 +88,15 @@ Cada lote es una consulta de `etl/queries` y su contrato de columnas en `etl/esq
 **Cuentas por cobrar por empresa.** `cartera.sql` filtra `JDT1.Account` con las cuentas de Segurex (`13050505`, `13051005`), así corre tal cual en el Query Manager. Con `INGESTA_EMPRESA=SDC` el robot reemplaza esa lista (la que precede al marcador `-- @cuentas_por_cobrar`) por las de Derivados (`13050501`, `13051005`). Las cuentas de cada empresa están en `CUENTAS_POR_COBRAR` de `config.py`; si cambias la lista del `.sql`, cambia también ahí (una prueba lo verifica). Los otros lotes no filtran por cuenta.
 
 **Campos que solo existen en Segurex.** `ventas.sql` lee `OINV.U_SGX_IdPedidoApp`, un campo de usuario que no existe en `HBT_SDERIVADOS`. Con `INGESTA_EMPRESA=SDC` el robot reemplaza esa expresión (la que precede al marcador `-- @id_pedido_app`) por `CAST(NULL AS NVARCHAR(254))`, igual que con las cuentas. La expresión de cada empresa está en `ID_PEDIDO_APP` de `config.py`. Si el marcador falta, la consulta falla en vez de correr con el campo de Segurex.
+
+**Dos empresas en una corrida.** Con `ETL_EMPRESAS=SGX,SDC` el robot conecta la VPN una sola vez y, dentro, extrae primero Segurex (`HANA_SCHEMA_SGX`) y luego Derivados (`HANA_SCHEMA_SDC`), cada una con todos sus lotes y con sus propias consultas por empresa. Luego publica cada empresa en Ingesta con su código. Es temporal, hasta que lo reemplace el robot de Bases SAP.
+
+- Cada empresa abre su propia conexión a HANA con su usuario, su contraseña y su esquema. Si una no logra conectarse (por ejemplo, la contraseña vencida), la otra se publica igual.
+- Si una empresa falla (HANA, validación, contrato o Laravel), la otra se publica igual; el log y el aviso por correo dicen cuál falló (`SDC/cartera`) y la corrida termina con código 1.
+- Los CSV de `etl/out` llevan la empresa en el nombre (`SGX_cartera_…csv`, `SDC_cartera_…csv`); con una sola empresa se llaman como siempre.
+- El archivo de estado trae un bloque por empresa en `empresas`.
+- El respaldo de Supabase es solo de Segurex: Derivados no se escribe ahí, para no pisar sus tablas.
+- Laravel guarda cada carga con su empresa y el `batch_id` lleva la empresa, así que Derivados no pisa a Segurex. Las dos usan la misma llave HMAC.
 
 `ETL_LOTES` decide qué lotes corren. Agrega un lote nuevo solo después de validar su consulta con datos reales.
 
@@ -173,6 +185,8 @@ Cada punto está marcado en su consulta con `VALIDAR CON DATOS REALES`. Valídal
 El modo diagnóstico conecta la VPN, ejecuta la consulta, baja la VPN, guarda el CSV en `etl/out` y revisa cada fila contra el contrato de `esquema.py` (tipos y columnas obligatorias). No publica en ningún lado. `--lotes` reemplaza a `ETL_LOTES` en esa corrida; acepta varios separados por comas.
 
 Para Derivados, pon `INGESTA_EMPRESA=SDC` en `etl/.env` y corre `--diagnostico --lotes cartera`: el CSV debe traer filas con «Cuenta visible» `13050501` o `13051005`, y ninguna `13050505`.
+
+Con `ETL_EMPRESAS=SGX,SDC`, `--diagnostico` hace las dos empresas en una sola conexión a la VPN y deja los CSV separados por empresa (`SGX_ventas_…csv` y `SDC_ventas_…csv`). Termina con código 1 si alguna falla.
 
 Revisa el CSV y compara los totales con el informe equivalente de SAP antes de agregar el lote a `ETL_LOTES`.
 

@@ -11,6 +11,13 @@ arriba, el trafico hacia Laravel y Supabase saldria por la red corporativa y
 quedaria a merced de su proxy. Extraemos, cerramos el tunel y recien ahi
 publicamos.
 
+Empresas (ETL_EMPRESAS, opcional): con varias, una sola corrida usa una sola
+conexion a la VPN y dentro extrae primero la primera empresa y luego las demas,
+cada una de su esquema HANA y con todos sus lotes, y publica cada una en
+Ingesta con su empresa. Si una falla, las otras igual se publican; la corrida
+termina con error y el aviso dice cual fallo. Sin ETL_EMPRESAS corre solo la de
+INGESTA_EMPRESA, como siempre.
+
 Lotes (esquema.LOTES, elegidos con ETL_LOTES o --lotes):
     - cartera y asesores son la base: un fallo de HANA, del contrato de
       columnas o una cartera vacia abortan la corrida completa, como siempre.
@@ -31,15 +38,18 @@ import logging
 import sys
 import time
 import traceback
-from dataclasses import dataclass
+from contextlib import contextmanager
+from dataclasses import dataclass, replace
 from datetime import date, datetime, timedelta, timezone
-from typing import Any
+from typing import Any, Callable, Iterator
 
 import esquema
 import hana
 import notificar
 import registro
-from config import STATE_DIR, ConfigError, cargar_config, leer_query, parsear_lotes
+from config import (
+    STATE_DIR, ConfigError, EmpresaConfig, cargar_config, leer_query, parsear_lotes,
+)
 from sinks import csv_sink, http_sink, postgres_sink
 from vpn import RobotVPN, VpnError
 
@@ -71,17 +81,25 @@ class Fallo:
 class Corrida:
     """Resultado de cada lote: alimenta el archivo de estado y el aviso final."""
 
-    def __init__(self, orden: list[str], log: logging.Logger) -> None:
+    def __init__(self, orden: list[str], log: logging.Logger, empresa: str = "") -> None:
         self.orden = orden
         self.log = log
+        # Vacia con una sola empresa: asi los nombres y avisos son los de siempre.
+        self.empresa = empresa
+        # Fallo que dejo a la empresa sin publicar (solo con varias empresas).
+        self.abortada: Fallo | None = None
         self.lotes: dict[str, dict[str, Any]] = {
             nombre: {"estado": "PENDIENTE", "filas": None} for nombre in orden
         }
         self.fallos: list[Fallo] = []
 
+    def etiqueta(self, nombre: str) -> str:
+        return f"{self.empresa}/{nombre}" if self.empresa else nombre
+
     def fallo(self, nombre: str, etapa: str, exc: BaseException) -> None:
         mensaje = str(exc)
-        self.log.error("Fallo el lote '%s' en la etapa %s: %s", nombre, etapa, mensaje)
+        self.log.error("Fallo el lote '%s' en la etapa %s: %s",
+                       self.etiqueta(nombre), etapa, mensaje)
         self.fallos.append(Fallo(nombre, etapa, mensaje))
         info = self.lotes[nombre]
         info["estado"] = "ERROR"
@@ -89,6 +107,29 @@ class Corrida:
 
     def omitir(self, nombre: str, motivo: str) -> None:
         self.lotes[nombre].update(estado="OMITIDO", motivo=motivo)
+
+    def abortar(self, etapa: str, exc: BaseException) -> None:
+        """La empresa no se publica; las demas siguen."""
+        mensaje = str(exc)
+        self.log.error("Fallo la empresa %s en la etapa %s: %s",
+                       self.empresa, etapa, mensaje)
+        self.abortada = Fallo("", etapa, mensaje)
+        for info in self.lotes.values():
+            if info["estado"] == "PENDIENTE":
+                info.update(estado="OMITIDO", motivo=f"fallo la empresa {self.empresa}")
+
+    def con_fallos(self) -> bool:
+        return bool(self.abortada or self.fallos)
+
+    def fallos_empresa(self) -> list[tuple[str, str, str]]:
+        """(nombre, etapa, mensaje): primero el aborto, luego la cartera y el resto."""
+        abortos = (
+            [(self.empresa, self.abortada.etapa, self.abortada.mensaje)]
+            if self.abortada else []
+        )
+        return abortos + [
+            (self.etiqueta(f.lote), f.etapa, f.mensaje) for f in self.fallos_ordenados()
+        ]
 
     def fallos_ordenados(self) -> list[Fallo]:
         """La cartera primero; luego el resto en el orden de la corrida."""
@@ -162,10 +203,18 @@ def main() -> int:
 
     orden = ordenar_lotes(lotes)
     log.info("Lotes de esta corrida: %s", ", ".join(orden))
-    corrida = Corrida(orden, log)
+    empresas = cfg.empresas_efectivas
+    multi = len(empresas) > 1
+    if multi:
+        log.info("Empresas de esta corrida: %s",
+                 ", ".join(f"{e.codigo} ({e.esquema})" for e in empresas))
+    cfgs = {e.codigo: _cfg_empresa(cfg, e) for e in empresas}
+    corridas = {
+        e.codigo: Corrida(orden, log, e.codigo if multi else "") for e in empresas
+    }
     etapa = "INICIO"
     robot = RobotVPN(cfg.vpn)
-    extraidos: dict[str, tuple[list[str], list[tuple]]] = {}
+    extraidos: dict[str, dict[str, tuple[list[str], list[tuple]]]] = {}
 
     try:
         # ---------------------------------------------- FASE 1: extraccion
@@ -180,91 +229,141 @@ def main() -> int:
 
         try:
             etapa = "HANA"
-            with hana.conectar(cfg.hana) as conn:
-                if args.diagnostico:
-                    esquemas = hana.listar_esquemas(conn)
-                    log.info("Conexion OK (%s). Esquemas visibles: %s",
-                             hana.describir_cifrado(cfg.hana),
-                             ", ".join(esquemas) or "(ninguno)")
-                    if not cfg.hana.esquema:
-                        raise FalloEtapa(
-                            "HANA",
-                            "Conexion correcta, pero HANA_SCHEMA esta vacio. "
-                            "Elige uno de los esquemas listados arriba "
-                            "(el de SAP B1) y ponlo en el archivo .env.",
-                        )
-
-                for nombre in orden:
-                    lote = esquema.LOTES[nombre]
-                    try:
-                        extraidos[nombre] = hana.ejecutar(
-                            conn, leer_query(lote.consulta, cfg.ingesta.empresa),
-                            nombre,
-                            cfg.hana.esquema,
-                        )
-                    except (hana.HanaError, ConfigError) as exc:
-                        if nombre in LOTES_BASE:
-                            raise
-                        corrida.fallo(nombre, "HANA", exc)
+            for emp in empresas:
+                with _aislada(multi, corridas[emp.codigo], lambda: etapa):
+                    extraidos[emp.codigo] = _extraer(
+                        cfgs[emp.codigo], emp, orden, corridas[emp.codigo],
+                        args.diagnostico, log,
+                    )
         finally:
             if not args.sin_vpn:
                 robot.desconectar()
 
         # ------------------------------------- FASE 2: sin VPN desde aqui
-        etapa = "VALIDACION"
-        validos = _validar(extraidos, corrida, log)
+        if not args.diagnostico and not cfg.ingesta.habilitada:
+            log.info("INGESTA_URL vacio: no se publica en Laravel.")
+        validos_por: dict[str, dict] = {}
+        for emp in empresas:
+            corrida_e = corridas[emp.codigo]
+            if corrida_e.abortada:
+                continue
+            prefijo = f"{emp.codigo}_" if multi else ""
+            with _aislada(multi, corrida_e, lambda: etapa):
+                etapa = "VALIDACION"
+                validos = _validar(extraidos[emp.codigo], corrida_e, log)
+                validos_por[emp.codigo] = validos
 
-        etapa = "RESPALDO"
-        _respaldar(validos, corrida)
+                etapa = "RESPALDO"
+                _respaldar(validos, corrida_e, prefijo)
 
-        etapa = "CONTRATO"
-        # El diagnostico tambien serializa: asi una consulta nueva se valida
-        # contra el contrato de Laravel (tipos y obligatorias) sin publicar.
-        listos: dict[str, tuple[list[str], list[list[Any]]]] = {}
-        if args.diagnostico or cfg.ingesta.habilitada:
-            listos = _serializar(validos, corrida)
+                etapa = "CONTRATO"
+                # El diagnostico tambien serializa: asi una consulta nueva se
+                # valida contra el contrato de Laravel (tipos y obligatorias)
+                # sin publicar.
+                listos: dict[str, tuple[list[str], list[list[Any]]]] = {}
+                if args.diagnostico or cfg.ingesta.habilitada:
+                    listos = _serializar(validos, corrida_e)
+
+                if not args.diagnostico and cfg.ingesta.habilitada:
+                    etapa = "LARAVEL"
+                    _publicar_laravel(cfgs[emp.codigo], listos, corte, corrida_e, log)
 
         if args.diagnostico:
             return _cerrar_diagnostico(
-                corrida, log, hana.describir_cifrado(cfg.hana)
+                corridas, log, hana.describir_cifrado(cfg.hana)
             )
-
-        if cfg.ingesta.habilitada:
-            etapa = "LARAVEL"
-            _publicar_laravel(cfg, listos, corte, corrida, log)
-        else:
-            log.info("INGESTA_URL vacio: no se publica en Laravel.")
 
         if cfg.supabase_url:
             etapa = "SUPABASE"
-            _publicar_supabase(cfg, validos, corrida, log, inicio, inicio_utc)
+            # Respaldo del portal anterior, que solo es de Segurex.
+            destino = "SGX" if multi else empresas[0].codigo
+            if destino in validos_por and not corridas[destino].abortada:
+                _publicar_supabase(cfg, validos_por[destino], corridas[destino],
+                                   log, inicio, inicio_utc)
+            else:
+                log.info("Sin datos de %s para Supabase; no se publica el respaldo.",
+                         destino)
 
         duracion = time.monotonic() - inicio
-        if corrida.fallos:
-            return _cerrar_con_fallos(cfg, log, corrida, duracion)
+        if any(c.con_fallos() for c in corridas.values()):
+            return _cerrar_con_fallos(cfg, log, corridas, duracion)
 
-        log.info("Actualizacion completada en %.1fs: %s.", duracion, _resumen(corrida))
-        guardar_estado(estado="OK", lotes=corrida.cerrar(),
-                       filas_cartera=corrida.filas("cartera"),
-                       filas_asesores=corrida.filas("asesores"),
-                       duracion_seg=round(duracion, 1))
+        log.info("Actualizacion completada en %.1fs: %s.", duracion, _resumen(corridas))
+        guardar_estado(estado="OK", **_estado(corridas), duracion_seg=round(duracion, 1))
         return 0
 
     except (VpnError, hana.HanaError, postgres_sink.PostgresError,
             esquema.ColumnasInesperadas, FalloEtapa, ConfigError) as exc:
         etapa_fallo = getattr(exc, "etapa", etapa)
-        return _fallar(cfg, log, etapa_fallo, exc, inicio, inicio_utc, corrida)
+        return _fallar(cfg, log, etapa_fallo, exc, inicio, inicio_utc, corridas)
 
     except KeyboardInterrupt:
         log.warning("Ejecucion cancelada por el usuario.")
         return 130
 
     except Exception as exc:  # red de seguridad: nada sale sin registrar
-        return _fallar(cfg, log, etapa, exc, inicio, inicio_utc, corrida,
+        return _fallar(cfg, log, etapa, exc, inicio, inicio_utc, corridas,
                        inesperado=True)
 
 
 # ------------------------------------------------------------------ etapas
+def _cfg_empresa(cfg, emp: EmpresaConfig):
+    """La configuracion con el usuario y el esquema HANA y la empresa de Ingesta de emp."""
+    return replace(
+        cfg,
+        hana=replace(
+            cfg.hana, usuario=emp.usuario, password=emp.password, esquema=emp.esquema
+        ),
+        ingesta=replace(cfg.ingesta, empresa=emp.codigo),
+    )
+
+
+@contextmanager
+def _aislada(aislar: bool, corrida: Corrida, etapa: Callable[[], str]) -> Iterator[None]:
+    """Con varias empresas, un fallo que abortaria la corrida solo aborta a la
+    suya; con una sola se propaga, como siempre."""
+    try:
+        yield
+    except Exception as exc:
+        if not aislar:
+            raise
+        corrida.abortar(getattr(exc, "etapa", etapa()), exc)
+
+
+def _extraer(cfg, emp: EmpresaConfig, orden: list[str], corrida: Corrida,
+             diagnostico: bool, log: logging.Logger
+             ) -> dict[str, tuple[list[str], list[tuple]]]:
+    """Una consulta por lote contra el esquema de la empresa."""
+    extraidos: dict[str, tuple[list[str], list[tuple]]] = {}
+    with hana.conectar(cfg.hana) as conn:
+        if diagnostico:
+            esquemas = hana.listar_esquemas(conn)
+            log.info("Conexion OK (%s). Esquemas visibles: %s",
+                     hana.describir_cifrado(cfg.hana),
+                     ", ".join(esquemas) or "(ninguno)")
+            if not emp.esquema:
+                variable = f"HANA_SCHEMA_{emp.codigo}" if corrida.empresa else "HANA_SCHEMA"
+                raise FalloEtapa(
+                    "HANA",
+                    f"Conexion correcta, pero {variable} esta vacio. "
+                    "Elige uno de los esquemas listados arriba "
+                    "(el de SAP B1) y ponlo en el archivo .env.",
+                )
+
+        for nombre in orden:
+            lote = esquema.LOTES[nombre]
+            try:
+                extraidos[nombre] = hana.ejecutar(
+                    conn, leer_query(lote.consulta, emp.codigo), nombre,
+                    cfg.hana.esquema,
+                )
+            except (hana.HanaError, ConfigError) as exc:
+                if nombre in LOTES_BASE:
+                    raise
+                corrida.fallo(nombre, "HANA", exc)
+    return extraidos
+
+
 def _validar(
     extraidos: dict[str, tuple[list[str], list[tuple]]],
     corrida: Corrida,
@@ -306,12 +405,15 @@ def _validar(
 def _respaldar(
     validos: dict[str, tuple[esquema.Lote, list[tuple], list[int]]],
     corrida: Corrida,
+    prefijo: str = "",
 ) -> None:
-    """CSV local de cada lote extraido (auditoria y plan B)."""
+    """CSV local de cada lote extraido (auditoria y plan B).
+
+    prefijo separa por empresa los archivos de una corrida con varias."""
     for nombre, (lote, datos, posiciones) in validos.items():
         try:
             csv_sink.guardar(
-                nombre, lote.columnas, [[f[i] for i in posiciones] for f in datos]
+                f"{prefijo}{nombre}", lote.columnas, [[f[i] for i in posiciones] for f in datos]
             )
         except OSError as exc:
             if nombre in LOTES_BASE:
@@ -384,52 +486,75 @@ def _publicar_supabase(cfg, validos, corrida: Corrida, log: logging.Logger,
 
 
 # ----------------------------------------------------------------- cierre
-def _resumen(corrida: Corrida) -> str:
-    return ", ".join(
-        f"{nombre} {info['filas'] if info['filas'] is not None else '-'} filas"
-        for nombre, info in corrida.lotes.items()
-    )
+def _resumen(corridas: dict[str, Corrida]) -> str:
+    def uno(corrida: Corrida) -> str:
+        return ", ".join(
+            f"{nombre} {info['filas'] if info['filas'] is not None else '-'} filas"
+            for nombre, info in corrida.lotes.items()
+        )
+
+    if len(corridas) == 1:
+        return uno(next(iter(corridas.values())))
+    return "; ".join(f"{cod}: {uno(c)}" for cod, c in corridas.items())
 
 
-def _cerrar_diagnostico(corrida: Corrida, log: logging.Logger,
+def _estado(corridas: dict[str, Corrida]) -> dict[str, Any]:
+    """Campos del archivo de estado: los de siempre con una empresa; con varias,
+    uno por empresa."""
+    def uno(corrida: Corrida) -> dict[str, Any]:
+        return {"lotes": corrida.cerrar(),
+                "filas_cartera": corrida.filas("cartera"),
+                "filas_asesores": corrida.filas("asesores")}
+
+    if len(corridas) == 1:
+        return uno(next(iter(corridas.values())))
+    return {"empresas": {
+        cod: {"estado": "ERROR" if c.con_fallos() else "OK", **uno(c)}
+        for cod, c in corridas.items()
+    }}
+
+
+def _fallos(corridas: dict[str, Corrida]) -> list[tuple[str, str, str]]:
+    """(nombre, etapa, mensaje) de todas las empresas, en el orden de la corrida."""
+    return [f for c in corridas.values() for f in c.fallos_empresa()]
+
+
+def _cerrar_diagnostico(corridas: dict[str, Corrida], log: logging.Logger,
                         cifrado: str = "") -> int:
     """cifrado: modo TLS de HANA, para confirmar que la conexion cifrada sirve."""
-    lotes = corrida.cerrar()
-    if corrida.fallos:
-        for f in corrida.fallos_ordenados():
-            log.error("Diagnostico: el lote '%s' fallo en %s: %s",
-                      f.lote, f.etapa, f.mensaje)
-        guardar_estado(estado="DIAGNOSTICO_CON_FALLOS", lotes=lotes)
+    estado = _estado(corridas)
+    fallos = _fallos(corridas)
+    if fallos:
+        for nombre, etapa, mensaje in fallos:
+            log.error("Diagnostico: el lote '%s' fallo en %s: %s", nombre, etapa, mensaje)
+        guardar_estado(estado="DIAGNOSTICO_CON_FALLOS", **estado)
         return 1
     log.info("Diagnostico correcto (%s). HANA: %s. No se publico nada; revisa "
-             "los CSV en etl/out.", _resumen(corrida), cifrado or "-")
-    guardar_estado(estado="DIAGNOSTICO_OK", lotes=lotes,
-                   filas_cartera=corrida.filas("cartera"),
-                   filas_asesores=corrida.filas("asesores"))
+             "los CSV en etl/out.", _resumen(corridas), cifrado or "-")
+    guardar_estado(estado="DIAGNOSTICO_OK", **estado)
     return 0
 
 
-def _cerrar_con_fallos(cfg, log: logging.Logger, corrida: Corrida,
+def _cerrar_con_fallos(cfg, log: logging.Logger, corridas: dict[str, Corrida],
                        duracion: float) -> int:
-    """Todos los lotes ya se intentaron: se registra y se avisa una sola vez."""
-    fallos = corrida.fallos_ordenados()
-    detalle = "\n".join(f"- {f.lote} ({f.etapa}): {f.mensaje}" for f in fallos)
+    """Todos los lotes y empresas ya se intentaron: se registra y se avisa una sola vez."""
+    fallos = _fallos(corridas)
+    detalle = "\n".join(
+        f"- {nombre} ({etapa}): {mensaje}" for nombre, etapa, mensaje in fallos
+    )
     log.error("La corrida termino con %d fallo(s):\n%s", len(fallos), detalle)
-    log.error("Los lotes que fallaron conservan su ultima carga correcta.")
-    primero = fallos[0]
-    guardar_estado(estado="ERROR", etapa=primero.etapa, error=detalle,
-                   lotes=corrida.cerrar(),
-                   filas_cartera=corrida.filas("cartera"),
-                   filas_asesores=corrida.filas("asesores"),
-                   duracion_seg=round(duracion, 1))
+    log.error("Lo que fallo conserva su ultima carga correcta.")
+    nombre, etapa, _ = fallos[0]
+    guardar_estado(estado="ERROR", etapa=etapa, error=detalle,
+                   **_estado(corridas), duracion_seg=round(duracion, 1))
     notificar.avisar_fallo(
-        cfg.alertas, f"{primero.etapa} ({primero.lote})",
+        cfg.alertas, f"{etapa} ({nombre})",
         f"{len(fallos)} fallo(s) en la corrida:\n{detalle}",
     )
     return 1
 
 
-def _fallar(cfg, log, etapa, exc, inicio, inicio_utc, corrida: Corrida,
+def _fallar(cfg, log, etapa, exc, inicio, inicio_utc, corridas: dict[str, Corrida],
             inesperado: bool = False) -> int:
     """Aborto de la corrida completa (VPN, HANA o un lote base)."""
     duracion = time.monotonic() - inicio
@@ -440,10 +565,16 @@ def _fallar(cfg, log, etapa, exc, inicio, inicio_utc, corrida: Corrida,
     log.error("FALLO en la etapa %s: %s", etapa, exc)
     log.error("Los asesores conservan los datos de la ultima carga correcta.")
 
+    # El respaldo de Supabase es de Segurex; con una sola empresa, la unica.
+    corrida = corridas.get("SGX") or next(iter(corridas.values()))
     filas_cartera = corrida.filas("cartera")
     filas_asesores = corrida.filas("asesores")
+    lotes = (
+        {"lotes": corrida.lotes} if len(corridas) == 1
+        else {"empresas": {cod: {"lotes": c.lotes} for cod, c in corridas.items()}}
+    )
     guardar_estado(estado="ERROR", etapa=etapa, error=str(exc),
-                   lotes=corrida.lotes, duracion_seg=round(duracion, 1))
+                   **lotes, duracion_seg=round(duracion, 1))
 
     # Intento de dejar rastro en Supabase (puede que sea justo lo que fallo).
     if cfg.supabase_url and etapa != "SUPABASE":

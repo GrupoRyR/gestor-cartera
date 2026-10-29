@@ -133,6 +133,16 @@ class IngestaConfig:
 
 
 @dataclass(frozen=True)
+class EmpresaConfig:
+    """Una empresa de la corrida: su esquema HANA y el usuario con que se entra a el."""
+
+    codigo: str
+    esquema: str
+    usuario: str = ""
+    password: str = ""
+
+
+@dataclass(frozen=True)
 class Config:
     vpn: VpnConfig
     hana: HanaConfig
@@ -140,6 +150,18 @@ class Config:
     alertas: AlertaConfig
     ingesta: IngestaConfig
     lotes: tuple[str, ...]
+    # ETL_EMPRESAS: vacio = una sola empresa (INGESTA_EMPRESA con HANA_SCHEMA).
+    empresas: tuple[EmpresaConfig, ...] = ()
+
+    @property
+    def empresas_efectivas(self) -> tuple[EmpresaConfig, ...]:
+        """Las empresas que corre el robot, en orden."""
+        return self.empresas or (
+            EmpresaConfig(
+                self.ingesta.empresa, self.hana.esquema,
+                self.hana.usuario, self.hana.password,
+            ),
+        )
 
     def validar(
         self, *, requiere_destino: bool = True, requiere_esquema: bool = True
@@ -156,12 +178,7 @@ class Config:
             faltantes.append("SOPHOS_PASSWORD (contrasena de la VPN Sophos)")
         if not self.hana.host:
             faltantes.append("HANA_HOST (IP o nombre del servidor SAP HANA)")
-        if not self.hana.usuario:
-            faltantes.append("HANA_USER")
-        if not self.hana.password:
-            faltantes.append("HANA_PASSWORD")
-        if requiere_esquema and not self.hana.esquema:
-            faltantes.append("HANA_SCHEMA (esquema de SAP B1, ej: SBO_SEGUREX)")
+        faltantes.extend(self._faltantes_empresas(requiere_esquema))
         if self.ingesta.empresa not in EMPRESAS:
             faltantes.append(
                 f"INGESTA_EMPRESA debe ser {' o '.join(EMPRESAS)} "
@@ -182,6 +199,40 @@ class Config:
                 f"{ENV_PATH}:\n  - {detalle}\n\n"
                 "Edita ese archivo y vuelve a ejecutar."
             )
+
+    def _faltantes_empresas(self, requiere_esquema: bool) -> list[str]:
+        """Usuario, contrasena y esquema de HANA de cada empresa de la corrida."""
+        faltantes: list[str] = []
+        if self.empresas:
+            codigos = [e.codigo for e in self.empresas]
+            desconocidas = [c for c in codigos if c not in EMPRESAS]
+            if desconocidas:
+                faltantes.append(
+                    f"ETL_EMPRESAS tiene empresas desconocidas ({', '.join(desconocidas)}); "
+                    f"las validas son {', '.join(EMPRESAS)}"
+                )
+            if len(set(codigos)) != len(codigos):
+                faltantes.append("ETL_EMPRESAS repite una empresa")
+        # Una sola empresa tambien acepta las variables sueltas de siempre.
+        suelta = "" if self.empresas else " o HANA_SCHEMA"
+        for e in self.empresas_efectivas:
+            c = e.codigo
+            if not e.usuario:
+                faltantes.append(
+                    f"HANA_USER_{c} (usuario de HANA de la empresa {c}; "
+                    "si no existe se usa HANA_USER)"
+                )
+            if not e.password:
+                faltantes.append(
+                    f"HANA_PASSWORD_{c} (contrasena de HANA de la empresa {c}; "
+                    "si no existe se usa HANA_PASSWORD)"
+                )
+            if requiere_esquema and not e.esquema:
+                faltantes.append(
+                    f"HANA_SCHEMA_{c}{suelta} "
+                    f"(esquema de SAP B1 de la empresa {c}, ej: SBO_SEGUREX)"
+                )
+        return faltantes
 
     def _faltantes_destino(self) -> list[str]:
         ingesta = self.ingesta
@@ -247,18 +298,53 @@ def parsear_lotes(texto: str | None) -> tuple[str, ...]:
     return tuple(nombres)
 
 
-def leer_hana() -> HanaConfig:
-    """Variables HANA_* del entorno (cargar_config ya cargo etl/.env)."""
+def _credencial(nombre: str, empresa: str) -> str:
+    """HANA_<nombre>_<EMPRESA> y, si no esta, HANA_<nombre> (sin quitar espacios)."""
+    propia = os.getenv(f"HANA_{nombre}_{empresa}", "") if empresa else ""
+    return propia or os.getenv(f"HANA_{nombre}", "")
+
+
+def leer_hana(empresa: str = "") -> HanaConfig:
+    """Variables HANA_* del entorno (cargar_config ya cargo etl/.env).
+
+    Con empresa (la de una corrida de una sola empresa) usuario, contrasena y
+    esquema son HANA_USER_<EMPRESA>, HANA_PASSWORD_<EMPRESA> y HANA_SCHEMA_<EMPRESA>,
+    y cada una cae a la variable suelta si no existe.
+    """
     return HanaConfig(
         host=os.getenv("HANA_HOST", "").strip(),
         port=_int(os.getenv("HANA_PORT"), 30015),
-        usuario=os.getenv("HANA_USER", "").strip(),
-        password=os.getenv("HANA_PASSWORD", ""),
-        esquema=os.getenv("HANA_SCHEMA", "").strip(),
+        usuario=_credencial("USER", empresa).strip(),
+        password=_credencial("PASSWORD", empresa),
+        esquema=_credencial("SCHEMA", empresa).strip(),
         timeout=_int(os.getenv("HANA_TIMEOUT"), 600),
         encrypt=_bool_seguro(os.getenv("HANA_ENCRYPT"), True),
         validar_certificado=_bool_seguro(os.getenv("HANA_SSL_VALIDATE"), True),
         truststore=os.getenv("HANA_SSL_TRUSTSTORE", "").strip(),
+    )
+
+
+def leer_empresas() -> tuple[EmpresaConfig, ...]:
+    """ETL_EMPRESAS ("SGX,SDC") con el esquema y el usuario de HANA de cada una.
+
+    El esquema es HANA_SCHEMA_<EMPRESA>; usuario y contrasena son
+    HANA_USER_<EMPRESA> y HANA_PASSWORD_<EMPRESA>, o HANA_USER / HANA_PASSWORD
+    si la empresa no tiene los suyos. Vacio si ETL_EMPRESAS no esta: el robot
+    sigue con una sola empresa.
+    """
+    codigos: list[str] = []
+    for parte in os.getenv("ETL_EMPRESAS", "").split(","):
+        codigo = parte.strip().upper()
+        if codigo and codigo not in codigos:
+            codigos.append(codigo)
+    return tuple(
+        EmpresaConfig(
+            c,
+            os.getenv(f"HANA_SCHEMA_{c}", "").strip(),
+            _credencial("USER", c).strip(),
+            _credencial("PASSWORD", c),
+        )
+        for c in codigos
     )
 
 
@@ -274,6 +360,7 @@ def cargar_config() -> Config:
         if c.strip()
     ]
 
+    empresa = os.getenv("INGESTA_EMPRESA", "").strip().upper() or "SGX"
     secreto_ingesta = os.getenv("INGESTA_SECRET", "").strip()
     # Import diferido: registro importa este modulo (LOGS_DIR) y un import
     # arriba seria circular. Desde aqui el secreto nunca sale en los logs.
@@ -296,7 +383,7 @@ def cargar_config() -> Config:
                 os.getenv("SOPHOS_DISCONNECT_AL_FINAL"), True
             ),
         ),
-        hana=leer_hana(),
+        hana=leer_hana(empresa),
         supabase_url=os.getenv("SUPABASE_DB_URL", "").strip(),
         alertas=AlertaConfig(
             smtp_host=os.getenv("ALERTA_SMTP_HOST", "").strip(),
@@ -309,13 +396,14 @@ def cargar_config() -> Config:
             url=os.getenv("INGESTA_URL", "").strip(),
             key_id=os.getenv("INGESTA_KEY_ID", "").strip(),
             secreto=secreto_ingesta,
-            empresa=os.getenv("INGESTA_EMPRESA", "").strip().upper() or "SGX",
+            empresa=empresa,
             timeout=_int(os.getenv("INGESTA_TIMEOUT"), 120),
             gzip=_bool(os.getenv("INGESTA_GZIP"), True),
         ),
         lotes=parsear_lotes(
             os.getenv("ETL_LOTES", "").strip() or LOTES_POR_DEFECTO
         ),
+        empresas=leer_empresas(),
     )
 
 

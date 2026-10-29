@@ -139,8 +139,9 @@ def conectar(cfg: HanaConfig, intentos: int = 3) -> Iterator[Any]:
             texto = str(exc).lower()
             if "authentication failed" in texto or "invalid username" in texto:
                 raise HanaError(
-                    "HANA rechazo el usuario o la contrasena. Revisa "
-                    "HANA_USER / HANA_PASSWORD en el archivo .env. "
+                    f"HANA rechazo el usuario {cfg.usuario} o su contrasena. Revisa "
+                    "HANA_USER_<EMPRESA> / HANA_PASSWORD_<EMPRESA> (o HANA_USER / "
+                    "HANA_PASSWORD) en el archivo .env. "
                     "(No se reintenta para no bloquear el usuario.)"
                 ) from exc
             log.warning("Intento %d fallido: %s", intento, exc)
