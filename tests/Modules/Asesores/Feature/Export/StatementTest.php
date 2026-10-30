@@ -90,8 +90,8 @@ it('never prints another client', function () {
 it('takes the colors and name from the company of the client, not from the active one', function () {
     $this->actingAs($this->world->gloria);
     app(CurrentCompany::class)->switchTo(null);
-    $sdc = BrandPalette::official(CompanyCode::SDC)->primary;
-    $sgx = BrandPalette::official(CompanyCode::SGX)->primary;
+    $sdc = BrandPalette::official(CompanyCode::SDC)->accent;
+    $sgx = BrandPalette::official(CompanyCode::SGX)->accent;
 
     $html = asesoresStatementHtml($this->world->clients['granos']->id);
 

@@ -15,7 +15,7 @@
 <head>
     @include('components.layouts.partials.head', ['title' => $title, 'palette' => BrandPalette::neutral(), 'brand' => 'neutral'])
 </head>
-<body {{ $attributes->class('min-h-dvh bg-ground font-sans text-fg antialiased') }}>
+<body {{ $attributes->class('min-h-dvh bg-ground font-sans text-brand-text antialiased') }}>
     <div class="flex min-h-dvh flex-col">
         <a href="#contenido" data-part="skip-link" class="sr-only z-50 rounded-control bg-surface px-4 py-3 font-semibold shadow-pop focus:not-sr-only focus:fixed focus:start-3 focus:top-3">Saltar al contenido</a>
 
