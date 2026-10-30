@@ -75,7 +75,7 @@ it('shows the company selector to a user of two companies', function () {
 
     expect($html->one('//form[.//button[@name="empresa"]]')->getAttribute('action'))->toBe(route('core.empresa.cambiar'))
         ->and(array_map(fn (DOMElement $button): string => $button->getAttribute('value'), $buttons))->toBe(['SGX', 'SDC', 'grupo'])
-        ->and(array_map(fn (DOMElement $button): string => Html::clean($button->textContent), $buttons))->toBe(['Segurex Latam', 'SDC (Soluciones y Derivados)', 'Grupo RYR'])
+        ->and(array_map(fn (DOMElement $button): string => $button->getAttribute('aria-label'), $buttons))->toBe(['Segurex Latam', 'SDC (Soluciones y Derivados)', 'Grupo RYR'])
         ->and($html->one('//button[@name="empresa"][@aria-pressed="true"]')->getAttribute('value'))->toBe('SGX');
 
     foreach (BrandPalette::official(CompanyCode::SGX)->toCssVariables() as $variable => $color) {

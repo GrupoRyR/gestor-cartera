@@ -34,8 +34,8 @@
     $companyOptions['grupo'] = 'Grupo RYR';
     $selectedCompany = $activeCompany?->code->value ?? 'grupo';
 
-    // The switcher shows a short label; the rest of the name follows it for
-    // screen readers, so the accessible name starts with what people see.
+    // The switcher shows a short label; the full name is the accessible name
+    // and starts with what people see.
     $companySwitch = [];
     foreach ($companyOptions as $code => $name) {
         $label = match ($code) {
@@ -46,7 +46,7 @@
         $companySwitch[] = [
             'code' => $code,
             'label' => $label,
-            'rest' => Str::startsWith($name, $label) ? Str::after($name, $label) : " ({$name})",
+            'name' => Str::startsWith($name, $label) ? $name : "{$label} ({$name})",
             'pressed' => $code === $selectedCompany,
         ];
     }
@@ -56,7 +56,7 @@
     $logo = match ($activeCompany?->code) {
         CompanyCode::SGX => ['src' => asset('icons/marcas/segurex-blanco.png'), 'width' => 186, 'height' => 30, 'plate' => false],
         CompanyCode::SDC => ['src' => asset('icons/marcas/sdc.png'), 'width' => 98, 'height' => 24, 'plate' => true],
-        null => null,
+        default => null,
     };
 
     // The component gallery previews the selector with GET requests to itself
@@ -155,9 +155,10 @@
                                     @class([
                                         'inline-flex min-h-touch cursor-pointer items-center justify-center rounded-full px-2.5 text-[0.8125rem] font-bold whitespace-nowrap focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-head-fg max-sm:flex-1 sm:px-3.5 sm:text-sm',
                                         'bg-brand-plate text-brand-switch-ink' => $option['pressed'],
-                                        'text-brand-head-fg hover:bg-white/14' => ! $option['pressed'],
+                                        'text-brand-head-fg hover:bg-brand-switch-hover' => ! $option['pressed'],
                                     ])
-                                ><span>{{ $option['label'] }}</span><span data-visually-hidden>{{ $option['rest'] }}</span></button>
+                                    aria-label="{{ $option['name'] }}"
+                                >{{ $option['label'] }}</button>
                             @endforeach
                         </div>
                     </form>

@@ -304,10 +304,11 @@ describe('<x-layouts.app>', function () {
         $this->actingAs(User::factory()->make());
 
         $html = Html::parse((string) $this->blade('<x-layouts.app>Contenido</x-layouts.app>'));
-        $visible = array_map(fn (DOMElement $span): string => Html::clean($span->textContent), $html->all('//button[@name="empresa"]/span[not(@data-visually-hidden)]'));
-        $names = array_map(fn (DOMElement $b): string => Html::clean($b->textContent), $html->all('//button[@name="empresa"]'));
+        $buttons = $html->all('//button[@name="empresa"]');
+        $visible = array_map(fn (DOMElement $b): string => Html::clean($b->textContent), $buttons);
+        $names = array_map(fn (DOMElement $b): string => $b->getAttribute('aria-label'), $buttons);
 
-        // The full name stays for screen readers on every screen size, never aria-hidden.
+        // The full name is the accessible name on every screen size, and it starts with the visible label.
         expect($visible)->toBe(['Segurex', 'SDC', 'Grupo'])
             ->and($names)->toBe(['Segurex Latam', 'SDC (Soluciones y Derivados)', 'Grupo RYR'])
             ->and($html->count('//button[@name="empresa"]//*[@aria-hidden="true"]'))->toBe(0);
