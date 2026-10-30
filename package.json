@@ -8,8 +8,6 @@
     },
     "devDependencies": {
         "@alpinejs/focus": "^3.17.4",
-        "@fontsource-variable/bricolage-grotesque": "^5.3.0",
-        "@fontsource-variable/figtree": "^5.3.0",
         "@tailwindcss/vite": "^4.0.0",
         "alpinejs": "^3.17.4",
         "concurrently": "^9.0.1",

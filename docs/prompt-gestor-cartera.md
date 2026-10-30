@@ -127,7 +127,7 @@ Construir una sola herramienta web para el área de cartera de **Segurex Latam S
     - respeto a `prefers-reduced-motion`
     - tamaños en rem, probados con la letra al 200 %
   - Mobile-first, con zonas táctiles de al menos 44 × 44.
-  - Fuentes Figtree y Bricolage Grotesque, autoalojadas.
+  - Fuente Helvetica (`Helvetica, Arial, "Helvetica Neue", sans-serif`), sin fuentes web (marca v2).
   - Textos de interfaz en español, tuteando; código y comentarios en inglés.
 - Para gráficos y KPIs, cargar también la skill `dataviz`.
 - El selector de empresa (SGX, SDC o Grupo) cambia la marca en vivo.
