@@ -78,8 +78,9 @@ it('draws component titles in the title color, not the brand text color', functi
     'modal' => ['<x-ui.modal id="nuevo" title="Nuevo compromiso">A</x-ui.modal>', '//h2'],
 ]);
 
-it('labels a neutral chip with the brand tint and ink', function () {
-    $chip = Html::parse((string) $this->blade('<x-ui.chip :dot="false">SGX</x-ui.chip>'))->one('//*[@data-tone]');
+it('keeps a neutral chip gray, so a company code never wears the active brand', function () {
+    $chip = Html::parse((string) $this->blade('<x-ui.chip :dot="false">SDC</x-ui.chip>'))->one('//*[@data-tone]');
 
-    expect(explode(' ', $chip->getAttribute('class')))->toContain('bg-brand-tint', 'text-brand-ink');
+    expect(explode(' ', $chip->getAttribute('class')))->toContain('bg-status-neutral-bg', 'text-status-neutral')
+        ->not->toContain('bg-brand-tint');
 });

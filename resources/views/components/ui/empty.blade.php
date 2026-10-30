@@ -11,7 +11,7 @@
     <p data-part="title" class="max-w-md text-lg leading-snug font-bold text-balance text-fg">{{ $title }}</p>
 
     @if (filled($description))
-        <p data-part="description" class="max-w-md text-[0.9375rem] text-brand-text">{{ $description }}</p>
+        <p data-part="description" class="max-w-md text-[0.9375rem] text-fg-muted">{{ $description }}</p>
     @endif
 
     @if ($slot->hasActualContent())

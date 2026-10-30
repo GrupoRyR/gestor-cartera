@@ -266,7 +266,7 @@
 
         <section id="component-ui-chip" aria-labelledby="component-ui-chip-title" class="{{ $sectionClass }}">
             <h2 id="component-ui-chip-title" class="{{ $headingClass }}"><code>&lt;x-ui.chip&gt;</code></h2>
-            <p class="{{ $leadClass }}">Etiqueta corta. El tono <code>neutral</code> es la etiqueta de la marca (fondo tinte y texto tinta de la empresa activa); los demás tonos son estados. Siempre lleva texto: el color nunca habla solo.</p>
+            <p class="{{ $leadClass }}">Etiqueta corta. El tono <code>neutral</code> es gris: también marca códigos de empresa y estados apagados, que no deben tomar el color de la empresa activa. Siempre lleva texto: el color nunca habla solo.</p>
             <div class="flex flex-wrap items-center gap-2">
                 <x-ui.chip>Sin revisar</x-ui.chip>
                 <x-ui.chip tone="success">Conciliado</x-ui.chip>
