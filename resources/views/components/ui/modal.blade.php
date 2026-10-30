@@ -16,7 +16,7 @@
     'max-sm:mb-0 max-sm:max-h-[calc(100dvh-1rem)] max-sm:w-full max-sm:max-w-full max-sm:rounded-b-none max-sm:border-x-0 max-sm:border-b-0 max-sm:pb-[env(safe-area-inset-bottom)]',
 ]) }}>
     <header data-part="header" class="flex items-start justify-between gap-4 px-5 pt-4 pb-2">
-        <h2 id="{{ $id }}-title" class="pt-2 text-xl leading-snug font-bold">{{ $title }}</h2>
+        <h2 id="{{ $id }}-title" class="pt-2 text-xl leading-snug font-bold text-fg">{{ $title }}</h2>
         <x-ui.button variant="ghost" icon="close" :icon-only="true" data-modal-close class="-me-2">Cerrar</x-ui.button>
     </header>
 

@@ -203,16 +203,9 @@
         -webkit-tap-highlight-color: transparent;
     }
 
-    /* Long text takes the brand text color; headings keep the stronger fg. */
+    /* Long text takes the brand text color; page and dialog titles set text-fg themselves. */
     body {
         @apply bg-ground font-sans text-brand-text antialiased;
-    }
-
-    h1,
-    h2,
-    h3,
-    h4 {
-        color: var(--color-fg);
     }
 
     h1,

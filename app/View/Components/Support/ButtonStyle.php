@@ -14,7 +14,8 @@ final class ButtonStyle
         .'disabled:cursor-not-allowed disabled:opacity-55';
 
     private const array VARIANTS = [
-        // White text on --brand-button is at least 4.8:1 for every company (ryr-design);
+        // White text on --brand-button is at least 4.5:1 for every company (brand v2:
+        // 4.51:1 Segurex, 6.57:1 SDC), so labels never go below the normal text size;
         // the neutral palette flips both colors in dark mode (resources/css/app.css).
         'primary' => 'bg-brand-button text-brand-on-button hover:bg-[color-mix(in_oklab,var(--color-brand-button),black_14%)]',
         'secondary' => 'border border-line-strong bg-surface text-fg hover:bg-subtle',
