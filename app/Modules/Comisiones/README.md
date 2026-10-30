@@ -12,19 +12,19 @@ Liquidación mensual de comisiones de Segurex (SGX): el analista calcula con las
 
 ## Al desplegar
 
-Dale a Tatiana el rol que aprueba. La pantalla Equipo de Core todavía no asigna los roles del módulo, así que se hace por consola en el servidor:
+Dale el rol que aprueba a quien aprueba las liquidaciones. La pantalla Equipo de Core todavía no asigna los roles del módulo, así que se hace por consola en el servidor:
 
 ```bash
-php artisan comisiones:rol tatiana.munoz@segurex.com comisiones_aprobador
+php artisan comisiones:rol ana.gomez@segurex.com comisiones_aprobador
 ```
 
 1. **Antes**, el usuario debe existir y estar activo. Se crea solo la primera vez que entra con su cuenta de Microsoft (Entra ID), sin rol; también lo puede registrar un administrador en `/equipo/nuevo`. Si no existe o está desactivado, el comando responde «No hay un usuario activo con el correo …» y no cambia nada.
-2. Corre el comando. Responde «Asignaste el rol comisiones_aprobador a tatiana.munoz@segurex.com.» y deja `comisiones.role.assigned` en la bitácora.
+2. Corre el comando. Responde «Asignaste el rol comisiones_aprobador a ana.gomez@segurex.com.» y deja `comisiones.role.assigned` en la bitácora.
 3. Al entrar, la página de inicio la lleva a Comisiones. Los dos roles del módulo traen `core.access` (lo da `ComisionesPermissionSeeder`), así que no necesita un rol de Core.
 
 | Para | Comando |
 |---|---|
-| Quitar el rol | `php artisan comisiones:rol tatiana.munoz@segurex.com comisiones_aprobador --quitar` (bitácora: `comisiones.role.removed`) |
+| Quitar el rol | `php artisan comisiones:rol ana.gomez@segurex.com comisiones_aprobador --quitar` (bitácora: `comisiones.role.removed`) |
 | Dar acceso de solo consulta | `php artisan comisiones:rol <correo> comisiones_consulta` |
 
 El comando solo acepta `comisiones_aprobador` y `comisiones_consulta`; los roles de Core (por ejemplo `gerente_cartera`) se asignan en Equipo.
@@ -91,7 +91,7 @@ Cuando el aprobador aprueba una liquidación (`POST /comisiones/periodos/{period
 | Cuándo | Solo al aprobar. Ni al calcular, ni al cerrar, ni cuando la aprobación se rechaza. Sale cuando corre el worker de la cola, el mismo que envía el cobro de Cobro: `queue:work`, que el programador lanza cada minuto (necesita el cron de `schedule:run`). |
 | Cuántas veces | Una. El trabajo no se reintenta (`$tries = 1`): un reintento después de un envío que Graph aceptó mandaría el correo dos veces. Si la versión se recalculó antes de que el trabajo corra, no se envía. |
 | Desde | El buzón de Segurex (`COBRO_MAILBOX_SGX`), por el contrato `MailSender` que implementa Cobro. |
-| Para | `config('comisiones.approval_mail.recipients')`: hoy Marcela Sanabria y Mónica Pinzón. Para cambiarlos, edita esa lista en `config/comisiones.php`. |
+| Para | `config('comisiones.approval_mail.recipients')`, de `COMISIONES_APPROVAL_RECIPIENTS` en el `.env`: correos separados por comas, sin espacios ni vacíos (auditoría S-31). Sin destinatarios, la aprobación sigue, el correo no sale, queda una advertencia en el log y `comisiones.settlement.mail_failed` en la bitácora, y la pantalla del período lo dice. Después de cambiar el `.env` en producción, corre `php artisan config:cache`. |
 | Asunto | «Liquidación de comisiones aprobada – julio de 2026». |
 | Cuerpo | Período, versión y revisión, quién aprobó y cuándo, total del equipo regular y total para nómina, y un enlace a la liquidación. |
 | Adjunto | El mismo PDF que descarga `GET …/consolidado.pdf`, por ejemplo `Consolidado_Comisiones_2026-07_v1.pdf`. Lo arma `Infrastructure/Report/ConsolidatedPdf`. |
@@ -99,4 +99,4 @@ Cuando el aprobador aprueba una liquidación (`POST /comisiones/periodos/{period
 
 Un envío correcto queda en la bitácora como «Correo de aprobación enviado» (`comisiones.settlement.mailed`), con los destinatarios, y la pantalla del período dice «Correo de aprobación enviado a … el …». Mientras el trabajo espera en la cola, la pantalla no dice nada del correo.
 
-**Respuestas.** Si Marcela o Mónica responden, la respuesta llega al buzón de Segurex, no al aprobador. La sincronización de Cobro la trae a la bandeja «Respuestas de clientes» (`/cobro/respuestas`, empresa Segurex) como «Sin cliente identificado», porque el correo no es de un cliente. Quien la lea allí debe pasársela a Tatiana.
+**Respuestas.** Si alguno de los destinatarios responde, la respuesta llega al buzón de Segurex, no al aprobador. La sincronización de Cobro la trae a la bandeja «Respuestas de clientes» (`/cobro/respuestas`, empresa Segurex) como «Sin cliente identificado», porque el correo no es de un cliente. Quien la lea allí debe pasársela a quien aprobó.

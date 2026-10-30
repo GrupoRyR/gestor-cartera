@@ -32,12 +32,12 @@ beforeEach(function () {
 function cobroCopiesForm(array $overrides = []): array
 {
     return [
-        'fijos' => "Cartera@segurex.com\r\nmiguel.martinez@segurex.com, cartera@segurex.com",
+        'fijos' => "Cartera@segurex.com\r\njefe.cartera@segurex.com, cartera@segurex.com",
         'asesor' => '1',
         'gerentes' => [
-            ['grupo' => ' DISTRIBUCION ', 'correos' => 'jessika.quintero@segurex.com'],
+            ['grupo' => ' DISTRIBUCION ', 'correos' => 'gerente.distribucion@segurex.com'],
             ['grupo' => '', 'correos' => ''],
-            ['grupo' => 'CONS.  RESIDENCIAL', 'correos' => 'andrea.hincapie@segurex.com; otra.gerente@segurex.com'],
+            ['grupo' => 'CONS.  RESIDENCIAL', 'correos' => 'gerente.residencial@segurex.com; otra.gerente@segurex.com'],
         ],
         ...$overrides,
     ];
@@ -67,31 +67,25 @@ it('forbids the editor to roles without cobro.manage', function (?Role $role) {
     expect(CopySetting::query()->count())->toBe(1);
 })->with(CobroUsers::notManagers());
 
-it('shows the default copies of each company until someone saves them', function () {
+it('shows no copies for a company until someone saves them (audit S-31)', function () {
     $this->actingAs($this->analyst)->get('/cobro/copias')
         ->assertOk()
         ->assertSeeText('Copias del cobro semanal y la circularización')
-        ->assertSeeText('Usa las copias por defecto')
-        ->assertSee('miguel.martinez@segurex.com', false)
-        ->assertSee('value="DISTRIBUCION"', false)
-        ->assertSee('value="CONS. RESIDENCIAL"', false)
-        ->assertSee('value="jessika.quintero@segurex.com"', false)
+        ->assertSeeText('Sin copias guardadas: los envíos salen sin copia. Guárdalas antes del primer envío.')
         ->assertSeeText('Copiar al asesor del cliente')
         ->assertSeeText('«Grupo» del cliente en SAP')
-        ->assertSee('name="gerentes[4][grupo]"', false)
-        ->assertDontSee('name="gerentes[5][grupo]"', false)
-        ->assertDontSeeText('Volver a las copias por defecto');
+        ->assertSee('name="gerentes[2][grupo]"', false)
+        ->assertDontSee('name="gerentes[3][grupo]"', false)
+        ->assertDontSee('value="DISTRIBUCION"', false)
+        ->assertDontSeeText('Quitar las copias guardadas');
 
-    $this->actingAs($this->analyst)->get('/cobro/copias?empresa=SDC')
-        ->assertOk()
-        ->assertSee('miguel.martinez@derivadoscol.com', false)
-        ->assertSee('diana.mora@derivadoscol.com', false)
-        ->assertSee('servicioalcliente@derivadoscol.com', false);
+    expect(app(CopyStore::class)->for(CompanyCode::SGX)->toArray())->toBe(['fixed' => [], 'advisor' => false, 'managers' => []])
+        ->and(app(CopyStore::class)->for(CompanyCode::SDC)->toArray())->toBe(['fixed' => [], 'advisor' => false, 'managers' => []]);
 });
 
 it('saves the copies of a company, ignoring blank rows, and audits the change', function () {
     $this->actingAs($this->analyst)
-        ->put('/cobro/copias/SGX', cobroCopiesForm(['asesor' => null]))
+        ->put('/cobro/copias/SGX', cobroCopiesForm())
         ->assertRedirect('/cobro/copias?empresa=SGX')
         ->assertSessionHas('status', 'Guardaste las copias de Segurex Latam.');
 
@@ -101,30 +95,30 @@ it('saves the copies of a company, ignoring blank rows, and audits the change', 
     expect($saved->company)->toBe(CompanyCode::SGX)
         ->and($saved->updated_by)->toBe($this->analyst->id)
         ->and($settings->isDefault)->toBeFalse()
-        ->and($settings->fixed)->toBe(['Cartera@segurex.com', 'miguel.martinez@segurex.com'])
-        ->and($settings->advisor)->toBeFalse()
+        ->and($settings->fixed)->toBe(['Cartera@segurex.com', 'jefe.cartera@segurex.com'])
+        ->and($settings->advisor)->toBeTrue()
         ->and($settings->managers)->toBe([
-            ['group' => 'DISTRIBUCION', 'emails' => ['jessika.quintero@segurex.com']],
-            ['group' => 'CONS. RESIDENCIAL', 'emails' => ['andrea.hincapie@segurex.com', 'otra.gerente@segurex.com']],
+            ['group' => 'DISTRIBUCION', 'emails' => ['gerente.distribucion@segurex.com']],
+            ['group' => 'CONS. RESIDENCIAL', 'emails' => ['gerente.residencial@segurex.com', 'otra.gerente@segurex.com']],
         ])
         ->and(app(CopyStore::class)->for(CompanyCode::SDC)->isDefault)->toBeTrue();
 
-    $this->fakes->audit->assertRecorded('cobro.copies.updated', fn (AuditEntry $entry): bool => $entry->changes['advisor'] === ['old' => true, 'new' => false]
-        && $entry->changes['fixed']['old'] === ['miguel.martinez@segurex.com']);
+    $this->fakes->audit->assertRecorded('cobro.copies.updated', fn (AuditEntry $entry): bool => $entry->changes['advisor'] === ['old' => false, 'new' => true]
+        && $entry->changes['fixed']['old'] === []);
 
     $this->actingAs($this->analyst)->get('/cobro/copias?empresa=SGX')
         ->assertSeeText('Editadas por María Paula Rojas')
-        ->assertSee('value="andrea.hincapie@segurex.com, otra.gerente@segurex.com"', false);
+        ->assertSee('value="gerente.residencial@segurex.com, otra.gerente@segurex.com"', false);
 });
 
 it('rejects invalid addresses and incomplete manager rows', function () {
     $this->actingAs($this->analyst)
         ->from('/cobro/copias?empresa=SGX')
         ->put('/cobro/copias/SGX', cobroCopiesForm([
-            'fijos' => 'miguel.martinez@segurex.com, no-es-un-correo',
+            'fijos' => 'jefe.cartera@segurex.com, no-es-un-correo',
             'gerentes' => [
                 ['grupo' => 'DISTRIBUCION', 'correos' => ''],
-                ['grupo' => '', 'correos' => 'andrea.hincapie@segurex.com'],
+                ['grupo' => '', 'correos' => 'gerente.residencial@segurex.com'],
                 ['grupo' => 'INDUSTRIA', 'correos' => 'gerente@@segurex.com'],
             ],
         ]))
@@ -142,8 +136,8 @@ it('rejects invalid addresses and incomplete manager rows', function () {
 it('rejects an address whose domain has no dot', function () {
     $this->actingAs($this->analyst)
         ->put('/cobro/copias/SGX', cobroCopiesForm([
-            'fijos' => 'ana@segurex, miguel.martinez@segurex.com',
-            'gerentes' => [['grupo' => 'DISTRIBUCION', 'correos' => 'jessika.quintero@segurex.com, pedro@localhost']],
+            'fijos' => 'ana@segurex, jefe.cartera@segurex.com',
+            'gerentes' => [['grupo' => 'DISTRIBUCION', 'correos' => 'gerente.distribucion@segurex.com, pedro@localhost']],
         ]))
         ->assertSessionHasErrors([
             'fijos' => 'Estos correos no son válidos: ana@segurex.',
@@ -156,8 +150,8 @@ it('rejects an address whose domain has no dot', function () {
 it('rejects copies outside the company domains, subdomains included', function () {
     $this->actingAs($this->analyst)
         ->put('/cobro/copias/SGX', cobroCopiesForm([
-            'fijos' => 'miguel.martinez@segurex.com, Tesoreria@Cliente.example, diana.mora@DERIVADOSCOL.com',
-            'gerentes' => [['grupo' => 'DISTRIBUCION', 'correos' => 'jessika.quintero@segurex.com, x@mail.segurex.com']],
+            'fijos' => 'jefe.cartera@segurex.com, Tesoreria@Cliente.example, asesora.sdc@DERIVADOSCOL.com',
+            'gerentes' => [['grupo' => 'DISTRIBUCION', 'correos' => 'gerente.distribucion@segurex.com, x@mail.segurex.com']],
         ]))
         ->assertSessionHasErrors([
             'fijos' => 'Solo se permiten copias a correos de segurex.com o derivadoscol.com: Tesoreria@Cliente.example.',
@@ -182,30 +176,30 @@ it('answers 404 for a company the user may not choose', function () {
     expect(CopySetting::query()->count())->toBe(0);
 });
 
-it('restores the default copies and audits it', function () {
+it('removes the saved copies and audits it', function () {
     app(CopyStore::class)->save(CompanyCode::SGX, new CopySettings(fixed: ['cartera@segurex.com'], advisor: false), $this->analyst->id);
 
     $this->actingAs($this->analyst)->get('/cobro/copias?empresa=SGX')
-        ->assertSeeText('Volver a las copias por defecto')
+        ->assertSeeText('Quitar las copias guardadas')
         ->assertSee('action="'.route('cobro.copias.reset', ['empresa' => 'SGX']).'"', false);
 
     $this->actingAs($this->analyst)->delete('/cobro/copias/SGX')
         ->assertRedirect('/cobro/copias?empresa=SGX')
-        ->assertSessionHas('status', 'Las copias de Segurex Latam volvieron a las de por defecto.');
+        ->assertSessionHas('status', 'Quitaste las copias de Segurex Latam: los envíos saldrán sin copia.');
 
     $settings = app(CopyStore::class)->for(CompanyCode::SGX);
 
     expect(CopySetting::query()->count())->toBe(0)
         ->and($settings->isDefault)->toBeTrue()
-        ->and($settings->fixed)->toBe(['miguel.martinez@segurex.com'])
-        ->and($settings->advisor)->toBeTrue();
+        ->and($settings->fixed)->toBe([])
+        ->and($settings->advisor)->toBeFalse();
 
     $this->fakes->audit->assertRecorded('cobro.copies.reset', fn (AuditEntry $entry): bool => $entry->changes['fixed'] === ['cartera@segurex.com']
         && $entry->context['company'] === 'SGX');
 
     $this->actingAs($this->analyst)->get('/cobro/copias?empresa=SGX')
-        ->assertSeeText('Usa las copias por defecto')
-        ->assertDontSeeText('Volver a las copias por defecto');
+        ->assertSeeText('Sin copias guardadas: los envíos salen sin copia. Guárdalas antes del primer envío.')
+        ->assertDontSeeText('Quitar las copias guardadas');
 });
 
 it('restores nothing and audits nothing when the company saved no copies', function () {

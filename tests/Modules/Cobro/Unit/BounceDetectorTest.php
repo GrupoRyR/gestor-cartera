@@ -23,7 +23,7 @@ it('tells delivery reports from replies by their message class, sender and authe
     'an Exchange sender of another domain' => ['MicrosoftExchange329e71ec88ae4615bbc36ab6ce41109e@attacker.example', 'REPORT.IPM.Note.NDR', 'Internal', BounceDetector::REPLY],
     'a subdomain of ours' => ['MicrosoftExchange329e71ec88ae4615bbc36ab6ce41109e@mail.segurex.com', 'REPORT.IPM.Note.NDR', 'Internal', BounceDetector::REPLY],
     'an Exchange sender without its 32-digit id' => ['MicrosoftExchange@segurex.com', 'REPORT.IPM.Note.NDR', 'Internal', BounceDetector::REPLY],
-    'an employee of ours' => ['miguel.martinez@segurex.com', 'REPORT.IPM.Note.NDR', 'Internal', BounceDetector::REPLY],
+    'an employee of ours' => ['jefe.cartera@segurex.com', 'REPORT.IPM.Note.NDR', 'Internal', BounceDetector::REPLY],
     'a client reply titled as a report' => ['tesoreria@cliente.example', 'IPM.Note', 'Anonymous', BounceDetector::REPLY],
     'our Exchange, an ordinary mail' => [COBRO_EXCHANGE_SENDER, 'IPM.Note', 'Internal', BounceDetector::REPLY],
     'a delay report' => [COBRO_EXCHANGE_SENDER, 'REPORT.IPM.Note.Delayed.DR', 'Internal', BounceDetector::REPLY],

@@ -362,6 +362,16 @@ Levanté la app en `127.0.0.1:8123` con los seeders de demostración (SQLite tem
 - **Dónde:** `etl/.env.example` trae como valor de ejemplo la IP pública real de la puerta de la VPN Sophos (desde el primer commit, `b503a39`). Los correos reales de empleados aparecen como valores por defecto en `app/Modules/Cobro/config/cobro.php`, `app/Modules/Comisiones/Application/DefaultParameters.php` y sus pruebas, y en `legacy/portal-asesores/supabase/03_seed_usuarios.sql` y `05_seed_asesores.sql`.
 - **Cómo se explotaría:** el repositorio es privado, así que solo importa si se filtra o se vuelve público. La IP sirve para atacar la VPN que da acceso a SAP.
 - **Corrección:** dejar `SOPHOS_CONNECTION=` vacío en el ejemplo; mover los correos por defecto a `.env` o a la base; no subir `legacy/` al servidor.
+- **Estado: corregido en parte** en el PR 16 de la Fase 2, con las condiciones que puso el usuario el 30 de octubre de 2026:
+  - **Comisiones:** los destinatarios del correo de aprobación salen de `COMISIONES_APPROVAL_RECIPIENTS` en el `.env`, separados por comas. Sin destinatarios, la aprobación sigue y queda un aviso en el log.
+  - **Cobro:** las copias por defecto quedan vacías. Un envío sin copias guardadas en `/cobro/copias` sale sin copias y deja `cobro.copies.not_saved` en el log. Antes del primer envío hay que guardarlas.
+  - **Pruebas:** los correos reales de empleados pasaron a direcciones ficticias.
+  - **Lo que hace el usuario en un PR aparte:** la línea `COMISIONES_APPROVAL_RECIPIENTS=` en `.env.example` y `SOPHOS_CONNECTION=` vacío en `etl/.env.example`. Los dos archivos están bloqueados para el agente.
+  - **Sin cambios:**
+    - El historial de git, por decisión del usuario: el repositorio es privado y basta con que los datos no sigan en el código.
+    - El contacto de cartera de los textos de las cartas a clientes (`app/Modules/Cobro/resources/lang/es/plantillas.php`): ya lo recibe cada cliente y se edita en `/cobro/plantillas`.
+    - Los nombres de personas de `DefaultParameters.php`: las reglas de comisiones los necesitan, y no son correos.
+    - `legacy/`: es de solo lectura.
 
 ---
 

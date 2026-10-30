@@ -11,11 +11,14 @@ return [
     'documents_disk' => 'local',
     'documents_directory' => 'comisiones/informes',
 
-    // Approving a settlement mails its consolidated PDF from the Segurex mailbox to these addresses.
+    // Approving a settlement mails its consolidated PDF from the Segurex
+    // mailbox to these addresses, from the comma-separated
+    // COMISIONES_APPROVAL_RECIPIENTS (audit S-31). Without any, the approval
+    // still goes through and the mail is logged and audited as not sent.
     'approval_mail' => [
-        'recipients' => [
-            'marcela.sanabria@segurex.com',
-            'monica.pinzon@segurex.com',
-        ],
+        'recipients' => array_values(array_filter(
+            array_map(trim(...), explode(',', (string) env('COMISIONES_APPROVAL_RECIPIENTS', ''))),
+            fn (string $recipient): bool => $recipient !== '',
+        )),
     ],
 ];

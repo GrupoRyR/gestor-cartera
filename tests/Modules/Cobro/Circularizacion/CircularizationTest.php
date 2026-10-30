@@ -124,17 +124,20 @@ it('lists credit notes so the total is what the client owes', function () {
 });
 
 it('copies the weekly collection copies of each company by default, never the To addresses', function () {
-    config(['cobro.copias.SGX.fixed' => ['miguel.martinez@segurex.com', 'PAGOS@tornillo.example']]);
+    config([
+        'cobro.copias.SGX.fixed' => ['jefe.cartera@segurex.com', 'PAGOS@tornillo.example'],
+        'cobro.copias.SDC.fixed' => ['jefe.cartera@derivadoscol.com', 'asesora.sdc@derivadoscol.com', 'servicio.cliente@derivadoscol.com'],
+    ]);
 
     $this->artisan('cobro:circularizacion')->assertSuccessful();
 
-    expect(cobroCircularizationMail($this->portfolio->tornillo->summary->id)->cc)->toBe(['miguel.martinez@segurex.com'])
+    expect(cobroCircularizationMail($this->portfolio->tornillo->summary->id)->cc)->toBe(['jefe.cartera@segurex.com'])
         ->and(cobroCircularizationMail($this->portfolio->quimicos->summary->id)->cc)
-        ->toBe(['miguel.martinez@derivadoscol.com', 'diana.mora@derivadoscol.com', 'servicioalcliente@derivadoscol.com']);
+        ->toBe(['jefe.cartera@derivadoscol.com', 'asesora.sdc@derivadoscol.com', 'servicio.cliente@derivadoscol.com']);
 });
 
 it('copies what each company saved in the copies screen, the advisor and the group manager included', function () {
-    $advisor = Make::advisor(code: 41, name: 'JENNY ROCIO BUITRAGO IBAÑEZ', email: 'Jenny.Buitrago@segurex.com');
+    $advisor = Make::advisor(code: 41, name: 'JENNY ROCIO BUITRAGO IBAÑEZ', email: 'Asesora.Distribucion@segurex.com');
     $distribuidor = Make::clientDetail(
         Make::client(name: 'Distribuidora Central SAS', balance: 900_000, advisor: $advisor),
         group: 'Distribución',
@@ -153,7 +156,7 @@ it('copies what each company saved in the copies screen, the advisor and the gro
 
     $this->artisan('cobro:circularizacion')->assertSuccessful();
 
-    expect(cobroCircularizationMail($distribuidor->summary->id)->cc)->toBe(['cartera@segurex.com', 'Jenny.Buitrago@segurex.com', 'nueva.gerente@segurex.com'])
+    expect(cobroCircularizationMail($distribuidor->summary->id)->cc)->toBe(['cartera@segurex.com', 'Asesora.Distribucion@segurex.com', 'nueva.gerente@segurex.com'])
         ->and(cobroCircularizationMail($this->portfolio->tornillo->summary->id)->cc)->toBe(['cartera@segurex.com'])
         ->and(cobroCircularizationMail($this->portfolio->quimicos->summary->id)->cc)->toBe(['cartera@derivadoscol.com']);
 });
@@ -182,6 +185,7 @@ it('still holds the scheduled run back if the draft flag is turned on again', fu
 });
 
 it('previews the next circularization with its copies and no draft notice', function () {
+    config(['cobro.copias.SGX.fixed' => ['jefe.cartera@segurex.com']]);
     $analyst = CobroUsers::create(Role::PortfolioAnalyst);
 
     $this->actingAs($analyst)->get('/cobro/circularizacion')->assertOk()
@@ -191,7 +195,7 @@ it('previews the next circularization with its copies and no draft notice', func
         ->assertDontSeeText('Pausado mientras el envío esté en borrador')
         ->assertDontSeeText('provisional')
         ->assertSeeText('Comercial Al Día SAS')
-        ->assertSeeText('Con copia a: miguel.martinez@segurex.com');
+        ->assertSeeText('Con copia a: jefe.cartera@segurex.com');
 
     $html = (string) $this->actingAs($analyst)
         ->get('/cobro/circularizacion/SGX/correo/'.$this->portfolio->tornillo->summary->id)

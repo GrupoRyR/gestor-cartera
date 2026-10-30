@@ -1035,10 +1035,13 @@ Los secretos viven solo en `.env` (en el servidor, con `chmod 600`). `.env.examp
 | `INGESTA_HMAC_MAX_SKEW` | Ingesta | Segundos de diferencia de reloj aceptados; por defecto `300` (entero). |
 | `INGESTA_ALERT_DEADLINE` | Ingesta | Hora límite de la carga diaria; por defecto `07:00`. |
 | `CORE_AUDIT_ALERT_RECIPIENTS` | Core, Cobro | Correos separados por comas que reciben la alerta de `core:verificar-auditoria`, el aviso de Core cada vez que un ingreso da el rol `asesor` por coincidencia de correo con SAP y el aviso de Cobro con las diferencias de cada cambio de la plantilla del cobro semanal; `config('core.audit.alert_recipients')` y `config('cobro.template_alert_recipients')` los entregan como lista, sin espacios ni vacíos. Sin destinatarios, la falla, la asignación o el cambio quedan solo en el log. |
+| `COMISIONES_APPROVAL_RECIPIENTS` | Comisiones | Correos separados por comas que reciben el consolidado de cada liquidación aprobada; `config('comisiones.approval_mail.recipients')` los entrega como lista, sin espacios ni vacíos. Sin destinatarios, la aprobación sigue y el correo queda como no enviado en el log y en la bitácora. |
 | `INGESTA_ALERT_RECIPIENTS` | Ingesta | Correos separados por comas; `config('ingesta.alert_recipients')` los entrega como lista, sin espacios ni vacíos. |
 | `BANCOS_IMPORT_PATH` | Bancos | Carpeta de los extractos; por defecto `bancos/entrada`. |
 | `BANCOS_API_TOKEN` | Bancos | Token de Tesorería para `GET /api/recaudo`. Debe tener al menos 32 bytes: uno más corto, igual que uno vacío, deja la API cerrada (401 a todo) con una advertencia en el log. |
 | `BANCOS_INGEST_TOKEN` | Bancos | Token de Tesorería para `POST /api/movimientos`, distinto del de lectura. Misma regla: al menos 32 bytes, o la API queda cerrada. |
+
+**Copias del cobro.** Las copias (CC) del cobro semanal y de la circularización no tienen variable ni valores por defecto: antes del primer envío, guardar las copias en /cobro/copias, para cada empresa. Un envío sin copias guardadas sale sin copias y deja `cobro.copies.not_saved` en el log (auditoría S-31).
 
 **Rotar la llave HMAC del robot** sin cortar las cargas:
 

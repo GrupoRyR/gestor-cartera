@@ -6,23 +6,23 @@ use App\Modules\Cobro\Domain\Copies\CopySettings;
 function cobroCopies(bool $advisor = true): CopySettings
 {
     return new CopySettings(
-        fixed: ['miguel.martinez@segurex.com'],
+        fixed: ['jefe.cartera@segurex.com'],
         advisor: $advisor,
         managers: [
-            ['group' => 'DISTRIBUCION', 'emails' => ['jessika.quintero@segurex.com']],
-            ['group' => 'CONS. RESIDENCIAL', 'emails' => ['andrea.hincapie@segurex.com']],
+            ['group' => 'DISTRIBUCION', 'emails' => ['gerente.distribucion@segurex.com']],
+            ['group' => 'CONS. RESIDENCIAL', 'emails' => ['gerente.residencial@segurex.com']],
         ],
     );
 }
 
 it('copies the fixed addresses, the advisor and the managers of the client group, in that order', function () {
     expect(CopyRecipients::resolve(cobroCopies(), 'asesor41@segurex.com', 'DISTRIBUCION'))
-        ->toBe(['miguel.martinez@segurex.com', 'asesor41@segurex.com', 'jessika.quintero@segurex.com']);
+        ->toBe(['jefe.cartera@segurex.com', 'asesor41@segurex.com', 'gerente.distribucion@segurex.com']);
 });
 
 it('matches the group without regard to case, accents or spacing', function (string $group) {
     expect(CopyRecipients::resolve(cobroCopies(), null, $group))
-        ->toBe(['miguel.martinez@segurex.com', 'andrea.hincapie@segurex.com']);
+        ->toBe(['jefe.cartera@segurex.com', 'gerente.residencial@segurex.com']);
 })->with([
     'as SAP writes it' => ['CONS. RESIDENCIAL'],
     'lowercase' => ['cons. residencial'],
@@ -31,7 +31,7 @@ it('matches the group without regard to case, accents or spacing', function (str
 ]);
 
 it('copies no manager without a group or with another group', function (?string $group) {
-    expect(CopyRecipients::resolve(cobroCopies(), null, $group))->toBe(['miguel.martinez@segurex.com']);
+    expect(CopyRecipients::resolve(cobroCopies(), null, $group))->toBe(['jefe.cartera@segurex.com']);
 })->with([
     'no group' => [null],
     'blank group' => ['  '],
@@ -39,7 +39,7 @@ it('copies no manager without a group or with another group', function (?string 
 ]);
 
 it('leaves the advisor out when disabled, missing or blank', function (bool $enabled, ?string $email) {
-    expect(CopyRecipients::resolve(cobroCopies($enabled), $email, null))->toBe(['miguel.martinez@segurex.com']);
+    expect(CopyRecipients::resolve(cobroCopies($enabled), $email, null))->toBe(['jefe.cartera@segurex.com']);
 })->with([
     'disabled' => [false, 'asesor41@segurex.com'],
     'without e-mail' => [true, null],
@@ -48,12 +48,12 @@ it('leaves the advisor out when disabled, missing or blank', function (bool $ena
 
 it('drops duplicates and the To addresses, keeping the first spelling', function () {
     $settings = new CopySettings(
-        fixed: [' Miguel.Martinez@segurex.com ', '', 'tesoreria@cliente.example'],
-        managers: [['group' => 'DISTRIBUCION', 'emails' => ['miguel.martinez@SEGUREX.com', 'jessika.quintero@segurex.com']]],
+        fixed: [' Jefe.Cartera@segurex.com ', '', 'tesoreria@cliente.example'],
+        managers: [['group' => 'DISTRIBUCION', 'emails' => ['jefe.cartera@SEGUREX.com', 'gerente.distribucion@segurex.com']]],
     );
 
-    expect(CopyRecipients::resolve($settings, 'JESSIKA.QUINTERO@segurex.com', 'Distribución', to: ['Tesoreria@Cliente.example']))
-        ->toBe(['Miguel.Martinez@segurex.com', 'JESSIKA.QUINTERO@segurex.com']);
+    expect(CopyRecipients::resolve($settings, 'GERENTE.DISTRIBUCION@segurex.com', 'Distribución', to: ['Tesoreria@Cliente.example']))
+        ->toBe(['Jefe.Cartera@segurex.com', 'GERENTE.DISTRIBUCION@segurex.com']);
 });
 
 it('splits a list written one per line or with commas', function () {
@@ -76,9 +76,9 @@ it('reads settings from their stored shape, leaving out incomplete managers', fu
 
 it('keeps only the addresses of the allowed domains, in order', function () {
     expect(CopyRecipients::allowed(
-        ['Ana@Segurex.com', 'tesoreria@cliente.example', ' diana.mora@DERIVADOSCOL.COM ', 'x@mail.segurex.com', 'sin-arroba', 'raro@cliente.example@segurex.com.co'],
+        ['Ana@Segurex.com', 'tesoreria@cliente.example', ' asesora.sdc@DERIVADOSCOL.COM ', 'x@mail.segurex.com', 'sin-arroba', 'raro@cliente.example@segurex.com.co'],
         ['segurex.com', 'Derivadoscol.com'],
-    ))->toBe(['Ana@Segurex.com', ' diana.mora@DERIVADOSCOL.COM ']);
+    ))->toBe(['Ana@Segurex.com', ' asesora.sdc@DERIVADOSCOL.COM ']);
 });
 
 it('compares the part after the last @', function () {
