@@ -76,12 +76,9 @@ Cada correo del cobro semanal y de la circularización mensual lleva en copia (C
 2. el asesor del cliente (su correo en SAP, `OSLP.Email`), si la casilla está marcada y SAP lo tiene activo;
 3. los gerentes del grupo de SAP del cliente (`OCRG.GroupName`, por ejemplo `DISTRIBUCION` o `CONS. RESIDENCIAL`). El grupo se compara sin importar mayúsculas, tildes ni espacios; un cliente sin grupo no copia a ningún gerente.
 
-Se editan en `/cobro/copias` y se guardan en `cobro_copias`, una fila por empresa (cada cambio queda en la auditoría como `cobro.copies.updated`; «Volver a las copias por defecto» borra la fila y queda como `cobro.copies.reset`). Mientras una empresa no guarde las suyas se usan las de `config('cobro.copias')`:
+Se editan en `/cobro/copias` y se guardan en `cobro_copias`, una fila por empresa (cada cambio queda en la auditoría como `cobro.copies.updated`; «Volver a las copias por defecto» borra la fila y queda como `cobro.copies.reset`). Mientras una empresa no guarde las suyas se usan las de `config('cobro.copias')`, que están vacías: sin correos fijos, sin asesor y sin gerentes, para que ningún correo de un empleado quede en el código (auditoría S-31).
 
-| Empresa | Fijas | Asesor | Gerentes por grupo |
-|---|---|---|---|
-| Segurex | Miguel Martínez | Sí | `DISTRIBUCION`: Jessika Quintero; `CONS. RESIDENCIAL`: Andrea Hincapié |
-| Derivados | Miguel Martínez, Diana Mora y Servicio al Cliente | No (la única asesora, Diana Mora, ya va fija) | Ninguno |
+**Antes del primer envío, guardar las copias en /cobro/copias**, para Segurex y para Derivados. Si un envío arranca sin copias guardadas, sale sin copias y deja el aviso `cobro.copies.not_saved` en el registro, con la empresa, la clase de envío y el id del envío. La vista previa no deja aviso.
 
 Las dos clases de correo usan las mismas copias de la empresa: lo que se guarde en `/cobro/copias` aplica a ambas. La vista previa del envío muestra las copias de cada cliente; la prueba que se envía el usuario no lleva copias.
 

@@ -34,7 +34,7 @@ beforeEach(function () {
     // A client of the DISTRIBUCION group (written with an accent) with an
     // advisor; its contact is also a fixed copy, and one of its group
     // managers is too.
-    $advisor = Make::advisor(code: 41, name: 'JENNY ROCIO BUITRAGO IBAÑEZ', email: 'Jenny.Buitrago@segurex.com');
+    $advisor = Make::advisor(code: 41, name: 'JENNY ROCIO BUITRAGO IBAÑEZ', email: 'Asesora.Distribucion@segurex.com');
     $this->distribuidor = Make::clientDetail(
         Make::client(name: 'Distribuidora Central SAS', balance: 900_000, overdue: 900_000, maxDaysOverdue: 20, advisor: $advisor),
         group: 'Distribución',
@@ -46,11 +46,11 @@ beforeEach(function () {
     );
 
     config(['cobro.copias.SGX' => [
-        'fixed' => ['miguel.martinez@segurex.com', 'PAGOS@central.example'],
+        'fixed' => ['jefe.cartera@segurex.com', 'PAGOS@central.example'],
         'advisor' => true,
         'managers' => [
-            ['group' => 'DISTRIBUCION', 'emails' => ['jessika.quintero@segurex.com', 'Miguel.Martinez@segurex.com']],
-            ['group' => 'CONS. RESIDENCIAL', 'emails' => ['andrea.hincapie@segurex.com']],
+            ['group' => 'DISTRIBUCION', 'emails' => ['gerente.distribucion@segurex.com', 'Jefe.Cartera@segurex.com']],
+            ['group' => 'CONS. RESIDENCIAL', 'emails' => ['gerente.residencial@segurex.com']],
         ],
     ]]);
 });
@@ -67,10 +67,10 @@ it('copies the fixed addresses, the advisor and the group manager, without dupli
     $this->artisan('cobro:cobro-semanal')->assertSuccessful();
 
     expect(cobroMailFor($this->distribuidor->summary->id)->cc)
-        ->toBe(['miguel.martinez@segurex.com', 'Jenny.Buitrago@segurex.com', 'jessika.quintero@segurex.com'])
+        ->toBe(['jefe.cartera@segurex.com', 'Asesora.Distribucion@segurex.com', 'gerente.distribucion@segurex.com'])
         // Ferretería El Tornillo has no advisor and its group has no manager;
         // the fixed copy of another client's domain is never sent.
-        ->and(cobroMailFor($this->portfolio->tornillo->summary->id)->cc)->toBe(['miguel.martinez@segurex.com']);
+        ->and(cobroMailFor($this->portfolio->tornillo->summary->id)->cc)->toBe(['jefe.cartera@segurex.com']);
 });
 
 it('drops, before sending, the copies outside the company domains and logs only their domains', function () {
@@ -102,13 +102,28 @@ it('drops, before sending, the copies outside the company domains and logs only 
         && $context === ['company' => 'SGX', 'run_item' => $item->id, 'count' => 3, 'domains' => ['externo.example', 'mail.segurex.com', 'gmail.example']])->once();
 });
 
-it('copies only the SDC fixed addresses of the configuration', function () {
+it('copies nobody until the company saves its copies, and logs that the run went out without them (audit S-31)', function () {
+    Log::spy();
+
     $this->artisan('cobro:cobro-semanal --empresa=SDC')->assertSuccessful();
 
-    expect(cobroMailFor($this->portfolio->quimicos->summary->id)->cc)
-        ->toBe(['miguel.martinez@derivadoscol.com', 'diana.mora@derivadoscol.com', 'servicioalcliente@derivadoscol.com'])
-        ->and(config('cobro.copias.SDC.advisor'))->toBeFalse()
-        ->and(config('cobro.copias.SDC.managers'))->toBe([]);
+    $run = Run::query()->sole();
+
+    expect(cobroMailFor($this->portfolio->quimicos->summary->id)->cc)->toBe([])
+        ->and(config('cobro.copias.SDC'))->toBe(['fixed' => [], 'advisor' => false, 'managers' => []]);
+
+    Log::shouldHaveReceived('warning')->withArgs(fn (string $message, array $context): bool => $message === 'cobro.copies.not_saved'
+        && $context === ['company' => 'SDC', 'kind' => 'cobro_semanal', 'run' => $run->id])->once();
+});
+
+it('logs nothing about the copies when the company saved them, nor on the preview', function () {
+    app(CopyStore::class)->save(CompanyCode::SGX, new CopySettings(fixed: ['cartera@segurex.com'], advisor: false), null);
+    Log::spy();
+
+    $this->actingAs(CobroUsers::create(Role::PortfolioAnalyst))->get('/cobro/semanal?empresa=SDC')->assertOk();
+    $this->artisan('cobro:cobro-semanal --empresa=SGX')->assertSuccessful();
+
+    Log::shouldNotHaveReceived('warning', fn (string $message): bool => $message === 'cobro.copies.not_saved');
 });
 
 it('never copies an advisor SAP lists as inactive', function () {
@@ -130,7 +145,7 @@ it('never copies an advisor SAP lists as inactive', function () {
 
     $this->artisan('cobro:cobro-semanal')->assertSuccessful();
 
-    expect(cobroMailFor($client->summary->id)->cc)->toBe(['miguel.martinez@segurex.com']);
+    expect(cobroMailFor($client->summary->id)->cc)->toBe(['jefe.cartera@segurex.com']);
 });
 
 it('copies what the company saved instead of the configuration', function () {
@@ -162,17 +177,17 @@ it('copies the same recipients on the circularization', function () {
     $this->artisan('cobro:circularizacion --empresa=SGX')->assertSuccessful();
 
     expect(cobroMailFor($this->distribuidor->summary->id)->cc)
-        ->toBe(['miguel.martinez@segurex.com', 'Jenny.Buitrago@segurex.com', 'jessika.quintero@segurex.com']);
+        ->toBe(['jefe.cartera@segurex.com', 'Asesora.Distribucion@segurex.com', 'gerente.distribucion@segurex.com']);
 });
 
 it('shows the copies of each client in the weekly and the circularization previews', function () {
     $analyst = CobroUsers::create(Role::PortfolioAnalyst);
 
     $this->actingAs($analyst)->get('/cobro/semanal')->assertOk()
-        ->assertSeeText('Con copia a: miguel.martinez@segurex.com, Jenny.Buitrago@segurex.com, jessika.quintero@segurex.com');
+        ->assertSeeText('Con copia a: jefe.cartera@segurex.com, Asesora.Distribucion@segurex.com, gerente.distribucion@segurex.com');
 
     $this->actingAs($analyst)->get('/cobro/circularizacion')->assertOk()
-        ->assertSeeText('Con copia a: miguel.martinez@segurex.com, Jenny.Buitrago@segurex.com, jessika.quintero@segurex.com');
+        ->assertSeeText('Con copia a: jefe.cartera@segurex.com, Asesora.Distribucion@segurex.com, gerente.distribucion@segurex.com');
 });
 
 /**
@@ -266,7 +281,7 @@ it('keeps the item sent when a report with our Exchange sender came from outside
 });
 
 it('marks the item bounced when one of its To addresses bounced', function () {
-    $item = cobroAndinasSend(['tesoreria@andinas.example', 'Pagos@Andinas-Inexistente.example'], ['miguel.martinez@segurex.com']);
+    $item = cobroAndinasSend(['tesoreria@andinas.example', 'Pagos@Andinas-Inexistente.example'], ['jefe.cartera@segurex.com']);
 
     cobroSyncRecordedInbox();
 
@@ -292,10 +307,10 @@ it('keeps the item sent when only a carbon copy bounced', function () {
 });
 
 it('marks the item bounced when the report names a copy before the To address that failed', function () {
-    $item = cobroAndinasSend(['pagos@andinas-inexistente.example'], ['miguel.martinez@segurex.com']);
+    $item = cobroAndinasSend(['pagos@andinas-inexistente.example'], ['jefe.cartera@segurex.com']);
     $sent = SentMessage::query()->findOrFail($item->sent_message_id);
     $body = "Delivery has failed to these recipients or groups:\r\n"
-        ."miguel.martinez@segurex.com, pagos@andinas-inexistente.example\r\n"
+        ."jefe.cartera@segurex.com, pagos@andinas-inexistente.example\r\n"
         ."Remote server returned '550 5.1.10 RESOLVER.ADR.RecipientNotFound'";
     $read = app(BounceDetector::class)->read($body, recipients: $sent->recipients, ignore: [$sent->mailbox]);
 

@@ -6,6 +6,7 @@ use App\Modules\Cobro\Application\Runs\RunDefinition;
 use App\Modules\Cobro\Domain\Runs\ItemStatus;
 use App\Modules\Cobro\Domain\Runs\PlannedItem;
 use App\Modules\Cobro\Domain\Runs\RunStatus;
+use App\Modules\Cobro\Infrastructure\Copies\CopyStore;
 use App\Modules\Cobro\Infrastructure\Exclusions\ExclusionList;
 use App\Modules\Cobro\Infrastructure\Persistence\Run;
 use App\Modules\Cobro\Infrastructure\Persistence\RunItem;
@@ -16,6 +17,7 @@ use App\Modules\Core\Contracts\Enums\CompanyCode;
 use Carbon\CarbonImmutable;
 use Illuminate\Database\ConnectionInterface;
 use Illuminate\Database\UniqueConstraintViolationException;
+use Illuminate\Support\Facades\Log;
 
 /**
  * Plans and starts runs.
@@ -26,7 +28,9 @@ use Illuminate\Database\UniqueConstraintViolationException;
  *
  * start() saves that plan as a run with one item per client and queues one
  * SendRunItem job per pending item. There is at most one run per company,
- * kind and scheduled moment: starting it again does nothing.
+ * kind and scheduled moment: starting it again does nothing. A run of a
+ * company that never saved its copies in /cobro/copias goes out without
+ * copies and logs cobro.copies.not_saved (audit S-31).
  */
 final class RunPlanner
 {
@@ -35,6 +39,7 @@ final class RunPlanner
         private readonly CarteraRepository $cartera,
         private readonly RunFinisher $finisher,
         private readonly ConnectionInterface $database,
+        private readonly CopyStore $copies,
     ) {}
 
     /**
@@ -101,6 +106,10 @@ final class RunPlanner
         } catch (UniqueConstraintViolationException) {
             // Another process started the same run a moment ago.
             return null;
+        }
+
+        if ($this->copies->for($company)->isDefault) {
+            Log::warning('cobro.copies.not_saved', ['company' => $company->value, 'kind' => $definition->kind()->value, 'run' => $run->id]);
         }
 
         $pending = RunItem::query()->where('run_id', $run->id)->where('status', ItemStatus::Pending)->orderBy('id')->pluck('id');

@@ -64,25 +64,14 @@ return [
 
     // Carbon copies (Cc) of the weekly collection and the monthly
     // circularization mails of each company, until someone saves them in
-    // /cobro/copias: fixed addresses, the
-    // client's advisor, and the sales managers of each SAP group
-    // (OCRG.GroupName, compared without regard to case or accents).
+    // /cobro/copias: fixed addresses, the client's advisor, and the sales
+    // managers of each SAP group (OCRG.GroupName, compared without regard to
+    // case or accents). None by default, so no employee's address lives in
+    // the code (audit S-31): save them in /cobro/copias before the first
+    // run. A run that starts without saved copies logs cobro.copies.not_saved.
     'copias' => [
-        'SGX' => [
-            'fixed' => ['miguel.martinez@segurex.com'],
-            'advisor' => true,
-            'managers' => [
-                ['group' => 'DISTRIBUCION', 'emails' => ['jessika.quintero@segurex.com']],
-                ['group' => 'CONS. RESIDENCIAL', 'emails' => ['andrea.hincapie@segurex.com']],
-            ],
-        ],
-        // SDC has a single advisor (Diana Mora), already a fixed copy, and
-        // no sales managers by group.
-        'SDC' => [
-            'fixed' => ['miguel.martinez@derivadoscol.com', 'diana.mora@derivadoscol.com', 'servicioalcliente@derivadoscol.com'],
-            'advisor' => false,
-            'managers' => [],
-        ],
+        'SGX' => ['fixed' => [], 'advisor' => false, 'managers' => []],
+        'SDC' => ['fixed' => [], 'advisor' => false, 'managers' => []],
     ],
 
     // The only domains a carbon copy may go to, for both companies: an exact

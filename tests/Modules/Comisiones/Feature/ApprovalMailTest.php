@@ -34,6 +34,7 @@ beforeEach(function () {
     $this->fakes = ContractFakes::install($this->app);
     $this->analyst = ComisionesUsers::analyst();
     $this->approver = ComisionesUsers::approver();
+    config(['comisiones.approval_mail.recipients' => ['contabilidad@segurex.com', 'nomina@segurex.com']]);
 
     (new SapBatches($this->fakes->ingesta))->send(Dataset::Sales, [
         SapBatches::sale(['total' => '60000000.00']),
@@ -44,6 +45,54 @@ beforeEach(function () {
     $this->actingAs($this->analyst)->post('/comisiones/periodos/2026-07/calcular');
     Queue::fake();
 });
+
+/**
+ * config/comisiones.php of the module evaluated with
+ * COMISIONES_APPROVAL_RECIPIENTS set to $value (null unsets it), restoring
+ * the environment afterwards.
+ *
+ * @return array<string, mixed>
+ */
+function comisionesConfigWith(?string $value): array
+{
+    $name = 'COMISIONES_APPROVAL_RECIPIENTS';
+    $previous = [$_SERVER[$name] ?? null, $_ENV[$name] ?? null, getenv($name)];
+    unset($_SERVER[$name], $_ENV[$name]);
+    putenv($name);
+
+    if ($value !== null) {
+        $_SERVER[$name] = $_ENV[$name] = $value;
+        putenv("{$name}={$value}");
+    }
+
+    try {
+        return require base_path('app/Modules/Comisiones/config/comisiones.php');
+    } finally {
+        unset($_SERVER[$name], $_ENV[$name]);
+        putenv($name);
+        [$server, $env, $getenv] = $previous;
+
+        if ($server !== null) {
+            $_SERVER[$name] = $server;
+        }
+
+        if ($env !== null) {
+            $_ENV[$name] = $env;
+        }
+
+        if ($getenv !== false) {
+            putenv("{$name}={$getenv}");
+        }
+    }
+}
+
+it('reads the recipients from COMISIONES_APPROVAL_RECIPIENTS, without blanks (audit S-31)', function (?string $value, array $recipients) {
+    expect(comisionesConfigWith($value)['approval_mail']['recipients'])->toBe($recipients);
+})->with([
+    'two addresses' => [' contabilidad@segurex.com, ,nomina@segurex.com ', ['contabilidad@segurex.com', 'nomina@segurex.com']],
+    'empty' => ['', []],
+    'not set' => [null, []],
+]);
 
 /**
  * Runs the approval mail jobs the approval queued, as the worker would.
@@ -58,7 +107,7 @@ function runApprovalMailJobs(): void
 it('queues one approval mail and sends nothing while approving', function () {
     $this->actingAs($this->approver)->post('/comisiones/periodos/2026-07/aprobar', ['revision' => 1])
         ->assertRedirect('/comisiones/periodos/2026-07')
-        ->assertSessionHas('status', 'Aprobaste la versión 1 de la liquidación de 2026-07. El correo con el consolidado a marcela.sanabria@segurex.com y monica.pinzon@segurex.com se envía en segundo plano.')
+        ->assertSessionHas('status', 'Aprobaste la versión 1 de la liquidación de 2026-07. El correo con el consolidado a contabilidad@segurex.com y nomina@segurex.com se envía en segundo plano.')
         ->assertSessionMissing('error');
 
     Queue::assertPushed(SendApprovalMail::class, 1);
@@ -81,7 +130,7 @@ it('mails the consolidated PDF from Segurex to the configured recipients when th
     $mail = $this->fakes->mail->sent()[0];
 
     expect($mail->company)->toBe(CompanyCode::SGX)
-        ->and($mail->to)->toBe(['marcela.sanabria@segurex.com', 'monica.pinzon@segurex.com'])
+        ->and($mail->to)->toBe(['contabilidad@segurex.com', 'nomina@segurex.com'])
         ->and($mail->category)->toBe('comisiones_aprobacion')
         ->and($mail->subject)->toBe('Liquidación de comisiones aprobada – julio de 2026')
         ->and($mail->html)->toContain('julio de 2026')
@@ -98,10 +147,10 @@ it('mails the consolidated PDF from Segurex to the configured recipients when th
         ->and($attachment->contentType)->toBe('application/pdf')
         ->and($attachment->content)->toStartWith('%PDF-');
 
-    $this->fakes->audit->assertRecorded('comisiones.settlement.mailed', fn (AuditEntry $entry) => $entry->context['destinatarios'] === ['marcela.sanabria@segurex.com', 'monica.pinzon@segurex.com']);
+    $this->fakes->audit->assertRecorded('comisiones.settlement.mailed', fn (AuditEntry $entry) => $entry->context['destinatarios'] === ['contabilidad@segurex.com', 'nomina@segurex.com']);
 
     $this->actingAs($this->approver)->get('/comisiones/periodos/2026-07')->assertOk()
-        ->assertSeeText('Correo de aprobación enviado a marcela.sanabria@segurex.com y monica.pinzon@segurex.com el 03/08/2026 09:00.')
+        ->assertSeeText('Correo de aprobación enviado a contabilidad@segurex.com y nomina@segurex.com el 03/08/2026 09:00.')
         ->assertDontSeeText('No se pudo enviar el correo de aprobación');
 });
 

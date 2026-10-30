@@ -33,6 +33,7 @@ beforeEach(function () {
     $this->sap = new SapBatches($this->fakes->ingesta);
     $this->analyst = ComisionesUsers::analyst();
     $this->approver = ComisionesUsers::approver();
+    config(['comisiones.approval_mail.recipients' => ['contabilidad@segurex.com', 'nomina@segurex.com']]);
 });
 
 /**
@@ -211,7 +212,7 @@ it('approves a draft once every blocking alert is justified', function () {
         'justificaciones' => [['clave' => 'codigo_desconocido:99', 'texto' => 'Vendedor nuevo; SAP lo crea en agosto.']],
     ])
         ->assertRedirect('/comisiones/periodos/2026-07')
-        ->assertSessionHas('status', 'Aprobaste la versión 1 de la liquidación de 2026-07. El correo con el consolidado a marcela.sanabria@segurex.com y monica.pinzon@segurex.com se envía en segundo plano.');
+        ->assertSessionHas('status', 'Aprobaste la versión 1 de la liquidación de 2026-07. El correo con el consolidado a contabilidad@segurex.com y nomina@segurex.com se envía en segundo plano.');
 
     $record = SettlementRecord::query()->sole();
 

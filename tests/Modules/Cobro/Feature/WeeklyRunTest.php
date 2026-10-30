@@ -302,7 +302,7 @@ it('runs for Segurex and Derivados by default', function () {
     expect($quimicos->company)->toBe(CompanyCode::SDC)
         ->and($quimicos->to)->toBe(['pagos@quimicos.example'])
         ->and($quimicos->subject)->toBe('Cobro de cartera - Soluciones y Derivados de Colombia S.A.S')
-        ->and($quimicos->cc)->toBe(['miguel.martinez@derivadoscol.com', 'diana.mora@derivadoscol.com', 'servicioalcliente@derivadoscol.com'])
+        ->and($quimicos->cc)->toBe([])
         ->and(VisibleText::of($quimicos->html))->toContain('Estimado cliente Químicos del Norte SAS')
         ->toContain('Auxiliar de Crédito y Cobranza');
 });
