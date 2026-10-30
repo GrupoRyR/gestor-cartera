@@ -1,13 +1,15 @@
 @use('App\Modules\Core\Contracts\CurrentCompany')
 @use('App\Modules\Core\Contracts\Data\BrandPalette')
+@use('App\Modules\Core\Contracts\Enums\CompanyCode')
 @use('App\Support\Navigation\NavRegistry')
 @use('App\View\Components\Support\GalleryPreview')
 @use('Illuminate\Support\Facades\Route')
 @use('Illuminate\Support\Str')
 
 {{--
-    Layout of every signed-in page (C.5): header with the app, the company
-    selector and the account menu; sidebar on desktop (a drawer below 1024
+    Layout of every signed-in page (C.5): dark brand header with the logo of
+    the active company, the company switcher and the account menu (skill
+    frontend-marca-sgx-sydc-v2); sidebar on desktop (a drawer below 1024
     px); bottom bar on phones with the items a module marks mobile: true.
 
     Extra attributes go to <body>.
@@ -31,8 +33,31 @@
     }
     $companyOptions['grupo'] = 'Grupo RYR';
     $selectedCompany = $activeCompany?->code->value ?? 'grupo';
-    $companyName = $activeCompany?->name ?? ($currentCompany?->isGroup() ? 'Grupo RYR' : null);
-    $companyShort = $activeCompany?->code->value ?? ($currentCompany?->isGroup() ? 'Grupo' : null);
+
+    // The switcher shows a short label; the rest of the name follows it for
+    // screen readers, so the accessible name starts with what people see.
+    $companySwitch = [];
+    foreach ($companyOptions as $code => $name) {
+        $label = match ($code) {
+            'SGX' => 'Segurex',
+            'grupo' => 'Grupo',
+            default => $code,
+        };
+        $companySwitch[] = [
+            'code' => $code,
+            'label' => $label,
+            'rest' => Str::startsWith($name, $label) ? Str::after($name, $label) : " ({$name})",
+            'pressed' => $code === $selectedCompany,
+        ];
+    }
+
+    // Brand v2 logos: the white Segurex logo sits on the dark header; the SDC
+    // logo goes on a white plate. The group view has no company logo.
+    $logo = match ($activeCompany?->code) {
+        CompanyCode::SGX => ['src' => asset('icons/marcas/segurex-blanco.png'), 'width' => 186, 'height' => 30, 'plate' => false],
+        CompanyCode::SDC => ['src' => asset('icons/marcas/sdc.png'), 'width' => 98, 'height' => 24, 'plate' => true],
+        null => null,
+    };
 
     // The component gallery previews the selector with GET requests to itself
     // (App\View\Components\Support\GalleryPreview); real pages post to Core.
@@ -74,12 +99,13 @@
     >
         <a href="#contenido" data-part="skip-link" class="sr-only z-50 rounded-control bg-surface px-4 py-3 font-semibold shadow-pop focus:not-sr-only focus:fixed focus:start-3 focus:top-3">Saltar al contenido</a>
 
-        <header data-part="header" class="relative z-30 border-b border-line bg-surface md:sticky md:top-0">
-            <div class="flex min-h-16 flex-wrap items-center gap-2 px-3 py-2.5 md:gap-3 md:px-6">
+        <header data-part="header" class="relative z-30 bg-brand-head text-brand-head-fg md:sticky md:top-0">
+            {{-- Below 640 px the switcher takes a second row: it does not fit next to the logo on a phone. --}}
+            <div class="flex min-h-16 flex-wrap items-center gap-x-2 gap-y-1.5 px-3 py-1.5 max-sm:pb-2.5 md:gap-x-3 md:px-6">
                 @if ($hasSidebar)
                     <button
                         type="button"
-                        class="inline-flex size-touch shrink-0 items-center justify-center rounded-[10px] text-fg-soft hover:bg-subtle hover:text-fg lg:hidden"
+                        class="inline-flex size-touch shrink-0 items-center justify-center rounded-[10px] text-brand-head-fg hover:bg-brand-switch-track focus-visible:outline-brand-head-fg lg:hidden"
                         aria-controls="menu-principal"
                         x-bind:aria-expanded="menuOpen.toString()"
                         aria-expanded="false"
@@ -90,50 +116,51 @@
                     </button>
                 @endif
 
-                <a href="{{ url('/') }}" data-part="brand" class="me-auto flex min-h-touch min-w-0 items-center gap-2.5 rounded-control pe-2 text-fg no-underline">
-                    <span class="grid size-9 shrink-0 place-items-center rounded-[10px] bg-brand-button text-brand-on-button">
+                <a href="{{ url('/') }}" data-part="brand" class="me-auto flex min-h-touch min-w-0 items-center gap-3 rounded-control pe-2 text-brand-head-fg no-underline focus-visible:outline-brand-head-fg">
+                    @if ($logo === null)
                         <x-ui.icon name="wallet" />
-                    </span>
-                    <span class="truncate font-display text-lg leading-tight font-bold tracking-[-0.02em]">
-                        <span class="sm:hidden">Cartera</span><span class="max-sm:hidden">{{ config('app.name') }}</span>
-                    </span>
+                        <span class="truncate text-lg leading-tight font-bold">
+                            <span class="sm:hidden">Cartera</span><span class="max-sm:hidden">{{ config('app.name') }}</span>
+                        </span>
+                    @else
+                        @if ($logo['plate'])
+                            <span data-part="logo-plate" class="flex shrink-0 items-center rounded-full bg-brand-plate px-2.5 py-1 sm:px-3.5">
+                                <img src="{{ $logo['src'] }}" alt="{{ $activeCompany->name }}" width="{{ $logo['width'] }}" height="{{ $logo['height'] }}" class="block h-[18px] w-auto sm:h-6">
+                            </span>
+                        @else
+                            <img src="{{ $logo['src'] }}" alt="{{ $activeCompany->name }}" width="{{ $logo['width'] }}" height="{{ $logo['height'] }}" class="block h-[22px] w-auto shrink-0 sm:h-[30px]">
+                        @endif
+                        {{-- Hidden below 768 px so the logo, the switcher and the account fit one row. --}}
+                        <span data-part="app-name" class="truncate border-s border-brand-head-line ps-3 text-sm leading-tight font-bold max-md:hidden">{{ config('app.name') }}</span>
+                    @endif
                 </a>
 
                 @if ($showCompanySelector)
-                    <details
-                        data-part="company-switcher"
-                        class="group/company shrink-0 sm:relative"
-                        x-data
-                        x-on:click.outside="$el.open = false"
-                        x-on:keydown.escape.stop="$el.open = false; $el.querySelector('summary').focus()"
+                    <form
+                        method="{{ $preview !== null ? 'GET' : 'POST' }}"
+                        action="{{ $selectorAction }}"
+                        data-part="company-selector"
+                        class="shrink-0 max-sm:order-last max-sm:basis-full"
                     >
-                        <summary class="flex min-h-touch cursor-pointer items-center gap-2 rounded-full bg-brand-tint ps-3 pe-2.5 text-sm font-semibold text-brand-ink select-none hover:brightness-[0.97] dark:hover:brightness-110">
-                            <span aria-hidden="true" class="size-2.5 shrink-0 rounded-full bg-brand-primary dark:bg-brand-ink"></span>
-                            <span data-visually-hidden>Empresa activa: </span>
-                            <span class="max-sm:sr-only">{{ $companyName }}</span>
-                            <span class="sm:hidden" aria-hidden="true">{{ $companyShort }}</span>
-                            <x-ui.icon name="chevron-down" class="size-4 transition-transform group-open/company:rotate-180" />
-                        </summary>
-
-                        <form
-                            method="{{ $preview !== null ? 'GET' : 'POST' }}"
-                            action="{{ $selectorAction }}"
-                            data-part="company-selector"
-                            class="absolute inset-x-3 top-full z-40 mt-1 flex flex-col gap-3 rounded-card border border-line bg-surface p-4 shadow-pop sm:inset-x-auto sm:end-0 sm:mt-2 sm:w-72"
-                        >
-                            @if ($preview === null)
-                                @csrf
-                            @endif
-                            <x-ui.select name="empresa" label="Empresa" :options="$companyOptions" :value="$selectedCompany" hint="La marca y los datos cambian a la empresa que elijas." />
-                            <x-ui.button type="submit" variant="primary" class="w-full">Cambiar</x-ui.button>
-                        </form>
-                    </details>
-                @elseif ($companyName !== null)
-                    <p class="flex min-h-touch shrink-0 items-center gap-2 rounded-full bg-brand-tint px-3 text-sm font-semibold text-brand-ink">
-                        <span aria-hidden="true" class="size-2.5 shrink-0 rounded-full bg-brand-primary dark:bg-brand-ink"></span>
-                        <span class="max-sm:sr-only">{{ $companyName }}</span>
-                        <span class="sm:hidden" aria-hidden="true">{{ $companyShort }}</span>
-                    </p>
+                        @if ($preview === null)
+                            @csrf
+                        @endif
+                        <div role="group" aria-label="Empresa" class="flex gap-0.5 rounded-full bg-brand-switch-track p-[3px]">
+                            @foreach ($companySwitch as $option)
+                                <button
+                                    type="submit"
+                                    name="empresa"
+                                    value="{{ $option['code'] }}"
+                                    aria-pressed="{{ $option['pressed'] ? 'true' : 'false' }}"
+                                    @class([
+                                        'inline-flex min-h-touch cursor-pointer items-center justify-center rounded-full px-2.5 text-[0.8125rem] font-bold whitespace-nowrap focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-head-fg max-sm:flex-1 sm:px-3.5 sm:text-sm',
+                                        'bg-brand-plate text-brand-switch-ink' => $option['pressed'],
+                                        'text-brand-head-fg hover:bg-white/14' => ! $option['pressed'],
+                                    ])
+                                ><span>{{ $option['label'] }}</span><span data-visually-hidden>{{ $option['rest'] }}</span></button>
+                            @endforeach
+                        </div>
+                    </form>
                 @endif
 
                 @if ($user !== null)
@@ -144,12 +171,13 @@
                         x-on:click.outside="$el.open = false"
                         x-on:keydown.escape.stop="$el.open = false; $el.querySelector('summary').focus()"
                     >
-                        <summary class="flex size-touch cursor-pointer items-center justify-center rounded-full select-none hover:bg-subtle">
-                            <span aria-hidden="true" class="grid size-9 place-items-center rounded-full bg-brand-tint text-sm font-bold text-brand-ink">{{ $initials !== '' ? $initials : '?' }}</span>
+                        <summary class="flex size-touch cursor-pointer items-center justify-center rounded-full select-none hover:bg-brand-switch-track focus-visible:outline-brand-head-fg">
+                            <span aria-hidden="true" class="grid size-9 place-items-center rounded-full bg-brand-switch-track text-sm font-bold text-brand-head-fg">{{ $initials !== '' ? $initials : '?' }}</span>
                             <span data-visually-hidden>Tu cuenta</span>
                         </summary>
 
-                        <div data-part="user" class="absolute inset-x-3 top-full z-40 mt-1 rounded-card border border-line bg-surface p-2 shadow-pop sm:inset-x-auto sm:end-0 sm:mt-2 sm:w-72">
+                        {{-- The panel is a light surface: it sets its own text color instead of the header's white. --}}
+                        <div data-part="user" class="absolute inset-x-3 top-full z-40 mt-1 rounded-card border border-line bg-surface p-2 text-brand-text shadow-pop sm:inset-x-auto sm:end-0 sm:mt-2 sm:w-72">
                             <div class="px-3 pt-2 pb-3">
                                 <p class="font-bold leading-snug [overflow-wrap:anywhere]">{{ $user->name }}</p>
                                 @if (filled($user->email))
