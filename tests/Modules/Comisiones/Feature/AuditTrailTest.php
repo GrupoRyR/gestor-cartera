@@ -67,6 +67,19 @@ it('names the authenticated user, or the system when nobody is signed in', funct
         ->toBe([[null, 'Sistema'], [$user->id, 'Beto Ruiz']]);
 });
 
+it('redacts keys that look like secrets, in any case and at any depth, as Core does', function () {
+    $this->trail->record(
+        'comisiones.parameter.updated',
+        changes: ['Api_Token' => ['old' => 'viejo', 'new' => 'nuevo'], 'valor' => ['old' => '1', 'new' => '2']],
+        context: ['conexion' => ['PASSWORD' => 'clave', 'host' => 'sap.example'], 'claves' => [['client_secret' => 'otro'], 'libre']],
+    );
+
+    $stored = AuditRecord::query()->sole();
+
+    expect($stored->cambios)->toEqual(['Api_Token' => '[redacted]', 'valor' => ['old' => '1', 'new' => '2']])
+        ->and($stored->contexto)->toEqual(['conexion' => ['PASSWORD' => '[redacted]', 'host' => 'sap.example'], 'claves' => [['client_secret' => '[redacted]'], 'libre']]);
+});
+
 it('refuses an event name Core would reject before writing anything', function () {
     expect(fn () => $this->trail->record('comisiones.cargado'))->toThrow(InvalidArgumentException::class)
         ->and(AuditRecord::query()->count())->toBe(0);

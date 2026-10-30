@@ -2,6 +2,7 @@
 
 namespace App\Modules\Cobro\Infrastructure\Runs;
 
+use App\Modules\Cobro\Domain\Copies\CopyRecipients;
 use App\Modules\Cobro\Domain\Runs\ItemStatus;
 use App\Modules\Cobro\Infrastructure\Mail\BounceLinked;
 use App\Modules\Cobro\Infrastructure\Persistence\RunItem;
@@ -15,7 +16,7 @@ use Illuminate\Support\Facades\Log;
  * Only a failure of one of the item's own recipients (To), or of an
  * address the report does not name, counts: when a carbon copy bounced
  * the client still got the mail, so the item stays enviado and the
- * address goes to the log.
+ * domain of the address goes to the log.
  */
 final class MarkItemBounced
 {
@@ -40,7 +41,8 @@ final class MarkItemBounced
             if (! self::failedForClient($item, $bounce->bounced_recipient)) {
                 Log::warning('Cobro: a carbon copy of a collection mail bounced; the client mail stays sent.', [
                     'run_item' => $item->id,
-                    'address' => $bounce->bounced_recipient,
+                    // Only the domain, as cobro.copies.dropped (audit S-29).
+                    'domain' => CopyRecipients::domain((string) $bounce->bounced_recipient),
                 ]);
 
                 continue;

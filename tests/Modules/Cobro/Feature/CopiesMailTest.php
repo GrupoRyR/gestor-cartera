@@ -288,7 +288,7 @@ it('keeps the item sent when only a carbon copy bounced', function () {
         ->and($item->bounced_recipient)->toBeNull();
 
     Log::shouldHaveReceived('warning')->withArgs(fn (string $message, array $context): bool => str_contains($message, 'carbon copy')
-        && $context === ['run_item' => $item->id, 'address' => 'pagos@andinas-inexistente.example'])->once();
+        && $context === ['run_item' => $item->id, 'domain' => 'andinas-inexistente.example'])->once();
 });
 
 it('marks the item bounced when the report names a copy before the To address that failed', function () {
