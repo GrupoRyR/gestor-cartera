@@ -10,9 +10,13 @@ namespace App\View\Components\Support;
  */
 final class ToneStyle
 {
-    /** Soft fill with text in the tone color. */
+    /**
+     * Soft fill with text in the tone color. A neutral chip is a brand label:
+     * tint fill and ink text (skill frontend-marca-sgx-sydc-v2: 6.21:1 or more,
+     * 4.74:1 or more in dark mode).
+     */
     private const array SOFT = [
-        'neutral' => 'bg-status-neutral-bg text-status-neutral',
+        'neutral' => 'bg-brand-tint text-brand-ink',
         'success' => 'bg-status-active-bg text-status-active',
         'warning' => 'bg-status-maintenance-bg text-status-maintenance',
         'danger' => 'bg-status-failure-bg text-status-failure',

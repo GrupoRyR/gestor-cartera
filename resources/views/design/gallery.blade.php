@@ -175,7 +175,7 @@
 
         <x-ui.card title="Vista previa" description="La marca sale de la empresa activa. Cambia de empresa aquí o con el selector del encabezado." class="mb-8">
             <x-ui.tabs label="Marca de la vista previa" :items="$brandTabs" :current="$brandKey" />
-            <ul class="mt-4 grid gap-2 text-sm text-fg-soft md:grid-cols-3">
+            <ul class="mt-4 grid gap-2 text-sm md:grid-cols-3">
                 <li class="flex gap-2"><x-ui.icon name="eye" class="size-[1.125rem] text-fg-muted" />El modo oscuro sigue la configuración de tu sistema.</li>
                 <li class="flex gap-2"><x-ui.icon name="search" class="size-[1.125rem] text-fg-muted" />Para probar la letra al 200 %, súbela en tu navegador: todo está en rem.</li>
                 <li class="flex gap-2"><x-ui.icon name="user" class="size-[1.125rem] text-fg-muted" /><a href="{{ request()->fullUrlWithQuery(['vista' => 'ingreso']) }}" class="font-semibold text-brand-ink underline-offset-4 hover:underline">Ver la pantalla de ingreso</a></li>
@@ -185,15 +185,15 @@
         <nav aria-label="Índice de componentes" class="mb-4">
             <ul class="flex flex-wrap gap-2">
                 @foreach ($gallerySections as $slug => $tag)
-                    <li><a href="#component-{{ $slug }}" class="inline-flex min-h-9 items-center rounded-lg border border-line bg-surface px-2.5 font-mono text-[0.8125rem] text-fg-soft no-underline hover:border-line-strong hover:text-fg">&lt;{{ $tag }}&gt;</a></li>
+                    <li><a href="#component-{{ $slug }}" class="inline-flex min-h-9 items-center rounded-lg border border-line bg-surface px-2.5 font-mono text-[0.8125rem] text-brand-text no-underline hover:border-line-strong hover:text-fg">&lt;{{ $tag }}&gt;</a></li>
                 @endforeach
             </ul>
         </nav>
 
         @php
             $sectionClass = 'scroll-mt-24 border-t border-line pt-8 mt-10 flex flex-col gap-5';
-            $headingClass = 'font-mono text-[1.0625rem] font-semibold tracking-normal';
-            $leadClass = 'max-w-prose text-[0.9375rem] text-fg-soft';
+            $headingClass = 'font-mono text-[1.0625rem] font-semibold text-fg';
+            $leadClass = 'max-w-prose text-[0.9375rem]';
             $specimenClass = 'flex flex-col gap-2';
             $captionClass = 'text-[0.8125rem] font-semibold text-fg-muted';
         @endphp
@@ -239,7 +239,7 @@
                     </ul>
                 </x-ui.card>
                 <x-ui.card>
-                    <p class="text-fg-soft">Bloque sin título: no se anuncia como sección y sirve para agrupar contenido suelto.</p>
+                    <p>Bloque sin título: no se anuncia como sección y sirve para agrupar contenido suelto.</p>
                 </x-ui.card>
             </div>
         </section>
@@ -266,7 +266,7 @@
 
         <section id="component-ui-chip" aria-labelledby="component-ui-chip-title" class="{{ $sectionClass }}">
             <h2 id="component-ui-chip-title" class="{{ $headingClass }}"><code>&lt;x-ui.chip&gt;</code></h2>
-            <p class="{{ $leadClass }}">Etiqueta corta de estado. Siempre lleva texto: el color nunca habla solo.</p>
+            <p class="{{ $leadClass }}">Etiqueta corta. El tono <code>neutral</code> es la etiqueta de la marca (fondo tinte y texto tinta de la empresa activa); los demás tonos son estados. Siempre lleva texto: el color nunca habla solo.</p>
             <div class="flex flex-wrap items-center gap-2">
                 <x-ui.chip>Sin revisar</x-ui.chip>
                 <x-ui.chip tone="success">Conciliado</x-ui.chip>
@@ -394,7 +394,7 @@
             <p class="{{ $leadClass }}">Toda la fila es zona táctil. En listas, cada casilla tiene su propio id.</p>
             <div class="grid gap-6 md:grid-cols-2">
                 <fieldset class="flex flex-col">
-                    <legend class="mb-1 text-[0.8125rem] font-semibold">Clientes del lote</legend>
+                    <legend class="mb-1 text-[0.8125rem] font-semibold text-fg">Clientes del lote</legend>
                     <x-ui.checkbox name="galeria_clientes[]" value="C-001" label="Ferretería El Tornillo SAS" :checked="true" />
                     <x-ui.checkbox name="galeria_clientes[]" value="C-002" label="Distribuciones Andina Ltda." />
                     <x-ui.checkbox name="galeria_clientes[]" value="C-003" label="Construcciones del Valle SAS" disabled />
@@ -485,7 +485,7 @@
                 @foreach (IconSet::names() as $iconName)
                     <li class="flex min-h-touch items-center gap-3 rounded-control border border-line bg-surface px-3 py-2">
                         <x-ui.icon :name="$iconName" class="size-6" />
-                        <code class="min-w-0 text-[0.8125rem] text-fg-soft [overflow-wrap:anywhere]">{{ $iconName }}</code>
+                        <code class="min-w-0 text-[0.8125rem] [overflow-wrap:anywhere]">{{ $iconName }}</code>
                     </li>
                 @endforeach
             </ul>

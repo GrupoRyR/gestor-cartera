@@ -8,10 +8,10 @@
         </span>
     @endif
 
-    <p data-part="title" class="max-w-md font-display text-lg leading-snug font-bold tracking-[-0.015em] text-balance">{{ $title }}</p>
+    <p data-part="title" class="max-w-md text-lg leading-snug font-bold text-balance text-fg">{{ $title }}</p>
 
     @if (filled($description))
-        <p data-part="description" class="max-w-md text-[0.9375rem] text-fg-soft">{{ $description }}</p>
+        <p data-part="description" class="max-w-md text-[0.9375rem] text-brand-text">{{ $description }}</p>
     @endif
 
     @if ($slot->hasActualContent())

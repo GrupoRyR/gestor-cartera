@@ -20,10 +20,11 @@
     $headingId = $titled ? $attributes->get('id', 'card-'.Str::lower(Str::random(8))).'-title' : null;
     $hasHeader = $titled || filled($description) || isset($actions);
 
+    // Titles take the title color; the body keeps the brand text color.
     $headingClass = match ($level) {
-        2 => 'text-lg leading-snug font-bold',
-        3 => 'text-base leading-snug font-bold',
-        default => 'font-sans text-[0.9375rem] leading-snug font-bold tracking-normal',
+        2 => 'text-lg leading-snug font-bold text-fg',
+        3 => 'text-base leading-snug font-bold text-fg',
+        default => 'text-[0.9375rem] leading-snug font-bold text-fg',
     };
 @endphp
 

@@ -6,8 +6,9 @@ namespace App\View\Components\Support;
  * Interface icons drawn for <x-ui.icon> (phase 0b, Diseño).
  *
  * Every icon sits on a 24 × 24 grid with a 1.75 stroke and round caps and
- * joins (skill ryr-design), and paints with currentColor, so it takes the
- * color of the text around it. The keys are the vocabulary of the `icon`
+ * joins, and paints with currentColor, so it takes the color of the text
+ * around it: brand color only through the --brand-* tokens of that text
+ * (skill frontend-marca-sgx-sydc-v2). The keys are the vocabulary of the `icon`
  * prop of the components and of NavItem::$icon; the gallery at
  * /dev/componentes shows all of them. An unknown name draws nothing.
  */

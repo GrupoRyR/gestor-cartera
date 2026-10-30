@@ -648,7 +648,7 @@ En Blade, una prop `camelCase` se pasa en `kebab-case`: `:icon-only="true"`, `ca
 | | `trendLabel` | `?string` | `null` | Texto para lectores de pantalla; por defecto «Sube», «Baja» o «Sin cambios». |
 | | `tone` | `string` | `'neutral'` | `neutral`, `success`, `warning`, `danger`. |
 | | `href` | `?string` | `null` | Con enlace, todo el bloque es `<a>`. |
-| `<x-ui.chip>` | `tone` | `string` | `'neutral'` | `neutral`, `success`, `warning`, `danger`, `info`. Slot: texto obligatorio. |
+| `<x-ui.chip>` | `tone` | `string` | `'neutral'` | `neutral` (etiqueta de la marca: tinte y tinta), `success`, `warning`, `danger`, `info`. Slot: texto obligatorio. |
 | | `dot` | `bool` | `true` | Punto de color decorativo. |
 | `<x-ui.button>` | `variant` | `string` | `'primary'` | `primary`, `secondary`, `ghost`, `danger`. |
 | | `type` | `string` | `'button'` | `button`, `submit`, `reset`. |
@@ -727,6 +727,7 @@ En Blade, una prop `camelCase` se pasa en `kebab-case`: `:icon-only="true"`, `ca
 
 - **Atributos:** los que no son props pasan al elemento principal (`class`, `id`, `x-*`, `data-*`, `disabled`, `form`…). En los campos de formulario van al `<input>`, `<select>` o `<textarea>`, no al contenedor.
 - **Ganchos para Diseño:** el marcado expone `data-part`, `data-tone`, `data-variant`, `data-state`, `data-icon`, `data-icon-only`, `data-trend`, `data-negative`, `data-invalid`, `data-align` y `data-disabled`. Diseño estiliza con ellos y no cambia lo que significan.
+- **Colores (marca v2, skill `frontend-marca-sgx-sydc-v2`):** los títulos (página, tarjeta, diálogo, estado vacío, caption de tabla) usan `text-fg`; el texto largo, `text-brand-text` (lo hereda del `<body>`); el secundario, `text-fg-muted`; el texto de marca (enlaces, pestaña activa, línea de contexto), `text-brand-ink`; chips y etiquetas de marca, `bg-brand-tint text-brand-ink`; los botones, `bg-brand-button text-brand-on-button`. `--brand-accent` va solo en íconos, barras, bordes y puntos, nunca como texto pequeño. Los estados usan los tokens `status-*`. Una sola familia (Helvetica): los componentes no usan `font-display` ni tracking negativo.
 - **Valores inválidos:** los componentes fallan en voz alta. `alert`, `button`, `card`, `chip`, `link-button`, `stat`, `table` y `pagination` lanzan `InvalidArgumentException` con un tono, variante, tipo, nivel, tendencia, dirección, alineación o paginador no válido, o sin el texto obligatorio; `money` y `date` también, con un monto o una fecha que no se pueden leer; `badge-state` lanza `ValueError` (`ClientStatus::from()`).
 - **Texto solo para lectores de pantalla:** el atributo `data-visually-hidden` (regla en `resources/css/app.css`). Lo usan los botones de solo ícono, las pistas de orden de la tabla, los captions ocultos y las etiquetas con `labelHidden`.
 - **Íconos que los componentes ya piden:** `close` (alerta descartable y modal), `sort`, `sort-asc`, `sort-desc` (tabla), `trend-up`, `trend-down`, `trend-flat` (stat). Diseño debe dibujarlos.

@@ -19,7 +19,8 @@ final class ButtonStyle
         // the neutral palette flips both colors in dark mode (resources/css/app.css).
         'primary' => 'bg-brand-button text-brand-on-button hover:bg-[color-mix(in_oklab,var(--color-brand-button),black_14%)]',
         'secondary' => 'border border-line-strong bg-surface text-fg hover:bg-subtle',
-        'ghost' => 'text-fg-soft hover:bg-fg/[0.07] hover:text-fg',
+        // Brand text color: at least 5.9:1 on the surface, the ground and the alert fills.
+        'ghost' => 'text-brand-text hover:bg-fg/[0.07] hover:text-fg',
         // --color-surface flips to dark in dark mode, where the failure color turns light.
         'danger' => 'bg-status-failure text-surface hover:bg-[color-mix(in_oklab,var(--color-status-failure),black_14%)]',
     ];
