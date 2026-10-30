@@ -122,6 +122,14 @@ describe('<x-layouts.guest>', function () {
         assertPalette($rendered, BrandPalette::neutral());
     });
 
+    it('shows the app name and no company logo: brand v2 never shows both companies together', function () {
+        $html = Html::parse((string) $this->blade('<x-layouts.guest>Hola</x-layouts.guest>'));
+
+        expect($html->text('//header//*[@data-part="brand"]'))->toBe(config('app.name'))
+            ->and($html->count('//img'))->toBe(0)
+            ->and($html->one('//meta[@name="theme-color"][@media="(prefers-color-scheme: light)"]')->getAttribute('content'))->toBe(BrandPalette::neutral()->head);
+    });
+
     it('keeps the neutral palette for a signed-in user', function () {
         ContractFakes::install($this->app);
         $this->actingAs(User::factory()->make());
@@ -267,7 +275,7 @@ describe('<x-layouts.app>', function () {
 
         $html = Html::parse((string) $this->blade('<x-layouts.app>Contenido</x-layouts.app>'));
 
-        expect($html->count('//select[@name="empresa"]'))->toBe(0)
+        expect($html->count('//button[@name="empresa"]'))->toBe(0)
             ->and($html->count('//form'))->toBe(0);
     });
 
@@ -278,49 +286,97 @@ describe('<x-layouts.app>', function () {
 
         $html = Html::parse((string) $this->blade('<x-layouts.app>Contenido</x-layouts.app>'));
 
-        $form = $html->one('//form[.//select[@name="empresa"]]');
-        $select = $html->labelledControl('Empresa');
+        $form = $html->one('//header//form[.//button[@name="empresa"]]');
+        $buttons = $html->all('//header//*[@role="group"][@aria-label="Empresa"]/button');
 
         expect(strtoupper($form->getAttribute('method')))->toBe('POST')
             ->and($form->getAttribute('action'))->toBe(route('core.empresa.cambiar'))
-            ->and($html->count('//form[.//select[@name="empresa"]]//input[@name="_token"]'))->toBe(1)
-            ->and($select->getAttribute('name'))->toBe('empresa')
-            ->and(array_map(fn (DOMElement $o): string => $o->getAttribute('value'), $html->all('//select[@name="empresa"]/option')))->toBe(['SGX', 'SDC', 'grupo'])
-            ->and($html->one('//select[@name="empresa"]/option[@selected]')->getAttribute('value'))->toBe('SGX')
-            ->and($html->text('//form[.//select[@name="empresa"]]//button[@type="submit"]'))->toBe('Cambiar');
+            ->and($html->count('//form[.//button[@name="empresa"]]//input[@name="_token"]'))->toBe(1)
+            ->and(array_map(fn (DOMElement $b): string => $b->getAttribute('type'), $buttons))->toBe(['submit', 'submit', 'submit'])
+            ->and(array_map(fn (DOMElement $b): string => $b->getAttribute('name'), $buttons))->toBe(['empresa', 'empresa', 'empresa'])
+            ->and(array_map(fn (DOMElement $b): string => $b->getAttribute('value'), $buttons))->toBe(['SGX', 'SDC', 'grupo'])
+            ->and(array_map(fn (DOMElement $b): string => $b->getAttribute('aria-pressed'), $buttons))->toBe(['true', 'false', 'false']);
     });
 
-    it('keeps the active company name for screen readers on every screen size', function () {
+    it('shows short company labels that start the accessible name of each button', function () {
         registerNamedPost('/empresa', 'core.empresa.cambiar');
         ContractFakes::install($this->app);
         $this->actingAs(User::factory()->make());
 
         $html = Html::parse((string) $this->blade('<x-layouts.app>Contenido</x-layouts.app>'));
-        $name = $html->one('//summary//span[normalize-space(.)="Segurex Latam"]');
-        $classes = preg_split('/\s+/', $name->getAttribute('class')) ?: [];
+        $buttons = $html->all('//button[@name="empresa"]');
+        $visible = array_map(fn (DOMElement $b): string => Html::clean($b->textContent), $buttons);
+        $names = array_map(fn (DOMElement $b): string => $b->getAttribute('aria-label'), $buttons);
 
-        // Hidden from sight on phones (sr-only) but never removed (display: none) or aria-hidden.
-        expect(array_filter($classes, fn (string $class): bool => str_ends_with($class, 'hidden')))->toBe([])
-            ->and($html->count('//summary//span[normalize-space(.)="Segurex Latam"]/ancestor-or-self::*[@aria-hidden="true"]'))->toBe(0);
+        // The full name is the accessible name on every screen size, and it starts with the visible label.
+        expect($visible)->toBe(['Segurex', 'SDC', 'Grupo'])
+            ->and($names)->toBe(['Segurex Latam', 'SDC (Soluciones y Derivados)', 'Grupo RYR'])
+            ->and($html->count('//button[@name="empresa"]//*[@aria-hidden="true"]'))->toBe(0);
     });
 
-    it('preselects the group view', function () {
+    it('presses the group view when it is active', function () {
         registerNamedPost('/empresa', 'core.empresa.cambiar');
         $this->app->instance(CurrentCompany::class, FakeCurrentCompany::group());
         $this->actingAs(User::factory()->make());
 
         $html = Html::parse((string) $this->blade('<x-layouts.app>Contenido</x-layouts.app>'));
 
-        expect($html->one('//select[@name="empresa"]/option[@selected]')->getAttribute('value'))->toBe('grupo');
+        expect($html->one('//button[@name="empresa"][@aria-pressed="true"]')->getAttribute('value'))->toBe('grupo');
     });
 
-    it('hides the company selector from users of a single company', function () {
+    it('shows only the logo to users of a single company', function () {
         registerNamedPost('/empresa', 'core.empresa.cambiar');
         $this->app->instance(CurrentCompany::class, new FakeCurrentCompany(CompanyCode::SDC, [CompanyCode::SDC]));
         $this->actingAs(User::factory()->make());
 
-        expect(Html::parse((string) $this->blade('<x-layouts.app>Contenido</x-layouts.app>'))->count('//select[@name="empresa"]'))->toBe(0);
+        $html = Html::parse((string) $this->blade('<x-layouts.app>Contenido</x-layouts.app>'));
+
+        expect($html->count('//button[@name="empresa"]'))->toBe(0)
+            ->and($html->count('//*[@data-part="company-selector"]'))->toBe(0)
+            ->and($html->one('//header//*[@data-part="brand"]//img')->getAttribute('alt'))->toBe('Soluciones y Derivados');
     });
+
+    it('shows the logo of the active company in the header', function (CompanyCode $company, string $file, bool $plate) {
+        $this->app->instance(CurrentCompany::class, new FakeCurrentCompany($company));
+        $this->actingAs(User::factory()->make());
+
+        $html = Html::parse((string) $this->blade('<x-layouts.app>Contenido</x-layouts.app>'));
+        $logo = $html->one('//header//a[@data-part="brand"]//img');
+
+        expect($logo->getAttribute('src'))->toBe(asset("icons/marcas/{$file}"))
+            ->and($logo->getAttribute('alt'))->toBe($company->label())
+            ->and((int) $logo->getAttribute('width'))->toBeGreaterThan(0)
+            ->and((int) $logo->getAttribute('height'))->toBeGreaterThan(0)
+            ->and($html->count('//header//*[@data-part="logo-plate"]/img'))->toBe($plate ? 1 : 0)
+            ->and(public_path("icons/marcas/{$file}"))->toBeFile();
+    })->with([
+        'Segurex, white on the header' => [CompanyCode::SGX, 'segurex-blanco.png', false],
+        'Derivados, on a white plate' => [CompanyCode::SDC, 'sdc.png', true],
+    ]);
+
+    it('shows no company logo in the group view', function () {
+        $this->app->instance(CurrentCompany::class, FakeCurrentCompany::group());
+        $this->actingAs(User::factory()->make());
+
+        $html = Html::parse((string) $this->blade('<x-layouts.app>Contenido</x-layouts.app>'));
+
+        expect($html->count('//header//img'))->toBe(0)
+            ->and($html->text('//header//a[@data-part="brand"]'))->toContain(config('app.name'));
+    });
+
+    it('paints the browser bar with the header color of the active company', function (?CompanyCode $company, BrandPalette $palette) {
+        $this->app->instance(CurrentCompany::class, new FakeCurrentCompany($company));
+        $this->actingAs(User::factory()->make());
+
+        $html = Html::parse((string) $this->blade('<x-layouts.app>Contenido</x-layouts.app>'));
+
+        expect($html->one('//meta[@name="theme-color"][@media="(prefers-color-scheme: light)"]')->getAttribute('content'))->toBe($palette->head)
+            ->and($html->one('//meta[@name="theme-color"][@media="(prefers-color-scheme: dark)"]')->getAttribute('content'))->toBe($palette->darkHead);
+    })->with([
+        'Segurex' => [CompanyCode::SGX, BrandPalette::official(CompanyCode::SGX)],
+        'Derivados' => [CompanyCode::SDC, BrandPalette::official(CompanyCode::SDC)],
+        'group view' => [null, BrandPalette::neutral()],
+    ]);
 
     it('offers to sign out once Core registers the route', function () {
         withoutRoutes('core.logout');

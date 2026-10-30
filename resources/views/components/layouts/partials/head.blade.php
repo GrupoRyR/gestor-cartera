@@ -22,8 +22,9 @@
 <link rel="icon" href="{{ asset("icons/{$brand}/favicon.svg") }}" type="image/svg+xml">
 <link rel="apple-touch-icon" href="{{ asset("icons/{$brand}/apple-touch-icon.png") }}">
 <meta name="apple-mobile-web-app-title" content="Cartera">
-<meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)">
-<meta name="theme-color" content="#1c1d20" media="(prefers-color-scheme: dark)">
+{{-- The browser bar takes the color of the header (--brand-head). --}}
+<meta name="theme-color" content="{{ $palette->head }}" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="{{ $palette->darkHead }}" media="(prefers-color-scheme: dark)">
 
 @vite(['resources/css/app.css', 'resources/js/app.js'])
 <style>

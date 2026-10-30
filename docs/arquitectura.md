@@ -235,13 +235,14 @@ Diseño y Núcleo trabajan en paralelo. El layout `<x-layouts.app>` ya está esc
 | Callback de Microsoft | `GET /auth/microsoft/callback` (nombre sugerido `core.auth.callback`); debe coincidir con `MICROSOFT_REDIRECT_URI`. El driver `microsoft` de Socialite ya está registrado en `AppServiceProvider` y configurado en `config/services.php` (`microsoft`); sin `MICROSOFT_TENANT_ID`, construirlo lanza `RuntimeException` (nunca cae en `common`). Además, el callback verifica que el claim `tid` del usuario que ingresó sea igual al tenant configurado y rechaza el ingreso si no lo es. | No existe. |
 | Inicio | `GET /` (nombre sugerido `core.inicio`): inicio según el rol. `bootstrap/app.php` manda ahí a los usuarios con sesión que abren una página solo para invitados (`redirectUsersTo('/')`); el logo del layout enlaza a `url('/')`. | No existe. |
 | `core.logout` | `POST /logout`. El layout muestra «Salir» solo si `Route::has('core.logout')`. | No existe: el botón no aparece. |
-| `core.empresa.cambiar` | `POST /empresa` con el campo `empresa` = `SGX`, `SDC` o `grupo`. `grupo` equivale a `switchTo(null)`. Ante `CompanyNotAvailable`, redirige atrás con el flash `error`. El layout muestra el selector solo si la ruta existe y `count(available()) > 1`. | No existe: el selector no aparece. |
+| `core.empresa.cambiar` | `POST /empresa` con el campo `empresa` = `SGX`, `SDC` o `grupo`. `grupo` equivale a `switchTo(null)`. Ante `CompanyNotAvailable`, redirige atrás con el flash `error`. El layout muestra el selector solo si la ruta existe y `count(available()) > 1`: un formulario con un botón por opción (`name="empresa"`, `value` = `SGX`, `SDC` o `grupo`) y `aria-pressed="true"` en la activa. | No existe: el selector no aparece. |
 | Binding de `CurrentCompany` | `registerModule()` de Core enlaza `CurrentCompany` y el resto de sus contratos (§6). El layout lee `palette()`, `available()` y `active()`. | Sin binding: el layout usa `BrandPalette::neutral()`. |
 | Sin rol | Pantalla neutra que pide solicitar acceso (A.5). | — |
 
 ### 5.2 Lo que Diseño consume y respeta
 
 - La marca entra por `resources/views/components/layouts/partials/head.blade.php`: `BrandPalette::toCssVariables()` en `:root` y `toCssVariables(dark: true)` bajo `prefers-color-scheme: dark`. Los componentes leen solo `--brand-*`.
+- El encabezado sigue la marca v2 (skill `frontend-marca-sgx-sydc-v2`): fondo `--brand-head` con texto blanco, y la barra del navegador (`theme-color`) toma `head` y `darkHead` de la paleta. Muestra el logo de la empresa activa (`public/icons/marcas/segurex-blanco.png`, blanco, directo sobre el encabezado; `public/icons/marcas/sdc.png` sobre una placa blanca) con `alt` = nombre de la empresa. La vista de grupo y `<x-layouts.guest>` no muestran logo de empresa: la marca nunca junta las dos. Quien tiene una sola empresa ve solo el logo, sin selector.
 - Para probar SGX, SDC y el grupo, Diseño usa `FakeCurrentCompany` (§7) e inicia sesión: el layout solo consulta `CurrentCompany` cuando hay usuario.
 - Los nombres de íconos que Diseño dibuje se convierten en el vocabulario de `NavItem::$icon` y de la prop `icon` (§8.2).
 
@@ -633,7 +634,7 @@ En Blade, una prop `camelCase` se pasa en `kebab-case`: `:icon-only="true"`, `ca
 | Componente | Prop | Tipo | Por defecto | Notas |
 |---|---|---|---|---|
 | `<x-layouts.app>` | `title` | `?string` | `null` | `<title>`: «título · nombre de la app». Slot: contenido. Atributos extra van a `<body>`. |
-| `<x-layouts.guest>` | `title` | `?string` | `null` | Paleta neutra siempre y sin navegación. Slot: contenido. |
+| `<x-layouts.guest>` | `title` | `?string` | `null` | Paleta neutra siempre, sin navegación y sin logos de empresa (el encabezado muestra el nombre de la app). Slot: contenido. |
 | `<x-ui.page-header>` | `title` | `string` | obligatoria | El único `<h1>` de la página. Slot `actions`. |
 | | `context` | `?string` | `null` | Línea corta sobre el título. |
 | | `description` | `?string` | `null` | |
