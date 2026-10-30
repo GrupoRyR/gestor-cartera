@@ -30,9 +30,16 @@ final class SocialiteMicrosoftIdentityProvider implements IdentityProvider
         $driver = $this->driver();
         // First: it fills the token response the claims are read from.
         $profile = $driver->user()->getRaw();
-        $tenantId = $driver->getClaims()->tid ?? null;
+        $claims = $driver->getClaims();
+        $tenantId = $claims->tid ?? null;
+        // Optional claim: 1 for a guest, 0 for a member (audit S-17).
+        $account = $claims->acct ?? null;
 
-        return MicrosoftIdentity::fromGraph($profile, is_string($tenantId) && $tenantId !== '' ? $tenantId : null);
+        return MicrosoftIdentity::fromGraph(
+            $profile,
+            is_string($tenantId) && $tenantId !== '' ? $tenantId : null,
+            in_array($account, [1, '1'], true),
+        );
     }
 
     private function driver(): MicrosoftProvider

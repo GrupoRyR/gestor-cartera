@@ -446,14 +446,14 @@ Un usuario con sesión que abre una ruta de invitados vuelve a `/`.
 
 **Límite de intentos** (auditoría S-09). Las tres rutas de invitados pasan por el limitador `core-auth`: 20 peticiones por minuto por IP y por ruta. La petición 21 responde 429 con la página de error de la base. Va por ruta porque un ingreso normal usa las tres, y detrás de un proxy todos los usuarios podrían compartir la misma IP.
 
-**Cómo se lee la respuesta.** `Application\Auth\IdentityProvider` es el puerto; `Infrastructure\Auth\SocialiteMicrosoftIdentityProvider` lo implementa con el driver `microsoft` de Socialite, que revisa el `state`, cambia el código por los tokens, valida el id token con las llaves del tenant y lee el perfil de Graph (`/me`, permisos `openid profile User.Read`). De ahí sale `MicrosoftIdentity`: el object id (`id`, que se guarda en `users.microsoft_id`), el tenant (el claim `tid`), el correo (`mail`, o `userPrincipalName` si la cuenta no tiene buzón; sin espacios y en minúsculas) y el nombre (`displayName`, o el correo si no viene). Las pruebas cambian el puerto por `Tests\Modules\Core\Support\FakeIdentityProvider` y nunca llaman a Microsoft.
+**Cómo se lee la respuesta.** `Application\Auth\IdentityProvider` es el puerto; `Infrastructure\Auth\SocialiteMicrosoftIdentityProvider` lo implementa con el driver `microsoft` de Socialite, que revisa el `state`, cambia el código por los tokens, valida el id token con las llaves del tenant y lee el perfil de Graph (`/me`, permisos `openid profile User.Read`). De ahí sale `MicrosoftIdentity`: el object id (`id`, que se guarda en `users.microsoft_id`), el tenant (el claim `tid`), si es una cuenta invitada (B2B: el claim opcional `acct` vale 1, o el `userPrincipalName` lleva `#EXT#`), el correo (`mail`, o `userPrincipalName` si la cuenta no tiene buzón; sin espacios y en minúsculas) y el nombre (`displayName`, o el correo si no viene). Las pruebas cambian el puerto por `Tests\Modules\Core\Support\FakeIdentityProvider` y nunca llaman a Microsoft.
 
 **Emparejamiento** (`Application\Auth\SignInWithMicrosoft`). Los pasos 2 a 4 van en una sola transacción.
 
-1. **Tenant.** El claim `tid` debe ser igual a `MICROSOFT_TENANT_ID` (sin distinguir mayúsculas, porque es un GUID). Si falta el claim o no hay tenant configurado, nadie entra.
+1. **Tenant.** El claim `tid` debe ser igual a `MICROSOFT_TENANT_ID` (sin distinguir mayúsculas, porque es un GUID). Si falta el claim o no hay tenant configurado, nadie entra. Las cuentas invitadas del tenant tampoco entran (auditoría S-17).
 2. **Usuario por correo.** Se busca en `users`, también entre los borrados. Si no existe, se crea sin rol con `User::withTrashed()->restoreOrCreate()`, con el nombre y el object id de Microsoft. Si existe, se le guarda el object id la primera vez y se actualiza el nombre si cambió en Microsoft.
-3. **Asesor por correo.** Se vinculan los asesores activos, sin usuario, cuyo `email` es el del usuario. Un asesor inactivo o ya vinculado a otra persona no cambia.
-4. **Rol por asesor.** Si el usuario no tiene rol y **este ingreso** le vinculó al menos un asesor, recibe el rol `asesor` y las empresas de esos asesores en `company_user`, sin duplicar. Los asesores vinculados antes no devuelven un rol: si TI le quitó todos los roles para revocar el acceso, sigue sin rol. Un usuario que ya tiene rol nunca cambia de rol ni de empresas. Los demás roles los asigna TI desde la pantalla de equipo.
+3. **Asesor por correo.** Se vinculan los asesores activos, sin usuario, cuyo `email` es el del usuario. Un asesor inactivo o ya vinculado a otra persona no cambia. Solo se vincula si el dominio del correo es exactamente uno de `config('core.auth.company_domains')` (`segurex.com` y `derivadoscol.com`, sin subdominios): quien pueda cambiar `OSLP.Email` en SAP no puede darle los clientes de un asesor a una cuenta de otro dominio (auditoría S-17). Una cuenta de otro dominio sigue entrando, sin rol.
+4. **Rol por asesor.** Si el usuario no tiene rol y **este ingreso** le vinculó al menos un asesor, recibe el rol `asesor` y las empresas de esos asesores en `company_user`, sin duplicar. Cuando la transacción termina, `Infrastructure\Auth\SendAdvisorRoleNotice` (en la cola, un solo intento) avisa por correo a `CORE_AUDIT_ALERT_RECIPIENTS` quién recibió el rol, cuándo, de qué empresas y por cuáles asesores de SAP, con el enlace a su página en Equipo, para que una persona confirme cada asignación. Sale desde el buzón de Segurex (categoría `alerta`). Sin destinatarios, sin `MailSender` o si Graph no lo acepta, queda solo en el log y el rol se mantiene. Los asesores vinculados antes no devuelven un rol: si TI le quitó todos los roles para revocar el acceso, sigue sin rol. Un usuario que ya tiene rol nunca cambia de rol ni de empresas. Los demás roles los asigna TI desde la pantalla de equipo.
 
 Un usuario sin rol termina en `/sin-acceso`. El que tiene rol llega a la página que pidió antes de ingresar o a `/`.
 
@@ -464,6 +464,7 @@ Un usuario sin rol termina en `/sin-acceso`. El que tiene rol llega a la página
 | Motivo (`RejectionReason`) | Cuándo | Mensaje |
 |---|---|---|
 | `tenant` | Falta el claim `tid`, no es el tenant configurado o no hay tenant configurado. | «Esa cuenta de Microsoft no es del Grupo RYR. Ingresa con la cuenta de tu empresa.» |
+| `guest` | Es una cuenta invitada (B2B) del tenant. | «Las cuentas de invitado no pueden entrar al gestor de cartera. Ingresa con la cuenta de tu empresa.» |
 | `deleted` | El usuario del correo está borrado (borrado lógico). | «Tu cuenta fue retirada del gestor de cartera. Habla con TI si necesitas volver a entrar.» |
 | `identity_mismatch` | El correo tiene guardado otro object id, o el object id ya pertenece a otro correo (p. ej. le cambiaron el correo en Microsoft). | «Tu cuenta de Microsoft no coincide con la registrada para tu correo. Habla con TI para revisarlo.» |
 | `inactive` | El usuario está desactivado. | «Tu cuenta está desactivada. Habla con TI si crees que es un error.» |
@@ -492,6 +493,8 @@ Si falla Microsoft (`state` inválido, una petición rechazada, un id token inv�
 | `MICROSOFT_REDIRECT_URI` | La URL completa del callback: `https://<dominio>/auth/microsoft/callback`, igual a la registrada en Entra ID. |
 
 Después de editar `.env` en producción, corre `php artisan config:cache`.
+
+Al registrar la app en Entra ID, TI puede agregar el claim opcional `acct` al id token (Configuración del token). No es obligatorio: sin él, los invitados se reconocen por el `#EXT#` de su `userPrincipalName`.
 
 ## Inicio y acceso
 

@@ -56,6 +56,21 @@ describe('advisor matching', function () {
             ->and($linked->context)->toEqual(['company' => 'SGX', 'code' => 12]);
     });
 
+    it('matches advisors only for e-mails of the company domains (audit S-17)', function (string $email, bool $matched) {
+        $advisor = AdvisorRecord::factory()->create(['company' => CompanyCode::SDC, 'code' => 5, 'email' => $email]);
+
+        $user = signInWithMicrosoft($email);
+
+        expect($advisor->refresh()->user_id)->toBe($matched ? $user->id : null)
+            ->and($user->fresh()?->getRoleNames()->all())->toBe($matched ? [Role::SalesAdvisor->value] : []);
+    })->with([
+        'segurex.com' => ['ana.gomez@segurex.com', true],
+        'derivadoscol.com' => ['ana.gomez@derivadoscol.com', true],
+        'another domain' => ['ana.gomez@gmail.com', false],
+        'a subdomain' => ['ana.gomez@ventas.segurex.com', false],
+        'a look-alike domain' => ['ana.gomez@segurex.com.co', false],
+    ]);
+
     it('gives no role without an active advisor', function () {
         AdvisorRecord::factory()->inactive()->create(['email' => 'ana.gomez@segurex.com']);
 

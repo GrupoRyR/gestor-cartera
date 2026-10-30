@@ -126,6 +126,14 @@ describe('a rejected sign-in', function () {
         assertSignInRejected('tenant', 'Esa cuenta de Microsoft no es del Grupo RYR. Ingresa con la cuenta de tu empresa.');
     })->with(['null' => [null], 'empty' => [''], 'spaces' => ['  ']]);
 
+    it('refuses guest accounts of the tenant (audit S-17)', function () {
+        $this->microsoft->signsIn(FakeIdentityProvider::identity('ana.gomez@segurex.com', guest: true));
+
+        assertSignInRejected('guest', 'Las cuentas de invitado no pueden entrar al gestor de cartera. Ingresa con la cuenta de tu empresa.');
+
+        expect(User::withTrashed()->count())->toBe(0);
+    });
+
     it('keeps a removed user out and removed', function () {
         $user = User::factory()->create(['email' => 'ana.gomez@segurex.com', 'microsoft_id' => 'oid-ana']);
         $user->delete();
