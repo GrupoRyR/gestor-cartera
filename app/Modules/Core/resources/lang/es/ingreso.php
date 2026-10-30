@@ -26,7 +26,7 @@ return [
     'aviso_rol' => [
         'asunto' => 'Aviso: :nombre recibió el rol de asesor al ingresar al gestor de cartera',
         'titulo' => 'Rol de asesor asignado al ingresar',
-        'intro' => 'Al ingresar por primera vez con Microsoft, el correo de esta persona coincidió con el de uno o más asesores de SAP, así que el gestor de cartera le dio el rol de asesor y ya puede ver los clientes de esos asesores.',
+        'intro' => 'Al ingresar con Microsoft, el correo de esta persona coincidió con el de uno o más asesores de SAP que no estaban vinculados a nadie, así que el gestor de cartera le dio el rol de asesor y ya puede ver los clientes de esos asesores.',
         'usuario' => 'Usuario: :nombre (:correo)',
         'cuando' => 'Cuándo: :fecha :hora (hora de Bogotá)',
         'empresas' => 'Empresas: :empresas',

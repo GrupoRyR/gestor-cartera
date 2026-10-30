@@ -64,6 +64,11 @@ final class SendAdvisorRoleNotice implements ShouldQueue
 
         $user = User::query()->withTrashed()->findOrFail($this->userId);
 
+        // The advisors in the order of the companies line: CompanyCode, then code.
+        $order = array_flip(array_map(fn (CompanyCode $code): string => $code->value, CompanyCode::cases()));
+        $advisors = $this->advisors;
+        usort($advisors, fn (array $a, array $b): int => [$order[$a['company']], $a['code']] <=> [$order[$b['company']], $b['code']]);
+
         try {
             app(MailSender::class)->send(new OutgoingMail(
                 company: CompanyCode::SGX,
@@ -75,7 +80,7 @@ final class SendAdvisorRoleNotice implements ShouldQueue
                     'companies' => array_map(fn (string $code): string => CompanyCode::from($code)->label(), $this->companies),
                     'advisors' => array_map(
                         fn (array $advisor): string => CompanyCode::from($advisor['company'])->label().' '.$advisor['code'],
-                        $this->advisors,
+                        $advisors,
                     ),
                 ])->render(),
                 category: 'alerta',

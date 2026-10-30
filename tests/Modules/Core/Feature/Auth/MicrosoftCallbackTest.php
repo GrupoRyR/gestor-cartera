@@ -134,6 +134,15 @@ describe('a rejected sign-in', function () {
         expect(User::withTrashed()->count())->toBe(0);
     });
 
+    it('refuses a registered user who comes back as a guest, and changes nothing', function () {
+        $user = User::factory()->create(['email' => 'ana.gomez@segurex.com', 'name' => 'Ana', 'microsoft_id' => 'oid-ana']);
+        $this->microsoft->signsIn(FakeIdentityProvider::identity('ana.gomez@segurex.com', 'oid-ana', name: 'Ana Gómez', guest: true));
+
+        assertSignInRejected('guest', 'Las cuentas de invitado no pueden entrar al gestor de cartera. Ingresa con la cuenta de tu empresa.');
+
+        expect($user->refresh()->name)->toBe('Ana');
+    });
+
     it('keeps a removed user out and removed', function () {
         $user = User::factory()->create(['email' => 'ana.gomez@segurex.com', 'microsoft_id' => 'oid-ana']);
         $user->delete();

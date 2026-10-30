@@ -64,7 +64,7 @@ it('mails who became advisor, of which companies and through which SAP advisors'
         ->toContain('Usuario: Ana Gómez (ana.gomez@segurex.com)')
         ->toContain('Cuándo: 30/10/2026 08:15')
         ->toContain('Empresas: Segurex Latam, Soluciones y Derivados')
-        ->toContain('Asesores de SAP: Soluciones y Derivados 5, Segurex Latam 12')
+        ->toContain('Asesores de SAP: Segurex Latam 12, Soluciones y Derivados 5')
         ->and($mail->html)->toContain(route('core.equipo.edit', ['user' => $user->id]));
 });
 
