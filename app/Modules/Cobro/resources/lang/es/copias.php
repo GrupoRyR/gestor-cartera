@@ -9,7 +9,7 @@ return [
     'empresas' => 'Empresas',
 
     'estado' => [
-        'por_defecto' => 'Usa las copias por defecto',
+        'por_defecto' => 'Sin copias guardadas: los envíos salen sin copia. Guárdalas antes del primer envío.',
         'editada' => 'Editadas por :nombre el :fecha',
     ],
 
@@ -31,12 +31,12 @@ return [
 
     'acciones' => [
         'guardar' => 'Guardar copias',
-        'restaurar' => 'Volver a las copias por defecto',
+        'restaurar' => 'Quitar las copias guardadas',
     ],
 
     'mensajes' => [
         'guardadas' => 'Guardaste las copias de :empresa.',
-        'restauradas' => 'Las copias de :empresa volvieron a las de por defecto.',
+        'restauradas' => 'Quitaste las copias de :empresa: los envíos saldrán sin copia.',
     ],
 
     'validacion' => [

@@ -71,13 +71,13 @@ it('shows no copies for a company until someone saves them (audit S-31)', functi
     $this->actingAs($this->analyst)->get('/cobro/copias')
         ->assertOk()
         ->assertSeeText('Copias del cobro semanal y la circularización')
-        ->assertSeeText('Usa las copias por defecto')
+        ->assertSeeText('Sin copias guardadas: los envíos salen sin copia. Guárdalas antes del primer envío.')
         ->assertSeeText('Copiar al asesor del cliente')
         ->assertSeeText('«Grupo» del cliente en SAP')
         ->assertSee('name="gerentes[2][grupo]"', false)
         ->assertDontSee('name="gerentes[3][grupo]"', false)
         ->assertDontSee('value="DISTRIBUCION"', false)
-        ->assertDontSeeText('Volver a las copias por defecto');
+        ->assertDontSeeText('Quitar las copias guardadas');
 
     expect(app(CopyStore::class)->for(CompanyCode::SGX)->toArray())->toBe(['fixed' => [], 'advisor' => false, 'managers' => []])
         ->and(app(CopyStore::class)->for(CompanyCode::SDC)->toArray())->toBe(['fixed' => [], 'advisor' => false, 'managers' => []]);
@@ -176,16 +176,16 @@ it('answers 404 for a company the user may not choose', function () {
     expect(CopySetting::query()->count())->toBe(0);
 });
 
-it('restores the default copies and audits it', function () {
+it('removes the saved copies and audits it', function () {
     app(CopyStore::class)->save(CompanyCode::SGX, new CopySettings(fixed: ['cartera@segurex.com'], advisor: false), $this->analyst->id);
 
     $this->actingAs($this->analyst)->get('/cobro/copias?empresa=SGX')
-        ->assertSeeText('Volver a las copias por defecto')
+        ->assertSeeText('Quitar las copias guardadas')
         ->assertSee('action="'.route('cobro.copias.reset', ['empresa' => 'SGX']).'"', false);
 
     $this->actingAs($this->analyst)->delete('/cobro/copias/SGX')
         ->assertRedirect('/cobro/copias?empresa=SGX')
-        ->assertSessionHas('status', 'Las copias de Segurex Latam volvieron a las de por defecto.');
+        ->assertSessionHas('status', 'Quitaste las copias de Segurex Latam: los envíos saldrán sin copia.');
 
     $settings = app(CopyStore::class)->for(CompanyCode::SGX);
 
@@ -198,8 +198,8 @@ it('restores the default copies and audits it', function () {
         && $entry->context['company'] === 'SGX');
 
     $this->actingAs($this->analyst)->get('/cobro/copias?empresa=SGX')
-        ->assertSeeText('Usa las copias por defecto')
-        ->assertDontSeeText('Volver a las copias por defecto');
+        ->assertSeeText('Sin copias guardadas: los envíos salen sin copia. Guárdalas antes del primer envío.')
+        ->assertDontSeeText('Quitar las copias guardadas');
 });
 
 it('restores nothing and audits nothing when the company saved no copies', function () {
