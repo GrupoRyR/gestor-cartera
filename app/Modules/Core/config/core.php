@@ -14,9 +14,16 @@ return [
         'SDC' => ['grace_days' => 5, 'due_soon_days' => 5],
     ],
 
+    // Only e-mails of these domains are matched with SAP advisors at sign-in,
+    // and so only they can get the "asesor" role on their own (audit S-17).
+    // The domain must be exactly one of these: no subdomains.
+    'auth' => [
+        'company_domains' => ['segurex.com', 'derivadoscol.com'],
+    ],
+
     // Who receives the alert of core:verificar-auditoria when the hash chain
-    // of the audit trail is broken (IT and internal control), from a
-    // comma-separated list.
+    // of the audit trail is broken, and the notice of an "asesor" role given
+    // at sign-in (IT and internal control), from a comma-separated list.
     'audit' => [
         'alert_recipients' => array_values(array_filter(
             array_map(trim(...), explode(',', (string) env('CORE_AUDIT_ALERT_RECIPIENTS', ''))),

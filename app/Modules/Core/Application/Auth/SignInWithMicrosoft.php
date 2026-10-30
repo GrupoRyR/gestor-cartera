@@ -6,8 +6,10 @@ use App\Models\User;
 use App\Modules\Core\Contracts\AuditLogger;
 use App\Modules\Core\Contracts\Enums\CompanyCode;
 use App\Modules\Core\Contracts\Enums\Role;
+use App\Modules\Core\Infrastructure\Auth\SendAdvisorRoleNotice;
 use App\Modules\Core\Infrastructure\Persistence\AdvisorRecord;
 use App\Modules\Core\Infrastructure\Persistence\CompanyRecord;
+use Carbon\CarbonImmutable;
 use Illuminate\Contracts\Config\Repository as Config;
 use Illuminate\Database\ConnectionInterface;
 use Spatie\Permission\Models\Role as SpatieRole;
@@ -16,13 +18,16 @@ use Spatie\Permission\Models\Role as SpatieRole;
  * Turns the identity Microsoft sent back into the user who signs in (Part
  * A.5: "la app lo empareja por correo con su rol y con su asesor de SAP").
  *
- * 1. The "tid" claim must be the configured tenant.
+ * 1. The "tid" claim must be the configured tenant, and the account a
+ *    member of it: guests are turned away (audit S-17).
  * 2. The user is found by e-mail. A removed, deactivated or differently
  *    linked user is turned away; an unknown one is created without a role.
- * 3. The active, unlinked SAP advisors with the same e-mail are linked.
+ * 3. The active, unlinked SAP advisors with the same e-mail are linked, only
+ *    for e-mails of the company domains (core.auth.company_domains).
  * 4. A user without a role for whom step 3 linked an advisor becomes
- *    "asesor" of those advisors' companies. Advisors linked earlier never
- *    give a role back. A user with a role keeps it untouched.
+ *    "asesor" of those advisors' companies, and IT gets a notice once the
+ *    transaction commits. Advisors linked earlier never give a role back. A
+ *    user with a role keeps it untouched.
  *
  * Steps 2 to 4 run in one transaction. Every change and every rejection goes
  * to the audit trail; tokens never do.
@@ -42,6 +47,10 @@ final class SignInWithMicrosoft
     {
         try {
             $this->ensureConfiguredTenant($identity);
+
+            if ($identity->guest) {
+                throw new SignInRejected(RejectionReason::Guest);
+            }
 
             return $this->database->transaction(function () use ($identity): User {
                 $user = $this->registeredUser($identity);
@@ -149,12 +158,19 @@ final class SignInWithMicrosoft
 
     /**
      * Links the active SAP advisors of the user's e-mail (OSLP.Email) that
-     * nobody claimed yet. Advisors linked to someone else stay theirs.
+     * nobody claimed yet. Advisors linked to someone else stay theirs. An
+     * e-mail outside the company domains links none: whoever can edit
+     * OSLP.Email must not hand the clients of an advisor to an outside
+     * account (audit S-17).
      *
      * @return list<AdvisorRecord> The advisors linked by this sign-in.
      */
     private function linkAdvisors(User $user): array
     {
+        if (! $this->hasCompanyDomain($user->email)) {
+            return [];
+        }
+
         $advisors = AdvisorRecord::query()
             ->where('email', $user->email)
             ->where('active', true)
@@ -181,10 +197,23 @@ final class SignInWithMicrosoft
     }
 
     /**
+     * Whether the domain of $email is exactly one of core.auth.company_domains.
+     * The e-mail is already normalized (User::normalizeEmail()).
+     */
+    private function hasCompanyDomain(string $email): bool
+    {
+        $at = strrpos($email, '@');
+        $domains = array_map(mb_strtolower(...), array_filter((array) $this->config->get('core.auth.company_domains', []), is_string(...)));
+
+        return $at !== false && in_array(substr($email, $at + 1), $domains, true);
+    }
+
+    /**
      * A user without a role for whom this sign-in linked an advisor becomes
      * "asesor" of the companies of those advisors. Advisors linked before do
      * not count: an admin who took every role away to revoke the access must
-     * not see it come back at the next sign-in.
+     * not see it come back at the next sign-in. IT and internal control get a
+     * notice of every role given here (audit S-17).
      *
      * @param  list<AdvisorRecord>  $linked  The advisors linked by this sign-in.
      */
@@ -211,5 +240,12 @@ final class SignInWithMicrosoft
             'role' => Role::SalesAdvisor->value,
             'companies' => $companies,
         ], ['source' => 'microsoft']);
+
+        SendAdvisorRoleNotice::dispatch(
+            $user->id,
+            $companies,
+            array_map(fn (AdvisorRecord $advisor): array => ['company' => $advisor->company->value, 'code' => $advisor->code], $linked),
+            CarbonImmutable::now()->toIso8601String(),
+        )->afterCommit();
     }
 }

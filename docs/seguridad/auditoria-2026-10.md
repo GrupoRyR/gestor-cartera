@@ -124,6 +124,11 @@ Levanté la app en `127.0.0.1:8123` con los seeders de demostración (SQLite tem
 - **Cómo se explotaría:** quien pueda cambiar el correo de un vendedor en SAP (`OSLP.Email`) pone el suyo de Entra ID. En su primer ingreso recibe el rol `asesor` y ve los clientes de ese vendedor. Una cuenta invitada (B2B) del tenant con un `mail` que coincida tendría el mismo efecto (por confirmar si el tenant tiene invitados).
 - **Qué está bien:** el tenant se valida dos veces (`AppServiceProvider.php:53-70` y el claim `tid` en `SignInWithMicrosoft.php:68-76`), el id token se valida con JWKS y el `microsoft_id` queda fijo después del primer vínculo.
 - **Corrección:** rechazar invitados (claim `acct = 1`), aceptar solo los dominios de la empresa y avisar al administrador cuando se asigne un rol automáticamente.
+- **Estado: corregido** en el PR 15 de la Fase 2. El usuario decidió el 30 de octubre de 2026 mantener la asignación automática con los tres controles. Confirmó que el tenant no usa invitados y que la app todavía no está registrada en Entra ID.
+  - **Invitados:** se rechazan al ingresar, con el motivo `guest`. Una cuenta es invitada si el claim opcional `acct` vale 1 o si su `userPrincipalName` lleva `#EXT#`. El segundo criterio funciona aunque TI no agregue `acct` al registrar la app.
+  - **Dominios:** solo un correo de `segurex.com` o `derivadoscol.com`, exacto y sin subdominios (`core.auth.company_domains`), se vincula con asesores de SAP y puede recibir el rol. Una cuenta de otro dominio sigue entrando, pero sin rol.
+  - **Aviso:** cada rol `asesor` asignado al ingresar envía un correo a `CORE_AUDIT_ALERT_RECIPIENTS`. Lleva quién lo recibió, cuándo, las empresas, los asesores de SAP y el enlace a Equipo.
+  - **Pendiente para TI:** hoy los asesores de SAP no tienen correo (`OSLP.Email` vacío), así que la asignación automática no opera hasta que TI los llene. Cada asesor debe quedar con su correo de la empresa. Hasta entonces, el rol y los asesores se asignan a mano en Equipo.
 
 ### S-02 · Media · La cookie de sesión no es `Secure` por defecto
 
@@ -565,7 +570,7 @@ Fuera del código, para el usuario o TI:
 - Confirmar en Exchange Online que la aplicación de Graph está limitada a los dos buzones (`Test-ServicePrincipalAuthorization`).
 - Definir los plazos de retención de logs y auditoría con el área legal (S-29).
 - Confirmar la IP fija del PC del robot, para valorar dejarla fuera del límite global de la API de ingesta (S-19).
-- Decidir si la gerencia de cartera puede editar parámetros de una empresa que no tiene asignada (S-12) y si la asignación automática del rol `asesor` sigue (S-17).
+- Llenar en SAP el correo de la empresa de cada asesor (`OSLP.Email`). Sin él, la asignación automática del rol `asesor` no opera (S-17). El usuario ya decidió S-12 (excepción aceptada) y S-17 (la asignación sigue, con controles).
 
 ## Cómo se hizo
 

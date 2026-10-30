@@ -11,6 +11,9 @@ enum RejectionReason: string
     /** The "tid" claim is missing or is not the configured tenant (or none is configured). */
     case Tenant = 'tenant';
 
+    /** A guest (B2B) account of the tenant: only members sign in (audit S-17). */
+    case Guest = 'guest';
+
     /** The user was removed (soft-deleted); an admin restores them from Equipo. */
     case Deleted = 'deleted';
 

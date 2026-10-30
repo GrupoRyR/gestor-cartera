@@ -50,6 +50,15 @@ describe('MicrosoftIdentity', function () {
         'no object id' => [['id' => null]],
         'no e-mail' => [['mail' => null, 'userPrincipalName' => null]],
     ]);
+
+    it('marks a guest by the acct claim or by the #EXT# of the user principal name (audit S-17)', function (array $overrides, bool $guestClaim, bool $guest) {
+        expect(MicrosoftIdentity::fromGraph(graphProfile($overrides), 'tenant-ryr', $guestClaim)->guest)->toBe($guest);
+    })->with([
+        'member' => [[], false, false],
+        'acct claim' => [[], true, true],
+        'guest principal name' => [['mail' => 'ana@gmail.com', 'userPrincipalName' => 'ana_gmail.com#EXT#@segurexlatam.onmicrosoft.com'], false, true],
+        'in any case' => [['userPrincipalName' => 'ana_gmail.com#ext#@segurexlatam.onmicrosoft.com'], false, true],
+    ]);
 });
 
 describe('SocialiteMicrosoftIdentityProvider', function () {
@@ -72,6 +81,21 @@ describe('SocialiteMicrosoftIdentityProvider', function () {
         'tid claim' => [(object) ['tid' => 'tenant-ryr', 'oid' => 'oid-ana'], 'tenant-ryr'],
         'no tid claim' => [(object) ['oid' => 'oid-ana'], null],
         'no id token' => [null, null],
+    ]);
+
+    it('reads a guest from the acct claim of the id token', function (?object $claims, bool $guest) {
+        $driver = Mockery::mock(MicrosoftProvider::class);
+        $driver->shouldReceive('user')->once()->andReturn((new MicrosoftUser)->setRaw(graphProfile()));
+        $driver->shouldReceive('getClaims')->andReturn($claims);
+        Socialite::shouldReceive('driver')->with('microsoft')->andReturn($driver);
+
+        expect(app(SocialiteMicrosoftIdentityProvider::class)->user()->guest)->toBe($guest);
+    })->with([
+        'guest' => [(object) ['tid' => 'tenant-ryr', 'acct' => 1], true],
+        'guest as text' => [(object) ['tid' => 'tenant-ryr', 'acct' => '1'], true],
+        'member' => [(object) ['tid' => 'tenant-ryr', 'acct' => 0], false],
+        'no acct claim' => [(object) ['tid' => 'tenant-ryr'], false],
+        'no id token' => [null, false],
     ]);
 
     it('redirects to the sign-in page of the configured tenant, without calling Microsoft', function () {
