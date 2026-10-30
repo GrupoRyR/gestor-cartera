@@ -3,6 +3,7 @@
 use App\Modules\Cobro\Circularizacion\CircularizationRun;
 use App\Modules\Cobro\Domain\Runs\NoticeData;
 use App\Modules\Cobro\Domain\Runs\RenderedMail;
+use App\Modules\Core\Contracts\Data\BrandPalette;
 use App\Modules\Core\Contracts\Data\Invoice;
 use App\Modules\Core\Contracts\Enums\CompanyCode;
 use Carbon\CarbonImmutable;
@@ -140,7 +141,7 @@ it('puts the Derivados business unit after the NIT', function () {
 });
 
 it('colors the Segurex header with the brand button and the Derivados header grey', function () {
-    expect(cobroCircRender(CompanyCode::SGX)->html)->toContain('background:#c24c15;color:#ffffff;')
+    expect(cobroCircRender(CompanyCode::SGX)->html)->toContain('background:'.BrandPalette::official(CompanyCode::SGX)->button.';color:#ffffff;')
         ->and(cobroCircRender(CompanyCode::SDC)->html)->toContain('background:#d9d9d9;color:#111111;')
         ->not->toContain('background:#fde2e2;');
 });
@@ -174,16 +175,18 @@ it('leaves the Segurex notice out without a cutoff date', function () {
 it('signs the Segurex mail with the company footer and its legal notice', function () {
     $html = cobroCircRender(CompanyCode::SGX)->html;
     $text = VisibleText::of($html);
+    // The non-AA accent is never used as text: links take the button color.
+    $palette = BrandPalette::official(CompanyCode::SGX);
 
     expect($text)->toContain('SEGUREX LATAM S.A.S. Calle 25D No. 95-45 Bogotá, D.C. - Colombia Móvil: +3153654788 PBX: +57 (60-1) 3713766 Ext. 141')
         ->toContain('cartera@segurex.com www.segurex.com Antes de imprimir, piense en su responsabilidad con el Medio Ambiente.')
         ->toContain('AVISO LEGAL: Este mensaje es solamente para la persona a la que va dirigido.')
         ->toContain('por favor hágalo saber inmediatamente al correo electrónico: ventas@segurex.com.')
         ->and($html)->toContain('<a href="mailto:cartera@segurex.com"')
-        ->toContain('<a href="https://www.segurex.com" style="color:#c24c15;font-weight:bold;">www.segurex.com</a>')
+        ->toContain('<a href="https://www.segurex.com" style="color:'.$palette->button.';font-weight:bold;">www.segurex.com</a>')
         ->toContain('<a href="mailto:ventas@segurex.com"')
         ->toContain('<strong>AVISO LEGAL:</strong>')
-        ->not->toContain('#ff671f');
+        ->not->toContain($palette->accent);
 });
 
 it('sends the Derivados mail without the notice or the footer', function () {

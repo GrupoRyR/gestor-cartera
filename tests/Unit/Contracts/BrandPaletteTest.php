@@ -5,79 +5,91 @@ use App\Modules\Core\Contracts\Enums\CompanyCode;
 
 it('keeps the official Segurex palette', function () {
     expect(BrandPalette::official(CompanyCode::SGX))->toEqual(new BrandPalette(
-        primary: '#ff671f',
-        accent: '#666666',
-        dark: '#8f360b',
-        button: '#c24c15',
-        tint: '#feeee8',
-        ink: '#8d350c',
-        darkTint: '#432519',
-        darkInk: '#ffa17d',
+        accent: '#f26522',
+        button: '#c6531c',
+        ink: '#943e15',
+        text: '#58595b',
+        tint: '#fcede4',
+        head: '#58595b',
+        darkAccent: '#f26522',
+        darkInk: '#f26522',
+        darkText: '#cacbcd',
+        darkTint: '#f265221a',
+        darkHead: '#2b2c2f',
     ));
 });
 
 it('keeps the official Soluciones y Derivados palette', function () {
     expect(BrandPalette::official(CompanyCode::SDC))->toEqual(new BrandPalette(
-        primary: '#183f94',
-        accent: '#3e60a8',
-        dark: '#03256c',
-        button: '#183f94',
-        tint: '#ecf2fe',
-        ink: '#183f94',
-        darkTint: '#202d47',
-        darkInk: '#97bafe',
+        accent: '#0b5fa5',
+        button: '#0b5fa5',
+        ink: '#073b66',
+        text: '#073b66',
+        tint: '#e5eef7',
+        head: '#073b66',
+        darkAccent: '#5e9ad0',
+        darkInk: '#5e9ad0',
+        darkText: '#cacbcd',
+        darkTint: '#5e9ad01c',
+        darkHead: '#0a2540',
     ));
 });
 
 it('offers a neutral palette for the group view and guests', function () {
     expect(BrandPalette::neutral())->toEqual(new BrandPalette(
-        primary: '#17191c',
         accent: '#5e6168',
-        dark: '#17191c',
         button: '#17191c',
-        tint: '#f0f0ec',
         ink: '#17191c',
-        darkTint: '#2c2e33',
+        text: '#45484e',
+        tint: '#f0f0ec',
+        head: '#26272b',
+        darkAccent: '#a3a6ad',
         darkInk: '#f2f2ef',
+        darkText: '#cacbcd',
+        darkTint: '#2c2e33',
+        darkHead: '#26272b',
     ));
 });
 
 it('exposes the light palette as --brand-* variables', function () {
     expect(BrandPalette::official(CompanyCode::SGX)->toCssVariables())->toBe([
-        '--brand-primary' => '#ff671f',
-        '--brand-accent' => '#666666',
-        '--brand-dark' => '#8f360b',
-        '--brand-button' => '#c24c15',
-        '--brand-tint' => '#feeee8',
-        '--brand-ink' => '#8d350c',
+        '--brand-accent' => '#f26522',
+        '--brand-button' => '#c6531c',
+        '--brand-ink' => '#943e15',
+        '--brand-text' => '#58595b',
+        '--brand-tint' => '#fcede4',
+        '--brand-head' => '#58595b',
     ]);
 });
 
-it('swaps tint and ink for their dark variants in dark mode', function () {
+it('swaps everything but the button for its dark variant in dark mode', function () {
     expect(BrandPalette::official(CompanyCode::SDC)->toCssVariables(dark: true))->toBe([
-        '--brand-primary' => '#183f94',
-        '--brand-accent' => '#3e60a8',
-        '--brand-dark' => '#03256c',
-        '--brand-button' => '#183f94',
-        '--brand-tint' => '#202d47',
-        '--brand-ink' => '#97bafe',
+        '--brand-accent' => '#5e9ad0',
+        '--brand-button' => '#0b5fa5',
+        '--brand-ink' => '#5e9ad0',
+        '--brand-text' => '#cacbcd',
+        '--brand-tint' => '#5e9ad01c',
+        '--brand-head' => '#0a2540',
     ]);
 });
 
 it('rejects values that are not hex colors', function (string $value) {
     expect(fn () => new BrandPalette(
-        primary: $value,
-        accent: '#666666',
-        dark: '#8f360b',
-        button: '#c24c15',
-        tint: '#feeee8',
-        ink: '#8d350c',
-        darkTint: '#432519',
-        darkInk: '#ffa17d',
-    ))->toThrow(InvalidArgumentException::class, 'primary');
+        accent: $value,
+        button: '#c6531c',
+        ink: '#943e15',
+        text: '#58595b',
+        tint: '#fcede4',
+        head: '#58595b',
+        darkAccent: '#f26522',
+        darkInk: '#f26522',
+        darkText: '#cacbcd',
+        darkTint: '#f265221a',
+        darkHead: '#2b2c2f',
+    ))->toThrow(InvalidArgumentException::class, 'accent');
 })->with([
     'named color' => 'orange',
-    'missing hash' => 'ff671f',
+    'missing hash' => 'f26522',
     'css injection' => '#fff; } body { display: none',
-    'five digits' => '#ff671',
+    'five digits' => '#f2652',
 ]);

@@ -65,7 +65,7 @@
 <head>
     @include('components.layouts.partials.head', ['title' => $title, 'palette' => $palette, 'brand' => $brand])
 </head>
-<body {{ $attributes->class('min-h-dvh bg-ground font-sans text-fg antialiased') }}>
+<body {{ $attributes->class('min-h-dvh bg-ground font-sans text-brand-text antialiased') }}>
     <div
         x-data="{ menuOpen: false }"
         x-on:keydown.escape.window="menuOpen = false"

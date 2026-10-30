@@ -41,4 +41,4 @@ Plataforma de cartera del Grupo RYR (Segurex SGX y Soluciones y Derivados SDC): 
 
 ## Skills
 
-Load the ones that apply before working: `ryr-design`, `frontend-design`, `dataviz`, `robot-sap-hana`, `cpanel-deploy`, `work-unit-commits`, `chained-pr`.
+Load the ones that apply before working: `frontend-marca-sgx-sydc-v2` (brand v2; it replaces `ryr-design`), `frontend-design`, `dataviz`, `robot-sap-hana`, `cpanel-deploy`, `work-unit-commits`, `chained-pr`.

@@ -211,7 +211,7 @@ final class CobroServiceProvider extends ModuleServiceProvider
 | Menú de navegación | `NavRegistry` (singleton) se llena desde el gancho `navigation()`. | `app/Support/Navigation/*`, `app/Providers/AppServiceProvider.php` |
 | Tareas programadas | Gancho `schedule()` con `callAfterResolving(Schedule::class, …)`. `routes/console.php` solo tiene la cola de la base. | `ModuleServiceProvider::boot()`, `routes/console.php` |
 | Migraciones | Cada módulo carga las suyas; los prefijos viven en `config/modules.php` y una prueba de arquitectura falla si una migración no lo usa. | `config/modules.php`, `tests/Architecture/ModulesTest.php` |
-| `composer.json`, `package.json` y lockfiles | Solo la Fase 0a. Ya traen las dependencias de A.3, las fuentes y Alpine. | — |
+| `composer.json`, `package.json` y lockfiles | Solo la Fase 0a. Ya traen las dependencias de A.3 y Alpine (la marca v2 usa Helvetica del sistema, sin paquetes de fuentes). | — |
 | CSS, JS, layouts, componentes y `public/` | Solo Diseño. Tailwind escanea las vistas de los módulos con `@source`. | `resources/css/app.css` |
 | `public/build` | Ignorado en `.gitignore`; el despliegue lo agrega con `git add -f` en su propio PR. | `.gitignore`, `deploy/deploy.sh` |
 | Permisos y roles | Cada módulo tiene su `<Modulo>PermissionSeeder`; `DatabaseSeeder` los descubre. | `app/Support/Modules/PermissionSeeder.php`, `database/seeders/DatabaseSeeder.php` |
@@ -440,7 +440,7 @@ Todos son `final readonly`. Los campos van en el orden del constructor; los que 
 | Clase | Campos | Métodos |
 |---|---|---|
 | `Company` | `code: CompanyCode`, `name: string`, `graceDays: int`, `palette: BrandPalette` | — |
-| `BrandPalette` | `primary`, `accent`, `dark`, `button`, `tint`, `ink`, `darkTint`, `darkInk` (todos `string` hex `#rgb`, `#rrggbb` o `#rrggbbaa`; si no, `InvalidArgumentException`) | `neutral()`, `official(CompanyCode)`, `toCssVariables(bool $dark = false): array` → `--brand-primary`, `--brand-accent`, `--brand-dark`, `--brand-button`, `--brand-tint`, `--brand-ink` |
+| `BrandPalette` | `accent`, `button`, `ink`, `text`, `tint`, `head`, `darkAccent`, `darkInk`, `darkText`, `darkTint`, `darkHead` (todos `string` hex `#rgb`, `#rrggbb` o `#rrggbbaa`; si no, `InvalidArgumentException`). Marca v2 (skill `frontend-marca-sgx-sydc-v2`) | `neutral()`, `official(CompanyCode)`, `toCssVariables(bool $dark = false): array` → `--brand-accent`, `--brand-button`, `--brand-ink`, `--brand-text`, `--brand-tint`, `--brand-head`; en oscuro todas menos `--brand-button` toman su variante `dark*` |
 | `UserRef` | `id: int`, `name: string`, `email: string` | — |
 
 `graceDays` son los días después del vencimiento antes de que la factura cuente como vencida para el estado del cliente (SGX 15 y SDC 5 por defecto; Core los guarda como parámetro). Las edades de la deuda los ignoran.

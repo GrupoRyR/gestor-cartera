@@ -23,12 +23,12 @@
     <style>
         @page { margin: 30px 34px 40px 34px; }
         body { font-family: "DejaVu Sans", sans-serif; font-size: 10px; line-height: 1.4; color: {{ $palette->ink }}; }
-        .bar { height: 7px; background: {{ $palette->primary }}; }
+        .bar { height: 7px; background: {{ $palette->accent }}; }
         h1 { margin: 14px 0 2px 0; font-size: 20px; }
         h2 { margin: 22px 0 6px 0; font-size: 12px; }
         p { margin: 0; }
         table { width: 100%; border-collapse: collapse; }
-        th { text-align: left; font-size: 9px; padding: 5px 6px; background: {{ $palette->tint }}; border-bottom: 1px solid {{ $palette->primary }}; }
+        th { text-align: left; font-size: 9px; padding: 5px 6px; background: {{ $palette->tint }}; border-bottom: 1px solid {{ $palette->accent }}; }
         td { padding: 5px 6px; border-bottom: 1px solid {{ $palette->tint }}; vertical-align: top; }
         .end { text-align: right; }
         .muted { opacity: 0.7; }
