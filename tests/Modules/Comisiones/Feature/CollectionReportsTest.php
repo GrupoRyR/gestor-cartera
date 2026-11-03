@@ -13,6 +13,7 @@ use App\Modules\Comisiones\Infrastructure\Report\ReportArchive;
 use App\Modules\Comisiones\Infrastructure\Report\ReportMismatch;
 use App\Modules\Comisiones\Infrastructure\Settlement\EloquentSettlements;
 use App\Modules\Core\Contracts\CurrentCompany;
+use App\Modules\Core\Contracts\Data\BrandPalette;
 use App\Modules\Core\Contracts\Enums\CompanyCode;
 use App\Modules\Core\Contracts\Enums\Dataset;
 use App\Support\Formatting\Money;
@@ -403,6 +404,30 @@ it('draws the 85.1 report with its note and without days', function () {
         ->toContain(Money::format('55487'))
         // Importe original (one token: its space is a no-break one), then «—» for the days.
         ->toMatch('/Constructora Andina SAS \d{2}\/\d{2}\/2026 \d{2}\/08\/2026 [^ ]+ — /u');
+});
+
+it('draws the collection report on brand v2 of Segurex, in Helvetica and without images', function () {
+    AugustCollections::close($this, $this->analyst, $this->approver);
+    $report = augustCollectionReports()['85.1'];
+    $palette = BrandPalette::official(CompanyCode::SGX);
+    $html = augustReportHtml($report);
+
+    // The head band carries the white title; totals and the note take the ink, long text the text color.
+    expect($html)->toContain('font-family: Helvetica, Arial, "Helvetica Neue", sans-serif;')
+        ->toMatch('/\.band td \{[^}]*background: '.$palette->head.';[^}]*border-bottom: 3px solid '.$palette->accent.';/')
+        ->toMatch('/\.band h1 \{[^}]*color: #ffffff;/')
+        ->toMatch('/body \{[^}]*color: '.$palette->text.';/')
+        ->toMatch('/tfoot td \{[^}]*color: '.$palette->ink.';/')
+        ->toMatch('/\.note \{[^}]*background: '.$palette->tint.';[^}]*color: '.$palette->ink.';/')
+        ->not->toContain('DejaVu')
+        ->not->toContain('opacity')
+        ->not->toMatch('/<img\b|background-image|url\(/i');
+
+    // dompdf sets it in its built-in Helvetica, so it embeds no font file.
+    $pdf = app(PdfRenderer::class)->render('comisiones::pdf.recaudo', ['report' => $report, 'palette' => $palette, 'generatedAt' => CarbonImmutable::now()]);
+    expect($pdf)->toContain('/BaseFont /Helvetica')
+        ->not->toContain('DejaVu')
+        ->not->toContain('/FontFile2');
 });
 
 it('refuses to store a report whose total differs from the consolidated figure (§9.3)', function () {

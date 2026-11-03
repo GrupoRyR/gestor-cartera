@@ -1,9 +1,15 @@
 <?php
 
 use App\Modules\Comisiones\Database\Seeders\ComisionesPermissionSeeder;
+use App\Modules\Comisiones\Domain\Shared\Period;
 use App\Modules\Comisiones\Infrastructure\Export\SpreadsheetDownload;
 use App\Modules\Comisiones\Infrastructure\Persistence\AuditRecord;
 use App\Modules\Comisiones\Infrastructure\Persistence\BudgetRecord;
+use App\Modules\Comisiones\Infrastructure\Report\ConsolidatedReport;
+use App\Modules\Comisiones\Infrastructure\Settlement\EloquentSettlements;
+use App\Modules\Core\Contracts\CurrentCompany;
+use App\Modules\Core\Contracts\Data\BrandPalette;
+use App\Modules\Core\Contracts\Enums\CompanyCode;
 use App\Modules\Core\Contracts\Enums\Dataset;
 use App\Support\Formatting\Money;
 use Carbon\CarbonImmutable;
@@ -164,6 +170,33 @@ it('downloads the report as a letter landscape PDF, and audits it', function () 
     expect(str_starts_with((string) $response->getContent(), '%PDF'))->toBeTrue()
         ->and((string) $response->getContent())->toContain('792.000 612.000');
     $this->fakes->audit->assertRecorded('comisiones.export.downloaded', fn (AuditEntry $entry) => $entry->context['formato'] === 'pdf');
+});
+
+it('draws the PDF on brand v2 of Segurex, in Helvetica and without images', function () {
+    $palette = BrandPalette::official(CompanyCode::SGX);
+    $html = view('comisiones::pdf.consolidado', [
+        'report' => ConsolidatedReport::of(app(EloquentSettlements::class)->latest(Period::fromString('2026-07'))),
+        'palette' => app(CurrentCompany::class)->of(CompanyCode::SGX)->palette,
+        'generatedAt' => CarbonImmutable::now(),
+        'generatedBy' => 'Analista',
+    ])->render();
+
+    // The head band carries the white title; section titles and totals take the ink, long text the text color.
+    expect($html)->toContain('font-family: Helvetica, Arial, "Helvetica Neue", sans-serif;')
+        ->toMatch('/\.band td \{[^}]*background: '.$palette->head.';[^}]*border-bottom: 3px solid '.$palette->accent.';/')
+        ->toMatch('/\.band h1 \{[^}]*color: #ffffff;/')
+        ->toMatch('/body \{[^}]*color: '.$palette->text.';/')
+        ->toMatch('/h2 \{[^}]*color: '.$palette->ink.';/')
+        ->toMatch('/tfoot td, tfoot th \{[^}]*color: '.$palette->ink.';/')
+        ->not->toContain('DejaVu')
+        ->not->toContain('opacity')
+        ->not->toMatch('/<img\b|background-image|url\(/i');
+
+    // dompdf sets it in its built-in Helvetica, so it embeds no font file.
+    $pdf = (string) $this->actingAs($this->analyst)->get('/comisiones/periodos/2026-07/consolidado.pdf')->getContent();
+    expect($pdf)->toContain('/BaseFont /Helvetica')
+        ->not->toContain('DejaVu')
+        ->not->toContain('/FontFile2');
 });
 
 it('labels an approved version that is not closed yet', function () {

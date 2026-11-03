@@ -66,6 +66,8 @@ En `/comisiones/periodos/{periodo}/informes` primero se genera y después se des
 
 Los PDF los dibuja dompdf sin JavaScript, sin archivos remotos y con un `chroot` que solo deja leer sus propias fuentes (`vendor/dompdf/dompdf/lib/fonts`): las plantillas no cargan imágenes ni archivos locales.
 
+Los dos PDF (consolidado y recaudo) siguen la marca v2 de Segurex para informes, sin logo: franja `head` con el título en blanco y regla `accent`, títulos y totales en `ink`, texto en `text`, encabezados de tabla en `tint` y líneas grises finas. La letra es Helvetica, una fuente base de dompdf: el PDF no incrusta ningún archivo de fuente y muestra tildes, ñ, «—» y «·». El logo es trabajo aparte.
+
 Todas las descargas del módulo (PDF, ZIP y nómina de los informes, consolidado en Excel y PDF, soportes de las capturas y plantilla del presupuesto) comparten un máximo de 10 por minuto por usuario (`comisiones-exports`); la siguiente recibe un 429.
 
 ## Huella del resultado guardado

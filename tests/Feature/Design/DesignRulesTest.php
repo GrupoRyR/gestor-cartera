@@ -207,3 +207,51 @@ it('adds no image to an e-mail: the logo is separate work', function () {
         expect((string) file_get_contents($path))->not->toMatch('/<img\b|background-image|url\(/i', "{$path} adds an image.");
     }
 });
+
+/**
+ * Every PDF view on brand v2: the document rules of the brand
+ * (references/documentos.md) in a dompdf style sheet, which reads no CSS
+ * variables either.
+ *
+ * @return list<string>
+ */
+function pdfViews(): array
+{
+    return [
+        app_path('Modules/Comisiones/resources/views/pdf/consolidado.blade.php'),
+        app_path('Modules/Comisiones/resources/views/pdf/recaudo.blade.php'),
+    ];
+}
+
+it('sets every PDF in the one Helvetica stack, in no other face and without images', function () {
+    $stack = 'Helvetica, Arial, "Helvetica Neue", sans-serif';
+
+    foreach (pdfViews() as $path) {
+        $source = (string) file_get_contents($path);
+
+        expect($source)->toMatch('/'.preg_quote("font-family: {$stack};", '/').'/', "{$path} does not set the Helvetica stack.")
+            ->not->toMatch('/<img\b|background-image|url\(/i', "{$path} adds an image.");
+
+        preg_match_all('/font-family:\s*([^;]+);/', $source, $families);
+
+        foreach ($families[1] as $family) {
+            expect($family)->toBe($stack, "{$path} sets another face: {$family}.");
+        }
+    }
+});
+
+it('never hard-codes a company color in a PDF: it comes from the palette', function () {
+    $companyColors = [];
+
+    foreach (CompanyCode::cases() as $company) {
+        $companyColors = [...$companyColors, ...array_values((array) BrandPalette::official($company))];
+    }
+
+    foreach (pdfViews() as $path) {
+        $source = strtolower((string) file_get_contents($path));
+
+        foreach (array_unique($companyColors) as $color) {
+            expect($source)->not->toMatch('/'.preg_quote(strtolower($color), '/').'\b/', "{$path} hard-codes the company color {$color}.");
+        }
+    }
+});
