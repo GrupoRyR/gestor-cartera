@@ -7,8 +7,16 @@
     ClientStatement). This is a document, not a screen of the app: dompdf
     needs its CSS in the page and cannot use the app components or the
     --brand-* variables, so the colors come from the palette of the client's
-    company, passed in as $palette, and nothing here writes a color of its own.
+    company, passed in as $palette, and nothing here writes a company color.
     Tables only, because dompdf does not lay out flex or grid.
+
+    Brand v2 for documents, without the logo, like the Comisiones PDFs: the
+    head band behind the white title over an accent rule, long text in text,
+    titles, figures and table headers in ink, light tint tiles and headers,
+    secondary lines in gray #6a6b6e (5.33:1), thin gray row lines and the
+    Helvetica core font of dompdf (no embedded font file). Contrast, Segurex
+    and Derivados: white on head 7.01:1 and 11.5:1; text on white 7.01:1 and
+    11.5:1, on tint 6.13:1 and 9.8:1; ink on tint 6.21:1 and 9.8:1.
 --}}
 @php
     $summary = $detail->summary;
@@ -22,35 +30,37 @@
     <title>{{ __('asesores::exportar.pdf.titulo') }} · {{ $summary->name }}</title>
     <style>
         @page { margin: 30px 34px 40px 34px; }
-        body { font-family: "DejaVu Sans", sans-serif; font-size: 10px; line-height: 1.4; color: {{ $palette->ink }}; }
-        .bar { height: 7px; background: {{ $palette->accent }}; }
-        h1 { margin: 14px 0 2px 0; font-size: 20px; }
-        h2 { margin: 22px 0 6px 0; font-size: 12px; }
+        body { font-family: Helvetica, Arial, "Helvetica Neue", sans-serif; font-size: 10px; line-height: 1.4; color: {{ $palette->text }}; }
+        h1 { margin: 0; font-size: 18px; line-height: 1.25; }
+        h2 { margin: 22px 0 6px 0; font-size: 12px; color: {{ $palette->ink }}; }
         p { margin: 0; }
         table { width: 100%; border-collapse: collapse; }
-        th { text-align: left; font-size: 9px; padding: 5px 6px; background: {{ $palette->tint }}; border-bottom: 1px solid {{ $palette->accent }}; }
-        td { padding: 5px 6px; border-bottom: 1px solid {{ $palette->tint }}; vertical-align: top; }
+        th { text-align: left; font-size: 9px; padding: 5px 6px; color: {{ $palette->ink }}; background: {{ $palette->tint }}; border-bottom: 1px solid {{ $palette->accent }}; }
+        td { padding: 5px 6px; border-bottom: 0.5px solid #e3e0dd; vertical-align: top; }
         .end { text-align: right; }
-        .muted { opacity: 0.7; }
-        .name { font-size: 12px; font-weight: bold; }
-        .tile { padding: 8px 10px; background: {{ $palette->tint }}; }
+        .muted { color: #6a6b6e; }
+        .band td { padding: 12px 14px; background: {{ $palette->head }}; border-bottom: 3px solid {{ $palette->accent }}; }
+        .band h1 { color: #ffffff; }
+        .name { font-size: 12px; font-weight: bold; color: {{ $palette->ink }}; }
+        .tile { padding: 8px 10px; background: {{ $palette->tint }}; border-bottom: 0; border-right: 4px solid #ffffff; }
         .tile .label { font-size: 9px; }
-        .tile .value { font-size: 14px; font-weight: bold; }
-        .head td, .info td { border: 0; padding: 2px 0; }
+        .tile .value { font-size: 14px; font-weight: bold; color: {{ $palette->ink }}; }
+        .meta td, .info td { border: 0; padding: 2px 0; }
         .foot { margin-top: 22px; font-size: 8px; }
     </style>
 </head>
 <body>
-    <div class="bar"></div>
-
-    <table class="head">
+    <table class="band">
         <tr>
-            <td>
-                <h1>{{ __('asesores::exportar.pdf.titulo') }}</h1>
-                <p class="muted">{{ $company->name }}</p>
-            </td>
+            <td><h1>{{ __('asesores::exportar.pdf.titulo') }}</h1></td>
+        </tr>
+    </table>
+
+    <table class="meta" style="margin-top: 6px;">
+        <tr>
+            <td><p>{{ $company->name }}</p></td>
             <td class="end">
-                <p>{{ __('asesores::exportar.pdf.generado') }}: {{ DateFormat::dateTime($generatedAt) }}</p>
+                <p class="muted">{{ __('asesores::exportar.pdf.generado') }}: {{ DateFormat::dateTime($generatedAt) }}</p>
                 @if ($cutoff !== null)
                     <p>{{ __('asesores::exportar.pdf.corte') }}: {{ DateFormat::date($cutoff) }}</p>
                 @endif

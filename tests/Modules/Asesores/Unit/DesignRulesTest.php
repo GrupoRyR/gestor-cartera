@@ -34,8 +34,15 @@ it('adds no styles of its own to the screens: no <style> blocks', function () {
 });
 
 it('writes no raw colors, not even in the documents: they come from the palette of the company', function () {
+    // The documents may write only the neutrals every brand v2 e-mail and PDF shares: white, the secondary gray and the row line gray.
+    $documentNeutrals = ['#ffffff', '#6a6b6e', '#e3e0dd'];
+
     foreach (asesoresViews() as $path) {
         $source = (string) file_get_contents($path);
+
+        if (str_contains($path, DIRECTORY_SEPARATOR.'documentos'.DIRECTORY_SEPARATOR)) {
+            $source = str_ireplace($documentNeutrals, '', $source);
+        }
 
         $this->assertDoesNotMatchRegularExpression('/#(?:[0-9a-f]{8}|[0-9a-f]{6}|[0-9a-f]{3})\b/i', $source, "{$path} writes a raw color.");
         $this->assertDoesNotMatchRegularExpression('/\b(?:rgb|hsl|oklch)a?\(/i', $source, "{$path} writes a raw color function.");

@@ -220,6 +220,7 @@ function pdfViews(): array
     return [
         app_path('Modules/Comisiones/resources/views/pdf/consolidado.blade.php'),
         app_path('Modules/Comisiones/resources/views/pdf/recaudo.blade.php'),
+        app_path('Modules/Asesores/resources/views/documentos/estado-cuenta.blade.php'),
     ];
 }
 

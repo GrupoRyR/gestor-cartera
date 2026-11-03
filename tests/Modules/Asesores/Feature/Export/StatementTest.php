@@ -99,6 +99,33 @@ it('takes the colors and name from the company of the client, not from the activ
     expect(strtolower($html))->not->toContain(strtolower($sgx));
 });
 
+it('draws the statement on brand v2 of the client\'s company, in Helvetica and without images', function (string $client, CompanyCode $company) {
+    $this->actingAs($this->world->gloria);
+    app(CurrentCompany::class)->switchTo(null);
+    $palette = BrandPalette::official($company);
+    $id = $this->world->clients[$client]->id;
+
+    // The head band carries the white title; section titles and tiles take the ink, long text the text color.
+    expect(asesoresStatementHtml($id))->toContain('font-family: Helvetica, Arial, "Helvetica Neue", sans-serif;')
+        ->toMatch('/\.band td \{[^}]*background: '.$palette->head.';[^}]*border-bottom: 3px solid '.$palette->accent.';/')
+        ->toMatch('/\.band h1 \{[^}]*color: #ffffff;/')
+        ->toMatch('/body \{[^}]*color: '.$palette->text.';/')
+        ->toMatch('/h2 \{[^}]*color: '.$palette->ink.';/')
+        ->toMatch('/th \{[^}]*color: '.$palette->ink.';[^}]*background: '.$palette->tint.';/')
+        ->not->toContain('DejaVu')
+        ->not->toContain('opacity')
+        ->not->toMatch('/<img\b|background-image|url\(/i');
+
+    // dompdf sets it in its built-in Helvetica, so it embeds no font file.
+    $pdf = app(ClientStatement::class)->pdf(app(CarteraRepository::class)->client($id), CarbonImmutable::now());
+    expect($pdf)->toContain('/BaseFont /Helvetica')
+        ->not->toContain('DejaVu')
+        ->not->toContain('/FontFile2');
+})->with([
+    'Segurex' => ['comercial', CompanyCode::SGX],
+    'Derivados' => ['granos', CompanyCode::SDC],
+]);
+
 it('leaves a trace of every download', function () {
     $this->actingAs($this->world->ana)->get(route('asesores.clientes.estado_cuenta', $this->agro->id));
 
