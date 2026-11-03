@@ -3,6 +3,8 @@
     and data-modal-close closes it (resources/js/app.js); Escape and a click
     on the backdrop close it too. With :open="true" it opens on page load,
     e.g. after a validation error. On phones it rises as a bottom sheet.
+    Browsers give <dialog> its own text color, so the body sets the brand
+    text color and the title the title color.
 --}}
 @props(['id', 'title', 'open' => false])
 
@@ -12,7 +14,7 @@
     'data-part' => 'modal',
     'data-modal-autoopen' => $open ? true : null,
 ])->class([
-    'm-auto max-h-[calc(100dvh-2rem)] w-[min(34rem,calc(100%-2rem))] flex-col overflow-hidden rounded-card border border-line bg-surface p-0 text-fg shadow-pop open:flex',
+    'm-auto max-h-[calc(100dvh-2rem)] w-[min(34rem,calc(100%-2rem))] flex-col overflow-hidden rounded-card border border-line bg-surface p-0 text-brand-text shadow-pop open:flex',
     'max-sm:mb-0 max-sm:max-h-[calc(100dvh-1rem)] max-sm:w-full max-sm:max-w-full max-sm:rounded-b-none max-sm:border-x-0 max-sm:border-b-0 max-sm:pb-[env(safe-area-inset-bottom)]',
 ]) }}>
     <header data-part="header" class="flex items-start justify-between gap-4 px-5 pt-4 pb-2">

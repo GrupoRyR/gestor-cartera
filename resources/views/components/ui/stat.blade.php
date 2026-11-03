@@ -56,13 +56,13 @@
     'transition-[border-color,box-shadow] hover:border-line-strong hover:shadow-card' => filled($href),
 ]) }}>
     <span data-part="label" @class([
-        'col-start-1 row-start-1 flex min-h-7 min-w-0 items-center gap-2 text-[0.8125rem] leading-snug font-semibold text-fg-soft hyphens-auto [overflow-wrap:anywhere] @max-[11rem]:col-span-2',
+        'col-start-1 row-start-1 flex min-h-7 min-w-0 items-center gap-2 text-[0.8125rem] leading-snug font-semibold text-brand-text hyphens-auto [overflow-wrap:anywhere] @max-[11rem]:col-span-2',
         'before:size-2 before:shrink-0 before:rounded-full '.ToneStyle::labelDot($tone) => $tone !== 'neutral',
         'col-span-2' => $trend === null,
     ])>{{ $label }}</span>
 
     {{-- With very large text the figure may still need to wrap. --}}
-    <span data-part="value" style="--stat-fit: {{ $fit }}cqi" class="col-span-2 row-start-2 min-w-0 text-[clamp(1rem,var(--stat-fit),2rem)] leading-[1.1] font-semibold tracking-[-0.015em] [overflow-wrap:anywhere] *:whitespace-normal">
+    <span data-part="value" style="--stat-fit: {{ $fit }}cqi" class="col-span-2 row-start-2 min-w-0 text-[clamp(1rem,var(--stat-fit),2rem)] leading-[1.1] font-semibold [overflow-wrap:anywhere] *:whitespace-normal">
         @if ($slot->hasActualContent())
             {{ $slot }}
         @else

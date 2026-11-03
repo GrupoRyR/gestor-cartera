@@ -10,7 +10,11 @@ namespace App\View\Components\Support;
  */
 final class ToneStyle
 {
-    /** Soft fill with text in the tone color. */
+    /**
+     * Soft fill with text in the tone color. Neutral stays gray: it marks
+     * muted states («Inactivo», a flat trend) and company codes, which must
+     * not wear the active company's brand color.
+     */
     private const array SOFT = [
         'neutral' => 'bg-status-neutral-bg text-status-neutral',
         'success' => 'bg-status-active-bg text-status-active',

@@ -2,7 +2,9 @@
     Navigation tabs (C.5): every tab is a URL, there are no client-side
     panels. Items: ['key' => string, 'label' => string, 'href' => string,
     'count' => ?int]. The tab whose key is current gets aria-current="page".
-    On narrow screens the row scrolls sideways.
+    On narrow screens the row scrolls sideways. The active tab and its bar
+    use the brand ink, not the accent: the Segurex accent falls below 3:1 on
+    the page ground (skill frontend-marca-sgx-sydc-v2).
 --}}
 @props(['label', 'items', 'current' => null])
 
@@ -15,14 +17,14 @@
                     'relative flex min-h-touch items-center gap-2 rounded-t-[10px] px-3 text-[0.9375rem] font-semibold whitespace-nowrap no-underline transition-colors',
                     'after:absolute after:inset-x-2 after:bottom-0 after:h-0.5 after:rounded-full',
                     'text-brand-ink after:bg-brand-ink' => $active,
-                    'text-fg-soft hover:bg-subtle hover:text-fg' => ! $active,
+                    'text-fg-muted hover:bg-subtle hover:text-fg' => ! $active,
                 ])>
                     <span>{{ $item['label'] }}</span>
                     @if (isset($item['count']))
                         <span data-part="count" @class([
                             'min-w-6 rounded-full px-2 py-0.5 text-center text-xs font-bold tabular-nums',
                             'bg-brand-tint text-brand-ink' => $active,
-                            'bg-subtle text-fg-soft' => ! $active,
+                            'bg-subtle text-fg-muted' => ! $active,
                         ])>{{ $item['count'] }}</span>
                     @endif
                 </a>

@@ -22,7 +22,8 @@
 
 /* static: every token is emitted, so var(--color-…) always resolves. */
 @theme static {
-    /* One family for everything; --font-display stays so font-display utilities keep working. */
+    /* One family for everything. The shared components no longer use font-display;
+       --font-display stays only for module views that still use it. */
     --font-sans: Helvetica, Arial, 'Helvetica Neue', sans-serif;
     --font-display: Helvetica, Arial, 'Helvetica Neue', sans-serif;
 
@@ -205,16 +206,13 @@
         -webkit-tap-highlight-color: transparent;
     }
 
-    /* Long text takes the brand text color; page and dialog titles set text-fg themselves. */
+    /*
+     * Long text takes the brand text color; titles (page, card, dialog, empty
+     * state, table caption) set text-fg themselves. Headings use the same
+     * Helvetica stack and spacing as the text: no display face, no tight tracking.
+     */
     body {
         @apply bg-ground font-sans text-brand-text antialiased;
-    }
-
-    h1,
-    h2,
-    h3 {
-        @apply font-display;
-        letter-spacing: -0.01em;
     }
 
     /* With large text a long Spanish word may not fit a phone: break it instead of overflowing. */
@@ -331,14 +329,14 @@
             font-variant-numeric: tabular-nums;
         }
 
+        /* The caption is the table's title: title color, the body's font. */
         caption {
             caption-side: top;
             padding: 1rem 1rem 0.75rem;
             text-align: start;
-            font-family: var(--font-display);
+            color: var(--color-fg);
             font-size: 1rem;
             font-weight: 700;
-            letter-spacing: -0.01em;
         }
 
         th,
@@ -443,6 +441,7 @@
             animation: var(--animate-pop-in);
         }
 
+        /* A neutral near-black scrim, the same for every company: not a brand color. */
         &::backdrop {
             background: rgb(10 11 13 / 0.55);
             animation: var(--animate-fade-in);

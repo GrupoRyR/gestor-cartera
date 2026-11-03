@@ -12,7 +12,7 @@
             <p data-part="context" class="mb-1.5 text-sm font-semibold text-brand-ink">{{ $context }}</p>
         @endif
 
-        <h1 class="text-[1.75rem] leading-[1.08] font-bold tracking-[-0.025em] text-balance text-fg md:text-[2.125rem] lg:text-[2.5rem]">{{ $title }}</h1>
+        <h1 class="text-[1.75rem] leading-[1.08] font-bold text-balance text-fg md:text-[2.125rem] lg:text-[2.5rem]">{{ $title }}</h1>
 
         @if (filled($description))
             <p data-part="description" class="mt-2 max-w-prose text-[0.9375rem] text-fg-muted md:text-base">{{ $description }}</p>

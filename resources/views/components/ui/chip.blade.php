@@ -2,7 +2,8 @@
 
 {{--
     Short label with an optional colored dot (C.5). The text is mandatory:
-    color alone never carries meaning.
+    color alone never carries meaning. The neutral tone is gray, never the
+    brand color: it also labels company codes and muted states.
 --}}
 @props(['tone' => 'neutral', 'dot' => true])
 
