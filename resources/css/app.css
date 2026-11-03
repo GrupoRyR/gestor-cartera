@@ -22,10 +22,8 @@
 
 /* static: every token is emitted, so var(--color-…) always resolves. */
 @theme static {
-    /* One family for everything. The shared components no longer use font-display;
-       --font-display stays only for module views that still use it. */
+    /* One family for everything: the system Helvetica stack, no display face. */
     --font-sans: Helvetica, Arial, 'Helvetica Neue', sans-serif;
-    --font-display: Helvetica, Arial, 'Helvetica Neue', sans-serif;
 
     --color-ground: #f5f5f2;
     --color-surface: #ffffff;
@@ -33,7 +31,6 @@
     --color-line: #e5e5e0;
     --color-line-strong: #d6d6d0;
     --color-fg: #17191c;
-    --color-fg-soft: #45484e;
     --color-fg-muted: #5e6168;
     --color-on-fg: #ffffff;
 
@@ -90,8 +87,6 @@
 /* Brand utilities (bg-brand-button, text-brand-ink…). Fallbacks = neutral palette. */
 @theme inline {
     --color-brand-accent: var(--brand-accent, #5e6168);
-    /* Temporary alias of the accent: module views still use brand-primary; T4 removes it. */
-    --color-brand-primary: var(--brand-accent, #5e6168);
     --color-brand-button: var(--brand-button, #17191c);
     --color-brand-tint: var(--brand-tint, #f0f0ec);
     --color-brand-ink: var(--brand-ink, #17191c);
@@ -144,7 +139,6 @@
         --color-line: rgb(255 255 255 / 0.1);
         --color-line-strong: #3a3c42;
         --color-fg: #ededee;
-        --color-fg-soft: #c9cbd0;
         --color-fg-muted: #a8a9aa;
         --color-on-fg: #121315;
 

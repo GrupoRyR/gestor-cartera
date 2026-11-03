@@ -92,6 +92,16 @@ it('writes the interface in sentence case, never in sustained capitals', functio
     }
 });
 
+it('no longer defines or uses the retired brand-primary, fg-soft and display font tokens', function () {
+    foreach (designFiles() as $path) {
+        $source = (string) file_get_contents($path);
+
+        expect($source)->not->toMatch('/brand-primary/', "{$path} uses the retired brand-primary alias; use brand-accent.")
+            ->not->toMatch('/fg-soft/', "{$path} uses the retired fg-soft color; use fg-muted, or inherit brand-text.")
+            ->not->toMatch('/\bfont-display\b/', "{$path} uses the retired display font token.");
+    }
+});
+
 it('sets every component in the one Helvetica stack, without a display face or tight tracking', function () {
     $files = [
         ...File::allFiles(resource_path('views/components/ui')),
