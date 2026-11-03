@@ -87,14 +87,14 @@
                 <title id="{{ $id }}-titulo">{{ $summary }}</title>
                 <line x1="0" x2="{{ $chart->width }}" y1="{{ $chart->topLine }}" y2="{{ $chart->topLine }}" stroke-width="1" class="stroke-line" />
                 <line x1="0" x2="{{ $chart->width }}" y1="{{ $chart->baseline }}" y2="{{ $chart->baseline }}" stroke-width="1" class="stroke-line-strong" />
-                <path d="{{ $chart->area() }}" class="fill-brand-primary/10" />
-                <path d="{{ $chart->path() }}" fill="none" stroke-width="2" stroke-linejoin="round" stroke-linecap="round" class="stroke-brand-primary" />
+                <path d="{{ $chart->area() }}" class="fill-brand-accent/10" />
+                <path d="{{ $chart->path() }}" fill="none" stroke-width="2" stroke-linejoin="round" stroke-linecap="round" class="stroke-brand-accent" />
                 @php($end = $chart->points[array_key_last($chart->points)])
-                <circle cx="{{ $end->x }}" cy="{{ $end->y }}" r="6" stroke-width="2" class="fill-brand-primary stroke-surface" />
+                <circle cx="{{ $end->x }}" cy="{{ $end->y }}" r="6" stroke-width="2" class="fill-brand-accent stroke-surface" />
 
                 <g x-cloak x-show="i !== null" aria-hidden="true">
                     <line x-bind:x1="points[i]?.x ?? 0" x-bind:x2="points[i]?.x ?? 0" y1="{{ $chart->topLine }}" y2="{{ $chart->baseline }}" stroke-width="1" class="stroke-fg-muted" />
-                    <circle x-bind:cx="points[i]?.x ?? 0" x-bind:cy="points[i]?.y ?? 0" r="6" stroke-width="2" class="fill-brand-primary stroke-surface" />
+                    <circle x-bind:cx="points[i]?.x ?? 0" x-bind:cy="points[i]?.y ?? 0" r="6" stroke-width="2" class="fill-brand-accent stroke-surface" />
                 </g>
             </svg>
 
@@ -114,7 +114,7 @@
             <span>{{ DateFormat::date($last['date']) }}</span>
         </div>
 
-        <p class="text-sm text-fg-soft">{{ $summary }}</p>
+        <p class="text-sm">{{ $summary }}</p>
 
         @if ($table)
             <details class="text-sm">

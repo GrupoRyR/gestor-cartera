@@ -60,7 +60,7 @@
                     class="flex w-[85%] max-w-80 shrink-0 snap-start flex-col gap-3 rounded-card border border-line bg-subtle p-3 sm:w-72"
                 >
                     <header>
-                        <h2 id="columna-{{ $status->value }}" class="text-base font-bold">{{ $status->label() }}</h2>
+                        <h2 id="columna-{{ $status->value }}" class="text-base font-bold text-fg">{{ $status->label() }}</h2>
                         <p class="text-sm text-fg-muted" x-text="summary('{{ $status->value }}')">{{ __('cartera::kanban.columna.resumen', [
                             'clientes' => trans_choice('cartera::kanban.columna.clientes', $column->count),
                             'total' => Money::format($column->total),
@@ -70,7 +70,7 @@
                     <ul
                         data-column-list="{{ $status->value }}"
                         class="grid min-h-16 content-start gap-3 rounded-card"
-                        x-bind:class="over === '{{ $status->value }}' && 'ring-2 ring-brand-primary'"
+                        x-bind:class="over === '{{ $status->value }}' && 'ring-2 ring-brand-control'"
                         @if ($canMove)
                             x-on:dragover.prevent="over = '{{ $status->value }}'"
                             x-on:dragleave="over = null"

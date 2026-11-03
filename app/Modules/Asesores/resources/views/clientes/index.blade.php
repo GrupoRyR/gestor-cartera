@@ -73,7 +73,7 @@
                 :description="__($filtered ? 'asesores::clientes.vacio.filtrado_detalle' : 'asesores::clientes.vacio.detalle')"
             />
         @else
-            <p data-part="summary" class="text-sm text-fg-soft" aria-live="polite">
+            <p data-part="summary" class="text-sm text-fg-muted" aria-live="polite">
                 {{ trans_choice('asesores::clientes.resumen', $totals->clientCount, ['clientes' => $totals->clientCount, 'saldo' => Money::format($totals->total), 'vencido' => Money::format($totals->overdue)]) }}
             </p>
 

@@ -27,7 +27,7 @@
         </header>
 
         <main id="contenido" tabindex="-1" class="flex w-full flex-1 flex-col px-4 pt-6 pb-[calc(2rem+env(safe-area-inset-bottom))] outline-none md:px-8 md:pt-10 md:pb-[calc(2.5rem+env(safe-area-inset-bottom))]">
-            <div class="mx-auto w-full max-w-lg rounded-card border border-line bg-surface p-6 md:p-8 [&>header]:pb-4 [&>p]:mb-6 [&>p]:text-fg-soft">
+            <div class="mx-auto w-full max-w-lg rounded-card border border-line bg-surface p-6 md:p-8 [&>header]:pb-4 [&>p]:mb-6 [&>p]:text-fg-muted">
                 @if (filled(session('status')))
                     <x-ui.alert tone="success" class="mb-6">{{ session('status') }}</x-ui.alert>
                 @endif

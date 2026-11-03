@@ -54,7 +54,7 @@
                             @elseif ($state === 'proxima')
                                 <x-ui.chip tone="info">{{ __('comisiones::parametros.historial.proxima') }}</x-ui.chip>
                             @else
-                                <span class="text-fg-soft">{{ __('comisiones::parametros.historial.anterior') }}</span>
+                                <span class="text-fg-muted">{{ __('comisiones::parametros.historial.anterior') }}</span>
                             @endif
                         </td>
                         <td data-col="desde" class="whitespace-nowrap">{{ ParameterValues::day($version->vigente_desde) }}</td>

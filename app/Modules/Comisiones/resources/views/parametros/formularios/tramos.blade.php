@@ -22,7 +22,7 @@
     $tableError = $errors->first('tramos');
 @endphp
 
-<p class="text-sm text-fg-soft">{{ __('comisiones::parametros.formulario.tramos.ayuda') }}</p>
+<p class="text-sm text-fg-muted">{{ __('comisiones::parametros.formulario.tramos.ayuda') }}</p>
 
 @if ($tableError !== '')
     <x-ui.alert tone="danger">{{ $tableError }}</x-ui.alert>

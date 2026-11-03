@@ -1,5 +1,5 @@
 {{-- The fields of a new manual crossing (§5.4). $codes: code => label. --}}
-<p class="text-[0.9375rem] text-fg-soft">{{ __('comisiones::ajustes.cruces.ayuda') }}</p>
+<p class="text-[0.9375rem] text-fg-muted">{{ __('comisiones::ajustes.cruces.ayuda') }}</p>
 <div class="grid gap-4 sm:grid-cols-2">
     <x-ui.select name="vendedor" :label="__('comisiones::ajustes.cruces.vendedor')" :options="$codes" :placeholder="__('comisiones::ajustes.cruces.vendedor_elige')" :required="true" />
     <x-ui.select name="tipo_cruce" :label="__('comisiones::ajustes.cruces.tipo')" :options="trans('comisiones::ajustes.cruces.tipos')" :placeholder="__('comisiones::ajustes.cruces.tipo_elige')" :required="true" />

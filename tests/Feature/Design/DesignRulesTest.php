@@ -3,6 +3,7 @@
 use App\Modules\Core\Contracts\Data\BrandPalette;
 use App\Modules\Core\Contracts\Enums\CompanyCode;
 use Illuminate\Support\Facades\File;
+use Illuminate\Support\Str;
 use Tests\Feature\Design\Support\Html;
 
 /**
@@ -26,6 +27,46 @@ function designFiles(): array
     ));
 }
 
+/**
+ * Screen views of every module. Mail, PDF and document views are left out:
+ * they follow the document rules of the brand, not the screen tokens.
+ *
+ * @return list<string>
+ */
+function moduleScreenViews(): array
+{
+    $excluded = ['/pdf/', '/correos/', '/documentos/', '/alerta/', '/circularizacion/', '/components/correo.blade.php'];
+    $views = [];
+
+    foreach (File::glob(app_path('Modules/*/resources/views')) as $directory) {
+        foreach (File::allFiles($directory) as $file) {
+            $path = str_replace('\\', '/', $file->getPathname());
+
+            if (str_ends_with($path, '.blade.php') && ! Str::contains($path, $excluded)) {
+                $views[] = $path;
+            }
+        }
+    }
+
+    return $views;
+}
+
+it('keeps the module screens on the brand v2 tokens, without the retired ones', function () {
+    $views = moduleScreenViews();
+
+    expect($views)->not->toBeEmpty();
+
+    foreach ($views as $path) {
+        $source = (string) file_get_contents($path);
+
+        // toMatch, not toContain: toContain is variadic and would read the message as a second needle.
+        expect($source)->not->toMatch('/brand-primary/', "{$path} uses the retired brand-primary alias; use brand-accent.")
+            ->not->toMatch('/fg-soft/', "{$path} uses the retired fg-soft color; use fg-muted, or inherit brand-text.")
+            ->not->toMatch('/\bfont-display\b/', "{$path} uses the display face.")
+            ->not->toMatch('/tracking-\[-/', "{$path} tightens the letter spacing.");
+    }
+});
+
 it('never hard-codes a company color: brands come from the --brand-* variables', function () {
     $companyColors = [];
 
@@ -37,7 +78,7 @@ it('never hard-codes a company color: brands come from the --brand-* variables',
         $source = strtolower((string) file_get_contents($path));
 
         foreach (array_unique($companyColors) as $color) {
-            expect($source)->not->toContain(strtolower($color), "{$path} hard-codes the company color {$color}.");
+            expect($source)->not->toMatch('/'.preg_quote(strtolower($color), '/').'/', "{$path} hard-codes the company color {$color}.");
         }
     }
 });

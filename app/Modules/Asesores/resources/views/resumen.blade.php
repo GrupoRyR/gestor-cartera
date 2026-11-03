@@ -73,7 +73,7 @@
 
                 <x-ui.card :title="__('asesores::resumen.prioridad.titulo')" :description="__('asesores::resumen.prioridad.ayuda', ['dias' => PortfolioOverview::PRIORITY_DAYS])">
                     @if ($overview->priority === [])
-                        <p class="text-sm text-fg-soft">{{ __('asesores::resumen.prioridad.vacio', ['dias' => PortfolioOverview::PRIORITY_DAYS]) }}</p>
+                        <p class="text-sm text-fg-muted">{{ __('asesores::resumen.prioridad.vacio', ['dias' => PortfolioOverview::PRIORITY_DAYS]) }}</p>
                     @else
                         <ul class="divide-y divide-line">
                             @foreach ($overview->priority as $client)

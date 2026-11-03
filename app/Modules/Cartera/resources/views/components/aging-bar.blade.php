@@ -11,10 +11,10 @@
 
 @php
     $shades = [
-        1 => 'bg-brand-primary/40',
-        2 => 'bg-brand-primary/60',
-        3 => 'bg-brand-primary/80',
-        4 => 'bg-brand-primary',
+        1 => 'bg-brand-accent/40',
+        2 => 'bg-brand-accent/60',
+        3 => 'bg-brand-accent/80',
+        4 => 'bg-brand-accent',
     ];
 @endphp
 
@@ -31,7 +31,7 @@
         @foreach ($slices as $slice)
             <li class="flex flex-wrap items-center gap-x-2">
                 <span class="{{ $shades[$slice->band->severity()] }} size-3 shrink-0 rounded-sm" aria-hidden="true"></span>
-                <span class="min-w-0 text-fg-soft">{{ __('cartera::tablero.edades.bandas.'.$slice->band->value) }}</span>
+                <span class="min-w-0 text-fg-muted">{{ __('cartera::tablero.edades.bandas.'.$slice->band->value) }}</span>
                 <span class="ms-auto text-end font-semibold tabular-nums"><x-ui.money :value="$slice->amount" /></span>
             </li>
         @endforeach

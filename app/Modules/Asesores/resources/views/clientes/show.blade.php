@@ -110,7 +110,7 @@
 
             <x-ui.card :title="__('asesores::ficha.contactos.titulo')" :description="__('asesores::ficha.contactos.ayuda')">
                 @if ($detail->contacts === [])
-                    <p class="text-sm text-fg-soft">{{ __('asesores::ficha.contactos.vacio') }}</p>
+                    <p class="text-sm text-fg-muted">{{ __('asesores::ficha.contactos.vacio') }}</p>
                 @else
                     <ul class="divide-y divide-line">
                         @foreach ($detail->contacts as $contact)
@@ -139,7 +139,7 @@
 
         <x-ui.card :title="__('asesores::ficha.facturas.titulo')">
             @if ($file->invoices === [])
-                <p class="text-sm text-fg-soft">{{ __('asesores::ficha.facturas.vacio') }}</p>
+                <p class="text-sm text-fg-muted">{{ __('asesores::ficha.facturas.vacio') }}</p>
             @else
                 <x-ui.table :caption="__('asesores::ficha.facturas.tabla')" :caption-hidden="true" :columns="$invoiceColumns">
                     @foreach ($file->invoices as $invoice)
@@ -175,7 +175,7 @@
         <div class="grid gap-6 lg:grid-cols-2">
             <x-ui.card :title="__('asesores::ficha.compromisos.titulo')" :description="__('asesores::ficha.compromisos.ayuda')">
                 @if ($file->commitments === [])
-                    <p class="text-sm text-fg-soft">{{ __('asesores::ficha.compromisos.vacio') }}</p>
+                    <p class="text-sm text-fg-muted">{{ __('asesores::ficha.compromisos.vacio') }}</p>
                 @else
                     <ul class="divide-y divide-line" data-part="commitments">
                         @foreach ($file->commitments as $commitment)
@@ -184,7 +184,7 @@
                                     <x-ui.money :value="$commitment->amount" class="font-semibold" />
                                     <x-ui.chip :tone="$commitmentTone($commitment->status)">{{ $commitment->status->label() }}</x-ui.chip>
                                 </span>
-                                <span class="text-sm text-fg-soft">{{ __('asesores::ficha.compromisos.fecha') }}: <x-ui.date :value="$commitment->dueDate" /></span>
+                                <span class="text-sm text-fg-muted">{{ __('asesores::ficha.compromisos.fecha') }}: <x-ui.date :value="$commitment->dueDate" /></span>
                                 @if (filled($commitment->notes))
                                     <span class="text-sm whitespace-pre-line [overflow-wrap:anywhere]">{{ $commitment->notes }}</span>
                                 @endif
@@ -212,7 +212,7 @@
                 @endif
 
                 @if ($file->activity === [])
-                    <p class="text-sm text-fg-soft">{{ __('asesores::ficha.bitacora.vacio') }}</p>
+                    <p class="text-sm text-fg-muted">{{ __('asesores::ficha.bitacora.vacio') }}</p>
                 @else
                     <ol class="divide-y divide-line" data-part="activity">
                         @foreach ($file->activity as $entry)
@@ -225,7 +225,7 @@
                                     <span class="text-sm whitespace-pre-line [overflow-wrap:anywhere]">{{ $entry->details }}</span>
                                 @endif
                                 @if (filled($entry->result))
-                                    <span class="text-sm text-fg-soft">{{ __('asesores::ficha.bitacora.resultado', ['resultado' => $entry->result]) }}</span>
+                                    <span class="text-sm text-fg-muted">{{ __('asesores::ficha.bitacora.resultado', ['resultado' => $entry->result]) }}</span>
                                 @endif
                                 <span class="text-xs text-fg-muted">{{ __('asesores::ficha.bitacora.por', ['nombre' => $entry->user?->name ?? __('asesores::ficha.bitacora.plataforma'), 'fecha' => DateFormat::dateTime($entry->occurredAt)]) }}</span>
                             </li>

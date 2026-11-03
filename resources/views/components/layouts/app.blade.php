@@ -218,7 +218,7 @@
                     class="invisible fixed inset-y-0 start-0 z-50 flex w-[min(18rem,86vw)] -translate-x-full flex-col overflow-y-auto border-e border-line bg-surface px-3 pt-3 pb-6 transition-[translate,visibility] duration-200 data-[open=true]:visible data-[open=true]:translate-x-0 lg:visible lg:sticky lg:top-16 lg:z-auto lg:h-[calc(100dvh-4rem)] lg:w-64 lg:shrink-0 lg:translate-x-0 lg:px-3.5 lg:pt-4 lg:transition-none"
                 >
                     <div class="mb-1 flex justify-end lg:hidden">
-                        <button type="button" x-on:click="menuOpen = false" class="inline-flex size-touch items-center justify-center rounded-[10px] text-fg-soft hover:bg-subtle hover:text-fg">
+                        <button type="button" x-on:click="menuOpen = false" class="inline-flex size-touch items-center justify-center rounded-[10px] text-fg-muted hover:bg-subtle hover:text-fg">
                             <x-ui.icon name="close" />
                             <span data-visually-hidden>Cerrar el menú</span>
                         </button>
@@ -234,7 +234,7 @@
                                     <a href="{{ $item->url() }}" @if ($active) aria-current="page" @endif @class([
                                         'flex min-h-touch items-center gap-3 rounded-[10px] px-3 py-2 text-sm leading-snug no-underline transition-colors',
                                         'bg-brand-tint font-bold text-brand-ink' => $active,
-                                        'font-semibold text-fg-soft hover:bg-subtle hover:text-fg' => ! $active,
+                                        'font-semibold text-fg-muted hover:bg-subtle hover:text-fg' => ! $active,
                                     ])>
                                         @if ($item->icon !== null)
                                             <x-ui.icon :name="$item->icon" />

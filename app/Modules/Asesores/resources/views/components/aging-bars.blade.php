@@ -18,10 +18,10 @@
     // Whole classes, so Tailwind finds them. Lightest = not due, darkest = over 90 days.
     $fills = [
         'not_due' => 'bg-fg-muted/40',
-        'days_1_30' => 'bg-brand-primary/35',
-        'days_31_60' => 'bg-brand-primary/55',
-        'days_61_90' => 'bg-brand-primary/75',
-        'over_90' => 'bg-brand-primary',
+        'days_1_30' => 'bg-brand-accent/35',
+        'days_31_60' => 'bg-brand-accent/55',
+        'days_61_90' => 'bg-brand-accent/75',
+        'over_90' => 'bg-brand-accent',
     ];
 
     $columns = [
@@ -38,7 +38,7 @@
         <ul class="@container grid gap-4">
             @foreach ($rows as $row)
                 <li class="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 gap-y-1.5 @lg:grid-cols-[9.5rem_minmax(0,1fr)_minmax(9rem,auto)]">
-                    <span class="text-sm font-semibold text-fg-soft @lg:col-start-1 @lg:row-start-1">{{ __('asesores::comun.edades.'.$row->key) }}</span>
+                    <span class="text-sm font-semibold text-fg-muted @lg:col-start-1 @lg:row-start-1">{{ __('asesores::comun.edades.'.$row->key) }}</span>
                     <span class="text-end text-sm tabular-nums @lg:col-start-3 @lg:row-start-1">
                         <x-ui.money :value="$row->value" class="font-semibold" />
                         <span class="text-fg-muted">· {{ Percent::format($row->share) }}@if ($row->negative) · {{ __('asesores::resumen.edades.a_favor') }}@endif</span>

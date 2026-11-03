@@ -30,7 +30,7 @@
                 <form id="form-{{ $dialog }}" method="POST" action="{{ route('comisiones.ajustes.rechazar', $route) }}" class="flex flex-col gap-4">
                     @csrf
                     <input type="hidden" name="captura" value="{{ $capture->id }}">
-                    <p class="text-[0.9375rem] text-fg-soft">{{ __('comisiones::ajustes.revision.rechazar_ayuda') }}</p>
+                    <p class="text-[0.9375rem] text-fg-muted">{{ __('comisiones::ajustes.revision.rechazar_ayuda') }}</p>
                     <x-ui.textarea name="motivo_rechazo" :id="'motivo-'.$dialog" :label="__('comisiones::ajustes.revision.motivo')" :rows="3" :required="true" maxlength="500" />
                 </form>
                 <x-slot:footer>
