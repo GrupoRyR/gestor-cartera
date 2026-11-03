@@ -148,7 +148,7 @@
 @endphp
 
 @if (request()->query('vista') === 'ingreso')
-    {{-- Sample of the sign-in page Core builds (A.5): neutral, both logos, one button. --}}
+    {{-- Sample of the sign-in page Core builds (A.5): neutral, no company logo, one button. --}}
     <x-layouts.guest title="Ingresar">
         <x-ui.page-header title="Ingresa a tu cartera" context="Vista previa de la galería" />
 
@@ -200,13 +200,13 @@
 
         <section id="component-layouts-app" aria-labelledby="component-layouts-app-title" class="{{ $sectionClass }}">
             <h2 id="component-layouts-app-title" class="{{ $headingClass }}"><code>&lt;x-layouts.app&gt;</code></h2>
-            <p class="{{ $leadClass }}">Esta misma página usa el layout de la aplicación: encabezado con el selector de empresa y tu cuenta, barra lateral en escritorio (un menú lateral por debajo de 1024 px) y barra inferior en el celular con las entradas marcadas <code>mobile</code>. Los avisos de la sesión aparecen arriba del contenido.</p>
+            <p class="{{ $leadClass }}">Esta misma página usa el layout de la aplicación: encabezado oscuro con el logo de la empresa activa, los botones para cambiar de empresa y tu cuenta, barra lateral en escritorio (un menú lateral por debajo de 1024 px) y barra inferior en el celular con las entradas marcadas <code>mobile</code>. Los avisos de la sesión aparecen arriba del contenido.</p>
             <x-ui.alert tone="success">Así se ve <code>session('status')</code> después de guardar.</x-ui.alert>
         </section>
 
         <section id="component-layouts-guest" aria-labelledby="component-layouts-guest-title" class="{{ $sectionClass }}">
             <h2 id="component-layouts-guest-title" class="{{ $headingClass }}"><code>&lt;x-layouts.guest&gt;</code></h2>
-            <p class="{{ $leadClass }}">El ingreso y las páginas de error usan el layout sin sesión: siempre con la paleta neutra, sin navegación y con los logos de las dos empresas.</p>
+            <p class="{{ $leadClass }}">El ingreso y las páginas de error usan el layout sin sesión: siempre con la paleta neutra y sin navegación. Como nadie tiene empresa antes de ingresar, el encabezado muestra el nombre de la app y ningún logo: la marca nunca junta las dos empresas.</p>
             <div class="flex flex-wrap gap-2">
                 <x-ui.link-button :href="request()->fullUrlWithQuery(['vista' => 'ingreso'])" variant="secondary" icon="user">Ver la pantalla de ingreso</x-ui.link-button>
                 <x-ui.link-button :href="url('/dev/componentes/pagina-que-no-existe')" variant="secondary">Ver la página 404</x-ui.link-button>

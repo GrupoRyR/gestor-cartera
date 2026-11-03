@@ -101,6 +101,7 @@
     --color-brand-head-muted: var(--brand-head-muted);
     --color-brand-head-line: var(--brand-head-line);
     --color-brand-switch-track: var(--brand-switch-track);
+    --color-brand-switch-hover: var(--brand-switch-hover);
     --color-brand-switch-ink: var(--brand-switch-ink);
     --color-brand-plate: var(--brand-plate);
     /* Text on --brand-button: white, except on the neutral palette in dark mode. */
@@ -181,6 +182,7 @@
         --brand-head-muted: rgb(255 255 255 / 0.82);
         --brand-head-line: rgb(255 255 255 / 0.18);
         --brand-switch-track: rgb(255 255 255 / 0.12);
+        --brand-switch-hover: rgb(255 255 255 / 0.14);
         --brand-plate: #ffffff;
         /* Text of the active company in the switcher, on white. */
         --brand-switch-ink: var(--brand-head);

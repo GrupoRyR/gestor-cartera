@@ -71,12 +71,12 @@ it('shows the company selector to a user of two companies', function () {
 
     $rendered = (string) $this->blade('<x-layouts.app>Contenido</x-layouts.app>');
     $html = Html::parse($rendered);
-    $options = $html->all('//select[@name="empresa"]/option');
+    $buttons = $html->all('//button[@name="empresa"]');
 
-    expect($html->one('//form[.//select[@name="empresa"]]')->getAttribute('action'))->toBe(route('core.empresa.cambiar'))
-        ->and(array_map(fn (DOMElement $option): string => $option->getAttribute('value'), $options))->toBe(['SGX', 'SDC', 'grupo'])
-        ->and(array_map(fn (DOMElement $option): string => Html::clean($option->textContent), $options))->toBe(['Segurex Latam', 'Soluciones y Derivados', 'Grupo RYR'])
-        ->and($html->one('//select[@name="empresa"]/option[@selected]')->getAttribute('value'))->toBe('SGX');
+    expect($html->one('//form[.//button[@name="empresa"]]')->getAttribute('action'))->toBe(route('core.empresa.cambiar'))
+        ->and(array_map(fn (DOMElement $button): string => $button->getAttribute('value'), $buttons))->toBe(['SGX', 'SDC', 'grupo'])
+        ->and(array_map(fn (DOMElement $button): string => $button->getAttribute('aria-label'), $buttons))->toBe(['Segurex Latam', 'SDC (Soluciones y Derivados)', 'Grupo RYR'])
+        ->and($html->one('//button[@name="empresa"][@aria-pressed="true"]')->getAttribute('value'))->toBe('SGX');
 
     foreach (BrandPalette::official(CompanyCode::SGX)->toCssVariables() as $variable => $color) {
         expect($rendered)->toContain("{$variable}: {$color};");
@@ -86,5 +86,5 @@ it('shows the company selector to a user of two companies', function () {
 it('hides the company selector from a user of one company', function () {
     $this->actingAs(CoreUsers::create(Role::SalesAdvisor, CompanyCode::SDC));
 
-    expect(Html::parse((string) $this->blade('<x-layouts.app>Contenido</x-layouts.app>'))->count('//select[@name="empresa"]'))->toBe(0);
+    expect(Html::parse((string) $this->blade('<x-layouts.app>Contenido</x-layouts.app>'))->count('//button[@name="empresa"]'))->toBe(0);
 });

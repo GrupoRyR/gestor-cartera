@@ -40,13 +40,13 @@ it('previews each company brand and switches it with the header selector', funct
 
     $rendered = $this->get(route('dev.componentes', ['empresa' => $empresa]))->assertOk()->getContent() ?: '';
     $html = Html::parse($rendered);
-    $form = $html->one('//form[.//select[@name="empresa"]]');
+    $form = $html->one('//form[.//button[@name="empresa"]]');
 
     expect($rendered)->toContain('--brand-button: '.$palette->button.';')
         ->and(strtoupper($form->getAttribute('method')))->toBe('GET')
         ->and($form->getAttribute('action'))->toBe(route('dev.componentes'))
-        ->and($html->count('//form[.//select[@name="empresa"]]//input[@name="_token"]'))->toBe(0)
-        ->and($html->one('//select[@name="empresa"]/option[@selected]')->getAttribute('value'))->toBe($empresa)
+        ->and($html->count('//form[.//button[@name="empresa"]]//input[@name="_token"]'))->toBe(0)
+        ->and($html->one('//button[@name="empresa"][@aria-pressed="true"]')->getAttribute('value'))->toBe($empresa)
         ->and($html->count('//nav[@aria-label="Navegación principal"]//a'))->toBeGreaterThan(0)
         ->and($html->count('//nav[@aria-label="Accesos rápidos"]//a'))->toBeGreaterThan(0);
 })->with([
@@ -89,6 +89,6 @@ it('previews the sign-in page with the guest layout', function () {
     expect($html->text('//h1'))->toBe('Ingresa a tu cartera')
         ->and($html->count('//nav'))->toBe(0)
         ->and($html->text('//main//a[@data-variant="primary"]'))->toBe('Entrar con Microsoft')
-        ->and($html->count('//footer//img'))->toBe(2)
+        ->and($html->count('//img'))->toBe(0)
         ->and($rendered)->toContain('--brand-button: '.BrandPalette::neutral()->button.';');
 });
