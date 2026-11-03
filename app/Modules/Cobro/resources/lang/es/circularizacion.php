@@ -2,8 +2,8 @@
 
 // Circularization (4.2): console messages of cobro:circularizacion, and the
 // fixed blocks of the Segurex statement mail, word for word as the company
-// sends it today (client-facing: they keep "usted" and the capitals of the
-// original).
+// sends it today (client-facing: they keep "usted"), in sentence case as
+// brand v2 asks.
 return [
 
     // A company held back because its loaded cartera is not the month close.
@@ -16,11 +16,11 @@ return [
     ],
 
     'segurex' => [
-        // Under the invoice table. :DIA_MES, :MES_SIGUIENTE and :MES_CORTE
-        // are written in capitals.
-        'aviso_cierre' => '"ACLARAMOS QUE ESTE ESTADO DE CARTERA CORRESPONDE AL CIERRE DEL :DIA_MES. SI REALIZÓ EL PAGO DURANTE EL MES DE :MES_SIGUIENTE, '
-            .'TENGA EN CUENTA QUE DICHO PAGO NO SE VE REFLEJADO EN ESTA CIRCULARIZACIÓN, YA QUE LA INFORMACIÓN CORRESPONDE EXCLUSIVAMENTE AL CIERRE DE '
-            .':MES_CORTE. AGRADECEMOS SU ATENCIÓN."',
+        // Under the invoice table. :dia_mes, :mes_siguiente and :mes_corte
+        // are written as given, in lowercase.
+        'aviso_cierre' => '"Aclaramos que este estado de cartera corresponde al cierre del :dia_mes. Si realizó el pago durante el mes de :mes_siguiente, '
+            .'tenga en cuenta que dicho pago no se ve reflejado en esta circularización, ya que la información corresponde exclusivamente al cierre de '
+            .':mes_corte. Agradecemos su atención."',
 
         // Signature footer after the closing text.
         'pie' => [
@@ -33,7 +33,7 @@ return [
             'web' => 'www.segurex.com',
             'web_url' => 'https://www.segurex.com',
             'ambiente' => 'Antes de imprimir, piense en su responsabilidad con el Medio Ambiente.',
-            'aviso_legal_titulo' => 'AVISO LEGAL:',
+            'aviso_legal_titulo' => 'Aviso legal:',
             // Followed by the aviso_legal_correo link and a period.
             'aviso_legal' => 'Este mensaje es solamente para la persona a la que va dirigido. Puede contener información confidencial o legalmente protegida. '
                 .'Ni la confidencialidad o privilegio alguno se pierde por cualquier transmisión errónea. Por tanto, si usted ha recibido este mensaje por '

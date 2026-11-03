@@ -140,17 +140,30 @@ it('puts the Derivados business unit after the NIT', function () {
         ->toContain('18004288 INDUSTRIAL CN0842 GOMEZ GOMEZ JOSE GREGORIO 8736 30/10/2026 30 DIAS 29/11/2026 -29 $ 3.540.295');
 });
 
-it('colors the Segurex header with the brand button and the Derivados header grey', function () {
+it('colors the Segurex header with the brand button and the Derivados header with the brand tint', function () {
+    $sdc = BrandPalette::official(CompanyCode::SDC);
+
     expect(cobroCircRender(CompanyCode::SGX)->html)->toContain('background:'.BrandPalette::official(CompanyCode::SGX)->button.';color:#ffffff;')
-        ->and(cobroCircRender(CompanyCode::SDC)->html)->toContain('background:#d9d9d9;color:#111111;')
-        ->not->toContain('background:#fde2e2;');
+        ->and(cobroCircRender(CompanyCode::SDC)->html)->toContain('background:'.$sdc->tint.';color:'.$sdc->ink.';')
+        ->not->toContain('background:#fde7e4;');
 });
 
-it('adds the Segurex notice about payments after the cutoff, in bold red', function () {
+it('sets the mail in Helvetica, with the company text color and its deep color for the title', function (CompanyCode $company) {
+    $html = cobroCircRender($company)->html;
+    $palette = BrandPalette::official($company);
+
+    expect($html)->toContain("font-family:Helvetica,Arial,'Helvetica Neue',sans-serif;")
+        ->toMatch('/<body style="[^"]*color:'.$palette->text.';/')
+        ->toMatch('/<caption style="[^"]*color:'.$palette->ink.';/')
+        ->not->toContain('Arial,Helvetica,sans-serif')
+        ->not->toContain('<img');
+})->with([CompanyCode::SGX, CompanyCode::SDC]);
+
+it('adds the Segurex notice about payments after the cutoff, in bold red and sentence case', function () {
     $html = cobroCircRender(CompanyCode::SGX)->html;
 
     expect($html)->toMatch('/<p data-aviso="cierre" style="[^"]*color:#b42318;font-weight:bold;">/')
-        ->and(VisibleText::of($html))->toContain('"ACLARAMOS QUE ESTE ESTADO DE CARTERA CORRESPONDE AL CIERRE DEL 31 DE OCTUBRE. SI REALIZÓ EL PAGO DURANTE EL MES DE NOVIEMBRE, TENGA EN CUENTA QUE DICHO PAGO NO SE VE REFLEJADO EN ESTA CIRCULARIZACIÓN, YA QUE LA INFORMACIÓN CORRESPONDE EXCLUSIVAMENTE AL CIERRE DE OCTUBRE. AGRADECEMOS SU ATENCIÓN."');
+        ->and(VisibleText::of($html))->toContain('"Aclaramos que este estado de cartera corresponde al cierre del 31 de octubre. Si realizó el pago durante el mes de noviembre, tenga en cuenta que dicho pago no se ve reflejado en esta circularización, ya que la información corresponde exclusivamente al cierre de octubre. Agradecemos su atención."');
 });
 
 it('places the Segurex notice between the table and the closing text', function () {
@@ -164,8 +177,8 @@ it('places the Segurex notice between the table and the closing text', function 
 it('names December and January around a year-end cutoff', function () {
     $text = VisibleText::of(cobroCircRender(CompanyCode::SGX, cobroCircNotice(CompanyCode::SGX, cutoff: '2026-12-31'))->html);
 
-    expect($text)->toContain('AL CIERRE DEL 31 DE DICIEMBRE. SI REALIZÓ EL PAGO DURANTE EL MES DE ENERO,')
-        ->toContain('AL CIERRE DE DICIEMBRE.');
+    expect($text)->toContain('al cierre del 31 de diciembre. Si realizó el pago durante el mes de enero,')
+        ->toContain('al cierre de diciembre.');
 });
 
 it('leaves the Segurex notice out without a cutoff date', function () {
@@ -175,17 +188,18 @@ it('leaves the Segurex notice out without a cutoff date', function () {
 it('signs the Segurex mail with the company footer and its legal notice', function () {
     $html = cobroCircRender(CompanyCode::SGX)->html;
     $text = VisibleText::of($html);
-    // The non-AA accent is never used as text: links take the button color.
+    // The non-AA accent is never used as text: the company name and the web link take the deep color.
     $palette = BrandPalette::official(CompanyCode::SGX);
 
     expect($text)->toContain('SEGUREX LATAM S.A.S. Calle 25D No. 95-45 Bogotá, D.C. - Colombia Móvil: +3153654788 PBX: +57 (60-1) 3713766 Ext. 141')
         ->toContain('cartera@segurex.com www.segurex.com Antes de imprimir, piense en su responsabilidad con el Medio Ambiente.')
-        ->toContain('AVISO LEGAL: Este mensaje es solamente para la persona a la que va dirigido.')
+        ->toContain('Aviso legal: Este mensaje es solamente para la persona a la que va dirigido.')
         ->toContain('por favor hágalo saber inmediatamente al correo electrónico: ventas@segurex.com.')
         ->and($html)->toContain('<a href="mailto:cartera@segurex.com"')
-        ->toContain('<a href="https://www.segurex.com" style="color:'.$palette->button.';font-weight:bold;">www.segurex.com</a>')
+        ->toContain('<strong style="color:'.$palette->ink.';">SEGUREX LATAM S.A.S.</strong>')
+        ->toContain('<a href="https://www.segurex.com" style="color:'.$palette->ink.';font-weight:bold;">www.segurex.com</a>')
         ->toContain('<a href="mailto:ventas@segurex.com"')
-        ->toContain('<strong>AVISO LEGAL:</strong>')
+        ->toContain('<strong>Aviso legal:</strong>')
         ->not->toContain($palette->accent);
 });
 
@@ -194,8 +208,8 @@ it('sends the Derivados mail without the notice or the footer', function () {
 
     expect($html)->not->toContain('data-aviso="cierre"')
         ->not->toContain('data-pie="segurex"')
-        ->not->toContain('ACLARAMOS')
-        ->not->toContain('AVISO LEGAL');
+        ->not->toContain('Aclaramos')
+        ->not->toContain('Aviso legal');
 });
 
 it('reads like a plain mail, without the brand frame or a draft mark', function (CompanyCode $company) {
@@ -204,7 +218,7 @@ it('reads like a plain mail, without the brand frame or a draft mark', function 
     expect($mail->subject)->not->toContain('[Borrador]')
         ->and($mail->html)->not->toContain('data-banner="borrador"')
         ->not->toContain('data-banner="prueba"')
-        ->not->toContain('background:#f4f5f7');
+        ->not->toContain('data-marco="empresa"');
 })->with([CompanyCode::SGX, CompanyCode::SDC]);
 
 it('marks a test send in the subject and the body', function () {

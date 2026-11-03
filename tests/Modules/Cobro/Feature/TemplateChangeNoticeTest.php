@@ -5,6 +5,7 @@ use App\Modules\Cobro\Domain\Runs\RunKind;
 use App\Modules\Cobro\Domain\Templates\TemplateContent;
 use App\Modules\Cobro\Infrastructure\Persistence\Template;
 use App\Modules\Cobro\Infrastructure\Templates\TemplateStore;
+use App\Modules\Core\Contracts\Data\BrandPalette;
 use App\Modules\Core\Contracts\Data\OutgoingMail;
 use App\Modules\Core\Contracts\Enums\CompanyCode;
 use App\Modules\Core\Contracts\Enums\Role;
@@ -54,6 +55,24 @@ it('mails the old and new text of the changed field to the alert recipients', fu
         ->not->toContain('Espero que se encuentre bien')
         ->and($mail->html)->toContain(route('cobro.plantillas.edit', ['empresa' => 'SDC']));
 });
+
+it('frames the notice in the palette of its company, in Helvetica and without images', function (CompanyCode $company) {
+    $this->actingAs($this->analyst)
+        ->put("/cobro/plantillas/{$company->value}", ($this->form)($company, ['asunto' => 'Pago pendiente de {cliente}']));
+
+    $html = $this->fakes->mail->sent()[0]->html;
+    $palette = BrandPalette::official($company);
+
+    expect($html)->toContain("font-family:Helvetica,Arial,'Helvetica Neue',sans-serif;")
+        ->toMatch('/<td style="[^"]*background:'.$palette->head.';border-bottom:4px solid '.$palette->accent.';">\s*<h1 style="[^"]*color:#ffffff;">/')
+        ->toMatch('/<h2 style="[^"]*color:'.$palette->ink.';">/')
+        ->toContain('background:'.$palette->button.';color:#ffffff;')
+        // The status colors of the brand: 5.55:1 and 4.68:1 on their backgrounds.
+        ->toContain('background:#fde7e4;color:#b42318;')
+        ->toContain('background:#e5f3eb;color:#1d7a46;')
+        ->not->toContain('Consolas')
+        ->not->toContain('<img');
+})->with([CompanyCode::SGX, CompanyCode::SDC]);
 
 it('shows links and HTML typed in the template as plain text', function () {
     $this->actingAs($this->analyst)->put('/cobro/plantillas/SGX', ($this->form)(CompanyCode::SGX, [

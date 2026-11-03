@@ -14,9 +14,13 @@
     $subject; $introHtml and $closingHtml: paragraphs as safe HTML
     (NoticeRenderer escaped them); $test; $draft.
 
-    Inline colors only (mail clients ignore stylesheets): the company's
-    BrandPalette button (white text on it, AA), the ryr-design failure red
-    #b42318 (6.5:1 on white) for the notice and neutral greys.
+    Brand v2 colors, inline only (mail clients ignore stylesheets): the
+    company header is the BrandPalette button behind white text (4.51:1
+    Segurex), the light one the tint behind ink (9.80:1 SDC); the company
+    name and the signature's company and web link in ink, the deep color
+    for titles and key data; the brand's error red #b42318 (6.57:1 on
+    white) for the notice; the neutral grays #e3e0dd (lines) and #6a6b6e
+    (legal notice, 5.33:1). Never the accent as text.
 --}}
 @php
     $palette = $company->palette;
@@ -24,8 +28,8 @@
     $brandHeader = CircularizationTable::headerStyle($company->code) === CircularizationTable::HEADER_BRAND;
     $head = $brandHeader
         ? "background:{$palette->button};color:#ffffff;"
-        : 'background:#d9d9d9;color:#111111;';
-    $cell = 'padding:4px 6px;border:1px solid #d9d9d9;font-size:12px;';
+        : "background:{$palette->tint};color:{$palette->ink};";
+    $cell = 'padding:4px 6px;border:1px solid #e3e0dd;font-size:12px;';
     // Only names may wrap; codes, dates, days and amounts stay on one line.
     $wrapping = ['comercial', 'razon_social', 'unidad_negocio'];
     $value = fn (string $key, $invoice): string => match ($key) {
@@ -51,7 +55,7 @@
     @endforeach
 
     <table role="table" cellpadding="0" cellspacing="0" style="border-collapse:collapse;margin:8px 0 18px;max-width:1000px;">
-        <caption style="caption-side:top;text-align:left;padding:10px 6px;font-size:22px;font-weight:bold;color:{{ $palette->button }};">{{ $company->name }}</caption>
+        <caption style="caption-side:top;text-align:left;padding:10px 6px;font-size:22px;font-weight:bold;color:{{ $palette->ink }};">{{ $company->name }}</caption>
         <thead>
             <tr>
                 @foreach ($columns as $column)
@@ -85,23 +89,23 @@
     @endforeach
 
     @if ($segurexFooter)
-        <div data-pie="segurex" style="margin:18px 0 0;font-size:13px;color:#1f2937;">
+        <div data-pie="segurex" style="margin:18px 0 0;font-size:13px;color:{{ $palette->text }};">
             <p style="margin:0 0 14px;">
-                <strong>{{ __('cobro::circularizacion.segurex.pie.empresa') }}</strong><br>
+                <strong style="color:{{ $palette->ink }};">{{ __('cobro::circularizacion.segurex.pie.empresa') }}</strong><br>
                 {{ __('cobro::circularizacion.segurex.pie.direccion') }}<br>
                 {{ __('cobro::circularizacion.segurex.pie.ciudad') }}<br>
                 {{ __('cobro::circularizacion.segurex.pie.movil') }}<br>
                 {{ __('cobro::circularizacion.segurex.pie.pbx') }}
             </p>
             <p style="margin:0 0 14px;">
-                <a href="mailto:{{ __('cobro::circularizacion.segurex.pie.correo') }}" style="color:#1f2937;">{{ __('cobro::circularizacion.segurex.pie.correo') }}</a><br>
-                <a href="{{ __('cobro::circularizacion.segurex.pie.web_url') }}" style="color:{{ $palette->button }};font-weight:bold;">{{ __('cobro::circularizacion.segurex.pie.web') }}</a>
+                <a href="mailto:{{ __('cobro::circularizacion.segurex.pie.correo') }}" style="color:{{ $palette->text }};">{{ __('cobro::circularizacion.segurex.pie.correo') }}</a><br>
+                <a href="{{ __('cobro::circularizacion.segurex.pie.web_url') }}" style="color:{{ $palette->ink }};font-weight:bold;">{{ __('cobro::circularizacion.segurex.pie.web') }}</a>
             </p>
-            <p style="margin:0 0 14px;color:{{ $palette->button }};">{{ __('cobro::circularizacion.segurex.pie.ambiente') }}</p>
-            <p style="margin:0;font-size:11px;line-height:1.4;color:#5e6168;">
+            <p style="margin:0 0 14px;">{{ __('cobro::circularizacion.segurex.pie.ambiente') }}</p>
+            <p style="margin:0;font-size:11px;line-height:1.4;color:#6a6b6e;">
                 <strong>{{ __('cobro::circularizacion.segurex.pie.aviso_legal_titulo') }}</strong>
                 {{ __('cobro::circularizacion.segurex.pie.aviso_legal') }}
-                <a href="mailto:{{ __('cobro::circularizacion.segurex.pie.aviso_legal_correo') }}" style="color:#5e6168;">{{ __('cobro::circularizacion.segurex.pie.aviso_legal_correo') }}</a>.
+                <a href="mailto:{{ __('cobro::circularizacion.segurex.pie.aviso_legal_correo') }}" style="color:#6a6b6e;">{{ __('cobro::circularizacion.segurex.pie.aviso_legal_correo') }}</a>.
             </p>
         </div>
     @endif
