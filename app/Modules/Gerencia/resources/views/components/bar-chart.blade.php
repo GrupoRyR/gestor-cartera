@@ -8,9 +8,10 @@
     <title> over every column says its value (hover and screen readers).
 
     $bars: list of ['label', 'value' => float, 'text', 'title' =>? string].
-    $tone: group, sgx, sdc or neutral, the color of the entity the bars
-    belong to. $label names the chart for screen readers. $format is money or
-    percent (axis text). The page offers the same numbers as a table.
+    $tone: brand (one company on screen: the active brand accent) or group
+    (several companies: gray, so orange and blue never meet). $label names
+    the chart for screen readers. $format is money or percent (axis text).
+    The page offers the same numbers as a table.
 
     Tailwind only sees literal class names, so the tone table spells them out.
 --}}
@@ -18,14 +19,12 @@
 
 @php
     $fills = [
+        'brand' => 'fill-brand-accent',
         'group' => 'fill-fg-muted',
-        'sgx' => 'fill-viz-1',
-        'sdc' => 'fill-viz-2',
-        'neutral' => 'fill-fg-muted',
     ];
 
     if (! isset($fills[$tone])) {
-        throw new InvalidArgumentException("Unknown bar-chart tone [{$tone}]; use group, sgx, sdc or neutral.");
+        throw new InvalidArgumentException("Unknown bar-chart tone [{$tone}]; use brand or group.");
     }
 
     $chart = BarChartGeometry::build($bars, $format);
@@ -33,7 +32,7 @@
     $plot = $chart['plot'];
 @endphp
 
-<figure {{ $attributes->class('grid gap-3') }}>
+<figure data-chart="bar" {{ $attributes->class('grid gap-3') }}>
     <svg viewBox="0 0 {{ $chart['width'] }} {{ $chart['height'] }}" role="img" aria-labelledby="{{ $id }}-title" class="block h-auto w-full max-w-3xl">
         <title id="{{ $id }}-title">{{ $label }}</title>
 

@@ -69,6 +69,12 @@ return [
         'grafico' => 'Porcentaje de cartera vencida por mes',
         'tabla_resumen' => 'Ver los datos en una tabla',
         'tabla' => 'Cartera vencida mes a mes',
+        // Short name at the end of each line in the group view, as in the company switcher.
+        'etiqueta' => [
+            'group' => 'Grupo',
+            'sgx' => 'Segurex',
+            'sdc' => 'SDC',
+        ],
         'vacio' => [
             'titulo' => 'Todavía no hay historia',
             'detalle' => 'El gráfico aparece cuando haya al menos dos cierres mensuales cargados.',

@@ -47,7 +47,8 @@
     ];
     $collections = $board->collections;
     $collectionsChart = CollectionsChart::from($collections, $period);
-    $collectionsTone = TrendChart::tone($isGroup ? null : $scope?->company);
+    // One company per screen: its accent, or gray for the group (never orange and blue together).
+    $collectionsTone = $isGroup ? 'group' : 'brand';
     $granularity = __('gerencia::tablero.recaudo.'.($collectionsChart['weekly'] ? 'por_semana' : 'por_dia'));
 
     $comparisonColumns = $isGroup ? [

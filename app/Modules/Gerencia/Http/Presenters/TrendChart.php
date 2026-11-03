@@ -38,6 +38,8 @@ final class TrendChart
 
         $series = [];
         $percents = [];
+        // One company per screen: a lone scope takes the active brand accent.
+        $alone = count($scopes) === 1;
 
         foreach ($scopes as $scope) {
             $byMonth = [];
@@ -60,7 +62,7 @@ final class TrendChart
                 ];
             }
 
-            $series[] = ['name' => $scope->name, 'tone' => self::tone($scope->company), 'points' => $points];
+            $series[] = ['name' => $scope->name, 'tone' => $alone ? 'brand' : self::tone($scope->company), 'points' => $points];
             $percents[] = $values;
         }
 
@@ -91,7 +93,9 @@ final class TrendChart
     }
 
     /**
-     * The color of a scope follows the entity, never its position.
+     * The line pattern of a scope in the group view, where several scopes
+     * share a chart: it follows the entity, never its position. A screen
+     * with a single company draws it with the 'brand' tone instead.
      */
     public static function tone(?CompanyCode $company): string
     {

@@ -13,6 +13,7 @@ use App\Support\Navigation\NavRegistry;
 use Carbon\CarbonImmutable;
 use Tests\Fakes\ContractFakes;
 use Tests\Fakes\Make;
+use Tests\Feature\Design\Support\Html;
 use Tests\Modules\Gerencia\Support\GerenciaUsers;
 use Tests\Modules\Gerencia\Support\PerCompanyHistoryCartera;
 
@@ -177,15 +178,90 @@ it('draws the overdue trend of the group and of each company', function () {
         ->assertSee('<title>Agosto 2026 · '.CompanyCode::SGX->label().': 5,0 %</title>', false)
         ->assertSee('<title>Septiembre 2026 · '.CompanyCode::SDC->label().': 50,0 %</title>', false)
         ->assertDontSee('<title>Agosto 2026 · '.CompanyCode::SDC->label(), false)
-        // The color follows the company; the group is the dashed one. SDC has a single month, so it is a marker without a line.
-        ->assertSee('stroke-viz-1', false)
-        ->assertSee('fill-viz-2', false)
+        // Grays only in the group view; Segurex is the dashed line. SDC has a single month, so it is a marker without a line.
         ->assertSee('stroke-dasharray="6 4"', false)
+        ->assertDontSee('stroke-dasharray="1 5"', false)
+        ->assertDontSee('viz-', false)
         // Axis text and the table that stands in for the chart.
         ->assertSee('>20 %<', false)
         ->assertSeeText('Ver los datos en una tabla')
         ->assertSeeText('% vencido · '.CompanyCode::SDC->label());
 });
+
+it('draws the group view in grays, one line pattern per entity, with the legend and an end label per line', function () {
+    $this->fakes->currentCompany->switchTo(null);
+    ($this->client)(CompanyCode::SGX, overdue: 1_000_000, notDue: 3_000_000);
+    ($this->client)(CompanyCode::SDC, overdue: 500_000, notDue: 500_000);
+    $this->fakes->recaudo->addDaily(Make::dailyCollection(date: CarbonImmutable::parse('2026-10-10'), company: CompanyCode::SGX, total: 1_000_000.0));
+
+    $history = fn (float $august, float $september): array => [
+        ($this->snapshot)('2026-08-31', 1_000.0, $august),
+        ($this->snapshot)('2026-09-30', 1_000.0, $september),
+    ];
+    $cartera = (new PerCompanyHistoryCartera($this->fakes->cartera))
+        ->withGroupHistory($history(100.0, 200.0))
+        ->withCompanyHistory(CompanyCode::SGX, $history(50.0, 150.0))
+        ->withCompanyHistory(CompanyCode::SDC, $history(300.0, 400.0));
+    $this->app->instance(CarteraRepository::class, $cartera);
+
+    $html = Html::parse(($this->manager)()->get('/gerencia')->assertOk()->getContent());
+    $line = "//figure[@data-chart='line']";
+    $classed = fn (string $class): string => "contains(concat(' ', @class, ' '), ' {$class} ')";
+
+    // The group is the solid dark line; Segurex dashed and SDC dotted, both in the muted gray.
+    expect($html->count("{$line}//path[{$classed('stroke-fg')}][not(@stroke-dasharray)]"))->toBe(1)
+        ->and($html->count("{$line}//path[{$classed('stroke-fg-muted')}][@stroke-dasharray='6 4']"))->toBe(1)
+        ->and($html->count("{$line}//path[{$classed('stroke-fg-muted')}][@stroke-dasharray='1 5'][@stroke-linecap='round']"))->toBe(1)
+        // No brand hue anywhere in the charts, and the group bars stay gray.
+        ->and($html->count("//figure//*[contains(@class, 'brand-accent') or contains(@class, 'viz-')]"))->toBe(0)
+        ->and($html->count("//figure[@data-chart='bar']//path[{$classed('fill-fg-muted')}]"))->toBe(1);
+
+    // The legend swatches repeat the line patterns, in the order of the series.
+    $swatches = array_map(
+        fn ($swatch): array => explode(' ', $swatch->getAttribute('class')),
+        $html->all("{$line}//ul[@data-part='legend']/li/span[@aria-hidden='true']"),
+    );
+
+    expect($swatches)->toHaveCount(3)
+        ->and($swatches[0])->toContain('border-fg', 'border-solid')
+        ->and($swatches[1])->toContain('border-fg-muted', 'border-dashed')
+        ->and($swatches[2])->toContain('border-fg-muted', 'border-dotted');
+
+    // One short label at the end of every line (as in the company switcher); the legend keeps the full names.
+    $labels = array_map(fn ($text): string => $text->textContent, $html->all("{$line}//text[@data-part='end-label']"));
+    $legend = array_map(fn ($item): string => Html::clean($item->textContent), $html->all("{$line}//ul[@data-part='legend']/li"));
+
+    expect($labels)->toEqualCanonicalizing(['Grupo', 'Segurex', 'SDC'])
+        ->and($legend)->toBe(['Grupo RYR', CompanyCode::SGX->label(), CompanyCode::SDC->label()]);
+});
+
+it('draws a single company in the accent of its brand, without legend or end labels', function (CompanyCode $company) {
+    $this->fakes->currentCompany->switchTo($company);
+    ($this->client)($company, overdue: 1_000_000, notDue: 3_000_000);
+    $this->fakes->recaudo->addDaily(Make::dailyCollection(date: CarbonImmutable::parse('2026-10-10'), company: $company, total: 1_000_000.0));
+
+    $cartera = (new PerCompanyHistoryCartera($this->fakes->cartera))
+        ->withCompanyHistory($company, [
+            ($this->snapshot)('2026-08-31', 1_000.0, 100.0),
+            ($this->snapshot)('2026-09-30', 1_000.0, 200.0),
+        ]);
+    $this->app->instance(CarteraRepository::class, $cartera);
+
+    $html = Html::parse(($this->manager)()->get('/gerencia')->assertOk()->getContent());
+    $line = "//figure[@data-chart='line']";
+    $classed = fn (string $class): string => "contains(concat(' ', @class, ' '), ' {$class} ')";
+
+    expect($html->count("{$line}//path[{$classed('stroke-brand-accent')}][not(@stroke-dasharray)]"))->toBe(1)
+        ->and($html->count("{$line}//path[not({$classed('stroke-brand-accent')})]"))->toBe(0)
+        ->and($html->count("{$line}//circle[{$classed('fill-brand-accent')}]"))->toBe(2)
+        ->and($html->count("//figure[@data-chart='bar']//path[{$classed('fill-brand-accent')}]"))->toBe(1)
+        ->and($html->count("//figure//*[contains(@class, 'viz-') or contains(@class, 'fg-muted') and not(self::text)]"))->toBe(0)
+        ->and($html->count("{$line}//ul[@data-part='legend']"))->toBe(0)
+        ->and($html->count("{$line}//text[@data-part='end-label']"))->toBe(0);
+})->with([
+    'Segurex' => [CompanyCode::SGX],
+    'SDC' => [CompanyCode::SDC],
+]);
 
 it('says the trend needs history when there are fewer than two months', function () {
     ($this->client)(CompanyCode::SGX, overdue: 1_000_000);
