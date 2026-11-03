@@ -13,8 +13,8 @@ use Carbon\CarbonImmutable;
 final class ClosingNotice
 {
     /**
-     * The notice in capitals, e.g. "… AL CIERRE DEL 31 DE OCTUBRE. SI
-     * REALIZÓ EL PAGO DURANTE EL MES DE NOVIEMBRE …"; null for a company
+     * The notice in sentence case, e.g. "… al cierre del 31 de octubre. Si
+     * realizó el pago durante el mes de noviembre …"; null for a company
      * without it or without a cutoff date. The cutoff is read in the
      * application timezone, like {fecha_corte}.
      */
@@ -26,7 +26,7 @@ final class ClosingNotice
 
         $local = $cutoff->setTimezone(config()->string('app.timezone'))->locale('es');
 
-        // Lowercase values: the :UPPERCASE replacements write them in capitals.
+        // Month names stay lowercase, as Spanish writes them inside a sentence.
         return (string) __('cobro::circularizacion.segurex.aviso_cierre', [
             'dia_mes' => "{$local->day} de {$local->monthName}",
             'mes_corte' => $local->monthName,
