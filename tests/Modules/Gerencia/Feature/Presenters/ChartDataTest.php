@@ -63,7 +63,18 @@ it('has no series and no rows without scopes', function () {
     expect(TrendChart::from([]))->toBe(['series' => [], 'rows' => []]);
 });
 
-it('gives each entity its own tone', function () {
+it('draws a single scope in the brand accent, whichever the company', function (CompanyCode $company) {
+    $trend = TrendChart::from([
+        scopeFigures($company, $company->label(), [['2026-08-01', 1000.0, 100.0], ['2026-09-01', 1000.0, 200.0]]),
+    ]);
+
+    expect(array_column($trend['series'], 'tone'))->toBe(['brand']);
+})->with([
+    'Segurex' => [CompanyCode::SGX],
+    'SDC' => [CompanyCode::SDC],
+]);
+
+it('gives each entity of the group view its own tone', function () {
     expect(TrendChart::tone(CompanyCode::SGX))->toBe('sgx')
         ->and(TrendChart::tone(CompanyCode::SDC))->toBe('sdc')
         ->and(TrendChart::tone(null))->toBe('group');

@@ -14,7 +14,7 @@ El tablero sigue la empresa activa del selector: con la vista de grupo muestra e
 
 1. Indicadores del alcance actual: cartera total, vencido (color por porcentaje: 30 % o más, peligro; 15 % o más, alerta), rotación y cumplimiento de compromisos.
 2. Comparación del grupo con cada empresa (solo en la vista de grupo).
-3. Tendencia: línea del porcentaje vencido por mes, una serie por alcance (el grupo punteado; SGX y SDC con su color fijo), y la misma información en una tabla.
+3. Tendencia: línea del porcentaje vencido por mes, una serie por alcance (en la vista de una empresa, el color de su marca; en la vista de grupo, solo grises: el grupo en línea continua oscura, SGX a trazos y SDC punteada, cada línea con su nombre al final), y la misma información en una tabla.
 4. Cumplimiento de compromisos por asesor.
 5. Resultados del cobro por correo: un bloque para el cobro semanal y otro para la circularización, cada uno con el total del alcance y, en la vista de grupo, una fila por empresa; al final, los mensajes sin leer.
 6. Recaudo: barras por día (períodos de hasta 45 días) o por semana (más largos), tabla semanal y tabla diaria.
@@ -44,7 +44,7 @@ Los umbrales de color (vencido 15 % y 30 %; cumplimiento 70 % y 90 %) son consta
 
 ## Gráficos
 
-`<x-gerencia::line-chart>` y `<x-gerencia::bar-chart>` son SVG dibujados en el servidor (sin JavaScript): cada punto y cada barra llevan un `<title>` con su valor para el cursor y los lectores de pantalla, y la cuadrícula, los ticks y las etiquetas salen de `Http/Presenters/` (`ChartScale`, `LineChartGeometry`, `BarChartGeometry`). El color sigue a la entidad (SGX, SDC) y el grupo va punteado; cada gráfico tiene su tabla al lado.
+`<x-gerencia::line-chart>` y `<x-gerencia::bar-chart>` son SVG dibujados en el servidor (sin JavaScript): cada punto y cada barra llevan un `<title>` con su valor para el cursor y los lectores de pantalla, y la cuadrícula, los ticks y las etiquetas salen de `Http/Presenters/` (`ChartScale`, `LineChartGeometry`, `BarChartGeometry`). Una empresa por pantalla (marca v2): con una sola empresa, líneas, puntos y barras usan su acento (`brand-accent`); en la vista de grupo no hay color de marca, para que el naranja y el azul nunca salgan juntos: el grupo es la línea continua en `fg`, SGX la línea a trazos y SDC la punteada, ambas en `fg-muted`, y las barras van en `fg-muted`. El patrón sigue a la entidad, la leyenda lo repite y cada línea termina con su nombre. Los tokens `viz-*` no se usan aquí. Cada gráfico tiene su tabla al lado.
 
 ## Pruebas
 

@@ -1,3 +1,4 @@
+@use('App\Modules\Gerencia\Http\Presenters\ChartScale')
 @use('App\Modules\Gerencia\Http\Presenters\LineChartGeometry')
 @use('Illuminate\Support\Str')
 
@@ -7,14 +8,18 @@
     one axis). Every series carries the same points in the same order; a
     point without a value breaks the line.
 
-    $series: list of ['name', 'tone' => group|sgx|sdc|neutral, 'points' =>
-    list of ['label', 'value' => ?float, 'text', 'title' =>? string]]. The
-    color follows the entity (tone), never its position; the group is
-    dashed so it differs from the companies without relying on color.
+    $series: list of ['name', 'tone' => brand|group|sgx|sdc, 'points' =>
+    list of ['label', 'value' => ?float, 'text', 'title' =>? string]].
+    One company per screen (brand v2): a lone series uses brand, the accent
+    of the active company. Several series (the group view) never carry a
+    brand hue, so orange and blue never meet: group is the solid dark line,
+    sgx the dashed gray one and sdc the dotted gray one. The pattern follows
+    the entity, never its position, and tells the lines apart without color.
     $label names the chart for screen readers. $format is percent or money
     (axis text). The drawing says its values in <title> elements (hover and
-    screen readers); the legend is plain HTML under it, and the page offers
-    the same numbers as a table.
+    screen readers). With several lines, each one ends in its name and the
+    legend under the drawing repeats the patterns; the page offers the same
+    numbers as a table.
 
     Tailwind only sees literal class names, so the tone table spells them out.
 --}}
@@ -22,21 +27,54 @@
 
 @php
     $tones = [
-        'group' => ['stroke' => 'stroke-fg-muted', 'fill' => 'fill-fg-muted', 'swatch' => 'border-fg-muted', 'dashed' => true],
-        'sgx' => ['stroke' => 'stroke-viz-1', 'fill' => 'fill-viz-1', 'swatch' => 'border-viz-1', 'dashed' => false],
-        'sdc' => ['stroke' => 'stroke-viz-2', 'fill' => 'fill-viz-2', 'swatch' => 'border-viz-2', 'dashed' => false],
-        'neutral' => ['stroke' => 'stroke-fg-muted', 'fill' => 'fill-fg-muted', 'swatch' => 'border-fg-muted', 'dashed' => false],
+        'brand' => ['stroke' => 'stroke-brand-accent', 'fill' => 'fill-brand-accent', 'text' => 'fill-fg', 'swatch' => 'border-brand-accent border-solid', 'dash' => null],
+        'group' => ['stroke' => 'stroke-fg', 'fill' => 'fill-fg', 'text' => 'fill-fg', 'swatch' => 'border-fg border-solid', 'dash' => null],
+        'sgx' => ['stroke' => 'stroke-fg-muted', 'fill' => 'fill-fg-muted', 'text' => 'fill-fg-muted', 'swatch' => 'border-fg-muted border-dashed', 'dash' => '6 4'],
+        // A dash of 1 with round caps draws a dot 3 units long and leaves a 3-unit gap.
+        'sdc' => ['stroke' => 'stroke-fg-muted', 'fill' => 'fill-fg-muted', 'text' => 'fill-fg-muted', 'swatch' => 'border-fg-muted border-dotted', 'dash' => '1 5'],
     ];
 
     foreach ($series as $line) {
         if (! isset($tones[$line['tone']])) {
-            throw new InvalidArgumentException("Unknown line-chart tone [{$line['tone']}]; use group, sgx, sdc or neutral.");
+            throw new InvalidArgumentException("Unknown line-chart tone [{$line['tone']}]; use brand, group, sgx or sdc.");
         }
     }
 
     $chart = LineChartGeometry::build($series, $format);
     $id = 'chart-'.Str::lower(Str::random(8));
     $plot = $chart['plot'];
+    $width = $chart['width'];
+
+    // End labels (several lines only): the series name right of its last
+    // point, nudged apart vertically so two labels never overlap, kept on
+    // the plot, and the drawing widened so no label is cut off.
+    $labelGap = 14.0;
+    $endLabels = [];
+
+    if (count($chart['lines']) > 1) {
+        foreach ($chart['lines'] as $line) {
+            if ($line['points'] !== []) {
+                $last = $line['points'][array_key_last($line['points'])];
+                $endLabels[] = ['x' => $last['x'] + 8, 'y' => $last['y'], 'text' => $line['name'], 'class' => $tones[$line['tone']]['text']];
+            }
+        }
+
+        usort($endLabels, fn (array $a, array $b): int => $a['y'] <=> $b['y']);
+        $count = count($endLabels);
+
+        for ($i = 1; $i < $count; $i++) {
+            $endLabels[$i]['y'] = max($endLabels[$i]['y'], $endLabels[$i - 1]['y'] + $labelGap);
+        }
+
+        for ($i = $count - 1; $i >= 0; $i--) {
+            $ceiling = $i === $count - 1 ? $plot['bottom'] : $endLabels[$i + 1]['y'] - $labelGap;
+            $endLabels[$i]['y'] = max($plot['top'], min($endLabels[$i]['y'], $ceiling));
+        }
+
+        foreach ($endLabels as $endLabel) {
+            $width = max($width, (int) ceil($endLabel['x'] + ChartScale::labelWidth([$endLabel['text']]) + 4));
+        }
+    }
 
     // What a screen reader hears: the latest value of every line.
     $summary = implode('. ', array_filter(array_map(
@@ -45,8 +83,8 @@
     )));
 @endphp
 
-<figure {{ $attributes->class('grid gap-3') }}>
-    <svg viewBox="0 0 {{ $chart['width'] }} {{ $chart['height'] }}" role="img" aria-labelledby="{{ $id }}-title {{ $id }}-desc" class="block h-auto w-full max-w-3xl">
+<figure data-chart="line" {{ $attributes->class('grid gap-3') }}>
+    <svg viewBox="0 0 {{ $width }} {{ $chart['height'] }}" role="img" aria-labelledby="{{ $id }}-title {{ $id }}-desc" class="block h-auto w-full max-w-3xl">
         <title id="{{ $id }}-title">{{ $label }}</title>
         <desc id="{{ $id }}-desc">{{ $summary }}</desc>
 
@@ -63,13 +101,17 @@
             @php($tone = $tones[$line['tone']])
 
             @foreach ($line['paths'] as $path)
-                <path d="{{ $path }}" fill="none" stroke-width="2" stroke-linejoin="round" stroke-linecap="round" @if ($tone['dashed']) stroke-dasharray="6 4" @endif class="{{ $tone['stroke'] }}" />
+                <path d="{{ $path }}" fill="none" stroke-width="2" stroke-linejoin="round" stroke-linecap="round" @if ($tone['dash'] !== null) stroke-dasharray="{{ $tone['dash'] }}" @endif class="{{ $tone['stroke'] }}" />
             @endforeach
 
             @foreach ($line['points'] as $point)
                 <circle cx="{{ $point['x'] }}" cy="{{ $point['y'] }}" r="4.5" stroke-width="2" class="{{ $tone['fill'] }} stroke-surface" />
                 <circle cx="{{ $point['x'] }}" cy="{{ $point['y'] }}" r="12" class="fill-transparent"><title>{{ $point['title'] }}</title></circle>
             @endforeach
+        @endforeach
+
+        @foreach ($endLabels as $endLabel)
+            <text data-part="end-label" x="{{ ChartScale::coordinate($endLabel['x']) }}" y="{{ ChartScale::coordinate($endLabel['y']) }}" dy="0.32em" class="{{ $endLabel['class'] }} text-xs">{{ $endLabel['text'] }}</text>
         @endforeach
     </svg>
 
@@ -78,7 +120,7 @@
             @foreach ($chart['lines'] as $line)
                 @php($tone = $tones[$line['tone']])
                 <li class="flex items-center gap-2">
-                    <span aria-hidden="true" @class(['w-5 shrink-0 border-t-[3px]', $tone['swatch'], 'border-dashed' => $tone['dashed']])></span>
+                    <span aria-hidden="true" class="w-5 shrink-0 border-t-[3px] {{ $tone['swatch'] }}"></span>
                     <span>{{ $line['name'] }}</span>
                 </li>
             @endforeach
