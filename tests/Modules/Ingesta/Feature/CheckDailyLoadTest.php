@@ -1,5 +1,6 @@
 <?php
 
+use App\Modules\Core\Contracts\Data\BrandPalette;
 use App\Modules\Core\Contracts\Data\OutgoingMail;
 use App\Modules\Core\Contracts\Enums\CompanyCode;
 use App\Modules\Core\Contracts\Enums\Dataset;
@@ -70,6 +71,15 @@ it('mails the recipients when the robot cartera of today is missing', function (
         ->toContain('Hoy no llegó ninguna carga de cartera del robot, ni siquiera rechazada')
         ->toContain('Tampoco hay una carga manual con corte de hoy.')
         ->and($mail->html)->toContain('href="'.route('ingesta.index').'"');
+
+    // Brand v2 of the company whose load is missing, without images.
+    $palette = BrandPalette::official(CompanyCode::SGX);
+
+    expect($mail->html)->toContain("font-family:Helvetica,Arial,'Helvetica Neue',sans-serif;")
+        ->toMatch('/<td style="[^"]*background:'.$palette->head.';border-bottom:4px solid '.$palette->accent.';">\s*<h1 style="[^"]*color:#ffffff;">/')
+        ->toMatch('/<h2 style="[^"]*color:'.$palette->ink.';">/')
+        ->toContain('background:'.$palette->button.';color:#ffffff;')
+        ->not->toContain('<img');
 });
 
 it('sends nothing before the deadline, even when the cartera is missing', function () {
@@ -141,7 +151,12 @@ it('checks every configured company', function () {
         ->expectsOutputToContain('Soluciones y Derivados: falta la cartera del robot; se envió la alerta')
         ->assertSuccessful();
 
-    expect(ingestaSentAlert($this->mail)->company)->toBe(CompanyCode::SDC);
+    $mail = ingestaSentAlert($this->mail);
+
+    // The SDC alert wears the SDC palette, never the Segurex one.
+    expect($mail->company)->toBe(CompanyCode::SDC)
+        ->and($mail->html)->toContain('background:'.BrandPalette::official(CompanyCode::SDC)->head.';')
+        ->not->toContain(BrandPalette::official(CompanyCode::SGX)->accent);
 });
 
 it('only logs a warning when there are no recipients', function () {
