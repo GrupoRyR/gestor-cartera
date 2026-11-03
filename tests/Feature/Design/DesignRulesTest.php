@@ -35,20 +35,36 @@ function designFiles(): array
  */
 function moduleScreenViews(): array
 {
-    $excluded = ['/pdf/', '/correos/', '/documentos/', '/alerta/', '/circularizacion/', '/components/correo.blade.php'];
+    // Matched against the path relative to app/Modules, so the checkout folder never decides.
+    $excluded = [
+        '/pdf/', '/correos/', '/documentos/', '/alerta/', '/circularizacion/', '/components/correo.blade.php',
+        'Core/resources/views/auditoria/alerta.blade.php', 'Core/resources/views/auth/aviso-rol.blade.php',
+    ];
+    $modules = str_replace('\\', '/', app_path('Modules')).'/';
     $views = [];
 
     foreach (File::glob(app_path('Modules/*/resources/views')) as $directory) {
         foreach (File::allFiles($directory) as $file) {
             $path = str_replace('\\', '/', $file->getPathname());
 
-            if (str_ends_with($path, '.blade.php') && ! Str::contains($path, $excluded)) {
+            if (str_ends_with($path, '.blade.php') && ! Str::contains(Str::after($path, $modules), $excluded)) {
                 $views[] = $path;
             }
         }
     }
 
     return $views;
+}
+
+/**
+ * Brand v1 tokens that brand v2 retired.
+ */
+function expectNoRetiredTokens(string $path, string $source): void
+{
+    // toMatch, not toContain: toContain is variadic and would read the message as a second needle.
+    expect($source)->not->toMatch('/brand-primary/', "{$path} uses the retired brand-primary alias; use brand-accent.")
+        ->not->toMatch('/fg-soft/', "{$path} uses the retired fg-soft color; use fg-muted, or inherit brand-text.")
+        ->not->toMatch('/\bfont-display\b/', "{$path} uses the retired display face.");
 }
 
 it('keeps the module screens on the brand v2 tokens, without the retired ones', function () {
@@ -59,11 +75,8 @@ it('keeps the module screens on the brand v2 tokens, without the retired ones', 
     foreach ($views as $path) {
         $source = (string) file_get_contents($path);
 
-        // toMatch, not toContain: toContain is variadic and would read the message as a second needle.
-        expect($source)->not->toMatch('/brand-primary/', "{$path} uses the retired brand-primary alias; use brand-accent.")
-            ->not->toMatch('/fg-soft/', "{$path} uses the retired fg-soft color; use fg-muted, or inherit brand-text.")
-            ->not->toMatch('/\bfont-display\b/', "{$path} uses the display face.")
-            ->not->toMatch('/tracking-\[-/', "{$path} tightens the letter spacing.");
+        expectNoRetiredTokens($path, $source);
+        expect($source)->not->toMatch('/tracking-\[-/', "{$path} tightens the letter spacing.");
     }
 });
 
@@ -94,11 +107,7 @@ it('writes the interface in sentence case, never in sustained capitals', functio
 
 it('no longer defines or uses the retired brand-primary, fg-soft and display font tokens', function () {
     foreach (designFiles() as $path) {
-        $source = (string) file_get_contents($path);
-
-        expect($source)->not->toMatch('/brand-primary/', "{$path} uses the retired brand-primary alias; use brand-accent.")
-            ->not->toMatch('/fg-soft/', "{$path} uses the retired fg-soft color; use fg-muted, or inherit brand-text.")
-            ->not->toMatch('/\bfont-display\b/', "{$path} uses the retired display font token.");
+        expectNoRetiredTokens($path, (string) file_get_contents($path));
     }
 });
 
