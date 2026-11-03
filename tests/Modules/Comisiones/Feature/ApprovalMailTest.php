@@ -5,6 +5,7 @@ use App\Modules\Comisiones\Infrastructure\Mail\SendApprovalMail;
 use App\Modules\Comisiones\Infrastructure\Persistence\BudgetRecord;
 use App\Modules\Comisiones\Infrastructure\Persistence\ObrRecord;
 use App\Modules\Comisiones\Infrastructure\Persistence\SettlementRecord;
+use App\Modules\Core\Contracts\Data\BrandPalette;
 use App\Modules\Core\Contracts\Data\MailAttachment;
 use App\Modules\Core\Contracts\Data\OutgoingMail;
 use App\Modules\Core\Contracts\Enums\CompanyCode;
@@ -139,6 +140,14 @@ it('mails the consolidated PDF from Segurex to the configured recipients when th
         ->toContain('03/08/2026 09:00')
         ->toContain('Consolidado_Comisiones_2026-07_v1.pdf')
         ->and($mail->attachments)->toHaveCount(1);
+
+    // Brand v2 of Segurex, the company that settles and sends it, without images.
+    $palette = BrandPalette::official(CompanyCode::SGX);
+
+    expect($mail->html)->toContain("font-family:Helvetica,Arial,'Helvetica Neue',sans-serif;")
+        ->toMatch('/<td style="[^"]*background:'.$palette->head.';border-bottom:4px solid '.$palette->accent.';">\s*<h1 style="[^"]*color:#ffffff;">/')
+        ->toContain('background:'.$palette->button.';color:#ffffff;')
+        ->not->toContain('<img');
 
     $attachment = $mail->attachments[0];
 

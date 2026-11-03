@@ -2,6 +2,7 @@
 
 use App\Modules\Core\Console\VerifyAuditChainCommand;
 use App\Modules\Core\Contracts\AuditLogger;
+use App\Modules\Core\Contracts\Data\BrandPalette;
 use App\Modules\Core\Contracts\Data\OutgoingMail;
 use App\Modules\Core\Contracts\MailSender;
 use Illuminate\Console\Scheduling\Event as ScheduledEvent;
@@ -68,6 +69,14 @@ function expectAuditFailure(FakeMailSender $mail, int $id, string $reason): void
         ->and($alert->html)->not->toContain('dato-privado')
         ->and($alert->html)->not->toContain('Persona')
         ->and($alert->subject)->not->toContain('dato-privado');
+
+    // A platform alert, of no one company: the neutral palette of brand v2, without images.
+    $palette = BrandPalette::neutral();
+
+    expect($alert->html)->toContain("font-family:Helvetica,Arial,'Helvetica Neue',sans-serif;")
+        ->toMatch('/<td style="[^"]*background:'.$palette->head.';border-bottom:4px solid '.$palette->accent.';">\s*<h1 style="[^"]*color:#ffffff;">/')
+        ->toMatch('/<h2 style="[^"]*color:'.$palette->ink.';">/')
+        ->not->toContain('<img');
 }
 
 it('passes an intact chain and writes the checkpoint', function () {

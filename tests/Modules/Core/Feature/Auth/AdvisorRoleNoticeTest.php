@@ -2,6 +2,7 @@
 
 use App\Models\User;
 use App\Modules\Core\Application\Auth\SignInWithMicrosoft;
+use App\Modules\Core\Contracts\Data\BrandPalette;
 use App\Modules\Core\Contracts\Data\OutgoingMail;
 use App\Modules\Core\Contracts\Enums\CompanyCode;
 use App\Modules\Core\Contracts\Enums\Role;
@@ -66,6 +67,15 @@ it('mails who became advisor, of which companies and through which SAP advisors'
         ->toContain('Empresas: Segurex Latam, Soluciones y Derivados')
         ->toContain('Asesores de SAP: Segurex Latam 12, Soluciones y Derivados 5')
         ->and($mail->html)->toContain(route('core.equipo.edit', ['user' => $user->id]));
+
+    // The role can cover both companies: the neutral palette of brand v2, without images.
+    $palette = BrandPalette::neutral();
+
+    expect($mail->html)->toContain("font-family:Helvetica,Arial,'Helvetica Neue',sans-serif;")
+        ->toMatch('/<td style="[^"]*background:'.$palette->head.';border-bottom:4px solid '.$palette->accent.';">\s*<h1 style="[^"]*color:#ffffff;">/')
+        ->toMatch('/<h2 style="[^"]*color:'.$palette->ink.';">/')
+        ->toContain('background:'.$palette->button.';color:#ffffff;')
+        ->not->toContain('<img');
 });
 
 it('mails nothing when the sign-in gives no role', function () {
