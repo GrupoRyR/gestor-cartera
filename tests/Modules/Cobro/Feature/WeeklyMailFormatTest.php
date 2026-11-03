@@ -112,6 +112,7 @@ it('lists every open invoice in the Segurex columns, overdue highlighted, with t
         ->and(substr_count($html, 'data-overdue="1"'))->toBe(1)
         ->and(substr_count($html, 'data-overdue="0"'))->toBe(2)
         ->and($html)->toContain('background:'.$palette->button.';color:#ffffff;')
+        ->toContain('data-overdue="1" style="background:#fde7e4;"')
         ->not->toContain('Mora')
         ->not->toContain('Moneda');
 });
@@ -119,6 +120,7 @@ it('lists every open invoice in the Segurex columns, overdue highlighted, with t
 it('writes the Derivados texts and columns, with the business unit', function () {
     $mail = cobroFormatRender(CompanyCode::SDC);
     $text = VisibleText::of($mail->html);
+    $palette = BrandPalette::official(CompanyCode::SDC);
 
     expect($mail->subject)->toBe('Cobro de cartera - Soluciones y Derivados de Colombia S.A.S')
         ->and($text)->toContain('Estimado cliente GALVIS ANAYA JUAN DE JESUS')
@@ -131,8 +133,20 @@ it('writes the Derivados texts and columns, with the business unit', function ()
         ])
         ->and($text)->toContain('13846973-1 DISTRIBUCION CN0294 GALVIS ANAYA JUAN DE JESUS 9952 26/08/2026 30 DIAS 26/09/2026 11 $ 4.732.906')
         ->not->toContain('JENNY ROCIO')
-        ->and($mail->html)->toContain('background:#d9d9d9;color:#111111;');
+        // The light header of the original, in the brand tint with the deep blue: 9.80:1.
+        ->and($mail->html)->toContain('background:'.$palette->tint.';color:'.$palette->ink.';');
 });
+
+it('sets the mail in Helvetica, with the company text color and its deep color for the title', function (CompanyCode $company) {
+    $html = cobroFormatRender($company)->html;
+    $palette = BrandPalette::official($company);
+
+    expect($html)->toContain("font-family:Helvetica,Arial,'Helvetica Neue',sans-serif;")
+        ->toMatch('/<body style="[^"]*color:'.$palette->text.';/')
+        ->toMatch('/<caption style="[^"]*color:'.$palette->ink.';/')
+        ->not->toContain('Arial,Helvetica,sans-serif')
+        ->not->toContain('<img');
+})->with([CompanyCode::SGX, CompanyCode::SDC]);
 
 it('names several overdue invoices and their due dates in one sentence', function () {
     $notice = cobroFormatNotice([

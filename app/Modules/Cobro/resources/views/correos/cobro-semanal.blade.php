@@ -10,6 +10,13 @@
     closing text. $company: Company; $data: NoticeData; $subject;
     $introHtml and $closingHtml: paragraphs as safe HTML (NoticeRenderer
     escaped them); $test; $draft.
+
+    Brand v2 colors, inline (mail clients ignore stylesheets): the company
+    header is the BrandPalette button behind white text (4.51:1 Segurex),
+    the light one the tint behind ink (9.80:1 SDC); the company name in
+    ink, the deep color for titles; overdue rows on the brand's error
+    background #fde7e4 (body text on it: 5.92:1 Segurex, 9.71:1 SDC);
+    #e3e0dd cell lines.
 --}}
 @php
     $palette = $company->palette;
@@ -17,8 +24,8 @@
     $brandHeader = WeeklyTable::headerStyle($company->code) === WeeklyTable::HEADER_BRAND;
     $head = $brandHeader
         ? "background:{$palette->button};color:#ffffff;"
-        : 'background:#d9d9d9;color:#111111;';
-    $cell = 'padding:4px 6px;border:1px solid #d9d9d9;font-size:12px;';
+        : "background:{$palette->tint};color:{$palette->ink};";
+    $cell = 'padding:4px 6px;border:1px solid #e3e0dd;font-size:12px;';
     // Only names may wrap; codes, dates, days and amounts stay on one line.
     $wrapping = ['comercial', 'razon_social', 'unidad_negocio'];
     $value = fn (string $key, $invoice): string => match ($key) {
@@ -42,7 +49,7 @@
     @endforeach
 
     <table role="table" cellpadding="0" cellspacing="0" style="border-collapse:collapse;margin:8px 0 18px;max-width:1000px;">
-        <caption style="caption-side:top;text-align:left;padding:10px 6px;font-size:22px;font-weight:bold;color:{{ $palette->button }};">{{ $company->name }}</caption>
+        <caption style="caption-side:top;text-align:left;padding:10px 6px;font-size:22px;font-weight:bold;color:{{ $palette->ink }};">{{ $company->name }}</caption>
         <thead>
             <tr>
                 @foreach ($columns as $column)
@@ -53,7 +60,7 @@
         <tbody>
             @foreach ($data->invoices as $invoice)
                 @php($overdue = $data::isOverdue($invoice))
-                <tr data-overdue="{{ $overdue ? '1' : '0' }}" style="{{ $overdue ? 'background:#fde2e2;' : 'background:#ffffff;' }}">
+                <tr data-overdue="{{ $overdue ? '1' : '0' }}" style="{{ $overdue ? 'background:#fde7e4;' : 'background:#ffffff;' }}">
                     @foreach ($columns as $column)
                         <td align="{{ $column['align'] }}" style="{{ $cell }}{{ in_array($column['key'], $wrapping, true) ? '' : 'white-space:nowrap;' }}">{{ $value($column['key'], $invoice) }}</td>
                     @endforeach

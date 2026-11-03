@@ -75,14 +75,14 @@ it('mails every client with a balance in its company format, at the close of the
         ->and($tornillo->company)->toBe(CompanyCode::SGX)
         ->and(VisibleText::of($tornillo->html))->toContain('FV-1188')->toContain('FV-1201')->toContain('FV-1250')
         ->toContain('Estimado cliente Ferretería El Tornillo SAS')
-        ->toContain('AL CIERRE DEL 31 DE OCTUBRE')
-        ->toContain('AVISO LEGAL:')
+        ->toContain('al cierre del 31 de octubre')
+        ->toContain('Aviso legal:')
         ->and($quimicos->to)->toBe(['pagos@quimicos.example'])
         ->and($quimicos->subject)->toBe('Circularización de Cartera – Corte al 31 de octubre del 2026')
         ->and($quimicos->company)->toBe(CompanyCode::SDC)
         ->and($quimicos->html)->toContain('Estimado cliente <strong>Químicos del Norte SAS</strong>')
-        ->not->toContain('ACLARAMOS')
-        ->not->toContain('AVISO LEGAL');
+        ->not->toContain('Aclaramos')
+        ->not->toContain('Aviso legal');
 
     foreach ($this->fakes->mail->sent() as $mail) {
         expect($mail->subject)->not->toContain('[Borrador]')
