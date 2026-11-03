@@ -17,8 +17,8 @@
     the entity, never its position, and tells the lines apart without color.
     $label names the chart for screen readers. $format is percent or money
     (axis text). The drawing says its values in <title> elements (hover and
-    screen readers). With several lines, each one ends in its name and the
-    legend under the drawing repeats the patterns; the page offers the same
+    screen readers). With several lines, each one ends in its short name and
+    the legend under the drawing repeats the patterns; the page offers the same
     numbers as a table.
 
     Tailwind only sees literal class names, so the tone table spells them out.
@@ -45,9 +45,10 @@
     $plot = $chart['plot'];
     $width = $chart['width'];
 
-    // End labels (several lines only): the series name right of its last
-    // point, nudged apart vertically so two labels never overlap, kept on
-    // the plot, and the drawing widened so no label is cut off.
+    // End labels (several lines only): the short name of the entity (as in
+    // the company switcher; the legend keeps the full name) right of its
+    // last point, nudged apart vertically so two labels never overlap, kept
+    // on the plot, and the drawing widened so no label is cut off.
     $labelGap = 14.0;
     $endLabels = [];
 
@@ -55,7 +56,8 @@
         foreach ($chart['lines'] as $line) {
             if ($line['points'] !== []) {
                 $last = $line['points'][array_key_last($line['points'])];
-                $endLabels[] = ['x' => $last['x'] + 8, 'y' => $last['y'], 'text' => $line['name'], 'class' => $tones[$line['tone']]['text']];
+                $text = $line['tone'] === 'brand' ? $line['name'] : __('gerencia::tablero.tendencia.etiqueta.'.$line['tone']);
+                $endLabels[] = ['x' => $last['x'] + 8, 'y' => $last['y'], 'text' => $text, 'class' => $tones[$line['tone']]['text']];
             }
         }
 

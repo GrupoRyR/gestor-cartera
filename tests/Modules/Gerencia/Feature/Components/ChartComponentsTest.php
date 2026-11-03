@@ -34,7 +34,10 @@ describe('line chart', function () {
         $ys = array_map(fn ($label): float => (float) $label->getAttribute('y'), $labels);
         sort($ys);
 
-        expect($labels)->toHaveCount(4);
+        // Short names, so the drawing stays close to its 480 units.
+        expect($labels)->toHaveCount(4)
+            ->and(array_map(fn ($label): string => $label->textContent, $labels))->toEqualCanonicalizing(['Grupo', 'Segurex', 'SDC', 'Segurex'])
+            ->and($width)->toBeLessThanOrEqual(520.0);
 
         foreach ($labels as $label) {
             $x = (float) $label->getAttribute('x');

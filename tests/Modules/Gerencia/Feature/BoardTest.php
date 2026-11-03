@@ -227,10 +227,12 @@ it('draws the group view in grays, one line pattern per entity, with the legend 
         ->and($swatches[1])->toContain('border-fg-muted', 'border-dashed')
         ->and($swatches[2])->toContain('border-fg-muted', 'border-dotted');
 
-    // One label at the end of every line, named after its series.
+    // One short label at the end of every line (as in the company switcher); the legend keeps the full names.
     $labels = array_map(fn ($text): string => $text->textContent, $html->all("{$line}//text[@data-part='end-label']"));
+    $legend = array_map(fn ($item): string => Html::clean($item->textContent), $html->all("{$line}//ul[@data-part='legend']/li"));
 
-    expect($labels)->toEqualCanonicalizing(['Grupo RYR', CompanyCode::SGX->label(), CompanyCode::SDC->label()]);
+    expect($labels)->toEqualCanonicalizing(['Grupo', 'Segurex', 'SDC'])
+        ->and($legend)->toBe(['Grupo RYR', CompanyCode::SGX->label(), CompanyCode::SDC->label()]);
 });
 
 it('draws a single company in the accent of its brand, without legend or end labels', function (CompanyCode $company) {
