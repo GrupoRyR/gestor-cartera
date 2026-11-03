@@ -6,9 +6,19 @@
     The consolidated report (§8.1) as a letter landscape PDF, drawn by dompdf
     (ConsolidatedController::pdf). This is a document, not a screen: dompdf
     needs its CSS in the page and cannot use the app components or the
-    --brand-* variables, so the colors come from the SGX palette passed in as
-    $palette and nothing here writes a color of its own. Tables only, because
-    dompdf does not lay out flex or grid; table headers repeat on every page.
+    --brand-* variables, so the company colors come from the SGX palette
+    passed in as $palette and the only literal colors are white and the
+    neutral grays of the brand tokens. Tables only, because dompdf does not
+    lay out flex or grid; table headers repeat on every page.
+
+    Brand v2 for reports (references/documentos.md of the skill), without
+    the logo, which is separate work: the head band behind the white title
+    (7.01:1) over an accent rule, the version line in text (7.01:1) and the
+    generation line in gray #6a6b6e (5.33:1), section titles and totals in
+    ink (7.10:1 on white, 6.21:1 on tint), long text in text, light tint
+    table headers with ink text and thin gray lines. Helvetica is a dompdf
+    core font, so the PDF embeds no font file; accents, ñ, «—» and «·» are
+    in its encoding.
 
     $report: ConsolidatedReport; $palette: BrandPalette; $generatedAt; $generatedBy.
 --}}
@@ -24,33 +34,37 @@
     <title>{{ $report->title }}</title>
     <style>
         @page { margin: 28px 30px 36px 30px; }
-        body { font-family: "DejaVu Sans", sans-serif; font-size: 9px; line-height: 1.35; color: {{ $palette->ink }}; }
-        .bar { height: 6px; background: {{ $palette->accent }}; }
-        h1 { margin: 12px 0 2px 0; font-size: 15px; }
-        h2 { margin: 18px 0 6px 0; font-size: 11px; }
-        h3 { margin: 12px 0 4px 0; font-size: 10px; }
+        body { font-family: Helvetica, Arial, "Helvetica Neue", sans-serif; font-size: 9px; line-height: 1.35; color: {{ $palette->text }}; }
+        h1 { margin: 0; font-size: 16px; line-height: 1.25; }
+        h2 { margin: 18px 0 6px 0; font-size: 11px; color: {{ $palette->ink }}; }
+        h3 { margin: 12px 0 4px 0; font-size: 10px; color: {{ $palette->ink }}; }
         p { margin: 0; }
         table { width: 100%; border-collapse: collapse; }
         thead { display: table-header-group; }
         tr { page-break-inside: avoid; }
-        th { text-align: left; font-size: 8px; padding: 4px 5px; background: {{ $palette->tint }}; border-bottom: 1px solid {{ $palette->accent }}; }
-        td { padding: 4px 5px; border-bottom: 1px solid {{ $palette->tint }}; vertical-align: top; }
-        tfoot td, tfoot th { font-weight: bold; background: {{ $palette->tint }}; border-bottom: 0; }
+        th { text-align: left; font-size: 8px; padding: 4px 5px; color: {{ $palette->ink }}; background: {{ $palette->tint }}; border-bottom: 1px solid {{ $palette->accent }}; }
+        td { padding: 4px 5px; border-bottom: 0.5px solid #e3e0dd; vertical-align: top; }
+        tfoot td, tfoot th { font-weight: bold; color: {{ $palette->ink }}; background: {{ $palette->tint }}; border-top: 0.5px solid #e3e0dd; border-bottom: 0; }
+        tfoot tr:first-child td { border-top: 1px solid {{ $palette->ink }}; }
         .end { text-align: right; }
-        .muted { opacity: 0.75; }
-        .head td { border: 0; padding: 0; }
+        .muted { color: #6a6b6e; }
+        .band td { padding: 12px 14px; background: {{ $palette->head }}; border-bottom: 3px solid {{ $palette->accent }}; }
+        .band h1 { color: #ffffff; }
+        .meta { margin-top: 6px; }
+        .meta td { border: 0; padding: 0; }
         .team { margin-top: 8px; }
     </style>
 </head>
 <body>
-    <div class="bar"></div>
-
-    <table class="head">
+    <table class="band">
         <tr>
-            <td>
-                <h1>{{ $report->title }}</h1>
-                <p>{{ $report->versionLine() }}</p>
-            </td>
+            <td><h1>{{ $report->title }}</h1></td>
+        </tr>
+    </table>
+
+    <table class="meta">
+        <tr>
+            <td><p>{{ $report->versionLine() }}</p></td>
             <td class="end">
                 <p class="muted">{{ __('comisiones::consolidado.generado', ['fecha' => DateFormat::dateTime($generatedAt), 'nombre' => $generatedBy ?? '—']) }}</p>
             </td>
