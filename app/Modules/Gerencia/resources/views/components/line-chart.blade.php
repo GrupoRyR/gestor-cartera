@@ -25,7 +25,7 @@
         'group' => ['stroke' => 'stroke-fg-muted', 'fill' => 'fill-fg-muted', 'swatch' => 'border-fg-muted', 'dashed' => true],
         'sgx' => ['stroke' => 'stroke-viz-1', 'fill' => 'fill-viz-1', 'swatch' => 'border-viz-1', 'dashed' => false],
         'sdc' => ['stroke' => 'stroke-viz-2', 'fill' => 'fill-viz-2', 'swatch' => 'border-viz-2', 'dashed' => false],
-        'neutral' => ['stroke' => 'stroke-fg-soft', 'fill' => 'fill-fg-soft', 'swatch' => 'border-fg-soft', 'dashed' => false],
+        'neutral' => ['stroke' => 'stroke-fg-muted', 'fill' => 'fill-fg-muted', 'swatch' => 'border-fg-muted', 'dashed' => false],
     ];
 
     foreach ($series as $line) {
@@ -74,7 +74,7 @@
     </svg>
 
     @if (count($chart['lines']) > 1)
-        <ul data-part="legend" class="flex flex-wrap gap-x-5 gap-y-1.5 text-sm text-fg-soft">
+        <ul data-part="legend" class="flex flex-wrap gap-x-5 gap-y-1.5 text-sm text-fg-muted">
             @foreach ($chart['lines'] as $line)
                 @php($tone = $tones[$line['tone']])
                 <li class="flex items-center gap-2">

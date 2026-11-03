@@ -13,7 +13,7 @@
                 @endif
 
                 @if ($activity->details)
-                    <p class="mt-1 text-sm whitespace-pre-line text-fg-soft [overflow-wrap:anywhere]">{{ $activity->details }}</p>
+                    <p class="mt-1 text-sm whitespace-pre-line [overflow-wrap:anywhere]">{{ $activity->details }}</p>
                 @endif
 
                 <p class="mt-1 text-sm text-fg-muted">

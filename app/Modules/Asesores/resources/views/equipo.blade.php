@@ -31,7 +31,7 @@
         @if ($team->rows === [])
             <x-ui.empty icon="users" :title="__('asesores::equipo.vacio.titulo')" :description="__('asesores::equipo.vacio.detalle')" />
         @else
-            <p data-part="summary" class="text-sm text-fg-soft">
+            <p data-part="summary" class="text-sm text-fg-muted">
                 {{ trans_choice('asesores::equipo.resumen', count($team->rows), ['asesores' => count($team->rows), 'vencido' => Money::format($team->overdue)]) }}
             </p>
 
@@ -50,7 +50,7 @@
                         <td>
                             <span class="flex items-center gap-3">
                                 <span aria-hidden="true" class="h-3 w-20 shrink-0 overflow-hidden rounded-full bg-subtle">
-                                    <span class="block h-full rounded-full bg-brand-primary" style="width: {{ $row->width }}%"></span>
+                                    <span class="block h-full rounded-full bg-brand-accent" style="width: {{ $row->width }}%"></span>
                                 </span>
                                 <span class="tabular-nums">
                                     <x-ui.money :value="$row->totals->overdue" class="font-semibold" />

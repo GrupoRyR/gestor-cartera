@@ -178,9 +178,9 @@
                         @endif
 
                         @if ($blocking === [])
-                            <p class="text-[0.9375rem] text-fg-soft">{{ __('comisiones::liquidacion.aprobacion.sin_bloqueantes') }}</p>
+                            <p class="text-[0.9375rem] text-fg-muted">{{ __('comisiones::liquidacion.aprobacion.sin_bloqueantes') }}</p>
                         @else
-                            <p class="text-[0.9375rem] text-fg-soft">{{ __('comisiones::liquidacion.aprobacion.justificar') }}</p>
+                            <p class="text-[0.9375rem] text-fg-muted">{{ __('comisiones::liquidacion.aprobacion.justificar') }}</p>
 
                             @foreach ($blocking as $index => $alert)
                                 <input type="hidden" name="justificaciones[{{ $index }}][clave]" value="{{ $alert->key() }}">
@@ -242,7 +242,7 @@
                 <x-ui.modal id="complementaria" :title="__('comisiones::liquidacion.acciones.complementaria')" :open="$errors->has('motivo')">
                     <form id="form-complementaria" method="POST" action="{{ route('comisiones.periodos.complementaria', $period->key()) }}" class="flex flex-col gap-4">
                         @csrf
-                        <p class="text-[0.9375rem] text-fg-soft">{{ __('comisiones::liquidacion.acciones.complementaria_ayuda') }}</p>
+                        <p class="text-[0.9375rem] text-fg-muted">{{ __('comisiones::liquidacion.acciones.complementaria_ayuda') }}</p>
                         <x-ui.textarea name="motivo" :label="__('comisiones::liquidacion.acciones.motivo')" :hint="__('comisiones::liquidacion.acciones.motivo_ayuda')" :required="true" :rows="3" />
                     </form>
 

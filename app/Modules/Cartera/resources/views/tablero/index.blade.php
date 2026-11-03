@@ -127,7 +127,7 @@
                         <div class="grid gap-6 md:grid-cols-2">
                             @foreach ($dashboard->comparison as $figures)
                                 <div>
-                                    <h3 class="mb-3 text-sm font-semibold text-fg-soft">{{ __('cartera::tablero.comparacion.composicion', ['empresa' => $figures->company->name]) }}</h3>
+                                    <h3 class="mb-3 text-sm font-semibold text-fg">{{ __('cartera::tablero.comparacion.composicion', ['empresa' => $figures->company->name]) }}</h3>
                                     <x-cartera::aging-bar
                                         :slices="AgingSlices::from($figures->totals->aging)"
                                         :label="__('cartera::tablero.comparacion.composicion', ['empresa' => $figures->company->name])"
@@ -214,7 +214,7 @@
                         <div class="flex items-start gap-3 border-b border-line py-3 first:pt-0 last:border-b-0 last:pb-0">
                             <div class="min-w-0 flex-1">
                                 <p><x-cartera::client-link :id="$activity->clientId" :name="$activity->clientName" /></p>
-                                <p class="text-sm text-fg-soft [overflow-wrap:anywhere]">
+                                <p class="text-sm [overflow-wrap:anywhere]">
                                     <x-ui.chip :dot="false">{{ $activity->type->label() }}</x-ui.chip>
                                     {{ $activity->result ?? $activity->summary }}
                                 </p>

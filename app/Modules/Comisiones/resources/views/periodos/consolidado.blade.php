@@ -55,7 +55,7 @@
     <div class="flex flex-col gap-6">
         <div class="flex flex-wrap items-center gap-3">
             <x-ui.chip :tone="Labels::statusTone($settlement->status)">{{ $report->status }}</x-ui.chip>
-            <span class="text-[0.9375rem] text-fg-soft">{{ __('comisiones::comun.version_revision', ['version' => $settlement->version, 'revision' => $settlement->revision]) }}</span>
+            <span class="text-[0.9375rem] text-fg-muted">{{ __('comisiones::comun.version_revision', ['version' => $settlement->version, 'revision' => $settlement->revision]) }}</span>
         </div>
 
         @if ($settlement->status !== SettlementStatus::Closed)
@@ -119,7 +119,7 @@
         </x-ui.card>
 
         <section aria-labelledby="directores-titulo" class="flex flex-col gap-4">
-            <h2 id="directores-titulo" class="text-lg leading-snug font-bold">{{ __('comisiones::consolidado.directores.titulo') }}</h2>
+            <h2 id="directores-titulo" class="text-lg leading-snug font-bold text-fg">{{ __('comisiones::consolidado.directores.titulo') }}</h2>
 
             <div class="grid gap-6 xl:grid-cols-2">
                 @foreach ($report->directors as $director)

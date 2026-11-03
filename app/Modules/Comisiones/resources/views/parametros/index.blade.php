@@ -50,7 +50,7 @@
             <x-ui.alert tone="info">{{ __('comisiones::parametros.cierre', ['fin' => Labels::day($closed->end()), 'mes' => Labels::month($closed)]) }}</x-ui.alert>
         @endif
 
-        <p class="text-sm text-fg-soft">{{ __('comisiones::parametros.fecha.viendo', ['fecha' => $dayLabel]) }}</p>
+        <p class="text-sm text-fg-muted">{{ __('comisiones::parametros.fecha.viendo', ['fecha' => $dayLabel]) }}</p>
 
         @include('comisiones::parametros.pestanas.'.$tab, ['kind' => $kind, 'entries' => $entries, 'defaults' => $defaults, 'day' => $day, 'canAdd' => $canAdd])
     </div>

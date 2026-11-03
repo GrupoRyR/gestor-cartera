@@ -33,7 +33,7 @@
                 <td data-col="punto" class="whitespace-nowrap">{{ OptionFields::point($field) }}</td>
                 <td data-col="opcion" class="min-w-48 font-semibold">{{ OptionFields::label($field) }}</td>
                 <td data-col="valor" class="min-w-40">{{ OptionFields::display($field, $data[$field] ?? null) }}</td>
-                <td data-col="detalle" class="min-w-64 text-sm text-fg-soft">{{ OptionFields::hint($field) }}</td>
+                <td data-col="detalle" class="min-w-64 text-sm text-fg-muted">{{ OptionFields::hint($field) }}</td>
             </tr>
         @endforeach
     </x-ui.table>

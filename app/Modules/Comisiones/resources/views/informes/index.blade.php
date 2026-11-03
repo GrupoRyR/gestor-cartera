@@ -55,7 +55,7 @@
         <div class="flex flex-col gap-6">
             <div class="flex flex-wrap items-center gap-3">
                 <x-ui.chip :tone="Labels::statusTone($settlement->status)">{{ Labels::status($settlement->status) }}</x-ui.chip>
-                <span class="text-[0.9375rem] text-fg-soft">{{ __('comisiones::comun.version_revision', ['version' => $settlement->version, 'revision' => $settlement->revision]) }}</span>
+                <span class="text-[0.9375rem] text-fg-muted">{{ __('comisiones::comun.version_revision', ['version' => $settlement->version, 'revision' => $settlement->revision]) }}</span>
             </div>
 
             <x-ui.card :title="__('comisiones::informes.recaudo.titulo')">

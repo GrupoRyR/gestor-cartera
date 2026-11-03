@@ -25,7 +25,7 @@
 
     <div class="flex flex-col gap-6">
         @if ($load->file_name)
-            <p class="text-fg-soft">{{ $load->file_name }}</p>
+            <p class="text-fg-muted">{{ $load->file_name }}</p>
         @endif
 
         <div class="grid grid-cols-1 gap-3 min-[22rem]:grid-cols-2 md:gap-4 lg:grid-cols-3">
@@ -51,7 +51,7 @@
                 </x-ui.table>
 
                 @if ($load->error_count > count($load->errors))
-                    <p class="mt-3 text-sm text-fg-soft">{{ __('bancos::cargas.detalle.recortado') }}</p>
+                    <p class="mt-3 text-sm text-fg-muted">{{ __('bancos::cargas.detalle.recortado') }}</p>
                 @endif
             @endif
         </x-ui.card>

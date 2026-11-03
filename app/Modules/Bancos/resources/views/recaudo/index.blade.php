@@ -102,8 +102,8 @@
                 @endif
 
                 <div class="mt-6">
-                    <h3 class="text-base font-semibold">{{ __('bancos::recaudo.web.dia.por_banco') }}</h3>
-                    <p class="mb-3 text-sm text-fg-soft">{{ __('bancos::recaudo.web.dia.por_banco_descripcion') }}</p>
+                    <h3 class="text-base font-semibold text-fg">{{ __('bancos::recaudo.web.dia.por_banco') }}</h3>
+                    <p class="mb-3 text-sm text-fg-muted">{{ __('bancos::recaudo.web.dia.por_banco_descripcion') }}</p>
 
                     <x-ui.table :caption="__('bancos::recaudo.web.dia.tabla')" :caption-hidden="true" :columns="$bankColumns">
                         @foreach (Bank::cases() as $bank)

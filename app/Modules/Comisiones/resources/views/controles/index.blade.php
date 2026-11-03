@@ -31,7 +31,7 @@
         <div class="flex flex-col gap-6">
             <div class="flex flex-wrap items-center gap-3">
                 <x-ui.chip :tone="Labels::statusTone($settlement->status)">{{ Labels::status($settlement->status) }}</x-ui.chip>
-                <span class="text-[0.9375rem] text-fg-soft">{{ __('comisiones::comun.version_revision', ['version' => $settlement->version, 'revision' => $settlement->revision]) }}</span>
+                <span class="text-[0.9375rem] text-fg-muted">{{ __('comisiones::comun.version_revision', ['version' => $settlement->version, 'revision' => $settlement->revision]) }}</span>
             </div>
 
             <div class="grid gap-6 xl:grid-cols-2">
@@ -66,7 +66,7 @@
                         <div><dt class="{{ $dt }}">{{ __('comisiones::controles.informes.total_pdf') }}</dt><dd class="{{ $dd }}"><x-ui.money :value="$controls->reportsTotal()->amount()" /></dd></div>
                         <div><dt class="{{ $dt }}">{{ __('comisiones::controles.informes.consolidado') }}</dt><dd class="{{ $dd }}"><x-ui.money :value="$controls->consolidatedCollections->amount()" /></dd></div>
                     </dl>
-                    <div class="mt-4 flex flex-col gap-1 text-[0.9375rem] text-fg-soft">
+                    <div class="mt-4 flex flex-col gap-1 text-[0.9375rem] text-fg-muted">
                         @if ($mismatched !== [])
                             <p class="font-semibold text-fg">{{ __('comisiones::controles.informes.no_cuadran', ['referencias' => implode(', ', array_map(fn ($report) => $report->reference, $mismatched))]) }}</p>
                         @endif
@@ -108,7 +108,7 @@
                 @php($status = $controls->idempotency())
                 <x-ui.card :title="__('comisiones::controles.duplicados.titulo')" :description="__('comisiones::controles.duplicados.descripcion')" data-control="9.5" data-status="{{ $status->value }}">
                     <x-slot:actions><x-ui.chip :tone="$status->tone()">{{ $status->label() }}</x-ui.chip></x-slot:actions>
-                    <p class="mb-3 text-[0.9375rem] text-fg-soft">{{ trans_choice('comisiones::controles.duplicados.alertas', $controls->duplicates, ['cantidad' => $controls->duplicates]) }}</p>
+                    <p class="mb-3 text-[0.9375rem] text-fg-muted">{{ trans_choice('comisiones::controles.duplicados.alertas', $controls->duplicates, ['cantidad' => $controls->duplicates]) }}</p>
                     <x-ui.table :caption="__('comisiones::controles.duplicados.tabla')" :caption-hidden="true" :columns="[
                         ['key' => 'archivo', 'label' => __('comisiones::controles.duplicados.columnas.archivo')],
                         ['key' => 'filas', 'label' => __('comisiones::controles.duplicados.columnas.filas'), 'align' => 'end'],

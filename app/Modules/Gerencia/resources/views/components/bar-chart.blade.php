@@ -21,7 +21,7 @@
         'group' => 'fill-fg-muted',
         'sgx' => 'fill-viz-1',
         'sdc' => 'fill-viz-2',
-        'neutral' => 'fill-fg-soft',
+        'neutral' => 'fill-fg-muted',
     ];
 
     if (! isset($fills[$tone])) {

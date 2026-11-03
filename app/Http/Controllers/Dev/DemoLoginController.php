@@ -133,11 +133,11 @@ final class DemoLoginController
                         <x-ui.card :title="$user['name']" :description="$user['email']">
                             <dl class="grid gap-2 text-sm">
                                 <div>
-                                    <dt class="text-fg-soft">Rol</dt>
+                                    <dt class="text-fg-muted">Rol</dt>
                                     <dd>{{ $user['roles'] }}</dd>
                                 </div>
                                 <div>
-                                    <dt class="text-fg-soft">Empresas</dt>
+                                    <dt class="text-fg-muted">Empresas</dt>
                                     <dd>{{ $user['companies'] }}</dd>
                                 </div>
                             </dl>

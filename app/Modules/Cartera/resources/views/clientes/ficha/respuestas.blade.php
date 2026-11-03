@@ -19,7 +19,7 @@
                     <p class="mt-1 text-sm [overflow-wrap:anywhere]">{{ __('cartera::ficha.respuestas.rebote_motivo', ['motivo' => $mail->bounceReason]) }}</p>
                 @endif
 
-                <p class="mt-1 text-sm text-fg-soft [overflow-wrap:anywhere]">{{ $mail->preview }}</p>
+                <p class="mt-1 text-sm [overflow-wrap:anywhere]">{{ $mail->preview }}</p>
 
                 <p class="mt-1 flex flex-wrap items-center gap-x-3 text-sm text-fg-muted">
                     <span class="min-w-0 [overflow-wrap:anywhere]">{{ __('cartera::ficha.respuestas.de', ['remitente' => $mail->from]) }}</span>

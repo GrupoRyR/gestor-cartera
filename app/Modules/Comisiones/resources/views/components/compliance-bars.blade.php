@@ -29,7 +29,7 @@
                     };
                 @endphp
                 <li data-bar="{{ $code->code() }}" class="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 gap-y-1.5 @xl:grid-cols-[12rem_minmax(0,1fr)_minmax(13rem,auto)]">
-                    <span class="min-w-0 truncate text-sm font-semibold text-fg-soft @xl:col-start-1 @xl:row-start-1">{{ $code->code() }} · {{ $code->rule->name }}</span>
+                    <span class="min-w-0 truncate text-sm font-semibold text-fg-muted @xl:col-start-1 @xl:row-start-1">{{ $code->code() }} · {{ $code->rule->name }}</span>
                     <span class="text-end text-sm @xl:col-start-3 @xl:row-start-1">
                         <span class="font-semibold tabular-nums">{{ Labels::percent($code->compliance) }}</span>
                         <span class="text-fg-muted">· {{ $verdict }}</span>
