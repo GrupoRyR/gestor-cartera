@@ -67,7 +67,8 @@ if (-not $SshHost -or -not $AppDir) {
 
 # Strict validation, so nothing unexpected reaches the remote shell.
 $safe = '^[A-Za-z0-9._/~-]+$'
-if ($SshHost -notmatch '^[A-Za-z0-9._@-]+$') { Stop-Deploy "Invalid SshHost: $SshHost" }
+# A leading '-' would reach ssh as an option, not as a host.
+if ($SshHost -notmatch '^[A-Za-z0-9][A-Za-z0-9._@-]*$') { Stop-Deploy "Invalid SshHost: $SshHost" }
 if ($AppDir -notmatch $safe -or $AppDir.StartsWith('/') -or $AppDir.Contains('..')) {
     Stop-Deploy "AppDir must be relative to the home folder, without '..': $AppDir"
 }
@@ -76,9 +77,16 @@ if ($ComposerBin -and $ComposerBin -notmatch '^[A-Za-z0-9._/~ -]+$') {
     Stop-Deploy "Invalid ComposerBin: $ComposerBin"
 }
 
+# deploy.sh expands PHP and COMPOSER_BIN without tilde expansion, so a "~/"
+# path is sent as "$HOME/" inside double quotes and the remote shell expands
+# it. The validation above already rules out quotes, '$' and backticks.
+function ConvertTo-RemoteValue([string]$value) {
+    return '"' + ($value -replace '(^|\s)~/', '$1$$HOME/') + '"'
+}
+
 $prefix = ''
-if ($Php)         { $prefix += "PHP='$Php' " }
-if ($ComposerBin) { $prefix += "COMPOSER_BIN='$ComposerBin' " }
+if ($Php)         { $prefix += 'PHP=' + (ConvertTo-RemoteValue $Php) + ' ' }
+if ($ComposerBin) { $prefix += 'COMPOSER_BIN=' + (ConvertTo-RemoteValue $ComposerBin) + ' ' }
 $remote = "cd ~/$AppDir && ${prefix}bash deploy/deploy.sh"
 
 Write-Host "Server: $SshHost"

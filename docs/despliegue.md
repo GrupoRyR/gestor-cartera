@@ -25,8 +25,9 @@ Checklist de la primera instalación y del despliegue de rutina. Complementa `do
 
 ## 1. Acceso SSH desde el PC
 
-1. En cPanel › Security › SSH Access › Manage SSH Keys, importa la llave **pública** de tu PC (`~/.ssh/id_ed25519.pub`) y autorízala.
-2. En el PC, agrega a `~/.ssh/config` (con el usuario y el servidor que te dio GoDaddy):
+1. En el panel de GoDaddy del hosting (Configuración › Servidor › Acceso SSH), activa SSH. Viene apagado, y sin él `ssh` no conecta aunque la llave esté bien.
+2. En cPanel › Security › SSH Access › Manage SSH Keys, importa la llave **pública** de tu PC (`~/.ssh/id_ed25519.pub`) y autorízala.
+3. En el PC, agrega a `~/.ssh/config` (con el usuario y el servidor que te dio GoDaddy):
 
    ```text
    Host cartera-cpanel
@@ -36,7 +37,7 @@ Checklist de la primera instalación y del despliegue de rutina. Complementa `do
        IdentitiesOnly yes
    ```
 
-3. Prueba con `ssh cartera-cpanel "echo ok"`. Debe entrar sin pedir contraseña.
+4. Prueba con `ssh cartera-cpanel "echo ok"`. Debe entrar sin pedir contraseña.
 
 ## 2. PHP y Composer
 
@@ -51,7 +52,9 @@ Todos estos comandos se corren en el servidor (`ssh cartera-cpanel`).
   /opt/cpanel/ea-php83/root/usr/bin/php -v
   ```
 
-- [ ] `composer --version`. Si no existe, usa `composer.phar` y `COMPOSER_BIN="<php-8.3> ~/composer.phar"`.
+- [ ] `composer --version`. Si no existe, usa `composer.phar` en el home:
+  - En la terminal del servidor: `COMPOSER_BIN="<php-8.3> $HOME/composer.phar"`. Con `~` no funciona, porque `deploy.sh` no lo expande.
+  - En `.cpanel-deploy.conf`: `COMPOSER_BIN=<php-8.3> ~/composer.phar`. El script del PC convierte `~/` en `$HOME/`.
 - [ ] En cPanel › MultiPHP INI Editor, activa `zend.exception_ignore_args = On` (auditoría S-29): las trazas del log no guardan argumentos.
 
 ## 3. Llave de despliegue de GitHub
@@ -267,7 +270,7 @@ En el PC con la VPN Sophos, desde la raíz del repositorio (`etl/README.md`):
   cd ~/gestor-cartera && <php-8.3> artisan tinker --execute="App\Models\User::where('email', '<tu-correo>')->firstOrFail()->assignRole('admin');"
   ```
 
-  Los demás roles se dan desde la pantalla Equipo.
+  Los demás roles y las empresas (SGX, SDC) se dan desde la pantalla Equipo. `admin` no tiene el permiso `cobro.manage`. Por eso las copias y los envíos de prueba de abajo los hace alguien con `gerente_cartera` o `analista_cartera`. Dale ese rol en Equipo antes de seguir.
 - [ ] Rol de aprobadora de comisiones:
 
   ```bash

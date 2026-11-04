@@ -13,7 +13,8 @@
 #
 # Optional variables:
 #   PHP=/usr/local/bin/php                PHP binary (the same one the cPanel cron uses)
-#   COMPOSER_BIN="php ~/composer.phar"    Composer command when `composer` is not on PATH
+#   COMPOSER_BIN="php $HOME/composer.phar"    Composer command when `composer` is not on PATH
+#                                            ($HOME, not ~: the value is never tilde-expanded)
 #
 # COMPOSER_BIN, not COMPOSER: Composer reads COMPOSER as the composer.json name.
 

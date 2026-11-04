@@ -1092,7 +1092,7 @@ También rechaza esas seis variables si ya vienen en el entorno de la sesión SS
 
 El despliegue ya no corre `storage:link`. Ningún módulo usa el disco `public`, `config/filesystems.php` no define enlaces y el disco privado no se sirve por `/storage/{path}` (`'serve' => false`, auditoría S-27). Si un servidor ya tiene `public/storage` de un despliegue anterior, bórralo: hoy apunta a una carpeta vacía.
 
-Variables opcionales: `PHP` (el mismo binario del cron) y `COMPOSER_BIN` (p. ej. `"php ~/composer.phar"`). El script no compila assets ni contiene secretos.
+Variables opcionales: `PHP` (el mismo binario del cron) y `COMPOSER_BIN` (p. ej. `"php $HOME/composer.phar"`; con `~` no funciona, porque el valor no se expande). El script no compila assets ni contiene secretos.
 
 **Servidor:**
 

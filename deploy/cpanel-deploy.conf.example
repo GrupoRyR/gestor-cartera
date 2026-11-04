@@ -19,4 +19,5 @@ APP_DIR=gestor-cartera
 # PHP: the server's PHP 8.3 binary; use the same one as the cPanel cron.
 PHP=
 # COMPOSER_BIN: when the server has no `composer`, e.g. php ~/composer.phar
+# (deploy-remoto.ps1 sends a leading ~/ as $HOME/, which the server expands).
 COMPOSER_BIN=
