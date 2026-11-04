@@ -1,0 +1,22 @@
+# Local settings for deploy/deploy-remoto.ps1 (no secrets).
+# Copy it as .cpanel-deploy.conf at the repository root; that file is
+# gitignored because it describes this PC, not the project.
+#
+# SSH_HOST: an alias from ~/.ssh/config on THIS PC that points at the cPanel
+# account (see docs/despliegue.md, step 1), for example:
+#   Host cartera-cpanel
+#       HostName <cpanel-server-host>
+#       User <cpanel-user>
+#       IdentityFile ~/.ssh/id_ed25519
+#       IdentitiesOnly yes
+# SSH keys only: the script uses BatchMode and never asks for a password.
+SSH_HOST=cartera-cpanel
+
+# APP_DIR: the app folder relative to the cPanel user's home (no /home/<user>/).
+APP_DIR=gestor-cartera
+
+# Optional (leave empty when not needed):
+# PHP: the server's PHP 8.3 binary; use the same one as the cPanel cron.
+PHP=
+# COMPOSER_BIN: when the server has no `composer`, e.g. php ~/composer.phar
+COMPOSER_BIN=
