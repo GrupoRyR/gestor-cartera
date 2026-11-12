@@ -12,6 +12,12 @@ return [
         'todos_estados' => 'Todos los estados',
         'asesor' => 'Asesor',
         'todos_asesores' => 'Todos los asesores',
+        'gestor' => 'Gestor',
+        'gestor_opciones' => [
+            'todos' => 'Toda la cartera',
+            'mios' => 'Mi cartera',
+            'sin_asignar' => 'Sin asignar',
+        ],
         'vencidos' => 'Solo clientes con cartera vencida',
         'sin_gestion' => 'Solo vencidos sin gestión en los últimos :dias días',
         'aplicar' => 'Aplicar filtros',

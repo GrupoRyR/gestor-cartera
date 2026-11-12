@@ -102,7 +102,7 @@ describe('the client list', function () {
             taxId: '0900123456',
         );
 
-        $sheets = workbookOf($this->actingAs(CarteraUsers::analyst())->get('/cartera/clientes/exportar'));
+        $sheets = workbookOf($this->actingAs(CarteraUsers::manager())->get('/cartera/clientes/exportar'));
 
         expect(array_keys($sheets))->toBe(['Clientes'])
             ->and($sheets['Clientes'][0])->toBe(['Empresa', 'Código SAP', 'Cliente', 'NIT', 'Estado', 'Total', 'Vencido', 'Días de mora', 'Asesor', 'Gestor responsable', 'Última gestión'])
@@ -116,7 +116,7 @@ describe('the client list', function () {
     it('leaves empty what a client does not have', function () {
         CarteraWorld::client($this->fakes, name: 'Cliente solo', notDue: 100_000);
 
-        $row = workbookOf($this->actingAs(CarteraUsers::analyst())->get('/cartera/clientes/exportar'))['Clientes'][1];
+        $row = workbookOf($this->actingAs(CarteraUsers::manager())->get('/cartera/clientes/exportar'))['Clientes'][1];
 
         expect($row[8])->toBe('')->and($row[9])->toBe('')->and($row[10])->toBe('');
     });
@@ -128,7 +128,7 @@ describe('the client list', function () {
         CarteraWorld::client($this->fakes, name: 'Cliente en gestión', overdue: 9_000_000, status: ClientStatus::InProgress);
 
         $names = fn (string $query) => array_column(
-            array_slice(workbookOf($this->actingAs(CarteraUsers::analyst())->get("/cartera/clientes/exportar{$query}"))['Clientes'], 1),
+            array_slice(workbookOf($this->actingAs(CarteraUsers::manager())->get("/cartera/clientes/exportar{$query}"))['Clientes'], 1),
             2,
         );
 
@@ -141,10 +141,10 @@ describe('the client list', function () {
     it('holds only the clients the user may reach', function () {
         CarteraWorld::client($this->fakes, name: 'Cliente de SGX', company: CompanyCode::SGX, overdue: 1_000_000);
         CarteraWorld::client($this->fakes, name: 'Cliente de SDC', company: CompanyCode::SDC, overdue: 1_000_000);
-        $analyst = CarteraUsers::analyst();
+        $manager = CarteraUsers::manager();
 
         $this->fakes->currentCompany->switchTo(CompanyCode::SDC);
-        $names = array_column(array_slice(workbookOf($this->actingAs($analyst)->get('/cartera/clientes/exportar'))['Clientes'], 1), 2);
+        $names = array_column(array_slice(workbookOf($this->actingAs($manager)->get('/cartera/clientes/exportar'))['Clientes'], 1), 2);
 
         expect($names)->toBe(['Cliente de SDC']);
     });
@@ -152,7 +152,7 @@ describe('the client list', function () {
     it('writes text as text, so a name that looks like a formula never runs', function () {
         CarteraWorld::client($this->fakes, name: '=HYPERLINK("http://ejemplo.invalid","Pague aquí")', overdue: 1_000_000);
 
-        $response = $this->actingAs(CarteraUsers::analyst())->get('/cartera/clientes/exportar');
+        $response = $this->actingAs(CarteraUsers::manager())->get('/cartera/clientes/exportar');
         $path = $response->baseResponse->getFile()->getPathname();
 
         $zip = new ZipArchive;
@@ -167,7 +167,7 @@ describe('the client list', function () {
     it('is audited with the filters used and the rows it holds', function () {
         CarteraWorld::client($this->fakes, name: 'Moroso', overdue: 1_000_000, status: ClientStatus::Overdue);
 
-        $this->actingAs(CarteraUsers::analyst())->get('/cartera/clientes/exportar?estado=vencida')->assertOk();
+        $this->actingAs(CarteraUsers::manager())->get('/cartera/clientes/exportar?estado=vencida')->assertOk();
 
         $this->fakes->audit->assertRecorded('cartera.client_list.exported', fn ($entry): bool => $entry->context === ['rows' => 1, 'filters' => ['estado' => 'vencida']]);
     });
@@ -260,7 +260,7 @@ describe('the buttons', function () {
     it('export the list with the filters on screen', function () {
         CarteraWorld::client($this->fakes, name: 'Cliente A', overdue: 1_000_000);
 
-        $this->actingAs(CarteraUsers::analyst())
+        $this->actingAs(CarteraUsers::manager())
             ->get('/cartera/clientes?estado=vencida&buscar=tornillo')
             ->assertSee('href="'.e(route('cartera.clientes.exportar', ['buscar' => 'tornillo', 'estado' => 'vencida'])).'"', false)
             ->assertSeeText('Exportar a Excel');

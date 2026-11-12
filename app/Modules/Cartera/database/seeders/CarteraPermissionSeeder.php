@@ -28,6 +28,11 @@ final class CarteraPermissionSeeder extends PermissionSeeder
      * the Asesores module. The service stays the authority; this permission
      * only decides which buttons the screens show.
      *
+     * cartera.clients.start_on_mine: the client list opens on «Mi cartera»
+     * (the clients whose manager is the user) instead of the whole
+     * portfolio. The analyst only. It is a default, never a restriction: the
+     * user can switch to «Toda la cartera».
+     *
      * @return array<string, list<string|\BackedEnum>>
      */
     public function permissions(): array
@@ -39,6 +44,7 @@ final class CarteraPermissionSeeder extends PermissionSeeder
             'cartera.manage' => $portfolioTeam,
             'cartera.export' => $portfolioTeam,
             'cartera.commitments.write' => [Role::PortfolioAnalyst],
+            'cartera.clients.start_on_mine' => [Role::PortfolioAnalyst],
         ];
     }
 }

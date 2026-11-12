@@ -10,6 +10,8 @@ use Tests\Fakes\Make;
 use Tests\Modules\Cartera\Support\CarteraUsers;
 use Tests\Modules\Cartera\Support\CarteraWorld;
 
+// The portfolio manager opens the list on the whole portfolio; the analyst
+// opens it on "Mi cartera" (ClientManagerFilterTest covers that filter).
 beforeEach(function () {
     $this->fakes = ContractFakes::install($this->app);
 });
@@ -44,7 +46,7 @@ it('shows each client with its NIT, balances, days overdue, status and advisor',
         taxId: '900123456',
     );
 
-    $this->actingAs(CarteraUsers::analyst())
+    $this->actingAs(CarteraUsers::manager())
         ->get('/cartera/clientes')
         ->assertOk()
         ->assertSeeText('Ferretería El Tornillo SAS')
@@ -61,7 +63,7 @@ it('puts the largest overdue amount first', function () {
     CarteraWorld::client($this->fakes, name: 'Cliente grande', overdue: 9_000_000);
     CarteraWorld::client($this->fakes, name: 'Cliente mediano', overdue: 4_000_000);
 
-    $this->actingAs(CarteraUsers::analyst())
+    $this->actingAs(CarteraUsers::manager())
         ->get('/cartera/clientes')
         ->assertSeeInOrder(['Cliente grande', 'Cliente mediano', 'Cliente pequeño']);
 });
@@ -71,7 +73,7 @@ it('sorts by the column the user picks', function () {
     CarteraWorld::client($this->fakes, name: 'Alfa', overdue: 9_000_000);
     CarteraWorld::client($this->fakes, name: 'Gamma', overdue: 4_000_000);
 
-    $this->actingAs(CarteraUsers::analyst())
+    $this->actingAs(CarteraUsers::manager())
         ->get('/cartera/clientes?sort=name&direction=asc')
         ->assertSeeInOrder(['Alfa', 'Beta', 'Gamma'])
         ->assertSee('aria-sort="ascending"', false);
@@ -80,18 +82,18 @@ it('sorts by the column the user picks', function () {
 it('opens anyway when the sort in the address is not one it knows', function () {
     CarteraWorld::client($this->fakes, name: 'Cliente A', overdue: 1_000_000);
 
-    $this->actingAs(CarteraUsers::analyst())->get('/cartera/clientes?sort=password&direction=sideways')->assertOk()->assertSeeText('Cliente A');
+    $this->actingAs(CarteraUsers::manager())->get('/cartera/clientes?sort=password&direction=sideways')->assertOk()->assertSeeText('Cliente A');
 });
 
 it('searches by name or NIT', function () {
     CarteraWorld::client($this->fakes, name: 'Ferretería El Tornillo SAS', overdue: 1_000_000, taxId: '900111222');
     CarteraWorld::client($this->fakes, name: 'Droguería La Esperanza', overdue: 1_000_000, taxId: '800333444');
-    $analyst = CarteraUsers::analyst();
+    $manager = CarteraUsers::manager();
 
-    $this->actingAs($analyst)->get('/cartera/clientes?buscar=tornillo')
+    $this->actingAs($manager)->get('/cartera/clientes?buscar=tornillo')
         ->assertSeeText('Ferretería El Tornillo SAS')->assertDontSeeText('Droguería La Esperanza');
 
-    $this->actingAs($analyst)->get('/cartera/clientes?buscar=800333')
+    $this->actingAs($manager)->get('/cartera/clientes?buscar=800333')
         ->assertSeeText('Droguería La Esperanza')->assertDontSeeText('Ferretería El Tornillo SAS');
 });
 
@@ -99,7 +101,7 @@ it('filters by status', function () {
     CarteraWorld::client($this->fakes, name: 'Cliente vencido', overdue: 1_000_000, status: ClientStatus::Overdue);
     CarteraWorld::client($this->fakes, name: 'Cliente en gestión', overdue: 1_000_000, status: ClientStatus::InProgress);
 
-    $this->actingAs(CarteraUsers::analyst())
+    $this->actingAs(CarteraUsers::manager())
         ->get('/cartera/clientes?estado=en_gestion')
         ->assertSeeText('Cliente en gestión')
         ->assertDontSeeText('Cliente vencido');
@@ -112,7 +114,7 @@ it('filters by advisor', function () {
     CarteraWorld::client($this->fakes, name: 'Cliente de Carlos', overdue: 1_000_000, advisor: $carlos);
     CarteraWorld::client($this->fakes, name: 'Cliente de Laura', overdue: 1_000_000, advisor: $laura);
 
-    $this->actingAs(CarteraUsers::analyst())
+    $this->actingAs(CarteraUsers::manager())
         ->get('/cartera/clientes?asesor='.$laura->code)
         ->assertSeeText('Cliente de Laura')
         ->assertDontSeeText('Cliente de Carlos');
@@ -121,7 +123,7 @@ it('filters by advisor', function () {
 it('offers the advisors of the companies in view as a filter', function () {
     $this->fakes->cartera->addAdvisor(Make::advisor(name: 'Carlos Pérez'), Make::advisor(company: CompanyCode::SDC, name: 'Asesor de SDC'));
 
-    $this->actingAs(CarteraUsers::analyst())
+    $this->actingAs(CarteraUsers::manager())
         ->get('/cartera/clientes')
         ->assertSeeText('Carlos Pérez')
         ->assertDontSeeText('Asesor de SDC');
@@ -131,7 +133,7 @@ it('can show only the clients that are overdue', function () {
     CarteraWorld::client($this->fakes, name: 'Cliente vencido', overdue: 1_000_000);
     CarteraWorld::client($this->fakes, name: 'Cliente al día', notDue: 1_000_000);
 
-    $this->actingAs(CarteraUsers::analyst())
+    $this->actingAs(CarteraUsers::manager())
         ->get('/cartera/clientes?vencidos=1')
         ->assertSeeText('Cliente vencido')
         ->assertDontSeeText('Cliente al día');
@@ -142,7 +144,7 @@ it('can show only the overdue clients nobody has managed lately', function () {
     CarteraWorld::client($this->fakes, name: 'Moroso atendido', overdue: 1_000_000, lastActivityAt: CarbonImmutable::now()->subDay());
     CarteraWorld::client($this->fakes, name: 'Cliente corriente', notDue: 1_000_000);
 
-    $this->actingAs(CarteraUsers::analyst())
+    $this->actingAs(CarteraUsers::manager())
         ->get('/cartera/clientes?sin_gestion=1')
         ->assertSeeText('Moroso ignorado')
         ->assertDontSeeText('Moroso atendido')
@@ -156,17 +158,17 @@ it('pages the list and keeps the search in the page links', function () {
         CarteraWorld::client($this->fakes, name: "Tornillo {$name}", overdue: (3 - $step) * 1_000_000);
     }
 
-    $response = $this->actingAs(CarteraUsers::analyst())->get('/cartera/clientes?buscar=tornillo');
+    $response = $this->actingAs(CarteraUsers::manager())->get('/cartera/clientes?buscar=tornillo');
 
     $response->assertSeeText('Tornillo Uno')->assertSeeText('Tornillo Dos')->assertDontSeeText('Tornillo Tres')
         ->assertSee('buscar=tornillo&amp;page=2', false);
 
-    $this->actingAs(CarteraUsers::analyst())->get('/cartera/clientes?buscar=tornillo&page=2')->assertSeeText('Tornillo Tres');
+    $this->actingAs(CarteraUsers::manager())->get('/cartera/clientes?buscar=tornillo&page=2')->assertSeeText('Tornillo Tres');
 });
 
 it('names the company of each client only in the group view', function () {
     CarteraWorld::client($this->fakes, name: 'Cliente SDC', company: CompanyCode::SDC, overdue: 1_000_000);
-    $user = CarteraUsers::analyst();
+    $user = CarteraUsers::manager();
 
     $this->fakes->currentCompany->switchTo(CompanyCode::SDC);
     $this->actingAs($user)->get('/cartera/clientes')->assertDontSee('data-company', false);
@@ -176,19 +178,19 @@ it('names the company of each client only in the group view', function () {
 });
 
 it('explains an empty list, and what to do when filters caused it', function () {
-    $analyst = CarteraUsers::analyst();
+    $manager = CarteraUsers::manager();
 
-    $this->actingAs($analyst)->get('/cartera/clientes')->assertSeeText('Aún no hay clientes');
+    $this->actingAs($manager)->get('/cartera/clientes')->assertSeeText('Aún no hay clientes');
 
     CarteraWorld::client($this->fakes, name: 'Cliente A', overdue: 1_000_000);
 
-    $this->actingAs($analyst)->get('/cartera/clientes?buscar=inexistente')
+    $this->actingAs($manager)->get('/cartera/clientes?buscar=inexistente')
         ->assertSeeText('Ningún cliente coincide')
         ->assertSee('href="'.route('cartera.clientes.index').'"', false);
 });
 
 it('lists the client list in the menu', function () {
-    $this->actingAs(CarteraUsers::analyst())
+    $this->actingAs(CarteraUsers::manager())
         ->get('/cartera/clientes')
         ->assertSee('href="'.route('cartera.clientes.index').'"', false);
 });

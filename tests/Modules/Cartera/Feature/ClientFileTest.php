@@ -254,9 +254,9 @@ describe('what the user may do from the file', function () {
 it('links to the client file from the dashboard, the list and the board', function () {
     $client = CarteraWorld::client($this->fakes, name: 'Moroso enlazado', overdue: 1_000_000, status: ClientStatus::Overdue);
     $link = 'href="'.route('cartera.clientes.show', $client->id).'"';
-    $analyst = CarteraUsers::analyst();
+    $manager = CarteraUsers::manager();
 
     foreach (['/cartera', '/cartera/clientes', '/cartera/kanban'] as $page) {
-        $this->actingAs($analyst)->get($page)->assertSee($link, false);
+        $this->actingAs($manager)->get($page)->assertSee($link, false);
     }
 });
