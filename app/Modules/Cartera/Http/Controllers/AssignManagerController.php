@@ -3,6 +3,7 @@
 namespace App\Modules\Cartera\Http\Controllers;
 
 use App\Modules\Cartera\Application\Clients\ClientListFilter;
+use App\Modules\Cartera\Http\Requests\AssignManagerRequest;
 use App\Modules\Cartera\Http\Requests\AssignManagersRequest;
 use App\Modules\Core\Contracts\CarteraRepository;
 use App\Modules\Core\Contracts\ClientAssignmentService;
@@ -20,6 +21,9 @@ use InvalidArgumentException;
  * clients of the list, or every client that matches its filters, capped at
  * cartera.assignment.max_bulk. The cap is checked on a count taken before
  * the assignment, so clients that start matching in between can pass it.
+ *
+ * POST /cartera/clientes/{client}/gestor (cartera.clientes.gestor): one
+ * client, from its file; a client out of reach is a 404.
  */
 final class AssignManagerController
 {
@@ -53,6 +57,19 @@ final class AssignManagerController
         }
 
         return back()->with('status', trans_choice('cartera::clientes.asignar.hecho', $changed, ['count' => self::number($changed)]));
+    }
+
+    public function single(AssignManagerRequest $request, int $client, ClientAssignmentService $assignments): RedirectResponse
+    {
+        try {
+            $assignments->assign([$client], $request->managerUserId());
+        } catch (RecordNotFound) {
+            abort(404);
+        } catch (InvalidArgumentException) {
+            return back()->with('error', __('cartera::ficha.gestor.no_trabaja'));
+        }
+
+        return back()->with('status', __('cartera::ficha.gestor.hecho'));
     }
 
     private static function number(int $value): string

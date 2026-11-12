@@ -32,10 +32,11 @@ Route::middleware(['auth', 'can:cartera.view'])->group(function () {
         ->middleware('can:core.clients.change_status')
         ->name('clientes.estado');
 
-    // The manager ("gestor") of clients, in bulk from the list: Core's
-    // core.clients.assign permission.
+    // The manager ("gestor") of clients, in bulk from the list or one by one
+    // from the client file: Core's core.clients.assign permission.
     Route::middleware('can:core.clients.assign')->controller(AssignManagerController::class)->group(function () {
         Route::post('clientes/gestor', 'bulk')->name('clientes.asignar');
+        Route::post('clientes/{client}/gestor', 'single')->whereNumber('client')->name('clientes.gestor');
     });
 
     // Calls, notes and discounts offered: cartera.manage.

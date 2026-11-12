@@ -31,6 +31,14 @@ return [
         'sin_gestor' => 'Sin gestor asignado',
     ],
 
+    'gestor' => [
+        'etiqueta' => 'Cambiar el gestor',
+        'boton' => 'Guardar',
+        'elige' => 'Elige un gestor de la lista.',
+        'hecho' => 'Gestor actualizado.',
+        'no_trabaja' => 'Esa persona no puede encargarse de este cliente: ya no gestiona cartera o no trabaja en su empresa. Elige otra.',
+    ],
+
     'cambiar_estado' => [
         'titulo' => 'Cambiar el estado',
         'estado' => 'Estado',

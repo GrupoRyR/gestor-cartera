@@ -1,6 +1,11 @@
+@use('App\Modules\Cartera\Application\Clients\AssigneeOptions')
 @use('App\Modules\Core\Contracts\Enums\ClientStatus')
 
-{{-- Data of the client and, for those who may, the form that changes its status. $file, $client. --}}
+{{--
+    Data of the client and, for those who may, the forms that change its
+    manager and its status. $file, $client; $assigneeOptions: the "Gestor"
+    choices, or null for those who may not assign managers.
+--}}
 <x-ui.card :title="__('cartera::ficha.datos.titulo')">
     {{-- Label beside value when the card is wide enough; one under the other when it is narrow (large text). --}}
     <div class="@container">
@@ -30,7 +35,26 @@
             <dd>{{ $client->advisor?->name ?? __('cartera::ficha.datos.sin_asesor') }}</dd>
 
             <dt class="text-fg-muted">{{ __('cartera::ficha.datos.gestor') }}</dt>
-            <dd>{{ $client->manager?->name ?? __('cartera::ficha.datos.sin_gestor') }}</dd>
+            <dd>
+                {{ $client->manager?->name ?? __('cartera::ficha.datos.sin_gestor') }}
+
+                @if ($assigneeOptions !== null)
+                    <form method="POST" action="{{ route('cartera.clientes.gestor', $client->id) }}" class="mt-2 flex flex-wrap items-start gap-2">
+                        @csrf
+                        <div class="min-w-0 flex-1">
+                            <x-ui.select
+                                name="nuevo_gestor"
+                                :label="__('cartera::ficha.gestor.etiqueta')"
+                                :label-hidden="true"
+                                :options="$assigneeOptions"
+                                :value="$client->manager?->id ?? AssigneeOptions::UNASSIGNED"
+                                :required="true"
+                            />
+                        </div>
+                        <x-ui.button type="submit" variant="secondary">{{ __('cartera::ficha.gestor.boton') }}</x-ui.button>
+                    </form>
+                @endif
+            </dd>
         </dl>
     </div>
 
