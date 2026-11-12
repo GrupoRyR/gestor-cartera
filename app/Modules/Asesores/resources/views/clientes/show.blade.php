@@ -36,6 +36,8 @@
         ['key' => 'estado', 'label' => __('asesores::ficha.facturas.columnas.estado')],
         ['key' => 'valor', 'label' => __('asesores::ficha.facturas.columnas.valor'), 'align' => 'end'],
         ['key' => 'saldo', 'label' => __('asesores::ficha.facturas.columnas.saldo'), 'align' => 'end'],
+        ['key' => 'valor_antes_iva', 'label' => __('asesores::ficha.facturas.columnas.valor_antes_iva'), 'align' => 'end'],
+        ['key' => 'saldo_antes_iva', 'label' => __('asesores::ficha.facturas.columnas.saldo_antes_iva'), 'align' => 'end'],
         ['key' => 'edad', 'label' => __('asesores::ficha.facturas.columnas.edad')],
     ];
 
@@ -82,11 +84,16 @@
             </x-ui.alert>
         @endif
 
-        <section aria-label="{{ __('asesores::ficha.kpis.saldo') }}" class="grid grid-cols-2 gap-3 lg:grid-cols-4">
+        <section aria-label="{{ __('asesores::ficha.kpis.saldo') }}" class="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-5">
             <x-ui.stat
                 :label="__('asesores::ficha.kpis.saldo')"
                 :value="Money::format($position->balance)"
                 :hint="trans_choice('asesores::ficha.kpis.documentos', count($file->invoices), ['cantidad' => count($file->invoices)])"
+            />
+            {{-- Null (shown «—») when any open document lacks it: never a partial sum. --}}
+            <x-ui.stat
+                :label="__('asesores::ficha.kpis.saldo_antes_iva')"
+                :value="$position->balanceBeforeTax === null ? null : Money::format($position->balanceBeforeTax)"
             />
             <x-ui.stat :label="__('asesores::ficha.kpis.sin_vencer')" :value="Money::format($position->notDue)" tone="success" />
             <x-ui.stat
@@ -165,6 +172,8 @@
                             </td>
                             <td data-align="end"><x-ui.money :value="$invoice->amount" /></td>
                             <td data-align="end"><x-ui.money :value="$invoice->balance" class="font-semibold" /></td>
+                            <td data-align="end"><x-ui.money :value="$invoice->amountBeforeTax" /></td>
+                            <td data-align="end"><x-ui.money :value="$invoice->balanceBeforeTax" /></td>
                             <td><x-ui.chip :tone="$ageTone($ageKey)" :dot="false">{{ __('asesores::comun.edades.'.$ageKey) }}</x-ui.chip></td>
                         </tr>
                     @endforeach

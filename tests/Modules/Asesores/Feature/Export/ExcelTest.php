@@ -1,6 +1,7 @@
 <?php
 
 use App\Modules\Core\Infrastructure\Persistence\AuditLogRecord;
+use App\Modules\Core\Infrastructure\Persistence\InvoiceRecord;
 use Carbon\CarbonImmutable;
 use Tests\Modules\Asesores\Support\AdvisorWorld;
 use Tests\Modules\Asesores\Support\Page;
@@ -24,6 +25,10 @@ it('has a sheet of clients and a sheet of their open documents', function () {
 
     expect(array_keys($sheets))->toBe(['Clientes', 'Documentos'])
         ->and($sheets['Clientes'][0])->toBe(['Código', 'Cliente', 'NIT', 'Empresa', 'Asesor', 'Estado', 'Saldo (COP)', 'Vencido (COP)', 'Días de mora', 'Última gestión'])
+        ->and($sheets['Documentos'][0])->toBe([
+            'Código cliente', 'Cliente', 'NIT', 'Asesor', 'Documento', 'Tipo', 'Emisión', 'Vencimiento', 'Días (negativo: por vencer)',
+            'Valor (COP)', 'Saldo (COP)', 'Valor antes de IVA (COP)', 'Saldo antes de IVA (COP)', 'Antigüedad',
+        ])
         ->and(Spreadsheet::column($sheets['Clientes'], 1))->toBe(['Agro Arango', 'Ferretería Franco'])
         ->and(Spreadsheet::column($sheets['Documentos'], 1))->toBe(['Agro Arango', 'Agro Arango', 'Ferretería Franco']);
 });
@@ -49,9 +54,22 @@ it('describes each document: type, due date, days and age', function () {
 
     expect($late[5])->toBe('Factura')
         ->and((int) $late[8])->toBe(100)
-        ->and($late[11])->toBe('Más de 90 días')
+        ->and($late[13])->toBe('Más de 90 días')
         ->and((int) $notDue[8])->toBe(-10)
-        ->and($notDue[11])->toBe('Sin vencer');
+        ->and($notDue[13])->toBe('Sin vencer');
+});
+
+it('writes the pre-VAT amount and balance as numbers, and leaves them empty when the snapshot did not bring them', function () {
+    InvoiceRecord::query()->where('client_id', $this->agro->id)->where('days_overdue', 100)->update(['amount_before_tax' => '4201680.67', 'balance_before_tax' => '3361344.54']);
+
+    $sheets = Spreadsheet::of($this->actingAs($this->world->ana)->get(route('asesores.clientes.exportar_cliente', $this->agro->id)));
+    $late = $sheets['Documentos'][1];
+    $notDue = $sheets['Documentos'][2];
+
+    expect($late[11])->toBeNumeric()->and((float) $late[11])->toBe(4_201_680.67)
+        ->and((float) $late[12])->toBe(3_361_344.54)
+        ->and($notDue[11] ?? '')->toBe('')
+        ->and($notDue[12] ?? '')->toBe('');
 });
 
 it('writes text that looks like a formula as text, never as a formula', function () {

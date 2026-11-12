@@ -63,7 +63,28 @@ it('has nothing to add up without invoices', function () {
     expect($position->balance)->toBe(0.0)
         ->and($position->overdue)->toBe(0.0)
         ->and($position->notDue)->toBe(0.0)
+        ->and($position->balanceBeforeTax)->toBe(0.0)
         ->and($position->aging->total())->toBe(0.0);
+});
+
+it('adds up the pre-VAT balance in exact cents, credit notes included', function () {
+    $position = Position::of([
+        Make::invoice(balance: 1_190_000.0, balanceBeforeTax: 1_000_000.0, daysOverdue: 20),
+        Make::invoice(balance: -119_000.0, balanceBeforeTax: -100_000.0, daysOverdue: 0),
+        ...array_map(fn () => Make::invoice(balance: 0.12, balanceBeforeTax: 0.10), range(1, 30)),
+    ]);
+
+    expect($position->balanceBeforeTax)->toBe(900_003.0);
+});
+
+it('has no pre-VAT balance when any open invoice lacks it, never a partial sum', function () {
+    $position = Position::of([
+        Make::invoice(balance: 1_190_000.0, balanceBeforeTax: 1_000_000.0),
+        Make::invoice(balance: 500_000.0),
+    ]);
+
+    expect($position->balanceBeforeTax)->toBeNull()
+        ->and($position->balance)->toBe(1_690_000.0);
 });
 
 it('measures the credit limit against the balance', function (?float $limit, float $balance, bool $has, float $available, float $exceeded) {
