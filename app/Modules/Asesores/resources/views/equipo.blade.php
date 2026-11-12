@@ -26,7 +26,7 @@
     <x-ui.page-header :title="__('asesores::equipo.titulo')" :description="__('asesores::equipo.descripcion')" />
 
     <div class="mt-6 grid gap-6">
-        <x-asesores::cutoff :cutoff="$team->cutoff" :today="$today" />
+        <x-asesores::cutoff :cutoff="$team->cutoff" :today="$today" :updated-at="$updatedAt" />
 
         @if ($team->rows === [])
             <x-ui.empty icon="users" :title="__('asesores::equipo.vacio.titulo')" :description="__('asesores::equipo.vacio.detalle')" />

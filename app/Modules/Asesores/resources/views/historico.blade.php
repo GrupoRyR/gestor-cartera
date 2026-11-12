@@ -33,7 +33,7 @@
 
         <x-ui.tabs :label="__('asesores::historico.rangos.etiqueta')" :items="$tabs" :current="(string) $days" />
 
-        <x-asesores::cutoff :cutoff="$latest" :today="$today" />
+        <x-asesores::cutoff :cutoff="$latest" :today="$today" :updated-at="$updatedAt" />
 
         @if ($history === [])
             <x-ui.empty icon="history" :title="__('asesores::historico.vacio.titulo')" :description="__('asesores::historico.vacio.detalle')" />

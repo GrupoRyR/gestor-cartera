@@ -2,6 +2,7 @@
 
 namespace App\Modules\Asesores\Http\Controllers;
 
+use App\Modules\Asesores\Application\Portfolio\DataFreshness;
 use App\Modules\Asesores\Application\Portfolio\PortfolioFilter;
 use App\Modules\Asesores\Application\Portfolio\PortfolioOverview;
 use Carbon\CarbonImmutable;
@@ -14,7 +15,10 @@ use Illuminate\Http\Request;
  */
 final readonly class DashboardController
 {
-    public function __construct(private PortfolioOverview $overview) {}
+    public function __construct(
+        private PortfolioOverview $overview,
+        private DataFreshness $freshness,
+    ) {}
 
     public function __invoke(Request $request): View
     {
@@ -25,6 +29,7 @@ final readonly class DashboardController
             'filter' => $filter,
             'overview' => $this->overview->build($filter, $today, (int) config('asesores.history.dashboard_days')),
             'today' => $today,
+            'updatedAt' => $this->freshness->updatedAt(),
             'isManager' => $request->user()?->can('asesores.team') ?? false,
         ]);
     }

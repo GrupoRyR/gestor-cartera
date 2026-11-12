@@ -3,6 +3,7 @@
 namespace App\Modules\Asesores\Http\Controllers;
 
 use App\Modules\Asesores\Application\Client\ClientFiles;
+use App\Modules\Asesores\Application\Portfolio\DataFreshness;
 use App\Modules\Asesores\Application\Portfolio\PortfolioFilter;
 use App\Modules\Asesores\Application\Whatsapp\WhatsappStatement;
 use App\Modules\Core\Contracts\CarteraRepository;
@@ -22,6 +23,7 @@ final readonly class ClientController
         private CarteraRepository $cartera,
         private ClientFiles $files,
         private WhatsappStatement $whatsapp,
+        private DataFreshness $freshness,
     ) {}
 
     /**
@@ -40,6 +42,7 @@ final readonly class ClientController
             'advisors' => $advisors,
             'showAdvisor' => count($advisors) > 1,
             'today' => CarbonImmutable::today(),
+            'updatedAt' => $this->freshness->updatedAt(),
         ]);
     }
 

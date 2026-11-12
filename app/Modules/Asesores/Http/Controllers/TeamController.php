@@ -2,6 +2,7 @@
 
 namespace App\Modules\Asesores\Http\Controllers;
 
+use App\Modules\Asesores\Application\Portfolio\DataFreshness;
 use App\Modules\Asesores\Application\Team\TeamOverview;
 use Carbon\CarbonImmutable;
 use Illuminate\Contracts\View\View;
@@ -12,13 +13,17 @@ use Illuminate\Contracts\View\View;
  */
 final readonly class TeamController
 {
-    public function __construct(private TeamOverview $team) {}
+    public function __construct(
+        private TeamOverview $team,
+        private DataFreshness $freshness,
+    ) {}
 
     public function __invoke(): View
     {
         return view('asesores::equipo', [
             'team' => $this->team->build(),
             'today' => CarbonImmutable::today(),
+            'updatedAt' => $this->freshness->updatedAt(),
         ]);
     }
 }

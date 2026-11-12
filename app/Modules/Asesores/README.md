@@ -26,6 +26,8 @@ Todas piden sesión iniciada y el permiso `asesores.view` (asesor y gerente come
 | `GET /asesores/clientes/{client}/exportar` | `clientes.exportar_cliente` | Excel de un cliente. | Asesor, gerente |
 | `GET /asesores/clientes/{client}/estado-de-cuenta` | `clientes.estado_cuenta` | PDF del estado de cuenta del cliente. | Asesor, gerente |
 
+**Corte y actualización.** El resumen, la lista de clientes, el histórico y el equipo dicen bajo el filtro el corte de la cartera («Cartera al corte del 15/10/2026.») y, si hay carga, cuándo llegaron los datos: «Datos actualizados hoy a las 07:10.» o «Datos actualizados el 11/11/2026 a las 07:10.», en hora de Bogotá. Ese momento es el `receivedAt` de la última carga de cartera de Ingesta, leído por `IngestaSink::latest()` solo para las empresas de `CurrentCompany::scope()` (`Application/Portfolio/DataFreshness`); en la vista de grupo manda la empresa con el corte más viejo, como en el corte que se muestra, y con el mismo corte, la carga recibida primero. Si el corte tiene más de `stale_after_days` días, la frase va dentro del aviso de cartera desactualizada.
+
 El botón de WhatsApp está en la ficha: abre `wa.me` con el estado de cuenta escrito; el asesor lo revisa y lo envía él.
 
 `asesores.inicio` es la primera entrada del menú (`order: 10`), así que es la pantalla de inicio del asesor y del gerente comercial (Core manda a cada usuario a su primera entrada). La entrada **Agenda** lleva como insignia el número de compromisos incumplidos.
