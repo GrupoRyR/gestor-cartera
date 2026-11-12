@@ -158,6 +158,8 @@ final class Make
         ?float $balance = null,
         int $daysOverdue = 0,
         ?int $advisorCode = null,
+        ?float $amountBeforeTax = null,
+        ?float $balanceBeforeTax = null,
     ): Invoice {
         $id ??= self::nextId();
         $dueAt ??= CarbonImmutable::today()->subDays($daysOverdue);
@@ -174,6 +176,8 @@ final class Make
             balance: $balance ?? $amount,
             daysOverdue: $daysOverdue,
             advisorCode: $advisorCode,
+            amountBeforeTax: $amountBeforeTax,
+            balanceBeforeTax: $balanceBeforeTax,
         );
     }
 

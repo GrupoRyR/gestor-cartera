@@ -453,13 +453,13 @@ Todos son `final readonly`. Los campos van en el orden del constructor; los que 
 | `ClientSummary` | `id: int`, `company: CompanyCode`, `code: string` (OCRD.CardCode), `name: string`, `taxId: string` (NIT), `status: ClientStatus`, `balance: float`, `overdue: float`, `maxDaysOverdue: int`, `advisor: ?Advisor = null`, `manager: ?UserRef = null` (gestor responsable), `lastActivityAt: ?CarbonImmutable = null` | — |
 | `ClientDetail` | `summary: ClientSummary`, `creditLimit: ?float = null` (cupo), `group: ?string = null`, `city: ?string = null`, `paymentTerms: ?string = null`, `contacts: list<Contact> = []` | `emails(): list<string>` (únicos, principales primero) |
 | `Contact` | `name: ?string = null`, `email: ?string = null`, `phone: ?string = null`, `position: ?string = null`, `isPrimary: bool = false` | — |
-| `Invoice` | `id: int`, `company: CompanyCode`, `clientId: int`, `documentNumber: string`, `documentType: string`, `issuedAt: CarbonImmutable`, `dueAt: CarbonImmutable`, `amount: float`, `balance: float`, `daysOverdue: int`, `advisorCode: ?int = null` | — |
+| `Invoice` | `id: int`, `company: CompanyCode`, `clientId: int`, `documentNumber: string`, `documentType: string`, `issuedAt: CarbonImmutable`, `dueAt: CarbonImmutable`, `amount: float`, `balance: float`, `daysOverdue: int`, `advisorCode: ?int = null`, `amountBeforeTax: ?float = null`, `balanceBeforeTax: ?float = null` | — |
 | `Advisor` | `company: CompanyCode`, `code: int` (OSLP.SlpCode), `name: string`, `email: ?string = null`, `active: bool = true`, `userId: ?int = null` | — |
-| `ClientQuery` | `search: ?string = null`, `statuses: list<ClientStatus> = []`, `advisorCode: ?int = null`, `companies: list<CompanyCode> = []`, `onlyOverdue: bool = false`, `inactiveSince: ?CarbonImmutable = null`, `sort: string = 'name'`, `direction: string = 'asc'` | `SORTS` = `name`, `balance`, `overdue`, `days_overdue`, `status`, `last_activity`; `DIRECTIONS` = `asc`, `desc` |
+| `ClientQuery` | `search: ?string = null`, `statuses: list<ClientStatus> = []`, `advisorCode: ?int = null`, `companies: list<CompanyCode> = []`, `onlyOverdue: bool = false`, `inactiveSince: ?CarbonImmutable = null`, `sort: string = 'name'`, `direction: string = 'asc'`, `managerUserId: ?int = null`, `unassigned: bool = false` | `SORTS` = `name`, `balance`, `overdue`, `days_overdue`, `status`, `last_activity`; `DIRECTIONS` = `asc`, `desc` |
 | `PortfolioTotals` | `cutoffDate: ?CarbonImmutable`, `total: float`, `overdue: float`, `clientCount: int`, `overdueClientCount: int`, `aging: AgingBuckets` | `empty()`, `overduePercent(): float` (0 a 100) |
 | `AgingBuckets` | `notDue`, `days1To30`, `days31To60`, `days61To90`, `over90` (todos `float = 0`) | `total()`, `overdue()` |
 
-`daysOverdue` va del vencimiento al corte: positivo = vencida, 0 = vence en el corte, negativo = aún no vence. `ClientQuery` y `CommitmentQuery` lanzan `InvalidArgumentException` con un `sort` o `direction` no permitido; los empates se resuelven por nombre y luego id (clientes) o por id (compromisos).
+`daysOverdue` va del vencimiento al corte: positivo = vencida, 0 = vence en el corte, negativo = aún no vence. `amountBeforeTax` y `balanceBeforeTax` son el valor y el saldo sin IVA (`base_gravable` y `saldo_base` del lote `cartera`); `null` cuando la instantánea no los trae (cargas manuales y anteriores). `managerUserId` deja los clientes de ese gestor («Mi cartera») y `unassigned`, los que no tienen («Sin asignar»). `ClientQuery` y `CommitmentQuery` lanzan `InvalidArgumentException` con un `sort` o `direction` no permitido, y `ClientQuery` también si llegan `managerUserId` y `unassigned` juntos; los empates se resuelven por nombre y luego id (clientes) o por id (compromisos).
 
 **Compromisos y bitácora**
 
@@ -566,7 +566,7 @@ Enlaza los diez fakes como instancias del contenedor y devuelve un `ContractFake
 | `Make::contact()` | `Contact` | «Laura Martínez», `tesoreria@cliente.example`, no principal |
 | `Make::client()` | `ClientSummary` | SGX, «Ferretería El Tornillo SAS», `Current`, saldos en 0 |
 | `Make::clientDetail()` | `ClientDetail` | Un cliente nuevo, cupo 50.000.000 y un contacto principal |
-| `Make::invoice()` | `Invoice` | `clientId: 1`, 1.000.000, vence hoy menos `daysOverdue` |
+| `Make::invoice()` | `Invoice` | `clientId: 1`, 1.000.000, vence hoy menos `daysOverdue`, sin valores antes de IVA |
 | `Make::commitment()` | `Commitment` | `Pending`, 2.500.000, vence en 7 días |
 | `Make::activity()` | `Activity` | Llamada; sin usuario si es `System` o `bySystem: true` |
 | `Make::loadRecord()` | `LoadRecord` | Cartera SGX, robot, aceptada, corte hoy |
@@ -591,7 +591,7 @@ Enlaza los diez fakes como instancias del contenedor y devuelve un `ContractFake
 
 Diferencias con las implementaciones reales que conviene saber:
 
-- `FakeCarteraRepository` calcula `totals()` con las **facturas** agregadas, no con `balance` ni `overdue` del `ClientSummary`; `history()` ignora la consulta. Sin usuario autenticado no vacía resultados: se comporta como una analista que ve todo. `addClient()` lanza `InvalidArgumentException` si una factura es de otro cliente o empresa: créala con `clientId:` y `company:`.
+- `FakeCarteraRepository` filtra `managerUserId` y `unassigned` con `ClientSummary::$manager`. Calcula `totals()` con las **facturas** agregadas, no con `balance` ni `overdue` del `ClientSummary`; `history()` ignora la consulta. Sin usuario autenticado no vacía resultados: se comporta como una analista que ve todo. `addClient()` lanza `InvalidArgumentException` si una factura es de otro cliente o empresa: créala con `clientId:` y `company:`.
 - `FakeCompromisoService` no escribe en `gestiones` ni en `audit`: afirma esas escrituras en tu propio código, no como efecto del servicio. Su usuario por defecto es `UserRef(1, 'Usuario de prueba', 'prueba@example.com')`.
 - `FakeIngestaSink` despacha `BatchAccepted` con `event()`: los listeners registrados corren de verdad. Para solo afirmar el despacho, usa `Event::fake([BatchAccepted::class])`.
 - `FakeMailboxReader::forClient()` no emula el alcance por cliente.

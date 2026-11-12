@@ -47,8 +47,11 @@ final readonly class ClientQuery
      *                                               (no activity at all, or the latest one is earlier).
      * @param  string  $sort  One of self::SORTS.
      * @param  string  $direction  "asc" or "desc".
+     * @param  int|null  $managerUserId  Only clients whose portfolio manager (ClientSummary::$manager) is this user.
+     * @param  bool  $unassigned  Only clients without a portfolio manager.
      *
-     * @throws InvalidArgumentException When $sort or $direction is not allowed.
+     * @throws InvalidArgumentException When $sort or $direction is not allowed, or when
+     *                                  $managerUserId and $unassigned are both given.
      */
     public function __construct(
         public ?string $search = null,
@@ -59,6 +62,8 @@ final readonly class ClientQuery
         public ?CarbonImmutable $inactiveSince = null,
         public string $sort = 'name',
         public string $direction = 'asc',
+        public ?int $managerUserId = null,
+        public bool $unassigned = false,
     ) {
         if (! in_array($sort, self::SORTS, true)) {
             throw new InvalidArgumentException("Unknown client sort [{$sort}]; use one of: ".implode(', ', self::SORTS).'.');
@@ -66,6 +71,10 @@ final readonly class ClientQuery
 
         if (! in_array($direction, self::DIRECTIONS, true)) {
             throw new InvalidArgumentException("Unknown sort direction [{$direction}]; use asc or desc.");
+        }
+
+        if ($managerUserId !== null && $unassigned) {
+            throw new InvalidArgumentException('A client query cannot ask for a manager and for clients without one at once.');
         }
     }
 }

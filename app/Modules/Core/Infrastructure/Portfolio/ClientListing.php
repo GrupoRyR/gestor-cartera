@@ -24,7 +24,8 @@ final class ClientListing
      *   case (% and _ match themselves);
      * - statuses, advisorCode: equal values;
      * - onlyOverdue: a cached overdue balance above zero;
-     * - inactiveSince: no activity yet, or the latest one is earlier.
+     * - inactiveSince: no activity yet, or the latest one is earlier;
+     * - managerUserId, unassigned: that portfolio manager, or none.
      *
      * @param  Builder<ClientRecord>  $clients
      * @return Builder<ClientRecord>
@@ -62,6 +63,14 @@ final class ClientListing
             $clients->where(fn (Builder $inactive) => $inactive
                 ->whereNull('clients.last_activity_at')
                 ->orWhere('clients.last_activity_at', '<', $since));
+        }
+
+        if ($query->managerUserId !== null) {
+            $clients->where('clients.manager_user_id', $query->managerUserId);
+        }
+
+        if ($query->unassigned) {
+            $clients->whereNull('clients.manager_user_id');
         }
 
         return $clients;

@@ -101,6 +101,23 @@ it('filters by status, advisor, overdue balance and inactivity', function () {
         ->and(CarteraRecords::names(new ClientQuery(statuses: [ClientStatus::Overdue], advisorCode: 20)))->toBe([]);
 });
 
+it('filters by the manager of the client, or by clients without one', function () {
+    $mine = TeamUsers::member('María Paula Rojas', 'mariapaula.rojas@segurex.com', Role::PortfolioAnalyst, [CompanyCode::SGX]);
+    $other = TeamUsers::member('Óscar Toro', 'oscar.toro@segurex.com', Role::PortfolioManager, [CompanyCode::SGX]);
+    CarteraRecords::client('Agro Arango', ['manager_user_id' => $mine->id]);
+    CarteraRecords::client('Bodega Bedoya', ['manager_user_id' => $other->id]);
+    CarteraRecords::client('Comercial Castaño', ['manager_user_id' => null]);
+    CarteraRecords::client('Distribuciones Duque', ['manager_user_id' => $mine->id]);
+
+    expect(CarteraRecords::names(new ClientQuery(managerUserId: $mine->id)))->toBe(['Agro Arango', 'Distribuciones Duque'])
+        ->and(CarteraRecords::names(new ClientQuery(unassigned: true)))->toBe(['Comercial Castaño'])
+        ->and(CarteraRecords::repository()->paginateClients(new ClientQuery(managerUserId: $other->id))->total())->toBe(1);
+});
+
+it('refuses a query for a manager and for clients without one at once', function () {
+    new ClientQuery(managerUserId: 7, unassigned: true);
+})->throws(InvalidArgumentException::class);
+
 it('filters by the companies of the query', function () {
     CarteraRecords::client('Agro Arango');
     CarteraRecords::client('Bodega Bedoya', ['company' => CompanyCode::SDC]);
