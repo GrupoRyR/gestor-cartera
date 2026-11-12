@@ -215,19 +215,20 @@ final class EloquentClientAssignmentService implements ClientAssignmentService
     }
 
     /**
-     * «Gestor asignado: …», «Gestor cambiado: de … a …» or «Gestor quitado: …»,
-     * cut to the 255 characters of activities.summary.
+     * «Gestor asignado: …», «Gestor cambiado: de … a …» or «Gestor quitado: …»
+     * (core::bitacora.resumen), cut to the 255 characters of activities.summary.
      *
      * @param  array<int, string>  $names  By user id.
      */
     private static function summary(?int $from, ?int $to, array $names): string
     {
-        $name = fn (int $id): string => $names[$id] ?? "usuario {$id}";
+        $name = fn (?int $id): string => $id === null ? '' : ($names[$id] ?? __('core::bitacora.resumen.usuario', ['id' => $id]));
+        $replace = ['anterior' => $name($from), 'nuevo' => $name($to)];
 
         $summary = match (true) {
-            $from === null => 'Gestor asignado: '.$name((int) $to),
-            $to === null => 'Gestor quitado: '.$name($from),
-            default => 'Gestor cambiado: de '.$name($from).' a '.$name($to),
+            $from === null => __('core::bitacora.resumen.gestor_asignado', $replace),
+            $to === null => __('core::bitacora.resumen.gestor_quitado', $replace),
+            default => __('core::bitacora.resumen.gestor_cambiado', $replace),
         };
 
         return mb_substr($summary, 0, 255);
