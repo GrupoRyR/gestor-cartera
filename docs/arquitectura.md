@@ -261,6 +261,8 @@ Todos viven en `App\Modules\Core\Contracts`. Son PHP sin base de datos, sin HTTP
 | `CompromisoService` | Core | 0b | `FakeCompromisoService` | Sí |
 | `GestionLogger` | Core | 0b | `FakeGestionLogger` | Sí |
 | `AuditLogger` | Core | 0b | `FakeAuditLogger` | No; registra al actor |
+| `ClientStatusService` | Core | 1 | — (dobles propios o la implementación de Core) | Sí |
+| `ClientAssignmentService` | Core | F1-B | — (dobles propios o la implementación de Core) | Sí |
 | `IngestaSink` | Ingesta | 1 | `FakeIngestaSink` | No; autoriza quien llama |
 | `MailSender` | Cobro | 1 | `FakeMailSender` | No |
 | `MailboxReader` | Cobro | 1 | `FakeMailboxReader` | Sí |
