@@ -267,7 +267,10 @@ it('returns the open invoices of the latest snapshot, oldest due date first', fu
     CarteraRecords::invoice(CarteraRecords::snapshot(CompanyCode::SDC, '2026-10-16'), CarteraRecords::client('Casa SDC', ['company' => CompanyCode::SDC]), '1.00');
 
     $latest = CarteraRecords::snapshot(CompanyCode::SGX, '2026-10-15');
-    $late = CarteraRecords::invoice($latest, $client, '1190000.50', 44, ['document_number' => '104233', 'document_type' => '13', 'amount' => '1190000.50', 'advisor_code' => 12]);
+    $late = CarteraRecords::invoice($latest, $client, '1190000.50', 44, [
+        'document_number' => '104233', 'document_type' => '13', 'amount' => '1190000.50', 'advisor_code' => 12,
+        'amount_before_tax' => '1000000.42', 'balance_before_tax' => '1000000.42',
+    ]);
     $credit = CarteraRecords::invoice($latest, $client, '-0.02', 2, ['document_number' => 'NC-9', 'document_type' => '14']);
     $sameDue = CarteraRecords::invoice($latest, $client, '300.00', 2, ['document_number' => '104300']);
     CarteraRecords::invoice($latest, $client, '0.01', 60, ['document_number' => 'CENT']);
@@ -292,8 +295,13 @@ it('returns the open invoices of the latest snapshot, oldest due date first', fu
             balance: 1190000.5,
             daysOverdue: 44,
             advisorCode: 12,
+            amountBeforeTax: 1000000.42,
+            balanceBeforeTax: 1000000.42,
         ))
-        ->and($invoices[1]->balance)->toBe(-0.02);
+        ->and($invoices[1]->balance)->toBe(-0.02)
+        // A row without the pre-VAT values (a manual upload) keeps them unknown.
+        ->and($invoices[1]->amountBeforeTax)->toBeNull()
+        ->and($invoices[1]->balanceBeforeTax)->toBeNull();
 });
 
 it('returns the open invoices of the latest robot batch only', function () {
@@ -301,7 +309,7 @@ it('returns the open invoices of the latest robot batch only', function () {
     $robot->receivables(CompanyCode::SGX, '2026-10-14', [RobotBatches::receivable(['documento' => '100001'])]);
     $robot->receivables(CompanyCode::SGX, '2026-10-15', [
         RobotBatches::receivable(['documento' => '100002', 'fecha_vencimiento' => '2026-10-20']),
-        RobotBatches::receivable(['documento' => '100003', 'fecha_vencimiento' => '2026-09-01']),
+        RobotBatches::receivable(['documento' => '100003', 'fecha_vencimiento' => '2026-09-01', 'base_gravable' => null, 'saldo_base' => null]),
     ]);
 
     $client = ClientRecord::query()->where('code', 'C900123456')->sole();
@@ -309,7 +317,9 @@ it('returns the open invoices of the latest robot batch only', function () {
 
     expect(array_map(fn (Invoice $invoice): string => $invoice->documentNumber, $invoices))->toBe(['100003', '100002'])
         ->and(array_map(fn (Invoice $invoice): int => $invoice->daysOverdue, $invoices))->toBe([44, -5])
-        ->and($invoices[0]->dueAt->toDateString())->toBe('2026-09-01');
+        ->and($invoices[0]->dueAt->toDateString())->toBe('2026-09-01')
+        ->and(array_map(fn (Invoice $invoice): array => [$invoice->amountBeforeTax, $invoice->balanceBeforeTax], $invoices))
+        ->toBe([[null, null], [1000000.0, 1000000.0]]);
 });
 
 it('lists the advisors by name, then company, then code', function () {

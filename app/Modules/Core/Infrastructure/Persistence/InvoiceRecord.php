@@ -28,6 +28,8 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  * @property CarbonImmutable $due_at
  * @property string $amount
  * @property string $balance Negative for credit notes and unapplied payments.
+ * @property string|null $amount_before_tax $amount without VAT; null when the snapshot did not bring it.
+ * @property string|null $balance_before_tax $balance without VAT; null as above.
  * @property int $days_overdue From the due date to the cutoff date: positive = past due.
  * @property int|null $advisor_code
  * @property-read PortfolioLoadRecord $portfolioLoad
@@ -36,7 +38,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 #[Table(name: 'invoices', timestamps: false)]
 #[Fillable([
     'portfolio_load_id', 'company', 'client_id', 'document_number', 'document_type', 'installment',
-    'issued_at', 'due_at', 'amount', 'balance', 'days_overdue', 'advisor_code',
+    'issued_at', 'due_at', 'amount', 'balance', 'amount_before_tax', 'balance_before_tax', 'days_overdue', 'advisor_code',
 ])]
 #[UseFactory(InvoiceRecordFactory::class)]
 final class InvoiceRecord extends Model
@@ -76,6 +78,8 @@ final class InvoiceRecord extends Model
             'due_at' => 'immutable_date',
             'amount' => 'decimal:2',
             'balance' => 'decimal:2',
+            'amount_before_tax' => 'decimal:2',
+            'balance_before_tax' => 'decimal:2',
             'days_overdue' => 'integer',
             'advisor_code' => 'integer',
         ];

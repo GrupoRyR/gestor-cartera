@@ -236,7 +236,7 @@ Core es dueño de las entidades compartidas, así que sus tablas no llevan prefi
 |---|---|
 | `portfolio_loads` | Una fila por instantánea de cartera (CargaCartera): la empresa, la fecha de corte (`cutoff_date`), la carga de Ingesta de la que salió (`load_id`, única), el origen (`robot` o `manual`), cuántas partidas trae (`invoice_count`) y los totales: `total` (suma de saldos) y `overdue` (saldo de las partidas vencidas al corte). |
 | `clients` | Un cliente por empresa y código de SAP (`company` y `code` = `OCRD.CardCode`, únicos juntos): nombre, NIT (`tax_id`), grupo, municipio, condición de pago, cupo (`credit_limit`), asesor actual (`advisor_code` = `SlpCode`) y gestor responsable (`manager_user_id`). También guarda, de la última instantánea, el saldo (`balance`), lo vencido (`overdue`), los días de vencida de la partida con saldo más atrasada (`max_days_overdue`) y el estado (`status`, con `status_changed_at`), para que las pantallas ordenen y filtren sin leer partidas. |
-| `invoices` | Las partidas abiertas de cada instantánea: una fila por cuota de factura (o nota crédito, recibo o asiento) con documento, tipo (`TransType` de SAP), cuota, emisión, vencimiento, valor (`amount`), saldo (`balance`, negativo en notas crédito), días de vencida al corte (`days_overdue`) y asesor. |
+| `invoices` | Las partidas abiertas de cada instantánea: una fila por cuota de factura (o nota crédito, recibo o asiento) con documento, tipo (`TransType` de SAP), cuota, emisión, vencimiento, valor (`amount`), saldo (`balance`, negativo en notas crédito), valor y saldo antes de IVA (`amount_before_tax` y `balance_before_tax`, vacíos si la carga no los trajo), días de vencida al corte (`days_overdue`) y asesor. |
 | `contacts` | Las personas de contacto de cada cliente: nombre, correo, teléfono, cargo, si es el principal (`is_primary`) y el origen (`source`: `sap` o la plataforma). Los de SAP los carga el lote `contactos` (ver «Importación del robot»): una fila por correo. |
 
 **Reglas:**
@@ -265,7 +265,7 @@ Ingesta guarda cada lote del robot (o de una carga manual) y despacha `BatchAcce
 2. **Clientes**, por empresa y `codigo_sn`: `name` = `nombre_sn`, `tax_id` = `nit`, `group` = `grupo`, `city` = `municipio`, `payment_terms` = `condicion_pago`, `credit_limit` = `limite_credito` y `advisor_code` = `slp_code`. El texto vacío se guarda como `null` y el `slp_code` -1 de SAP («ningún empleado de ventas») como cliente sin asesor.
    - Los clientes eliminados (borrado lógico) también se actualizan y reciben sus partidas, pero siguen eliminados: borrarlos fue decisión de un usuario.
    - Una instantánea con un corte anterior al de la última (p. ej. una carga manual atrasada) queda en el histórico y solo crea los clientes nuevos: no cambia los datos de los demás ni su estado.
-3. **Partidas**, de a 500 por consulta: `document_number` = `documento`, `document_type` = `tipo_doc`, `installment` = `no_plazo`, `issued_at` = `fecha_documento` (o `fecha_contabilizacion`, o el vencimiento), `due_at` = `fecha_vencimiento` (sin ella, el corte menos `dias`), `amount` = `importe_original`, `balance` = `saldo`, `days_overdue` = días del vencimiento al corte (`OpenItem::fromDates()`) y `advisor_code` = `slp_code`. Los montos se guardan exactos: se suman en centavos enteros (`Application\Portfolio\Cents`), nunca con `float`.
+3. **Partidas**, de a 500 por consulta: `document_number` = `documento`, `document_type` = `tipo_doc`, `installment` = `no_plazo`, `issued_at` = `fecha_documento` (o `fecha_contabilizacion`, o el vencimiento), `due_at` = `fecha_vencimiento` (sin ella, el corte menos `dias`), `amount` = `importe_original`, `balance` = `saldo`, `amount_before_tax` = `base_gravable` y `balance_before_tax` = `saldo_base` (en `null` si la fila no los trae, como en las cargas manuales), `days_overdue` = días del vencimiento al corte (`OpenItem::fromDates()`) y `advisor_code` = `slp_code`. Los montos se guardan exactos: se suman en centavos enteros (`Application\Portfolio\Cents`), nunca con `float`.
 4. **Recálculo** de todos los clientes de la empresa (ver abajo).
 
 **Idempotencia.** Si ya existe una instantánea con ese `load_id`, el listener no hace nada: un `BatchAccepted` repetido o un reintento no duplican partidas. Las instantáneas anteriores nunca se modifican.
@@ -335,8 +335,6 @@ Solo se escriben los clientes cuyos valores cambian. Cuando cambia el estado de 
 | `inactiveSince` | Los que no tienen actividad (`last_activity_at` vacío) o cuya última actividad es anterior a ese momento. |
 | `managerUserId` | Los que tienen a ese usuario como gestor (`manager_user_id`): «Mi cartera». |
 | `unassigned` | Los que no tienen gestor: «Sin asignar». No se combina con `managerUserId` (`InvalidArgumentException`). |
-
-`openInvoices()` todavía no llena `Invoice::$amountBeforeTax` ni `$balanceBeforeTax` (los valores antes de IVA del lote `cartera`): llegan en `null` hasta que Core los guarde.
 
 | Orden (`sort`) | Columna |
 |---|---|
