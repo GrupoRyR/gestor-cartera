@@ -133,6 +133,27 @@ it('names the company of each card only in the group view', function () {
     expect($group)->toContain('>SDC<')->and($single)->not->toContain('>SDC<')->and($single)->toContain('Moroso de SDC');
 });
 
+it('offers buttons to scroll the board sideways, tied to its scrolling region', function () {
+    $html = $this->actingAs(CarteraUsers::analyst())->get('/cartera/kanban')->assertOk()->getContent();
+
+    preg_match('/<div[^>]*role="region"[^>]*>/s', $html, $region);
+
+    expect($region[0] ?? '')->toContain('id="kanban-tablero"')
+        ->and($region[0] ?? '')->toContain('tabindex="0"')
+        ->and($region[0] ?? '')->toContain('aria-label="Clientes por estado de cobro"');
+
+    foreach (['Columnas anteriores', 'Columnas siguientes'] as $name) {
+        preg_match('/<button[^>]*>(?:(?!<\/button>).)*'.$name.'.*?<\/button>/s', $html, $button);
+        preg_match('/<button[^>]*>/', $button[0] ?? '', $tag);
+
+        expect($button[0] ?? '')->toContain('>'.$name.'</span>')
+            ->and($tag[0] ?? '')->toContain('type="button"')
+            ->and($tag[0] ?? '')->toContain('aria-controls="kanban-tablero"');
+    }
+
+    expect($html)->toContain('data-icon="chevron-left"')->and($html)->toContain('data-icon="chevron-right"');
+});
+
 it('offers the move button and dragging to those who may change a status', function () {
     CarteraWorld::client($this->fakes, name: 'Moroso', overdue: 1_000_000, status: ClientStatus::Overdue);
 

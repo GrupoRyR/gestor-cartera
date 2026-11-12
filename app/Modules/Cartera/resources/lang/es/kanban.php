@@ -7,6 +7,13 @@ return [
     'tablero' => 'Clientes por estado de cobro',
     'mostrar_cerradas' => 'Mostrar «Al día» y «Pago recibido»',
 
+    'desplazar' => [
+        'anteriores' => 'Columnas anteriores',
+        'siguientes' => 'Columnas siguientes',
+        'progreso' => 'Columnas :desde–:hasta de :total',
+        'progreso_una' => 'Columna :desde de :total',
+    ],
+
     'columna' => [
         'resumen' => ':clientes · :total',
         'clientes' => '{0} Sin clientes|{1} 1 cliente|[2,*] :count clientes',

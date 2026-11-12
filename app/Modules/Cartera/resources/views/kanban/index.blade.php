@@ -25,6 +25,8 @@
         'many' => trans_choice('cartera::kanban.columna.clientes', 2, ['count' => ':count']),
         'question' => __('cartera::kanban.mover.pregunta', ['cliente' => ':cliente']),
         'error' => __('cartera::kanban.mensajes.error'),
+        'range' => __('cartera::kanban.desplazar.progreso', ['desde' => ':desde', 'hasta' => ':hasta', 'total' => ':total']),
+        'single' => __('cartera::kanban.desplazar.progreso_una', ['desde' => ':desde', 'total' => ':total']),
     ];
 @endphp
 
@@ -33,6 +35,7 @@
 
     <div
         x-data="kanbanBoard(@js(['columns' => $state, 'labels' => $labels, 'moveUrl' => route('cartera.clientes.estado', 0)]))"
+        x-on:resize.window.debounce.150ms="measure()"
         class="grid gap-4"
     >
         <div class="flex flex-wrap items-center gap-x-6 gap-y-2">
@@ -46,11 +49,49 @@
         <x-ui.alert tone="danger" hidden x-bind:hidden="! error"><span x-text="error"></span></x-ui.alert>
 
         {{--
+            Visible scroll controls for a mouse without a sideways wheel. They
+            stay hidden until the script finds that the board overflows (and
+            without the script, which they need). Each press brings the next or
+            previous columns into view; the region itself keeps the arrow keys.
+        --}}
+        <div class="flex items-center justify-end gap-2" hidden x-bind:hidden="! overflows">
+            <p class="text-sm text-fg-muted tabular-nums" x-text="position"></p>
+            <x-ui.button
+                variant="secondary"
+                icon="chevron-left"
+                :icon-only="true"
+                aria-controls="kanban-tablero"
+                x-ref="previous"
+                x-on:click="scrollColumns(-1)"
+                x-bind:disabled="atStart"
+                disabled
+            >{{ __('cartera::kanban.desplazar.anteriores') }}</x-ui.button>
+            <x-ui.button
+                variant="secondary"
+                icon="chevron-right"
+                :icon-only="true"
+                aria-controls="kanban-tablero"
+                x-ref="next"
+                x-on:click="scrollColumns(1)"
+                x-bind:disabled="atEnd"
+            >{{ __('cartera::kanban.desplazar.siguientes') }}</x-ui.button>
+        </div>
+
+        {{--
             The board scrolls sideways inside this region, never the page. It is
             positioned (relative) so the visually hidden labels of the cards,
-            which are absolutely positioned, are clipped by it too.
+            which are absolutely positioned, are clipped by it too; the script
+            measures the columns against it (offsetLeft) for the controls above.
         --}}
-        <div role="region" tabindex="0" aria-label="{{ __('cartera::kanban.tablero') }}" class="relative flex snap-x snap-mandatory items-start gap-4 overflow-x-auto overscroll-x-contain pb-4">
+        <div
+            id="kanban-tablero"
+            role="region"
+            tabindex="0"
+            aria-label="{{ __('cartera::kanban.tablero') }}"
+            x-ref="board"
+            x-on:scroll.passive="queueMeasure()"
+            class="relative flex snap-x snap-mandatory items-start gap-4 overflow-x-auto overscroll-x-contain pb-4"
+        >
             @foreach ($board->columns as $column)
                 @php($status = $column->status)
                 <section
@@ -137,6 +178,11 @@
                     busy: false,
                     notice: '',
                     error: '',
+                    overflows: false,
+                    atStart: true,
+                    atEnd: false,
+                    position: '',
+                    frame: null,
 
                     init() {
                         try {
@@ -147,7 +193,102 @@
                             try {
                                 window.localStorage.setItem('cartera.kanban.cerradas', value ? '1' : '0');
                             } catch (e) { /* storage blocked: the choice lasts until reload */ }
+
+                            // Two more or two fewer columns change the overflow and the count.
+                            this.$nextTick(() => this.measure());
                         });
+
+                        // The refs exist once the children are initialized.
+                        this.$nextTick(() => this.measure());
+                    },
+
+                    // Columns on the board in order, with their edges in board coordinates
+                    // (the region is the offsetParent). Hidden columns take no room.
+                    columnEdges() {
+                        return Array.from(this.$refs.board.querySelectorAll('[data-column]'))
+                            .filter((column) => !column.hidden)
+                            .map((column) => ({ start: column.offsetLeft, end: column.offsetLeft + column.offsetWidth }));
+                    },
+
+                    // Scroll events come in bursts: measure once per frame, which still
+                    // catches the last one.
+                    queueMeasure() {
+                        if (this.frame === null) {
+                            this.frame = window.requestAnimationFrame(() => {
+                                this.frame = null;
+                                this.measure();
+                            });
+                        }
+                    },
+
+                    // Shows the controls only when the board overflows, disables the one
+                    // that has nowhere to go and writes which columns are in view.
+                    measure() {
+                        const board = this.$refs.board;
+                        const left = board.scrollLeft;
+                        const right = left + board.clientWidth;
+                        const focused = document.activeElement;
+
+                        this.overflows = board.scrollWidth - board.clientWidth > 1;
+                        this.atStart = !this.overflows || left <= 1;
+                        this.atEnd = !this.overflows || right >= board.scrollWidth - 1;
+
+                        // A column counts as in view when at least half of it shows.
+                        const columns = this.columnEdges();
+                        const seen = [];
+
+                        columns.forEach((column, index) => {
+                            if (Math.min(column.end, right) - Math.max(column.start, left) >= (column.end - column.start) / 2) {
+                                seen.push(index + 1);
+                            }
+                        });
+
+                        const from = seen[0];
+                        const to = seen[seen.length - 1];
+
+                        this.position = seen.length === 0 ? ''
+                            : from === to ? this.labels.single.replace(':desde', from).replace(':total', columns.length)
+                            : this.labels.range.replace(':desde', from).replace(':hasta', to).replace(':total', columns.length);
+
+                        // A button that becomes disabled (or hidden) would drop the keyboard
+                        // focus: hand it to the other button, or to the board itself.
+                        const stranded = (focused === this.$refs.previous && this.atStart)
+                            || (focused === this.$refs.next && this.atEnd);
+
+                        if (stranded) {
+                            this.$nextTick(() => {
+                                const other = focused === this.$refs.previous ? this.$refs.next : this.$refs.previous;
+
+                                (this.overflows && !other.disabled ? other : board).focus();
+                            });
+                        }
+                    },
+
+                    // Brings the next (1) or previous (-1) columns into view, landing on a
+                    // column start so it agrees with the snap points of the board.
+                    scrollColumns(direction) {
+                        const board = this.$refs.board;
+                        const left = board.scrollLeft;
+                        const right = left + board.clientWidth;
+                        const columns = this.columnEdges();
+                        let target = 0;
+
+                        if (direction > 0) {
+                            // The first column cut off on the right becomes the first in view.
+                            const next = columns.find((column) => column.end > right + 1 && column.start > left + 1);
+                            target = next ? next.start : board.scrollWidth;
+                        } else {
+                            // Back about one view: the earliest column that, placed first, still
+                            // shows in full the column just before the one now first.
+                            const first = columns.find((column) => column.start >= left - 1);
+                            const floor = (first ? first.start : right) - board.clientWidth;
+                            const back = columns.find((column) => column.start >= floor - 1 && column.start < left - 1);
+                            target = back ? back.start : 0;
+                        }
+
+                        const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+                        board.scrollTo({ left: target, behavior: reduce ? 'auto' : 'smooth' });
                     },
 
                     summary(status) {
