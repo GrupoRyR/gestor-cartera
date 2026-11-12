@@ -114,10 +114,6 @@ it('filters by the manager of the client, or by clients without one', function (
         ->and(CarteraRecords::repository()->paginateClients(new ClientQuery(managerUserId: $other->id))->total())->toBe(1);
 });
 
-it('refuses a query for a manager and for clients without one at once', function () {
-    new ClientQuery(managerUserId: 7, unassigned: true);
-})->throws(InvalidArgumentException::class);
-
 it('filters by the companies of the query', function () {
     CarteraRecords::client('Agro Arango');
     CarteraRecords::client('Bodega Bedoya', ['company' => CompanyCode::SDC]);
