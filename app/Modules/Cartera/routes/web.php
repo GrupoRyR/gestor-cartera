@@ -4,6 +4,7 @@
 // the /cartera URL prefix and the "cartera." route-name prefix:
 // Route::get('/', ...)->name('tablero') is GET /cartera named cartera.tablero.
 
+use App\Modules\Cartera\Http\Controllers\AssignManagerController;
 use App\Modules\Cartera\Http\Controllers\ClientFileController;
 use App\Modules\Cartera\Http\Controllers\ClientFileExportController;
 use App\Modules\Cartera\Http\Controllers\ClientListController;
@@ -30,6 +31,12 @@ Route::middleware(['auth', 'can:cartera.view'])->group(function () {
         ->whereNumber('client')
         ->middleware('can:core.clients.change_status')
         ->name('clientes.estado');
+
+    // The manager ("gestor") of clients, in bulk from the list: Core's
+    // core.clients.assign permission.
+    Route::middleware('can:core.clients.assign')->controller(AssignManagerController::class)->group(function () {
+        Route::post('clientes/gestor', 'bulk')->name('clientes.asignar');
+    });
 
     // Calls, notes and discounts offered: cartera.manage.
     Route::post('clientes/{client}/gestiones', StoreManagementController::class)
