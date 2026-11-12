@@ -101,7 +101,7 @@ final readonly class ContactRow
 
     /**
      * The valid e-mails of a field that may hold several, separated by ";",
-     * "," or blanks.
+     * "," or blanks (Unicode ones too, such as a non-breaking space).
      *
      * @return list<string>
      */
@@ -109,7 +109,7 @@ final readonly class ContactRow
     {
         $emails = [];
 
-        foreach (preg_split('/[;,\s]+/', mb_strtolower((string) $value), flags: PREG_SPLIT_NO_EMPTY) ?: [] as $email) {
+        foreach (preg_split('/[;,\s\p{Z}]+/u', mb_strtolower((string) $value), flags: PREG_SPLIT_NO_EMPTY) ?: [] as $email) {
             if (strlen($email) <= self::MAX_LENGTH && filter_var($email, FILTER_VALIDATE_EMAIL) !== false) {
                 $emails[$email] = $email;
             }

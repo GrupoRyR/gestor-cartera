@@ -7,6 +7,7 @@ use App\Modules\Core\Infrastructure\Ingest\ImportContacts;
 use App\Modules\Core\Infrastructure\Persistence\ClientRecord;
 use App\Modules\Core\Infrastructure\Persistence\ContactRecord;
 use Illuminate\Events\CallQueuedListener;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Queue;
 use Tests\Modules\Core\Support\RobotBatches;
@@ -66,6 +67,36 @@ it('imports the active SAP contacts of each client with clean, unique e-mails', 
         // The general row lost its e-mail to the primary contact, but keeps its phone for the calls.
         ['SGX', 'C900123456', null, null, '300 000 0000', null, false, 'sap'],
     ]);
+});
+
+it('splits and trims e-mails on Unicode blanks too', function () {
+    contactsClient('C900123456');
+
+    $this->robot->send(Dataset::Contacts, CompanyCode::SGX, '2026-11-10', [
+        RobotBatches::contact(['correo' => "\u{00A0}Pagos@example.com\u{00A0}tesoreria@example.com\u{2003}"]),
+    ]);
+
+    expect(ContactRecord::query()->orderBy('email')->pluck('email')->all())
+        ->toBe(['pagos@example.com', 'tesoreria@example.com']);
+});
+
+it('imports a company only while it holds its lock, and the other company meanwhile', function () {
+    contactsClient('C900123456');
+    contactsClient('C900123456', CompanyCode::SDC);
+    $lock = Cache::lock('laravel-queue-overlap:'.ImportContacts::LOCK_PREFIX.'SGX', 60);
+
+    expect($lock->get())->toBeTrue();
+
+    $sgx = $this->robot->send(Dataset::Contacts, CompanyCode::SGX, '2026-11-10', [RobotBatches::contact()]);
+    $this->robot->send(Dataset::Contacts, CompanyCode::SDC, '2026-11-10', [RobotBatches::contact()]);
+
+    expect(array_column(contactRows(), 0))->toBe(['SDC']);
+
+    // The queue delivers the released import again once the lock is free.
+    $lock->release();
+    event(new BatchAccepted($sgx));
+
+    expect(array_column(contactRows(), 0))->toBe(['SGX', 'SDC']);
 });
 
 it('replaces only the SAP contacts of the company and keeps the ones made on the platform', function () {

@@ -9,8 +9,10 @@ use App\Modules\Core\Contracts\Events\BatchAccepted;
 use App\Modules\Core\Contracts\IngestaSink;
 use App\Modules\Core\Infrastructure\Persistence\ClientRecord;
 use App\Modules\Core\Infrastructure\Persistence\ContactRecord;
+use DateTimeInterface;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Database\ConnectionInterface;
+use Illuminate\Queue\Middleware\WithoutOverlapping;
 use Illuminate\Support\Facades\Log;
 
 /**
@@ -26,14 +28,29 @@ use Illuminate\Support\Facades\Log;
  * Idempotent: the same batch twice leaves the same rows. A batch that is no
  * longer the company's latest (an older one retried late) is skipped, and so
  * is an empty one, a failed extraction rather than clients without contacts.
+ *
+ * Two imports of the same company never run at once (a lock per company), so
+ * an older batch either finishes before the newer one or is skipped after it.
  */
 final class ImportContacts implements ShouldQueue
 {
+    /** Prefix of the per-company lock key, followed by the company code. */
+    public const string LOCK_PREFIX = 'contacts-import:';
+
     /** Rows written per statement. */
     private const int CHUNK = 500;
 
     /** At most this many skipped client codes go to the log. */
     private const int LOGGED_CODES = 20;
+
+    /** Seconds a job that found the lock taken waits before its next try. */
+    private const int RELEASE_AFTER = 60;
+
+    /** Seconds before the lock expires on its own, so a killed worker never keeps it. */
+    private const int EXPIRE_AFTER = 900;
+
+    /** Minutes after it is queued during which a job keeps retrying the lock. */
+    private const int RETRY_MINUTES = 30;
 
     public function __construct(
         private readonly IngestaSink $sink,
@@ -46,6 +63,27 @@ final class ImportContacts implements ShouldQueue
     public function shouldQueue(BatchAccepted $event): bool
     {
         return $event->load->dataset === Dataset::Contacts;
+    }
+
+    /**
+     * @return list<WithoutOverlapping>
+     */
+    public function middleware(BatchAccepted $event): array
+    {
+        return [
+            (new WithoutOverlapping(self::LOCK_PREFIX.$event->load->company->value))
+                ->shared()
+                ->releaseAfter(self::RELEASE_AFTER)
+                ->expireAfter(self::EXPIRE_AFTER),
+        ];
+    }
+
+    /**
+     * How long an import that finds the company's lock taken keeps retrying.
+     */
+    public function retryUntil(BatchAccepted $event): DateTimeInterface
+    {
+        return now()->addMinutes(self::RETRY_MINUTES);
     }
 
     public function handle(BatchAccepted $event): void
