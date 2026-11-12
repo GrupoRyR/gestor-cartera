@@ -58,6 +58,14 @@ it('takes the earlier receipt when both companies share the cutoff', function ()
     expect((new DataFreshness($this->sink, FakeCurrentCompany::group()))->updatedAt()?->format('H:i'))->toBe('06:00');
 });
 
+it('reads only the companies the screen is narrowed to, within the scope', function () {
+    ($this->receive)(Dataset::Receivables, CompanyCode::SGX, '2026-11-10', '2026-11-11 11:00');
+    ($this->receive)(Dataset::Receivables, CompanyCode::SDC, '2026-11-09', '2026-11-11 13:00');
+
+    expect((new DataFreshness($this->sink, FakeCurrentCompany::group()))->updatedAt([CompanyCode::SGX])?->format('H:i'))->toBe('06:00')
+        ->and((new DataFreshness($this->sink, new FakeCurrentCompany(CompanyCode::SGX)))->updatedAt([CompanyCode::SDC]))->toBeNull();
+});
+
 it('ignores a company of the group view that has no load', function () {
     ($this->receive)(Dataset::Receivables, CompanyCode::SDC, '2026-11-10', '2026-11-11 13:00');
 

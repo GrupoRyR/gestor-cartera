@@ -35,7 +35,7 @@ final readonly class HistoryController
             'filter' => $filter,
             'days' => $days,
             'today' => $today,
-            'updatedAt' => $this->freshness->updatedAt(),
+            'updatedAt' => $this->freshness->updatedAt($filter->advisorQuery()->companies),
             'history' => $this->cartera->history($today->subDays($days)->startOfDay(), $today, $filter->advisorQuery()),
             'advisors' => $this->cartera->advisors(),
         ]);

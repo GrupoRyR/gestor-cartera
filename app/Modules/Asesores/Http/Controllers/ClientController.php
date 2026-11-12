@@ -42,7 +42,7 @@ final readonly class ClientController
             'advisors' => $advisors,
             'showAdvisor' => count($advisors) > 1,
             'today' => CarbonImmutable::today(),
-            'updatedAt' => $this->freshness->updatedAt(),
+            'updatedAt' => $this->freshness->updatedAt($filter->advisorQuery()->companies),
         ]);
     }
 

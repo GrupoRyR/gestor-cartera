@@ -29,7 +29,7 @@ final readonly class DashboardController
             'filter' => $filter,
             'overview' => $this->overview->build($filter, $today, (int) config('asesores.history.dashboard_days')),
             'today' => $today,
-            'updatedAt' => $this->freshness->updatedAt(),
+            'updatedAt' => $this->freshness->updatedAt($filter->advisorQuery()->companies),
             'isManager' => $request->user()?->can('asesores.team') ?? false,
         ]);
     }
