@@ -236,7 +236,7 @@ Core es dueño de las entidades compartidas, así que sus tablas no llevan prefi
 | `portfolio_loads` | Una fila por instantánea de cartera (CargaCartera): la empresa, la fecha de corte (`cutoff_date`), la carga de Ingesta de la que salió (`load_id`, única), el origen (`robot` o `manual`), cuántas partidas trae (`invoice_count`) y los totales: `total` (suma de saldos) y `overdue` (saldo de las partidas vencidas al corte). |
 | `clients` | Un cliente por empresa y código de SAP (`company` y `code` = `OCRD.CardCode`, únicos juntos): nombre, NIT (`tax_id`), grupo, municipio, condición de pago, cupo (`credit_limit`), asesor actual (`advisor_code` = `SlpCode`) y gestor responsable (`manager_user_id`). También guarda, de la última instantánea, el saldo (`balance`), lo vencido (`overdue`), los días de vencida de la partida con saldo más atrasada (`max_days_overdue`) y el estado (`status`, con `status_changed_at`), para que las pantallas ordenen y filtren sin leer partidas. |
 | `invoices` | Las partidas abiertas de cada instantánea: una fila por cuota de factura (o nota crédito, recibo o asiento) con documento, tipo (`TransType` de SAP), cuota, emisión, vencimiento, valor (`amount`), saldo (`balance`, negativo en notas crédito), días de vencida al corte (`days_overdue`) y asesor. |
-| `contacts` | Las personas de contacto de cada cliente: nombre, correo, teléfono, cargo, si es el principal (`is_primary`) y el origen (`source`: `sap` o la plataforma). La carga desde SAP (lote `contactos`) llega cuando Ingesta defina las columnas de ese lote en `etl/esquema.py`. |
+| `contacts` | Las personas de contacto de cada cliente: nombre, correo, teléfono, cargo, si es el principal (`is_primary`) y el origen (`source`: `sap` o la plataforma). Los de SAP los carga el lote `contactos` (ver «Importación del robot»): una fila por correo. |
 
 **Reglas:**
 
@@ -250,13 +250,13 @@ Core es dueño de las entidades compartidas, así que sus tablas no llevan prefi
 
 ## Importación del robot
 
-Ingesta guarda cada lote del robot (o de una carga manual) y despacha `BatchAccepted` una vez por lote aceptado (`docs/arquitectura.md` §6.9). Core lo escucha con dos listeners, registrados en `bootModule()`. Los dos van a la cola y solo se encolan para su lote (`shouldQueue()`): los demás lotes no crean trabajos.
+Ingesta guarda cada lote del robot (o de una carga manual) y despacha `BatchAccepted` una vez por lote aceptado (`docs/arquitectura.md` §6.9). Core lo escucha con tres listeners, registrados en `bootModule()`. Los tres van a la cola y solo se encolan para su lote (`shouldQueue()`): los demás lotes no crean trabajos.
 
 | Lote | Listener (`Infrastructure\Ingest\`) | Qué hace |
 |---|---|---|
 | `cartera` | `ImportReceivablesSnapshot` | Guarda la instantánea con sus partidas, crea o actualiza los clientes y recalcula el saldo y el estado de todos los clientes de la empresa. |
 | `asesores` | `ImportAdvisors` | Actualiza los asesores de SAP de la empresa y desactiva los que no llegan. Un lote sin ningún asesor válido se ignora: es una extracción fallida, no una empresa sin vendedores. |
-| `contactos` | — | Pendiente: llega cuando Ingesta defina las columnas del lote. |
+| `contactos` | `ImportContacts` | Reemplaza los contactos de SAP de los clientes vigentes de la empresa. Nunca toca los creados en la plataforma. |
 
 **Cartera, paso a paso.** Todo va en una sola transacción: si algo falla, no queda nada a medias.
 
@@ -286,6 +286,17 @@ Solo se escriben los clientes cuyos valores cambian. Cuando cambia el estado de 
 - Los asesores de esa empresa que no llegan en el lote quedan inactivos; los de la otra empresa no cambian.
 - Nunca toca `user_id`: el vínculo lo hacen el ingreso con Microsoft y la pantalla Equipo. Si alguien ingresó antes de que llegara su asesor, queda vinculado en su siguiente ingreso.
 - Repetir el lote deja lo mismo.
+
+**Contactos.** Cada fila es una persona de contacto (`OCPR`) o la fila general de la ficha del cliente (`OCRD`, sin nombre ni `contacto_id`). Todo va en una sola transacción:
+
+- Se liga al cliente por empresa y `codigo_sn`. Si el cliente no existe o está eliminado (borrado lógico), la fila se omite y queda una sola advertencia en el log por lote, con la empresa, cuántas filas se omitieron y hasta 20 códigos. El lote sigue.
+- Se borran los contactos con `source = sap` de los clientes vigentes de la empresa y se insertan los del lote, de a 500. Los contactos creados en la plataforma y los de clientes eliminados no cambian. Un cliente vigente que no llega en el lote queda sin contactos de SAP.
+- Solo entran las filas con `activo` = `Y` (sin importar mayúsculas ni espacios).
+- `correo` se separa por `;`, `,` o espacios, pasa a minúsculas y se descartan los correos inválidos (`FILTER_VALIDATE_EMAIL`). Cada correo válido es un contacto, y un correo aparece una sola vez por cliente. Si varias filas traen el mismo, se queda con el contacto principal, luego con el que tiene nombre (una persona antes que la fila general) y luego con el primero.
+- Una fila sin correos válidos (o que los perdió frente a otra) se guarda sin correo solo si tiene teléfono, para las llamadas.
+- `name` = `nombre`, `position` = `cargo`, `phone` = `telefono` y `celular` unidos con « / » (sin repetir) e `is_primary` = `principal` es `Y`. El texto vacío se guarda como `null`.
+- Solo se aplica el lote más reciente de la empresa (`IngestaSink::latest()`): un lote anterior que llega tarde o se reintenta no hace nada. Un lote sin filas activas se ignora: es una extracción fallida, no clientes sin contactos.
+- Repetir el lote deja los mismos contactos.
 
 **Cola en el hosting compartido.** Los listeners van a la cola `database`, que vacía la tarea de cada minuto (`docs/arquitectura.md` §10). La cartera se escribe por lotes (clientes y partidas de a 500, y el recálculo lee las partidas en una sola consulta), así que una instantánea de miles de filas tarda segundos. `ImportReceivablesSnapshot` tiene `$timeout = 300` y falla con la primera excepción (`$maxExceptions = 1`): la transacción se deshace y el trabajo queda en `failed_jobs`; `php artisan queue:retry` lo vuelve a correr sin duplicar nada. En pruebas la cola es `sync`: los listeners corren en el momento.
 

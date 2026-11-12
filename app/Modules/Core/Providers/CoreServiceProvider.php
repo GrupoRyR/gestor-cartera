@@ -27,6 +27,7 @@ use App\Modules\Core\Infrastructure\Commitments\EloquentCompromisoService;
 use App\Modules\Core\Infrastructure\Companies\CompanyCatalog;
 use App\Modules\Core\Infrastructure\Companies\SessionCurrentCompany;
 use App\Modules\Core\Infrastructure\Ingest\ImportAdvisors;
+use App\Modules\Core\Infrastructure\Ingest\ImportContacts;
 use App\Modules\Core\Infrastructure\Ingest\ImportReceivablesSnapshot;
 use App\Modules\Core\Infrastructure\Persistence\AdvisorRecord;
 use App\Modules\Core\Infrastructure\Persistence\CompanyRecord;
@@ -100,10 +101,11 @@ final class CoreServiceProvider extends ModuleServiceProvider
         RateLimiter::for('core-auth', fn (Request $request): Limit => Limit::perMinute(20)
             ->by($request->ip().'|'.$request->path()));
 
-        // The robot batches Core consumes: cartera snapshots and SAP advisors.
-        // Both listeners are queued, and only for their own dataset.
+        // The robot batches Core consumes: cartera snapshots, SAP advisors and
+        // client contacts. The listeners are queued, and only for their own dataset.
         Event::listen(BatchAccepted::class, ImportReceivablesSnapshot::class);
         Event::listen(BatchAccepted::class, ImportAdvisors::class);
+        Event::listen(BatchAccepted::class, ImportContacts::class);
 
         $this->commands([BreakOverdueCommitmentsCommand::class, MigrateUsersCommand::class, MigrateActivitiesCommand::class, MigrateCommitmentsCommand::class, MigrateStatusesCommand::class, VerifyAuditChainCommand::class]);
 
