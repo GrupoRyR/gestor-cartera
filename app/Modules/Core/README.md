@@ -435,7 +435,15 @@ Se puede elegir cualquier estado, y las reglas de «Estados del cliente» le sig
 
 ## Gestor del cliente
 
-`Contracts\ClientAssignmentService` es un contrato nuevo de Core para asignar a cada cliente su gestor (`clients.manager_user_id`): la pantalla de Cartera asigna en bloque desde la lista de clientes, o uno por uno desde la ficha. Los filtros «Mi cartera» y «Sin asignar» son `managerUserId` y `unassigned` de `ClientQuery` (ver «CarteraRepository»). El gestor es solo un filtro: todo el equipo de cartera sigue viendo todos los clientes. La implementación de Core llega con la pantalla; por ahora el contenedor no lo resuelve.
+`Contracts\ClientAssignmentService` es un contrato nuevo de Core para asignar a cada cliente su gestor (`clients.manager_user_id`): la pantalla de Cartera asigna en bloque desde la lista de clientes, o uno por uno desde la ficha. Los filtros «Mi cartera» y «Sin asignar» son `managerUserId` y `unassigned` de `ClientQuery` (ver «CarteraRepository»). El gestor es solo un filtro: todo el equipo de cartera sigue viendo todos los clientes. Lo implementa `Infrastructure\Portfolio\EloquentClientAssignmentService`, registrado en el contenedor (una instancia por petición o por job). `tests/Fakes` no tiene un fake suyo.
+
+Actúa como el usuario con sesión iniciada:
+
+1. Sin el permiso `core.clients.assign` (`admin`, `gerente_cartera` y `analista_cartera`) los tres métodos lanzan `AuthorizationException`, también para invitados. Se revisa primero, así que la respuesta es la misma para cualquier dato.
+2. `assignees()` devuelve los posibles gestores, por nombre (`UserRef`): los usuarios con rol `gerente_cartera` o `analista_cartera`, no eliminados, que pueden trabajar en al menos una de las empresas disponibles para el usuario (`CompanyAccess`: un usuario inactivo no puede, y `CurrentCompany::available()`).
+3. `assign($clientIds, $managerUserId)` asigna todos o ninguno, en una sola transacción y con las filas de los clientes bloqueadas. Un id repetido cuenta una vez; una lista vacía devuelve 0 sin escribir nada. Un cliente que no existe, está eliminado o está fuera del alcance del usuario en sus empresas (`Portfolio\ClientReach`, como en «Cambio de estado manual») lanza `RecordNotFound`. Un gestor que no está en `assignees()` o no trabaja en la empresa de todos los clientes lanza `InvalidArgumentException`; `null` deja los clientes sin gestor.
+4. Solo escribe en los clientes cuyo gestor cambia: guarda `manager_user_id`; escribe en la bitácora, como el usuario, una gestión «Sistema» («Gestor asignado: María Paula Rojas», «Gestor cambiado: de Juan Pablo Ortiz a María Paula Rojas» o «Gestor quitado: María Paula Rojas», con `metadata` `from` y `to`, los ids de usuario o `null`), que no mueve la última actividad del cliente: asignar no es gestionarlo; y audita `core.client.manager_changed` con sujeto `client` y `changes.manager_user_id` (`old` y `new`). Devuelve cuántos clientes cambiaron.
+5. `assignMatching($query, $managerUserId)` hace lo mismo con todos los clientes que el usuario vería con `$query` en la lista de Cartera (el alcance y los filtros de `CarteraRepository`, con la empresa activa o las de `companies`), sin importar el orden. Lee solo id, empresa y gestor de cada cliente, y actualiza e inserta de a 500 filas por consulta, así que aguanta miles de clientes.
 
 ## Borrado lógico de clientes
 
