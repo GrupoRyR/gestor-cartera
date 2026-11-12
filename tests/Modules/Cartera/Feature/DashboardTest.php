@@ -1,12 +1,17 @@
 <?php
 
+use App\Modules\Core\Contracts\Data\IncomingBatch;
 use App\Modules\Core\Contracts\Enums\ActivityType;
 use App\Modules\Core\Contracts\Enums\ClientStatus;
 use App\Modules\Core\Contracts\Enums\CommitmentStatus;
 use App\Modules\Core\Contracts\Enums\CompanyCode;
+use App\Modules\Core\Contracts\Enums\Dataset;
+use App\Modules\Core\Contracts\Enums\LoadSource;
 use App\Modules\Core\Contracts\Enums\Role;
+use App\Modules\Core\Contracts\Events\BatchAccepted;
 use App\Support\Formatting\Money;
 use Carbon\CarbonImmutable;
+use Illuminate\Support\Facades\Event;
 use Tests\Fakes\ContractFakes;
 use Tests\Fakes\Make;
 use Tests\Modules\Cartera\Support\CarteraUsers;
@@ -184,6 +189,48 @@ it('labels the company of each top debtor in the group view', function () {
     $this->actingAs(CarteraUsers::analyst())
         ->get('/cartera')
         ->assertSeeInOrder(['Cliente SDC', 'SDC', 'Cliente SGX', 'SGX']);
+});
+
+it('says when the data was last refreshed, in Bogotá time', function (string $receivedAt, string $sentence) {
+    $this->travelTo(CarbonImmutable::parse($receivedAt, 'UTC'));
+    Event::fake([BatchAccepted::class]);
+    $this->fakes->ingesta->receive(new IncomingBatch(Dataset::Receivables, CompanyCode::SGX, CarbonImmutable::parse('2026-11-10', 'America/Bogota'), LoadSource::Robot, 'lote-sgx', []));
+    CarteraWorld::client($this->fakes, name: 'Cliente A', overdue: 1_000_000);
+    $this->travelTo(CarbonImmutable::parse('2026-11-11 15:00', 'UTC'));
+
+    $this->actingAs(CarteraUsers::analyst())
+        ->get('/cartera')
+        ->assertOk()
+        ->assertSeeText($sentence);
+})->with([
+    'today' => ['2026-11-11 12:10', 'Datos actualizados hoy a las 07:10.'],
+    // 02:30 UTC on the 11th is 21:30 of the 10th in Bogotá.
+    'an earlier day' => ['2026-11-11 02:30', 'Datos actualizados el 10/11/2026 a las 21:30.'],
+]);
+
+it('says nothing about the refresh without a load', function () {
+    CarteraWorld::client($this->fakes, name: 'Cliente A', overdue: 1_000_000);
+
+    $this->actingAs(CarteraUsers::analyst())
+        ->get('/cartera')
+        ->assertOk()
+        ->assertDontSeeText('Datos actualizados');
+});
+
+it('takes the refresh of the company with the older cutoff in the group view', function () {
+    Event::fake([BatchAccepted::class]);
+    $this->travelTo(CarbonImmutable::parse('2026-11-11 11:00', 'UTC'));
+    $this->fakes->ingesta->receive(new IncomingBatch(Dataset::Receivables, CompanyCode::SGX, CarbonImmutable::parse('2026-11-10', 'America/Bogota'), LoadSource::Robot, 'lote-sgx', []));
+    $this->travelTo(CarbonImmutable::parse('2026-11-11 13:00', 'UTC'));
+    $this->fakes->ingesta->receive(new IncomingBatch(Dataset::Receivables, CompanyCode::SDC, CarbonImmutable::parse('2026-11-09', 'America/Bogota'), LoadSource::Robot, 'lote-sdc', []));
+    CarteraWorld::client($this->fakes, name: 'Cliente A', overdue: 1_000_000);
+    $this->fakes->currentCompany->switchTo(null);
+
+    $this->actingAs(CarteraUsers::analyst())
+        ->get('/cartera')
+        ->assertOk()
+        ->assertSeeText('Datos actualizados hoy a las 08:00.')
+        ->assertDontSeeText('06:00');
 });
 
 it('adds the dashboard to the menu of the portfolio team', function () {

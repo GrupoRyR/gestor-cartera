@@ -47,6 +47,7 @@ final class BuildDashboard
         private readonly CompromisoService $commitments,
         private readonly GestionLogger $log,
         private readonly CurrentCompany $company,
+        private readonly DataFreshness $freshness,
     ) {}
 
     /**
@@ -67,6 +68,7 @@ final class BuildDashboard
 
         return new Dashboard(
             today: $today,
+            updatedAt: $this->freshness->updatedAt(),
             scopeLabel: $this->company->active()->name ?? 'Grupo RYR',
             isGroup: $this->company->isGroup(),
             totals: $totals,
