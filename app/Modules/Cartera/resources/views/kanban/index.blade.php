@@ -35,7 +35,6 @@
 
     <div
         x-data="kanbanBoard(@js(['columns' => $state, 'labels' => $labels, 'moveUrl' => route('cartera.clientes.estado', 0)]))"
-        x-on:resize.window.debounce.150ms="measure()"
         class="grid gap-4"
     >
         <div class="flex flex-wrap items-center gap-x-6 gap-y-2">
@@ -198,8 +197,12 @@
                             this.$nextTick(() => this.measure());
                         });
 
-                        // The refs exist once the children are initialized.
-                        this.$nextTick(() => this.measure());
+                        // The refs exist once the children are initialized. Any change of the
+                        // board's own width (window, sidebar, zoom) measures again.
+                        this.$nextTick(() => {
+                            this.measure();
+                            new ResizeObserver(() => this.queueMeasure()).observe(this.$refs.board);
+                        });
                     },
 
                     // Columns on the board in order, with their edges in board coordinates
