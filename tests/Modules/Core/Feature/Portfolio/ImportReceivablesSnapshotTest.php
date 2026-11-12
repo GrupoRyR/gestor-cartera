@@ -347,7 +347,7 @@ it('ignores the batches of other datasets', function (Dataset $dataset) {
 it('queues the import of cartera batches only', function () {
     Queue::fake();
 
-    $this->robot->send(Dataset::Contacts, CompanyCode::SGX, '2026-10-15', []);
+    $this->robot->send(Dataset::Sales, CompanyCode::SGX, '2026-10-15', []);
 
     Queue::assertNothingPushed();
 

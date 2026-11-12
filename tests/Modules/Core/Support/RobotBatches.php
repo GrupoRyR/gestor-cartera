@@ -128,4 +128,27 @@ final class RobotBatches
             'clientes' => 40,
         ], $overrides);
     }
+
+    /**
+     * A contactos row: Gloria Henao, the active primary contact of
+     * Ferretería El Tornillo.
+     *
+     * @param  array<string, scalar|null>  $overrides
+     * @return array<string, scalar|null>
+     */
+    public static function contact(array $overrides = []): array
+    {
+        return array_replace([
+            'codigo_sn' => 'C900123456',
+            'nit' => '900123456-8',
+            'contacto_id' => 1,
+            'nombre' => 'Gloria Henao',
+            'cargo' => 'Tesorería',
+            'correo' => 'gloria.henao@example.com',
+            'telefono' => '604 444 1234',
+            'celular' => '300 123 4567',
+            'principal' => 'Y',
+            'activo' => 'Y',
+        ], $overrides);
+    }
 }

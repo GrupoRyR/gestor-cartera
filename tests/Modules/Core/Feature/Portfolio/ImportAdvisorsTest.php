@@ -83,7 +83,7 @@ it('leaves the advisors untouched when a batch has no valid advisor', function (
 it('ignores the batches of other datasets', function () {
     AdvisorRecord::factory()->create(['company' => CompanyCode::SGX, 'code' => 12]);
 
-    $this->robot->send(Dataset::Contacts, CompanyCode::SGX, '2026-10-15', [RobotBatches::advisor(['slp_code' => 99])]);
+    $this->robot->send(Dataset::Sales, CompanyCode::SGX, '2026-10-15', [RobotBatches::advisor(['slp_code' => 99])]);
 
     expect(AdvisorRecord::query()->pluck('code')->all())->toBe([12])
         ->and(AdvisorRecord::query()->sole()->active)->toBeTrue();
