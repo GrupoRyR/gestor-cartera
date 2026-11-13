@@ -75,7 +75,7 @@ return [
     ],
 
     'consola' => [
-        'sin_graph' => 'Microsoft Graph no está configurado (GRAPH_TENANT_ID, GRAPH_CLIENT_ID y GRAPH_CLIENT_SECRET): no se leen los buzones.',
+        'sin_graph' => ':empresa: Microsoft Graph no está configurado (GRAPH_TENANT_ID, GRAPH_CLIENT_ID y GRAPH_CLIENT_SECRET, o GRAPH_:codigo_TENANT_ID, GRAPH_:codigo_CLIENT_ID y GRAPH_:codigo_CLIENT_SECRET): no se lee su buzón.',
         'sincronizado' => ':empresa: :nuevos mensajes nuevos.',
         'fallo' => ':empresa: no se pudo leer el buzón. Revisa el registro de errores.',
     ],

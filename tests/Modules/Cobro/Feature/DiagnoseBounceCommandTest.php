@@ -50,6 +50,22 @@ it('prints what the bounce rule reads from our Exchange report and its decision'
         ]);
 });
 
+it('reads the SDC inbox with the SDC credential only', function () {
+    $graph = GraphFake::install()->withSeparateTenants()->on('GET', 'users/derivados.info@derivadoscol.com/messages/*', cobroDiagnosedMessage(
+        'message-headers-ndr.json',
+        'MicrosoftExchange329e71ec88ae4615bbc36ab6ce41109e@derivadoscol.com',
+        'REPORT.IPM.Note.NDR',
+    ));
+
+    $this->artisan('cobro:diagnosticar-rebote', ['buzon' => 'SDC', 'mensaje' => COBRO_DIAGNOSED])
+        ->expectsOutputToContain('Buzón: derivados.info@derivadoscol.com')
+        ->assertSuccessful();
+
+    expect($graph->tokenRequests())->toBe(1)
+        ->and($graph->tokenRequestsTo(GraphFake::SDC_TENANT_ID)[0]->data()['client_id'])->toBe(GraphFake::SDC_CLIENT_ID)
+        ->and($graph->bearers())->toBe([GraphFake::SDC_TOKEN]);
+});
+
 it('prints the tenant domains among ours when they are configured', function () {
     config(['cobro.tenant_domains' => ['gruporyr.onmicrosoft.com']]);
     GraphFake::install()->on('GET', 'users/segurex.info@segurex.com/messages/*', cobroDiagnosedMessage(

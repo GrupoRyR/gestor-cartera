@@ -147,7 +147,7 @@ it('explains a refused mail in Spanish', function (MailNotSent $exception, strin
     'permissions' => [new MailNotSent('x', previous: new GraphRequestFailed('denied', 403, 'ErrorAccessDenied')), 'Microsoft 365 no dio acceso al buzón de la empresa. Revisa los permisos de la aplicación.'],
     'recipient' => [new MailNotSent('x', previous: new GraphRequestFailed('bad', 400, 'ErrorInvalidRecipients')), 'Microsoft 365 rechazó la dirección de correo del cliente.'],
     'other status' => [new MailNotSent('x', previous: new GraphRequestFailed('oops', 500)), 'Microsoft 365 no aceptó el correo (código 500).'],
-    'not configured' => [new MailNotSent('x', previous: GraphRequestFailed::notConfigured()), 'La conexión con Microsoft 365 no está configurada.'],
+    'not configured' => [new MailNotSent('x', previous: GraphRequestFailed::notConfigured(CompanyCode::SDC)), 'La conexión con Microsoft 365 no está configurada.'],
     'another sender' => [new MailNotSent('x'), 'Microsoft 365 no aceptó el correo.'],
 ]);
 

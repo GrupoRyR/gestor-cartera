@@ -23,7 +23,7 @@ Permisos (`CobroPermissionSeeder`): `cobro.view` para administrador, gerente y a
 
 | Comando | Cuándo (hora de Colombia) | Qué hace |
 |---|---|---|
-| `cobro:sincronizar-buzones` | Cada 5 minutos | Lee con una consulta delta de Graph los correos nuevos de la bandeja de entrada de cada buzón, los une al envío y al cliente, y registra la respuesta en la bitácora. Sin credenciales de Graph solo avisa. |
+| `cobro:sincronizar-buzones` | Cada 5 minutos | Lee con una consulta delta de Graph los correos nuevos de la bandeja de entrada de cada buzón, los une al envío y al cliente, y registra la respuesta en la bitácora. Una empresa sin credencial de Graph (propia ni común) solo avisa y se salta; la otra se sigue leyendo. |
 | `cobro:cobro-semanal` | Miércoles 17:00 (`cobro.weekly`) | Para Segurex y Derivados, cada una con su plantilla y sus copias: prepara el envío y pone en cola un trabajo `SendRunItem` por cliente. Correrlo de nuevo el mismo día no envía nada. |
 | `cobro:circularizacion` | Día 1 a las 09:00 (`cobro.circularizacion`) | Igual, una vez al mes, para Segurex y Derivados: **envía de verdad** (ver «Circularización»), pero no envía una empresa cuya cartera cargada no sea la del cierre del mes; `--con-corte-actual` la envía con el último corte. Solo si se vuelve a poner `cobro.circularizacion.draft` en `true` deja de enviar; entonces `--aun-en-borrador` permite probar el motor. |
 | `cobro:cerrar-envios-interrumpidos` | Cada 10 minutos | Marca «No se pudo enviar» a los clientes que un proceso interrumpido dejó «enviando» más de 30 minutos, para que el envío se cierre y el informe lo muestre. |
@@ -101,6 +101,8 @@ El cobro semanal sale solo a todos los clientes con saldo vencido, así que cada
 
 Variables de `.env` (`docs/arquitectura.md` §15): `GRAPH_TENANT_ID`, `GRAPH_CLIENT_ID`, `GRAPH_CLIENT_SECRET`, `COBRO_MAILBOX_SGX`, `COBRO_MAILBOX_SDC` y, si hace falta, `COBRO_TENANT_DOMAINS` (dominios del inquilino que firman los rebotes de Exchange, ver «Qué cuenta como rebote»).
 
+**Una credencial por empresa.** Las tres variables `GRAPH_*` son la credencial común. Si el buzón de una empresa vive en otro inquilino (Derivados, `derivadoscol.com`), esa empresa usa su propio registro de aplicación con `GRAPH_SDC_TENANT_ID`, `GRAPH_SDC_CLIENT_ID` y `GRAPH_SDC_CLIENT_SECRET` (para Segurex, `GRAPH_SGX_*`), en `cobro.graph.companies`. La credencial propia solo cuenta si tiene **las tres** variables con valor; si falta alguna, la empresa usa la común. Sin ninguna de las dos completa, esa empresa no envía (el informe dice «La conexión con Microsoft 365 no está configurada.») ni se lee su buzón. Un `.env` con solo las tres `GRAPH_*` sigue funcionando igual para las dos empresas. En el inquilino de cada empresa se repiten los pasos de abajo con su propio registro y su buzón.
+
 1. Registrar en Entra ID una aplicación aparte de la de ingreso, de un solo inquilino, con un secreto de cliente. **No** agregarle permisos de Microsoft Graph ni dar consentimiento de administrador: un permiso de Entra ID abre todos los buzones del inquilino, y los de Exchange se suman a él en vez de limitarlo.
 2. En Exchange Online PowerShell (rol Organization Management), crear el apuntador a la aplicación con los ids de **Aplicaciones empresariales** (no los de Registros de aplicaciones):
 
@@ -131,7 +133,8 @@ Variables de `.env` (`docs/arquitectura.md` §15): `GRAPH_TENANT_ID`, `GRAPH_CLI
 
 Protecciones de `GraphClient`:
 
-- **Token cifrado en la caché**: el token de aplicación se guarda en la caché (`cobro.graph.token`) cifrado con `APP_KEY`. Si no se puede descifrar (un token guardado en texto plano antes de este cambio o una `APP_KEY` rotada), cuenta como si no estuviera y se pide uno nuevo.
+- **Cada buzón con la credencial de su empresa**: `GraphClient` no hace peticiones sin empresa; quien lo usa pide `$graph->for($empresa)` (`GraphMailSender` con la empresa del correo, `MailboxSync` y `cobro:diagnosticar-rebote` con la del buzón). Así el token de un inquilino nunca viaja a un buzón del otro.
+- **Token cifrado en la caché, uno por credencial**: el token de aplicación se guarda en la caché con la clave `cobro.graph.token.<sha256 de inquilino|id de cliente>` (nunca el secreto), cifrado con `APP_KEY`. Dos empresas con la credencial común comparten el mismo token; una con credencial propia tiene el suyo. Si no se puede descifrar (un token guardado en texto plano o una `APP_KEY` rotada), cuenta como si no estuviera y se pide uno nuevo. Un 401 de Graph borra solo el token de esa credencial. La clave única de antes (`cobro.graph.token`) se borra al guardar el primer token nuevo.
 - **Solo URLs de Graph**: un enlace absoluto (el `@odata.nextLink` o `@odata.deltaLink` guardado en `cobro_mailbox_cursors`) solo se sigue si es `https`, con host exactamente `graph.microsoft.com`, sin usuario ni puerto y con ruta bajo `/v1.0/`. Cualquier otro se rechaza antes de leer el token, así que el token nunca sale hacia otro host; el error nombra el host, nunca la consulta. La sincronización borra entonces los dos enlaces del buzón y la siguiente vuelta empieza de nuevo, igual que cuando Graph responde 410.
 
 ## Circularización (4.2)

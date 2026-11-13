@@ -99,7 +99,7 @@ it('keeps the cached token encrypted', function () {
 
     app(GraphMailSender::class)->send(cobroOutgoing());
 
-    $cached = Cache::get('cobro.graph.token');
+    $cached = Cache::get(GraphFake::tokenCacheKey());
 
     expect($cached)->toBeString()->not->toBe($token)->not->toContain($token)
         ->and(Crypt::decryptString($cached))->toBe($token);
@@ -108,13 +108,13 @@ it('keeps the cached token encrypted', function () {
 it('asks for a new token when the cached one cannot be decrypted', function () {
     $graph = cobroGraphAccepting();
     // A token cached in plain text before encryption, or under an old APP_KEY.
-    Cache::put('cobro.graph.token', 'legacy-plain-token', 3600);
+    Cache::put(GraphFake::tokenCacheKey(), 'legacy-plain-token', 3600);
 
     app(GraphMailSender::class)->send(cobroOutgoing());
 
     expect($graph->tokenRequests())->toBe(1)
         ->and($graph->requests()[0]->hasHeader('Authorization', 'Bearer '.GraphFake::fixture('token.json')['access_token']))->toBeTrue()
-        ->and(Crypt::decryptString(Cache::get('cobro.graph.token')))->toBe(GraphFake::fixture('token.json')['access_token']);
+        ->and(Crypt::decryptString(Cache::get(GraphFake::tokenCacheKey())))->toBe(GraphFake::fixture('token.json')['access_token']);
 });
 
 it('sends from the SDC mailbox for SDC mail', function () {
@@ -124,6 +124,37 @@ it('sends from the SDC mailbox for SDC mail', function () {
 
     expect($sent->mailbox)->toBe('derivados.info@derivadoscol.com')
         ->and($graph->requests()[0]->url())->toStartWith('https://graph.microsoft.com/v1.0/users/derivados.info%40derivadoscol.com/');
+});
+
+it('sends each company\'s mail with that company\'s own credential only', function () {
+    $graph = cobroGraphAccepting()->withSeparateTenants();
+
+    app(GraphMailSender::class)->send(cobroOutgoing(['company' => CompanyCode::SDC]));
+    app(GraphMailSender::class)->send(cobroOutgoing());
+
+    [$sdc] = $graph->tokenRequestsTo(GraphFake::SDC_TENANT_ID);
+    [$sgx] = $graph->tokenRequestsTo(GraphFake::SGX_TENANT_ID);
+
+    expect($graph->tokenRequests())->toBe(2)
+        ->and($sdc->data()['client_id'])->toBe(GraphFake::SDC_CLIENT_ID)
+        ->and($sgx->data()['client_id'])->toBe(GraphFake::SGX_CLIENT_ID)
+        ->and($graph->bearers('users/derivados.info@derivadoscol.com/*'))->toBe([GraphFake::SDC_TOKEN, GraphFake::SDC_TOKEN])
+        ->and($graph->bearers('users/segurex.info@segurex.com/*'))->toBe([GraphFake::SGX_TOKEN, GraphFake::SGX_TOKEN]);
+});
+
+it('throws MailNotSent naming the company whose credential is missing', function () {
+    $graph = cobroGraphAccepting()->withCompanyCredential(
+        CompanyCode::SGX, GraphFake::SGX_TENANT_ID, GraphFake::SGX_CLIENT_ID, GraphFake::SGX_CLIENT_SECRET, GraphFake::SGX_TOKEN,
+    );
+    config(['cobro.graph.client_secret' => '']);
+
+    expect(fn () => app(GraphMailSender::class)->send(cobroOutgoing(['company' => CompanyCode::SDC])))
+        ->toThrow(MailNotSent::class, 'Microsoft Graph is not configured for SDC');
+
+    app(GraphMailSender::class)->send(cobroOutgoing());
+
+    expect($graph->tokenRequestsTo(GraphFake::SGX_TENANT_ID))->toHaveCount(1)
+        ->and($graph->bearers('users/derivados.info@derivadoscol.com/*'))->toBe([]);
 });
 
 it('adds copies, reply-to and base64 attachments to the draft', function () {
