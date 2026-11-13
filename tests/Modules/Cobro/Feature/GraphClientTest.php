@@ -45,6 +45,16 @@ it('uses the default credential for both companies with a single token', functio
         ->and(Cache::has('cobro.graph.token'))->toBeFalse();
 });
 
+it('drops the token cached under the old single key when it asks for a new one', function () {
+    cobroBothInboxes();
+    Cache::put('cobro.graph.token', Crypt::encryptString('legacy-shared-token'), 3600);
+
+    cobroGraph(CompanyCode::SDC)->get(COBRO_SDC_INBOX);
+
+    expect(Cache::has('cobro.graph.token'))->toBeFalse()
+        ->and(Cache::has(GraphFake::tokenCacheKey()))->toBeTrue();
+});
+
 it('keeps the secret out of the token cache key', function () {
     cobroBothInboxes();
 

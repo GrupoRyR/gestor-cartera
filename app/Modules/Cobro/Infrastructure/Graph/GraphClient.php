@@ -46,6 +46,12 @@ final class GraphClient
     private const string HOST = 'graph.microsoft.com';
 
     /**
+     * The single token key used before tokens were cached per credential;
+     * dropped whenever a new token is stored, so it does not linger.
+     */
+    private const string LEGACY_TOKEN_CACHE_KEY = 'cobro.graph.token';
+
+    /**
      * @param  CompanyCode|null  $company  The company whose credential every request uses; null refuses them.
      */
     public function __construct(private readonly ?CompanyCode $company = null) {}
@@ -206,6 +212,7 @@ final class GraphClient
         // Refresh five minutes early; Graph tokens last about an hour.
         $lifetime = max(60, (int) $response->json('expires_in', 3600) - 300);
         Cache::put($credentials->cacheKey(), Crypt::encryptString($token), $lifetime);
+        Cache::forget(self::LEGACY_TOKEN_CACHE_KEY);
 
         return $token;
     }
