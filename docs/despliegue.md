@@ -320,7 +320,7 @@ Checklist del despliegue que sigue al de la primera instalación. Trae el lote `
 
 Hasta ahora ninguna carga llenaba los contactos, y por eso el cobro salía «Sin correo». Desde #116, Core importa el lote `contactos`, pero el robot no lo extrae por defecto (`ETL_LOTES` trae `cartera,asesores`). En el PC de TI con la VPN, desde la raíz del repositorio (`etl/README.md`):
 
-- [ ] `python etl\run_etl.py --diagnostico --lotes contactos`. Revisa los conteos por empresa, que cada cliente tenga como mucho un contacto principal y los puntos marcados en `contactos_clientes.sql`.
+- [ ] `.venv\Scripts\python.exe etl\run_etl.py --diagnostico --lotes contactos`. Revisa los conteos por empresa, que cada cliente tenga como mucho un contacto principal y los puntos marcados en `contactos_clientes.sql`.
 - [ ] Agrega `contactos` a `ETL_LOTES` en `etl/.env`: `ETL_LOTES=cartera,asesores,contactos`. No cambies las demás variables.
 - [ ] Después de la siguiente corrida del robot, y con el cron activo (paso 10), abre la ficha de varios clientes de cada empresa y confirma que aparecen sus contactos. La importación corre en la cola, así que puede tardar un minuto.
 
