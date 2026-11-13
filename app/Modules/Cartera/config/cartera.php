@@ -14,4 +14,11 @@ return [
 
     // Rows per page in the client list and the commitments inbox.
     'por_pagina' => 25,
+
+    // The most clients "Asignar gestor" changes at once with "todos los
+    // filtrados". Each change writes a log entry and an audit row in the same
+    // web request, which shared hosting must finish in time.
+    'assignment' => [
+        'max_bulk' => 1000,
+    ],
 ];

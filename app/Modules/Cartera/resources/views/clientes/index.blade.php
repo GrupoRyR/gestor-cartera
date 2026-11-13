@@ -5,10 +5,20 @@
     $filter: Application\Clients\ClientListFilter; $clients: paginator of
     ClientSummary within the user's scope; $statusOptions, $advisorOptions
     and $managerOptions: value => label for the filters; $isGroup: the group view
-    shows the company of each client.
+    shows the company of each client; $assigneeOptions: the choices of the
+    bulk "Asignar gestor" form, or null for those who may not assign; $maxBulk:
+    the most clients "todos los filtrados" may change (above it, it is off).
+
+    The bulk form wraps the table, so its row boxes post without JavaScript;
+    Alpine only adds "choose this page", kept in step with the row boxes, the
+    count of chosen clients and a confirmation before "todos los filtrados"
+    (the server refuses rows and "todos los filtrados" together).
 --}}
 @php
+    $canAssign = $assigneeOptions !== null;
+    $overCap = $clients->total() > $maxBulk;
     $columns = [
+        ...($canAssign ? [['key' => 'choose', 'label' => __('cartera::clientes.asignar.columna')]] : []),
         ['key' => 'name', 'label' => __('cartera::clientes.columnas.cliente'), 'sortable' => true],
         ...($isGroup ? [['key' => 'company', 'label' => __('cartera::clientes.columnas.empresa')]] : []),
         ['key' => 'tax_id', 'label' => __('cartera::clientes.columnas.nit')],
@@ -88,6 +98,75 @@
             <x-ui.empty icon="users" :title="__('cartera::clientes.vacio.sin_clientes.titulo')" :description="__('cartera::clientes.vacio.sin_clientes.detalle')" />
         @endif
     @else
+        @if ($canAssign)
+            <form
+                method="POST"
+                action="{{ route('cartera.clientes.asignar') }}"
+                x-data="{
+                    chosen: 0,
+                    count() {
+                        const boxes = [...this.$root.querySelectorAll('[data-choose-client]')];
+                        const page = this.$root.querySelector('[data-choose-page]');
+                        this.chosen = boxes.filter((box) => box.checked).length;
+                        if (page) page.checked = boxes.length > 0 && this.chosen === boxes.length;
+                    },
+                }"
+                x-init="$nextTick(() => count())"
+                data-confirm-all="{{ trans_choice('cartera::clientes.asignar.confirmar', $clients->total(), ['count' => number_format($clients->total(), 0, ',', '.')]) }}"
+                x-on:submit="if ($root.querySelector('[name=todos_filtrados]').checked && ! window.confirm($root.dataset.confirmAll)) $event.preventDefault()"
+                x-on:change="count()"
+            >
+                @csrf
+                @foreach ($filter->query() as $name => $value)
+                    @continue(in_array($name, ['sort', 'direction'], true))
+                    <input type="hidden" name="{{ $name }}" value="{{ $value }}">
+                @endforeach
+
+                <section aria-labelledby="asignar-gestor-titulo" class="mb-6 grid gap-4 rounded-card border border-line bg-surface p-4 md:p-5">
+                    <div class="grid gap-1">
+                        <h2 id="asignar-gestor-titulo" class="text-base font-bold text-fg">{{ __('cartera::clientes.asignar.titulo') }}</h2>
+                        <p class="text-[0.9375rem] text-fg-muted">{{ __('cartera::clientes.asignar.descripcion') }}</p>
+                    </div>
+
+                    @if ($errors->has('clientes') || $errors->has('clientes.*'))
+                        <x-ui.alert tone="danger">{{ $errors->first('clientes') ?: $errors->first('clientes.*') }}</x-ui.alert>
+                    @endif
+
+                    <div class="grid items-start gap-4 md:grid-cols-2">
+                        <x-ui.select
+                            name="nuevo_gestor"
+                            :label="__('cartera::clientes.asignar.gestor')"
+                            :options="$assigneeOptions"
+                            :placeholder="__('cartera::clientes.asignar.elige')"
+                            :required="true"
+                        />
+                        <div class="grid content-start">
+                            <template x-if="true">
+                                <x-ui.checkbox
+                                    name="elegir_pagina"
+                                    :label="__('cartera::clientes.asignar.pagina')"
+                                    data-choose-page
+                                    x-on:change="$root.querySelectorAll('[data-choose-client]').forEach(function (box) { box.checked = $event.target.checked })"
+                                />
+                            </template>
+                            <x-ui.checkbox
+                                name="todos_filtrados"
+                                :label="trans_choice('cartera::clientes.asignar.todos_filtrados', $clients->total(), ['count' => number_format($clients->total(), 0, ',', '.')])"
+                                :disabled="$overCap"
+                                :hint="$overCap ? __('cartera::clientes.asignar.limite', ['count' => number_format($clients->total(), 0, ',', '.'), 'max' => number_format($maxBulk, 0, ',', '.')]) : null"
+                            />
+                        </div>
+                    </div>
+
+                    <div class="flex flex-wrap items-center gap-3">
+                        <x-ui.button type="submit">{{ __('cartera::clientes.asignar.boton') }}</x-ui.button>
+                        <p aria-live="polite" class="text-[0.9375rem] text-fg-muted">
+                            <span x-show="chosen > 0" x-text="chosen === 1 ? @js(__('cartera::clientes.asignar.elegido')) : @js(__('cartera::clientes.asignar.elegidos')).replace(':count', chosen)"></span>
+                        </p>
+                    </div>
+                </section>
+        @endif
+
         <x-ui.table
             :caption="__('cartera::clientes.tabla')"
             :caption-hidden="true"
@@ -97,6 +176,20 @@
         >
             @foreach ($clients as $client)
                 <tr>
+                    @if ($canAssign)
+                        <td>
+                            <label class="flex size-touch cursor-pointer items-center justify-center">
+                                <input
+                                    type="checkbox"
+                                    name="clientes[]" value="{{ $client->id }}"
+                                    data-choose-client
+                                    @checked(in_array((string) $client->id, array_map(strval(...), (array) old('clientes', [])), true))
+                                    class="size-5 cursor-pointer rounded accent-brand-control"
+                                >
+                                <span data-visually-hidden>{{ __('cartera::clientes.asignar.elegir', ['cliente' => $client->name]) }}</span>
+                            </label>
+                        </td>
+                    @endif
                     <td class="min-w-44"><x-cartera::client-link :id="$client->id" :name="$client->name" /></td>
                     @if ($isGroup)
                         <td><x-ui.chip :dot="false" :data-company="$client->company->value">{{ $client->company->value }}</x-ui.chip></td>
@@ -122,5 +215,9 @@
         </x-ui.table>
 
         <x-ui.pagination :paginator="$clients" />
+
+        @if ($canAssign)
+            </form>
+        @endif
     @endif
 </x-layouts.app>

@@ -27,6 +27,15 @@ El gestor es la persona del equipo de cartera que se encarga del cliente (`Clien
 
 Sin `gestor` en la URL, quien tiene el permiso `cartera.clients.start_on_mine` (solo la analista, `analista_cartera`) entra con «Mi cartera» y el gerente (y cualquier otro) con «Toda la cartera»; un `gestor` explícito gana. Un valor desconocido vuelve al valor por defecto del usuario. Si el valor por defecto del usuario no es «Toda la cartera», los enlaces llevan siempre el `gestor` y «Quitar filtros» lleva a `?gestor=todos`. El Excel de la lista aplica el mismo filtro, con el mismo valor por defecto, y lo deja en la auditoría.
 
+**Asignar gestor** (permiso de Core `core.clients.assign`: gerente, analista y admin). Las opciones son «Sin asignar» y las personas de `ClientAssignmentService::assignees()`; el formulario manda `nuevo_gestor` = id del usuario o `sin_asignar`. Quien no tiene el permiso no ve los formularios y recibe un 403 si los envía. Core escribe la bitácora y la auditoría de cada cambio.
+
+| Dónde | Ruta | Qué hace |
+|---|---|---|
+| Lista | `POST /cartera/clientes/gestor` (`cartera.clientes.asignar`) | Una casilla por fila (`clientes[]`) dentro de un solo formulario, así funciona sin JavaScript; Alpine solo agrega «Elegir los clientes de esta página» (marcada solo si todas las filas lo están, también al volver con un error) y el conteo de elegidos. Con «Aplicar a los N clientes filtrados» (`todos_filtrados=1`) asigna todos los que coinciden con los filtros de la lista (no solo la página): el formulario lleva los filtros en campos ocultos y arma el mismo `ClientQuery` (`assignMatching()`); si no, `assign()` con los elegidos. Filas elegidas y «todos los filtrados» a la vez se rechazan («Elige filas o marca «todos los filtrados», no las dos cosas.»), para que nadie asigne toda la lista creyendo que asigna unas filas; con JavaScript, enviar «todos los filtrados» pide confirmar con el número de clientes. Avisa cuántos cambiaron («No cambió ningún cliente.», «Asignamos el gestor a 1 cliente.», «… a N clientes.»). |
+
+- **Tope** (`cartera.assignment.max_bulk`, 1000; pendiente conocido: el total se cuenta antes de asignar, así que una carga que llegue en medio puede pasarlo un poco): con «todos los filtrados», si coinciden más clientes (el total del paginador de la misma consulta), no cambia nada y avisa «Son N clientes; asigna de a máximo 1.000. Filtra un poco más.». La lista ya apaga esa casilla cuando su total pasa el tope y dice por qué («Son N clientes y el máximo es 1.000; filtra un poco más para usar esta opción.»). Cada cambio escribe una fila de auditoría y una entrada de bitácora en la misma petición, y el hosting compartido tiene que terminarla a tiempo. La lista de elegidos tiene el mismo tope.
+- **Errores**: un gestor que ya no está entre las personas asignables o que no trabaja en la empresa de todos los clientes (`InvalidArgumentException`, Core no distingue los dos casos) vuelve con «Esa persona no puede encargarse de todos los clientes elegidos: ya no gestiona cartera o no trabaja en la empresa de alguno. Elige otra o filtra por empresa.»; un cliente que ya no existe o salió del alcance (`RecordNotFound`), con «Alguno de los clientes ya no está disponible. Vuelve a cargar la lista.».
+
 ## Permisos (`CarteraPermissionSeeder`)
 
 - `cartera.view`: gerente y analista. Todas las pantallas.
@@ -35,11 +44,11 @@ Sin `gestor` en la URL, quien tiene el permiso `cartera.clients.start_on_mine` (
 - `cartera.commitments.write`: solo la analista. Crear, editar, cumplir y anular compromisos. Refleja la regla de Core (`CommitmentWriteRule`): en SDC escribe la analista; en SGX, el asesor del cliente desde Asesores. El `CompromisoService` sigue siendo la autoridad.
 - `cartera.clients.start_on_mine`: solo la analista. La lista de clientes abre en «Mi cartera» en vez de «Toda la cartera». Es un valor por defecto, no una restricción.
 
-El cambio de estado usa el permiso de Core `core.clients.change_status`, y borrar una gestión, `core.activities.delete`.
+El cambio de estado usa el permiso de Core `core.clients.change_status`; asignar el gestor, `core.clients.assign`, y borrar una gestión, `core.activities.delete`.
 
 ## Cómo se une al resto
 
-Solo usa `Core/Contracts`: `CarteraRepository`, `CompromisoService`, `GestionLogger`, `ClientStatusService`, `CurrentCompany`, `AuditLogger`, `MailboxReader` e `IngestaSink`. No tiene tablas ni migraciones propias (el prefijo `2026_10_03_*` queda reservado).
+Solo usa `Core/Contracts`: `CarteraRepository`, `CompromisoService`, `GestionLogger`, `ClientStatusService`, `ClientAssignmentService`, `CurrentCompany`, `AuditLogger`, `MailboxReader` e `IngestaSink`. No tiene tablas ni migraciones propias (el prefijo `2026_10_03_*` queda reservado).
 
 `MailboxReader` lo implementa Cobro. Mientras no esté enlazado, la ficha muestra un aviso en vez de las respuestas (`Infrastructure/Mail/ClientReplies`).
 
@@ -48,6 +57,7 @@ Solo usa `Core/Contracts`: `CarteraRepository`, `CompromisoService`, `GestionLog
 - `sin_gestion_dias` (env opcional `CARTERA_SIN_GESTION_DIAS`, 7): días sin gestión tras los que un cliente vencido cuenta como «sin gestión».
 - `kanban_max_por_columna` (40): tarjetas por columna; los conteos y totales cubren todos los clientes.
 - `por_pagina` (25).
+- `assignment.max_bulk` (1000): clientes que «Asignar gestor» cambia de una vez (ver «Gestor del cliente»).
 
 ## Decisiones
 
@@ -59,4 +69,4 @@ Solo usa `Core/Contracts`: `CarteraRepository`, `CompromisoService`, `GestionLog
 
 ## Pruebas
 
-`tests/Modules/Cartera`. Usan `Tests\Fakes\ContractFakes`; para `ClientStatusService`, que no tiene fake, `Tests\Modules\Cartera\Support\RecordingClientStatusService`.
+`tests/Modules/Cartera`. Usan `Tests\Fakes\ContractFakes`; para `ClientStatusService` y `ClientAssignmentService`, que no tienen fake, `Tests\Modules\Cartera\Support\RecordingClientStatusService` y `RecordingClientAssignmentService`.
