@@ -16,8 +16,9 @@ use UnexpectedValueException;
  * from one message of a company inbox and what it decides, so IT can
  * check it against a real Exchange report before relying on it. With
  * --probar-delta it also asks Graph for one page of the inbox delta query
- * with the message class, to confirm Graph accepts the $expand. The domains
- * it prints as ours include cobro.tenant_domains.
+ * with the message class, to confirm Graph accepts the $expand. It reads
+ * the inbox with the Graph credential of that company. The domains it
+ * prints as ours include cobro.tenant_domains.
  *
  * Read-only: it never prints the body or the subject, never writes to the
  * database and never moves the sync cursors.
@@ -64,6 +65,7 @@ final class DiagnoseBounceCommand extends Command
         }
 
         $this->line("Buzón: {$mailbox}");
+        $graph = $graph->for($company);
         $ok = true;
 
         if ($probe) {

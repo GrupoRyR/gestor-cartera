@@ -595,7 +595,7 @@ it('refuses absolute URLs that are not Graph v1.0 before asking for a token', fu
     $graph = GraphFake::install();
 
     try {
-        app(GraphClient::class)->get($url);
+        app(GraphClient::class)->for(CompanyCode::SGX)->get($url);
         $this->fail('GraphRequestFailed was not thrown.');
     } catch (GraphRequestFailed $e) {
         expect($e->graphCode)->toBe(GraphClient::REJECTED_URL)
@@ -618,7 +618,7 @@ it('refuses absolute URLs that are not Graph v1.0 before asking for a token', fu
 it('follows a Graph v1.0 link whatever the case of its host', function () {
     $graph = GraphFake::install()->on('GET', 'users/a/messages', ['value' => []]);
 
-    app(GraphClient::class)->get('HTTPS://Graph.Microsoft.COM/v1.0/users/a/messages?$skiptoken=1');
+    app(GraphClient::class)->for(CompanyCode::SGX)->get('HTTPS://Graph.Microsoft.COM/v1.0/users/a/messages?$skiptoken=1');
 
     expect($graph->requests())->toHaveCount(1)
         ->and($graph->requests()[0]->url())->toStartWith('https://graph.microsoft.com/v1.0/users/a/messages?');
@@ -640,9 +640,49 @@ it('only warns when Graph is not configured', function () {
     config(['cobro.graph.client_secret' => '']);
 
     $this->artisan('cobro:sincronizar-buzones')
-        ->expectsOutputToContain('Microsoft Graph no está configurado')
+        ->expectsOutputToContain('Segurex Latam: Microsoft Graph no está configurado')
         ->assertSuccessful();
 
     expect($graph->requests())->toBe([])
         ->and($graph->tokenRequests())->toBe(0);
+});
+
+it('still reads the inbox of a company with a credential when the other has none', function () {
+    $graph = GraphFake::install()
+        ->withCompanyCredential(CompanyCode::SGX, GraphFake::SGX_TENANT_ID, GraphFake::SGX_CLIENT_ID, GraphFake::SGX_CLIENT_SECRET, GraphFake::SGX_TOKEN)
+        ->on('GET', COBRO_DELTA, ['value' => [], '@odata.deltaLink' => 'https://graph.microsoft.com/v1.0/'.COBRO_DELTA.'?$deltatoken=1']);
+    config(['cobro.graph.client_secret' => '']);
+
+    $this->artisan('cobro:sincronizar-buzones')
+        ->expectsOutputToContain('Segurex Latam: 0 mensajes nuevos.')
+        ->expectsOutputToContain('Soluciones y Derivados: Microsoft Graph no está configurado')
+        ->assertSuccessful();
+
+    expect($graph->tokenRequests())->toBe(1)
+        ->and($graph->requestsTo('GET', 'users/derivados.info@derivadoscol.com/*'))->toBe([])
+        ->and(MailboxCursor::query()->pluck('mailbox')->all())->toBe(['segurex.info@segurex.com']);
+});
+
+it('reads each inbox, its next links and report headers with its own company\'s token only', function () {
+    $sdcDelta = 'users/derivados.info@derivadoscol.com/mailFolders/inbox/messages/delta';
+    $graph = GraphFake::install()->withSeparateTenants()
+        ->on('GET', COBRO_DELTA, ['value' => [], '@odata.deltaLink' => 'https://graph.microsoft.com/v1.0/'.COBRO_DELTA.'?$deltatoken=1'])
+        ->onEach(
+            'GET',
+            $sdcDelta,
+            [['value' => [cobroReport()], '@odata.nextLink' => 'https://graph.microsoft.com/v1.0/'.$sdcDelta.'?$skiptoken=2'], 200],
+            [['value' => [], '@odata.deltaLink' => 'https://graph.microsoft.com/v1.0/'.$sdcDelta.'?$deltatoken=3'], 200],
+        )
+        ->on('GET', 'users/derivados.info@derivadoscol.com/messages/*', GraphFake::fixture('message-headers-ndr.json'));
+
+    $this->artisan('cobro:sincronizar-buzones')->assertSuccessful();
+
+    [$sgxToken] = $graph->tokenRequestsTo(GraphFake::SGX_TENANT_ID);
+    [$sdcToken] = $graph->tokenRequestsTo(GraphFake::SDC_TENANT_ID);
+
+    expect($graph->tokenRequests())->toBe(2)
+        ->and($sgxToken->data()['client_id'])->toBe(GraphFake::SGX_CLIENT_ID)
+        ->and($sdcToken->data()['client_id'])->toBe(GraphFake::SDC_CLIENT_ID)
+        ->and($graph->bearers('users/segurex.info@segurex.com/*'))->toBe([GraphFake::SGX_TOKEN])
+        ->and($graph->bearers('users/derivados.info@derivadoscol.com/*'))->toBe([GraphFake::SDC_TOKEN, GraphFake::SDC_TOKEN, GraphFake::SDC_TOKEN]);
 });

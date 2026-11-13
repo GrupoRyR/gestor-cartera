@@ -2,6 +2,7 @@
 
 namespace App\Modules\Cobro\Infrastructure\Graph;
 
+use App\Modules\Core\Contracts\Enums\CompanyCode;
 use RuntimeException;
 use Throwable;
 
@@ -26,8 +27,18 @@ final class GraphRequestFailed extends RuntimeException
         parent::__construct($message, 0, $previous);
     }
 
-    public static function notConfigured(): self
+    /**
+     * Neither the credential of $company nor the default one is complete.
+     * The message names the variables to set, never their values.
+     */
+    public static function notConfigured(CompanyCode $company): self
     {
-        return new self('Microsoft Graph is not configured: set GRAPH_TENANT_ID, GRAPH_CLIENT_ID and GRAPH_CLIENT_SECRET.', graphCode: self::NOT_CONFIGURED);
+        $code = $company->value;
+
+        return new self(
+            "Microsoft Graph is not configured for {$code}: set GRAPH_TENANT_ID, GRAPH_CLIENT_ID and GRAPH_CLIENT_SECRET, "
+            ."or GRAPH_{$code}_TENANT_ID, GRAPH_{$code}_CLIENT_ID and GRAPH_{$code}_CLIENT_SECRET.",
+            graphCode: self::NOT_CONFIGURED,
+        );
     }
 }

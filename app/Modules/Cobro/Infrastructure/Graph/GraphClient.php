@@ -2,6 +2,7 @@
 
 namespace App\Modules\Cobro\Infrastructure\Graph;
 
+use App\Modules\Core\Contracts\Enums\CompanyCode;
 use Illuminate\Contracts\Encryption\DecryptException;
 use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Http\Client\PendingRequest;
@@ -9,18 +10,27 @@ use Illuminate\Http\Client\Response;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Crypt;
 use Illuminate\Support\Facades\Http;
+use LogicException;
 
 /**
- * Thin Microsoft Graph v1.0 client over Laravel's HTTP client, with an
- * app-only token (client credentials of config cobro.graph) cached,
- * encrypted with the APP_KEY, until a few minutes before it expires. No
- * SDK: tests fake every call with Http::fake() and recorded responses.
+ * Thin Microsoft Graph v1.0 client over Laravel's HTTP client. No SDK:
+ * tests fake every call with Http::fake() and recorded responses.
+ *
+ * Each company mailbox may live in another tenant, so a request always
+ * runs with the credential of one company: for($company) returns a client
+ * bound to it (GraphCredentials: the company's override, else the default
+ * of config cobro.graph), and the injected, unbound client refuses every
+ * request with a LogicException. The app-only token is cached per
+ * credential (tenant and client id, never the secret), encrypted with the
+ * APP_KEY, until a few minutes before it expires; companies on the same
+ * credential share it, and a token is never sent for another credential.
  *
  * Every failure (not configured, no connection, a non-2xx answer) becomes a
- * GraphRequestFailed without secrets. A 401 also drops the cached token so
- * the next call asks for a new one. An absolute URL (a next or delta link)
- * is followed only under BASE_URL; any other one is refused before the
- * token is read, so the token never goes to another host.
+ * GraphRequestFailed without secrets. A 401 also drops the cached token of
+ * that credential only, so its next call asks for a new one. An absolute
+ * URL (a next or delta link) is followed only under BASE_URL; any other one
+ * is refused before the token is read, so the token never goes to another
+ * host.
  */
 final class GraphClient
 {
@@ -35,16 +45,26 @@ final class GraphClient
 
     private const string HOST = 'graph.microsoft.com';
 
-    private const string TOKEN_CACHE_KEY = 'cobro.graph.token';
+    /**
+     * @param  CompanyCode|null  $company  The company whose credential every request uses; null refuses them.
+     */
+    public function __construct(private readonly ?CompanyCode $company = null) {}
 
     /**
-     * Whether the tenant, client id and secret of config cobro.graph are set.
+     * Whether $company has a complete credential (its own or the default).
      */
-    public static function configured(): bool
+    public static function configured(CompanyCode $company): bool
     {
-        return trim((string) config('cobro.graph.tenant_id')) !== ''
-            && trim((string) config('cobro.graph.client_id')) !== ''
-            && trim((string) config('cobro.graph.client_secret')) !== '';
+        return GraphCredentials::for($company) !== null;
+    }
+
+    /**
+     * A client whose requests use the credential of $company. This client
+     * stays as it was.
+     */
+    public function for(CompanyCode $company): self
+    {
+        return new self($company);
     }
 
     /**
@@ -101,14 +121,17 @@ final class GraphClient
     /**
      * @param  callable(PendingRequest, string): Response  $call  Called with the checked URL.
      *
+     * @throws LogicException When the client is not bound to a company.
      * @throws GraphRequestFailed
      */
     private function send(string $method, string $pathOrUrl, callable $call): Response
     {
+        $company = $this->company ?? throw new LogicException('GraphClient is not bound to a company: call for($company) first.');
         $url = $this->url($method, $pathOrUrl);
         $operation = $this->operation($url);
+        $credentials = GraphCredentials::for($company) ?? throw GraphRequestFailed::notConfigured($company);
 
-        $request = Http::withToken($this->token())
+        $request = Http::withToken($this->token($credentials))
             ->acceptJson()
             ->timeout((int) config('cobro.graph.timeout', 30));
 
@@ -119,7 +142,7 @@ final class GraphClient
         }
 
         if ($response->status() === 401) {
-            Cache::forget(self::TOKEN_CACHE_KEY);
+            Cache::forget($credentials->cacheKey());
         }
 
         if (! $response->successful()) {
@@ -136,13 +159,14 @@ final class GraphClient
     }
 
     /**
-     * The app-only access token, from the cache or the token endpoint.
+     * The app-only access token of $credentials, from its cache key or the
+     * token endpoint of its tenant.
      *
      * @throws GraphRequestFailed
      */
-    private function token(): string
+    private function token(GraphCredentials $credentials): string
     {
-        $cached = Cache::get(self::TOKEN_CACHE_KEY);
+        $cached = Cache::get($credentials->cacheKey());
 
         if (is_string($cached) && $cached !== '') {
             try {
@@ -153,21 +177,13 @@ final class GraphClient
             }
         }
 
-        if (! self::configured()) {
-            throw GraphRequestFailed::notConfigured();
-        }
-
-        $tenant = trim((string) config('cobro.graph.tenant_id'));
-        $clientId = trim((string) config('cobro.graph.client_id'));
-        $secret = (string) config('cobro.graph.client_secret');
-
         try {
             $response = Http::asForm()
                 ->acceptJson()
                 ->timeout((int) config('cobro.graph.timeout', 30))
-                ->post('https://login.microsoftonline.com/'.rawurlencode($tenant).'/oauth2/v2.0/token', [
-                    'client_id' => $clientId,
-                    'client_secret' => $secret,
+                ->post('https://login.microsoftonline.com/'.rawurlencode($credentials->tenantId).'/oauth2/v2.0/token', [
+                    'client_id' => $credentials->clientId,
+                    'client_secret' => $credentials->clientSecret,
                     'scope' => self::SCOPE,
                     'grant_type' => 'client_credentials',
                 ]);
@@ -189,7 +205,7 @@ final class GraphClient
 
         // Refresh five minutes early; Graph tokens last about an hour.
         $lifetime = max(60, (int) $response->json('expires_in', 3600) - 300);
-        Cache::put(self::TOKEN_CACHE_KEY, Crypt::encryptString($token), $lifetime);
+        Cache::put($credentials->cacheKey(), Crypt::encryptString($token), $lifetime);
 
         return $token;
     }

@@ -13,9 +13,11 @@ use Illuminate\Support\Facades\Log;
 /**
  * cobro:sincronizar-buzones: reads the new replies and bounces of every
  * company inbox (MailboxSync). CobroServiceProvider runs it every five
- * minutes. Without Graph credentials it only warns and succeeds, so a
- * local copy does not fail every five minutes; a Graph error in one inbox
- * does not stop the others and makes the command fail.
+ * minutes. A company without a Graph credential (its own or the default)
+ * is skipped with a warning and does not make the command fail, so a local
+ * copy does not fail every five minutes and the other company still syncs;
+ * a Graph error in one inbox does not stop the others and makes the
+ * command fail.
  */
 final class SyncMailboxesCommand extends Command
 {
@@ -31,16 +33,16 @@ final class SyncMailboxesCommand extends Command
 
     public function handle(MailboxSync $sync, CompanyMailboxes $mailboxes): int
     {
-        if (! GraphClient::configured()) {
-            $this->warn(__('cobro::respuestas.consola.sin_graph'));
-
-            return self::SUCCESS;
-        }
-
         $failed = false;
 
         foreach (array_keys($mailboxes->all()) as $code) {
             $company = CompanyCode::from($code);
+
+            if (! GraphClient::configured($company)) {
+                $this->warn(__('cobro::respuestas.consola.sin_graph', ['empresa' => $company->label(), 'codigo' => $code]));
+
+                continue;
+            }
 
             try {
                 $stored = $sync->sync($company);

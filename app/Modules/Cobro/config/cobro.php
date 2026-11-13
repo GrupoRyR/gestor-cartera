@@ -12,6 +12,21 @@ return [
         'client_secret' => env('GRAPH_CLIENT_SECRET'),
         // Seconds to wait for Graph on each request.
         'timeout' => 30,
+        // A company whose mailbox lives in another tenant (Derivados) uses
+        // its own app registration. It applies only when its three values
+        // are set; otherwise the company uses the default credential above.
+        'companies' => [
+            'SGX' => [
+                'tenant_id' => env('GRAPH_SGX_TENANT_ID'),
+                'client_id' => env('GRAPH_SGX_CLIENT_ID'),
+                'client_secret' => env('GRAPH_SGX_CLIENT_SECRET'),
+            ],
+            'SDC' => [
+                'tenant_id' => env('GRAPH_SDC_TENANT_ID'),
+                'client_id' => env('GRAPH_SDC_CLIENT_ID'),
+                'client_secret' => env('GRAPH_SDC_CLIENT_SECRET'),
+            ],
+        ],
     ],
 
     // Mailbox each company sends from and reads replies in. An empty variable

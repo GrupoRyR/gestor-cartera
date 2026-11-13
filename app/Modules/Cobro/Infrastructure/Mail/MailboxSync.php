@@ -38,6 +38,8 @@ use Illuminate\Support\Facades\Log;
  *   EmailReceived; a linked bounce also raises BounceLinked.
  * - Graph answering 410 (the sync state expired), or a saved link that
  *   GraphClient refuses (not under Graph v1.0), restarts the round.
+ * - Every request of a round (pages, next and delta links, headers) uses
+ *   the Graph credential of the mailbox's company (GraphClient::for()).
  */
 final class MailboxSync
 {
@@ -82,6 +84,7 @@ final class MailboxSync
     public function sync(CompanyCode $company): int
     {
         $mailbox = $this->mailboxes->for($company);
+        $graph = $this->graph->for($company);
         $cursor = MailboxCursor::query()->firstOrCreate(['mailbox' => $mailbox]);
         $stored = 0;
         $withoutClass = false;
@@ -93,14 +96,14 @@ final class MailboxSync
 
             for ($page = 0; $page < max(1, (int) config('cobro.sync.max_pages', 10)); $page++) {
                 if ($query === []) {
-                    $json = $this->graph->get($url, [], self::preferHeader(50));
+                    $json = $graph->get($url, [], self::preferHeader(50));
                 } else {
-                    [$json, $withoutClass] = $this->firstPage($mailbox, $url, $query);
+                    [$json, $withoutClass] = $this->firstPage($graph, $mailbox, $url, $query);
                     $query = [];
                 }
 
                 foreach ((array) ($json['value'] ?? []) as $message) {
-                    if (is_array($message) && ! array_key_exists('@removed', $message) && $this->store($company, $mailbox, $message, $withoutClass)) {
+                    if (is_array($message) && ! array_key_exists('@removed', $message) && $this->store($graph, $company, $mailbox, $message, $withoutClass)) {
                         $stored++;
                     }
                 }
@@ -155,17 +158,17 @@ final class MailboxSync
      *
      * @throws GraphRequestFailed
      */
-    private function firstPage(string $mailbox, string $url, array $query): array
+    private function firstPage(GraphClient $graph, string $mailbox, string $url, array $query): array
     {
         try {
-            return [$this->graph->get($url, $query, self::preferHeader(50)), false];
+            return [$graph->get($url, $query, self::preferHeader(50)), false];
         } catch (GraphRequestFailed $e) {
             if (! in_array($e->status, self::REFUSED_QUERY, true)) {
                 throw $e;
             }
 
             unset($query['$expand']);
-            $json = $this->graph->get($url, $query, self::preferHeader(50));
+            $json = $graph->get($url, $query, self::preferHeader(50));
 
             Log::warning('Cobro: Graph refused the message class in the inbox delta query; until it accepts it, bounces are kept as replies.', [
                 'mailbox' => $mailbox,
@@ -271,7 +274,7 @@ final class MailboxSync
      * @param  array<array-key, mixed>  $message
      * @param  bool  $withoutClass  Whether the page was read without CLASS_EXPAND.
      */
-    private function store(CompanyCode $company, string $mailbox, array $message, bool $withoutClass): bool
+    private function store(GraphClient $graph, CompanyCode $company, string $mailbox, array $message, bool $withoutClass): bool
     {
         $graphId = self::text($message, 'id');
 
@@ -289,7 +292,7 @@ final class MailboxSync
         $preview = self::text($message, 'bodyPreview') ?? '';
         $body = mb_substr((string) data_get($message, 'body.content', ''), 0, self::BODY_LIMIT);
         $conversationId = self::text($message, 'conversationId');
-        $kind = $this->classify($mailbox, $graphId, $from, $message, $withoutClass);
+        $kind = $this->classify($graph, $mailbox, $graphId, $from, $message, $withoutClass);
 
         // Another server's report counts only when it quotes the Message-ID
         // of a send: without a conversation the linker runs that step alone.
@@ -344,7 +347,7 @@ final class MailboxSync
      *
      * @param  array<array-key, mixed>  $message
      */
-    private function classify(string $mailbox, string $graphId, string $from, array $message, bool $withoutClass): string
+    private function classify(GraphClient $graph, string $mailbox, string $graphId, string $from, array $message, bool $withoutClass): string
     {
         $class = self::messageClass($message);
 
@@ -356,7 +359,7 @@ final class MailboxSync
             return BounceDetector::REPLY;
         }
 
-        $authAs = BounceDetector::isFailureClass($class) ? $this->authAs($mailbox, $graphId) : null;
+        $authAs = BounceDetector::isFailureClass($class) ? $this->authAs($graph, $mailbox, $graphId) : null;
 
         return $this->bounces->classify($this->envelope($from, $class, $authAs));
     }
@@ -366,10 +369,10 @@ final class MailboxSync
      * GET. When Graph fails it is unknown, so the message cannot be our
      * Exchange's report.
      */
-    private function authAs(string $mailbox, string $graphId): ?string
+    private function authAs(GraphClient $graph, string $mailbox, string $graphId): ?string
     {
         try {
-            $headers = $this->graph->get(GraphClient::mailbox($mailbox).'/messages/'.rawurlencode($graphId), ['$select' => 'internetMessageHeaders']);
+            $headers = $graph->get(GraphClient::mailbox($mailbox).'/messages/'.rawurlencode($graphId), ['$select' => 'internetMessageHeaders']);
         } catch (GraphRequestFailed $e) {
             Log::warning('Cobro: the headers of a delivery report could not be read; its sender counts as unauthenticated.', [
                 'mailbox' => $mailbox,

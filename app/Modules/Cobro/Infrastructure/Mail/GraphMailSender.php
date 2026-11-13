@@ -16,7 +16,8 @@ use Throwable;
 use UnexpectedValueException;
 
 /**
- * MailSender over Microsoft Graph, from the mailbox of the mail's company.
+ * MailSender over Microsoft Graph, from the mailbox of the mail's company
+ * and with that company's Graph credential (GraphClient::for()).
  *
  * Graph's sendMail answers 202 without ids, so the mail goes in two steps:
  * create a draft in the company mailbox (POST /users/{mailbox}/messages,
@@ -52,33 +53,34 @@ final class GraphMailSender implements MailSender
             throw new MailNotSent($e->getMessage(), previous: $e);
         }
 
+        $graph = $this->graph->for($mail->company);
         $messages = GraphClient::mailbox($mailbox).'/messages';
         $draftId = null;
         $keepDraft = false;
 
         try {
-            $draft = $this->graph->post($messages, $this->message($mail));
+            $draft = $graph->post($messages, $this->message($mail));
             $draftId = self::string($draft, 'id') ?? throw new GraphRequestFailed('Graph created a draft without an id.');
 
             $internetMessageId = self::string($draft, 'internetMessageId');
             $conversationId = self::string($draft, 'conversationId');
 
             if ($internetMessageId === null) {
-                $read = $this->graph->get("{$messages}/".rawurlencode($draftId), ['$select' => 'internetMessageId,conversationId']);
+                $read = $graph->get("{$messages}/".rawurlencode($draftId), ['$select' => 'internetMessageId,conversationId']);
                 $internetMessageId = self::string($read, 'internetMessageId')
                     ?? throw new GraphRequestFailed('Graph did not return the internetMessageId of the draft.');
                 $conversationId ??= self::string($read, 'conversationId');
             }
 
             try {
-                $this->graph->postEmpty("{$messages}/".rawurlencode($draftId).'/send');
+                $graph->postEmpty("{$messages}/".rawurlencode($draftId).'/send');
             } catch (GraphRequestFailed $e) {
                 // Graph answered with an error: refused, the draft can go.
                 // No answer at all: it may have sent anyway. A sent draft
                 // stops resolving (it moved to Sent Items); one that is
                 // still a draft did not leave; otherwise nobody knows, and
                 // the draft stays for a person to check.
-                $state = $e->status === null ? $this->draftState($messages, $draftId) : self::DRAFT;
+                $state = $e->status === null ? $this->draftState($graph, $messages, $draftId) : self::DRAFT;
 
                 if ($state !== self::GONE) {
                     $keepDraft = $state === self::UNKNOWN;
@@ -90,7 +92,7 @@ final class GraphMailSender implements MailSender
             }
         } catch (GraphRequestFailed $e) {
             if ($draftId !== null && ! $keepDraft) {
-                $this->discardDraft($messages, $draftId);
+                $this->discardDraft($graph, $messages, $draftId);
             }
 
             throw new MailNotSent("Graph did not send the {$mail->category} mail from {$mailbox}: {$e->getMessage()}", previous: $e);
@@ -173,10 +175,10 @@ final class GraphMailSender implements MailSender
      * Where a draft stands after an unanswered send: still a draft, gone
      * from its id (sent), or unknown when Graph does not answer either.
      */
-    private function draftState(string $messages, string $draftId): string
+    private function draftState(GraphClient $graph, string $messages, string $draftId): string
     {
         try {
-            $draft = $this->graph->get("{$messages}/".rawurlencode($draftId), ['$select' => 'isDraft']);
+            $draft = $graph->get("{$messages}/".rawurlencode($draftId), ['$select' => 'isDraft']);
 
             return ($draft['isDraft'] ?? true) === false ? self::GONE : self::DRAFT;
         } catch (GraphRequestFailed $e) {
@@ -184,10 +186,10 @@ final class GraphMailSender implements MailSender
         }
     }
 
-    private function discardDraft(string $messages, string $draftId): void
+    private function discardDraft(GraphClient $graph, string $messages, string $draftId): void
     {
         try {
-            $this->graph->delete("{$messages}/".rawurlencode($draftId));
+            $graph->delete("{$messages}/".rawurlencode($draftId));
         } catch (Throwable $e) {
             Log::warning('Cobro: an unsent Graph draft could not be deleted.', ['exception' => $e->getMessage()]);
         }
