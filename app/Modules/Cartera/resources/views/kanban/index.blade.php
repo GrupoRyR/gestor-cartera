@@ -1,4 +1,4 @@
-@use('App\Modules\Core\Contracts\Enums\ClientStatus')
+@use('App\Modules\Cartera\Domain\Clients\ChoosableStatuses')
 @use('App\Support\Formatting\Money')
 
 {{--
@@ -139,7 +139,7 @@
                 <p class="mb-4" x-text="picked ? labels.question.replace(':cliente', picked.name) : ''"></p>
 
                 <ul class="grid gap-2">
-                    @foreach (ClientStatus::cases() as $option)
+                    @foreach (ChoosableStatuses::cases() as $option)
                         <li>
                             <x-ui.button
                                 variant="secondary"

@@ -16,6 +16,9 @@ use App\Modules\Core\Infrastructure\Persistence\CommitmentRecord;
  * clients (fase1_clients.csv, estado_manual = 1) to their clients in the
  * app, found as core:migrar-gestiones finds them.
  *
+ * A row with the retired status «En gestión» (en_gestion) is skipped as
+ * «estado retirado»: the app no longer has it.
+ *
  * A status is applied only where the app would keep it and nobody chose
  * another: the client still owes money (a snapshot would reset it
  * otherwise) and has no manual status of its own. It is applied as
@@ -33,6 +36,11 @@ final class MigrateStatusesCommand extends MigrationCommand
     private const string CODES = 'fase1_client_codes.csv';
 
     private const string DETAILS = 'Importado de Cartera Fase 1';
+
+    /**
+     * «En gestión», retired from the app: its rows are skipped.
+     */
+    private const string RETIRED = 'en_gestion';
 
     /**
      * @var string
@@ -81,6 +89,12 @@ final class MigrateStatusesCommand extends MigrationCommand
     private function apply(CsvRow $row): bool
     {
         $value = $row->string('estado');
+
+        // Compared as text: the ClientStatus case of the retired status is about to go.
+        if (mb_strtolower($value) === self::RETIRED) {
+            throw new RowSkipped('estado retirado');
+        }
+
         $status = ClientStatus::tryFrom(mb_strtolower($value)) ?? throw new RowRejected("estado desconocido: {$value}");
 
         if (! $row->bool('estado_manual') || ! ClientStatusRules::isManual($status)) {

@@ -14,6 +14,7 @@ use App\Modules\Core\Contracts\GestionLogger;
 use App\Modules\Core\Infrastructure\Persistence\ClientRecord;
 use Illuminate\Contracts\Auth\Access\Gate;
 use Illuminate\Database\ConnectionInterface;
+use InvalidArgumentException;
 
 /**
  * ClientStatusService over the "clients" table, for the signed-in user.
@@ -23,6 +24,10 @@ use Illuminate\Database\ConnectionInterface;
  * and locks its row, so two simultaneous changes are applied one after the
  * other. The entry in the client's log goes through GestionLogger, written
  * by the user: it moves the client's last activity forward.
+ *
+ * «En gestión» (ClientStatus::InProgress) is retired: the case stays until
+ * it is removed, but change() refuses it with an InvalidArgumentException,
+ * after the permission check, so no client gets it again.
  */
 final class EloquentClientStatusService implements ClientStatusService
 {
@@ -37,9 +42,16 @@ final class EloquentClientStatusService implements ClientStatusService
         private readonly ConnectionInterface $database,
     ) {}
 
+    /**
+     * @throws InvalidArgumentException When $status is the retired ClientStatus::InProgress.
+     */
     public function change(int $clientId, ClientStatus $status, ?string $note = null): ClientSummary
     {
         $this->gate->authorize(self::PERMISSION);
+
+        if ($status === ClientStatus::InProgress) {
+            throw new InvalidArgumentException("The client status [{$status->value}] is retired and cannot be chosen.");
+        }
 
         $note = $note === null || trim($note) === '' ? null : trim($note);
 

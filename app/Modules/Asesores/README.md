@@ -11,7 +11,7 @@ Todas piden sesión iniciada y el permiso `asesores.view` (asesor y gerente come
 | Ruta | Nombre | Qué muestra | Quién |
 |---|---|---|---|
 | `GET /asesores` | `inicio` | Totales, edades de la deuda, clientes en atención prioritaria (más de 90 días) y tendencia de la mora. | Asesor, gerente |
-| `GET /asesores/clientes` | `clientes.index` | Lista con búsqueda (nombre, NIT o código), estado, «solo vencidos», orden por columna y 25 por página. | Asesor, gerente |
+| `GET /asesores/clientes` | `clientes.index` | Lista con búsqueda (nombre, NIT o código), estado (sin «En gestión», retirado), «solo vencidos», orden por columna y 25 por página. | Asesor, gerente |
 | `GET /asesores/clientes/{client}` | `clientes.show` | Ficha: posición, cupo, edades, facturas abiertas, contactos, compromisos y bitácora. | Asesor, gerente |
 | `GET /asesores/agenda` | `agenda` | Compromisos abiertos: incumplidos, de hoy, de los próximos 7 días y posteriores. | Asesor, gerente |
 | `GET /asesores/historico` | `historico` | La cartera en cada corte del periodo (30 a 365 días): gráfico y tabla. | Asesor, gerente |

@@ -68,7 +68,7 @@ it('lets portfolio managers and analysts change a status by hand, logged and aud
 it('logs no details without a note', function () {
     $this->actingAs(CoreUsers::create(Role::PortfolioAnalyst, CompanyCode::SGX));
 
-    ($this->service)()->change($this->client->id, ClientStatus::InProgress, '   ');
+    ($this->service)()->change($this->client->id, ClientStatus::Legal, '   ');
 
     expect(ActivityRecord::query()->sole()->details)->toBeNull();
 });
@@ -78,7 +78,7 @@ it('refuses every other role, even on their own clients', function (Role $role) 
     TeamUsers::advisor(CompanyCode::SGX, 12, 'Carlos Pérez', $user);
     $this->actingAs($user);
 
-    expect(fn () => ($this->service)()->change($this->client->id, ClientStatus::InProgress))
+    expect(fn () => ($this->service)()->change($this->client->id, ClientStatus::Legal))
         ->toThrow(AuthorizationException::class)
         ->and($this->client->refresh()->status)->toBe(ClientStatus::Overdue)
         ->and(ActivityRecord::query()->count())->toBe(0)
@@ -86,23 +86,39 @@ it('refuses every other role, even on their own clients', function (Role $role) 
 })->with([Role::SalesAdvisor, Role::SalesManager, Role::Admin, Role::Treasury]);
 
 it('refuses guests', function () {
-    expect(fn () => ($this->service)()->change($this->client->id, ClientStatus::InProgress))
+    expect(fn () => ($this->service)()->change($this->client->id, ClientStatus::Legal))
         ->toThrow(AuthorizationException::class);
 });
 
 it('refuses a client that is missing, deleted or out of scope', function () {
     $this->actingAs(CoreUsers::create(Role::PortfolioManager, CompanyCode::SDC));
 
-    expect(fn () => ($this->service)()->change($this->client->id, ClientStatus::InProgress))
+    expect(fn () => ($this->service)()->change($this->client->id, ClientStatus::Legal))
         ->toThrow(RecordNotFound::class, "No client with id {$this->client->id} exists in the current scope.");
 
     $this->actingAs(CoreUsers::create(Role::PortfolioManager, CompanyCode::SGX));
     $this->client->delete();
 
-    expect(fn () => ($this->service)()->change($this->client->id, ClientStatus::InProgress))->toThrow(RecordNotFound::class)
-        ->and(fn () => ($this->service)()->change(999, ClientStatus::InProgress))->toThrow(RecordNotFound::class)
+    expect(fn () => ($this->service)()->change($this->client->id, ClientStatus::Legal))->toThrow(RecordNotFound::class)
+        ->and(fn () => ($this->service)()->change(999, ClientStatus::Legal))->toThrow(RecordNotFound::class)
         ->and(ActivityRecord::query()->count())->toBe(0)
         ->and(TeamUsers::audits('core.client.status_changed'))->toBe([]);
+});
+
+it('refuses the retired status «En gestión»', function () {
+    $this->actingAs(CoreUsers::create(Role::PortfolioManager, CompanyCode::SGX));
+
+    expect(fn () => ($this->service)()->change($this->client->id, ClientStatus::InProgress, 'Lo estoy llamando'))
+        ->toThrow(InvalidArgumentException::class, 'The client status [en_gestion] is retired and cannot be chosen.')
+        ->and($this->client->refresh()->status)->toBe(ClientStatus::Overdue)
+        ->and($this->client->status_changed_at)->toBeNull()
+        ->and(ActivityRecord::query()->count())->toBe(0)
+        ->and(TeamUsers::audits('core.client.status_changed'))->toBe([]);
+});
+
+it('checks the permission before refusing the retired status', function () {
+    expect(fn () => ($this->service)()->change($this->client->id, ClientStatus::InProgress))
+        ->toThrow(AuthorizationException::class);
 });
 
 it('changes nothing when the status is the same', function () {

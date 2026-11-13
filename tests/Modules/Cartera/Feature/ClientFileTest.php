@@ -228,6 +228,15 @@ describe('what the user may do from the file', function () {
             ->assertSeeText('Cambiar estado');
     });
 
+    it('does not offer the retired status «En gestión» in the status form', function () {
+        $client = CarteraWorld::client($this->fakes, overdue: 1_000_000);
+
+        $this->actingAs(CarteraUsers::analyst())
+            ->get("/cartera/clientes/{$client->id}")
+            ->assertSee('<option value="juridico"', false)
+            ->assertDontSee('<option value="en_gestion"', false);
+    });
+
     it('offers to remove a log entry to those who may', function () {
         $client = CarteraWorld::client($this->fakes, overdue: 1_000_000);
         $activity = Make::activity(clientId: $client->id, summary: 'Llamada');

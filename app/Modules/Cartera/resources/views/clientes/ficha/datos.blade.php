@@ -1,5 +1,5 @@
 @use('App\Modules\Cartera\Application\Clients\AssigneeOptions')
-@use('App\Modules\Core\Contracts\Enums\ClientStatus')
+@use('App\Modules\Cartera\Domain\Clients\ChoosableStatuses')
 
 {{--
     Data of the client and, for those who may, the forms that change its
@@ -62,7 +62,7 @@
         <form method="POST" action="{{ route('cartera.clientes.estado', $client->id) }}" class="mt-6 grid gap-4 border-t border-line pt-5">
             @csrf
             <h3 class="text-base font-bold text-fg">{{ __('cartera::ficha.cambiar_estado.titulo') }}</h3>
-            <x-ui.select name="estado" :label="__('cartera::ficha.cambiar_estado.estado')" :options="ClientStatus::options()" :value="$client->status->value" :required="true" />
+            <x-ui.select name="estado" :label="__('cartera::ficha.cambiar_estado.estado')" :options="ChoosableStatuses::options()" :value="$client->status->value" :required="true" />
             <x-ui.textarea name="nota" :label="__('cartera::ficha.cambiar_estado.nota')" :hint="__('cartera::ficha.cambiar_estado.nota_ayuda')" :rows="2" />
             <div>
                 <x-ui.button type="submit" variant="secondary">{{ __('cartera::ficha.cambiar_estado.boton') }}</x-ui.button>

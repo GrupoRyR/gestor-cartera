@@ -46,16 +46,27 @@ it('opens for the portfolio manager and the analyst only', function (?Role $role
     'no role' => [null, 403],
 ]);
 
-it('draws the eight statuses as columns, in the order of the collection workflow', function () {
+it('draws the seven statuses that may be chosen as columns, in the order of the collection workflow', function () {
     $this->actingAs(CarteraUsers::analyst())
         ->get('/cartera/kanban')
-        ->assertSeeInOrder(['Al día', 'Por vencer', 'Vencida', 'En gestión', 'Compromiso', 'Incumplido', 'Pago recibido', 'Jurídico']);
+        ->assertSeeInOrder(['Al día', 'Por vencer', 'Vencida', 'Compromiso', 'Incumplido', 'Pago recibido', 'Jurídico']);
+});
+
+it('has no column and no move to the retired status «En gestión»', function () {
+    CarteraWorld::client($this->fakes, name: 'Moroso', overdue: 1_000_000, status: ClientStatus::Overdue);
+
+    $html = $this->actingAs(CarteraUsers::analyst())->get('/cartera/kanban')->assertOk()->getContent();
+
+    expect(kanbanColumnTag($html, ClientStatus::InProgress))->toBe('')
+        ->and($html)->not->toContain('En gestión')
+        ->and($html)->not->toContain("move('en_gestion')")
+        ->and($html)->toContain("move('compromiso')");
 });
 
 it('puts each client in the column of its status, with the count and the balance of the column', function () {
     CarteraWorld::client($this->fakes, name: 'Primero vencido', overdue: 3_000_000, notDue: 1_000_000, status: ClientStatus::Overdue);
     CarteraWorld::client($this->fakes, name: 'Segundo vencido', overdue: 1_000_000, status: ClientStatus::Overdue);
-    CarteraWorld::client($this->fakes, name: 'Cliente en gestión', overdue: 2_000_000, status: ClientStatus::InProgress);
+    CarteraWorld::client($this->fakes, name: 'Cliente con compromiso', overdue: 2_000_000, status: ClientStatus::Committed);
 
     $response = $this->actingAs(CarteraUsers::analyst())->get('/cartera/kanban');
 
@@ -73,7 +84,7 @@ it('starts with "Al día" and "Pago recibido" hidden and every other column in v
         expect(kanbanColumnTag($html, $closed))->toMatch('/\shidden[\s>]/');
     }
 
-    foreach ([ClientStatus::DueSoon, ClientStatus::Overdue, ClientStatus::InProgress, ClientStatus::Committed, ClientStatus::Defaulted, ClientStatus::Legal] as $open) {
+    foreach ([ClientStatus::DueSoon, ClientStatus::Overdue, ClientStatus::Committed, ClientStatus::Defaulted, ClientStatus::Legal] as $open) {
         expect(kanbanColumnTag($html, $open))->not->toMatch('/\shidden[\s>]/');
     }
 
@@ -209,11 +220,24 @@ describe('moving a client', function () {
 
         $this->statuses->assertNothingChanged();
     })->with([
+        'retired status' => ['en_gestion'],
         'unknown status' => ['archivado'],
         'empty' => [''],
         'missing' => [null],
         'a list' => [['vencida']],
     ]);
+
+    it('sends the client file back with an error for the retired status', function () {
+        $client = CarteraWorld::client($this->fakes, name: 'Moroso', overdue: 1_000_000);
+
+        $this->actingAs(CarteraUsers::analyst())
+            ->from("/cartera/clientes/{$client->id}")
+            ->post("/cartera/clientes/{$client->id}/estado", ['estado' => 'en_gestion'])
+            ->assertRedirect("/cartera/clientes/{$client->id}")
+            ->assertSessionHasErrors('estado');
+
+        $this->statuses->assertNothingChanged();
+    });
 
     it('answers 404 for a client Core cannot find', function () {
         $this->actingAs(CarteraUsers::analyst())

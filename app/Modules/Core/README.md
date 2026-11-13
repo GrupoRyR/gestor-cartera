@@ -23,6 +23,8 @@ Core es la base de la plataforma: los contratos que usan los demás módulos (`C
 | Automático | Al día, Por vencer, Vencida, Pago recibido | Se recalculan con cada instantánea. |
 | Manual | En gestión, Compromiso, Incumplido, Jurídico | Los usuarios (ver «Cambio de estado manual») o el flujo de compromisos. Sobreviven a nuevas instantáneas mientras el cliente deba. |
 
+«En gestión» (`en_gestion`) está retirado: la migración `2026_10_01_000015_retire_in_progress_client_status` pasó a sus clientes, también los eliminados, a su estado automático (`RecomputeClientStatuses::automaticStatus()`: sin saldo, «Pago recibido»), con una gestión del sistema «De «En gestión» a «…»» (`metadata` `from`, `to` y `source` `retire_in_progress`, sin mover la última actividad) y la auditoría `core.client.status_changed` como el sistema. `ClientStatusService` ya no lo acepta y `core:migrar-estados` omite esas filas. El caso de `ClientStatus` se quita en un cambio posterior.
+
 ### Orden de evaluación
 
 1. **Saldo cero.** Si el saldo total (con notas crédito, que restan) es menor o igual a la tolerancia, el cliente queda en «Pago recibido». Si estaba «Al día», sigue «Al día». La regla aplica también a los estados manuales, incluso «Jurídico». Sin partidas, el saldo es cero.
@@ -424,12 +426,13 @@ Sin sesión iniciada las dos devuelven `[]` (§6.2).
 `change($clientId, $status, $note = null): ClientSummary` actúa como el usuario con sesión iniciada:
 
 1. Sin el permiso `core.clients.change_status` (`gerente_cartera` y `analista_cartera`) lanza `AuthorizationException`, también para invitados. Se revisa primero, así que la respuesta es la misma para cualquier id.
-2. Un cliente que no existe, está eliminado o está fuera del alcance del usuario en sus empresas (`Portfolio\ClientReach`, como en la bitácora) lanza `RecordNotFound`.
-3. Si el estado es el mismo, no escribe nada y devuelve el cliente.
-4. Si no, en una sola transacción y con la fila del cliente bloqueada: guarda `status` y `status_changed_at`; escribe en la bitácora, como el usuario, una gestión «Cambio de estado» («De «Vencida» a «Jurídico»», la nota sin espacios sobrantes como detalle, o ninguno si viene en blanco, y `metadata` `from` y `to`), que mueve la última actividad del cliente; y audita `core.client.status_changed` con `changes.status` (`old` y `new`) y `context` `{"source": "manual"}`.
-5. Devuelve el `ClientSummary` ya cambiado.
+2. El estado retirado «En gestión» (`ClientStatus::InProgress`) lanza `InvalidArgumentException` sin escribir nada.
+3. Un cliente que no existe, está eliminado o está fuera del alcance del usuario en sus empresas (`Portfolio\ClientReach`, como en la bitácora) lanza `RecordNotFound`.
+4. Si el estado es el mismo, no escribe nada y devuelve el cliente.
+5. Si no, en una sola transacción y con la fila del cliente bloqueada: guarda `status` y `status_changed_at`; escribe en la bitácora, como el usuario, una gestión «Cambio de estado» («De «Vencida» a «Jurídico»», la nota sin espacios sobrantes como detalle, o ninguno si viene en blanco, y `metadata` `from` y `to`), que mueve la última actividad del cliente; y audita `core.client.status_changed` con `changes.status` (`old` y `new`) y `context` `{"source": "manual"}`.
+6. Devuelve el `ClientSummary` ya cambiado.
 
-Se puede elegir cualquier estado, y las reglas de «Estados del cliente» le siguen aplicando en la siguiente instantánea: un estado automático elegido a mano (Al día, Por vencer, Vencida, Pago recibido) se recalcula con ella; uno manual (En gestión, Compromiso, Incumplido, Jurídico) sobrevive mientras el cliente deba y pasa a «Pago recibido» cuando ya no debe.
+Se puede elegir cualquier estado salvo «En gestión», y las reglas de «Estados del cliente» le siguen aplicando en la siguiente instantánea: un estado automático elegido a mano (Al día, Por vencer, Vencida, Pago recibido) se recalcula con ella; uno manual (Compromiso, Incumplido, Jurídico) sobrevive mientras el cliente deba y pasa a «Pago recibido» cuando ya no debe.
 
 ## Gestor del cliente
 

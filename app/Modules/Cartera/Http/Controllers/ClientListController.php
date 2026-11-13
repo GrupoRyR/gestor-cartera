@@ -5,10 +5,10 @@ namespace App\Modules\Cartera\Http\Controllers;
 use App\Modules\Cartera\Application\Clients\AssigneeOptions;
 use App\Modules\Cartera\Application\Clients\ClientListFilter;
 use App\Modules\Cartera\Application\Clients\ManagerFilter;
+use App\Modules\Cartera\Domain\Clients\ChoosableStatuses;
 use App\Modules\Core\Contracts\CarteraRepository;
 use App\Modules\Core\Contracts\ClientAssignmentService;
 use App\Modules\Core\Contracts\CurrentCompany;
-use App\Modules\Core\Contracts\Enums\ClientStatus;
 use Carbon\CarbonImmutable;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\Request;
@@ -37,7 +37,7 @@ final class ClientListController
         return view('cartera::clientes.index', [
             'filter' => $filter,
             'clients' => $cartera->paginateClients($query, (int) config('cartera.por_pagina')),
-            'statusOptions' => ClientStatus::options(),
+            'statusOptions' => ChoosableStatuses::options(),
             'managerOptions' => ManagerFilter::options(),
             'advisorOptions' => $advisors,
             'isGroup' => $company->isGroup(),

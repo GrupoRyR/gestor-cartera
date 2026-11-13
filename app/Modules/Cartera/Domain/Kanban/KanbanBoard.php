@@ -2,12 +2,14 @@
 
 namespace App\Modules\Cartera\Domain\Kanban;
 
+use App\Modules\Cartera\Domain\Clients\ChoosableStatuses;
 use App\Modules\Core\Contracts\Data\ClientSummary;
 use App\Modules\Core\Contracts\Enums\ClientStatus;
 
 /**
- * The eight columns of the Kanban board, one per client status and in the
- * order of ClientStatus (the order of the collection workflow).
+ * The columns of the Kanban board, one per client status that may be chosen
+ * (ChoosableStatuses) and in the order of ClientStatus (the order of the
+ * collection workflow).
  */
 final readonly class KanbanBoard
 {
@@ -25,17 +27,19 @@ final readonly class KanbanBoard
     /**
      * Groups the clients by status in one pass. Counts and totals cover every
      * client; only the first $cardsPerColumn of each status become cards, so
-     * the page stays light however large the portfolio is.
+     * the page stays light however large the portfolio is. A client still in
+     * a retired status has no column, so it is left out.
      *
      * @param  iterable<ClientSummary>  $clients
      */
     public static function fromClients(iterable $clients, int $cardsPerColumn): self
     {
+        $statuses = ChoosableStatuses::cases();
         $counts = [];
         $totals = [];
         $cards = [];
 
-        foreach (ClientStatus::cases() as $status) {
+        foreach ($statuses as $status) {
             $counts[$status->value] = 0;
             $totals[$status->value] = 0.0;
             $cards[$status->value] = [];
@@ -43,6 +47,11 @@ final readonly class KanbanBoard
 
         foreach ($clients as $client) {
             $key = $client->status->value;
+
+            if (! isset($counts[$key])) {
+                continue;
+            }
+
             $counts[$key]++;
             $totals[$key] += $client->balance;
 
@@ -59,10 +68,13 @@ final readonly class KanbanBoard
                 cards: $cards[$status->value],
                 hiddenByDefault: in_array($status, self::HIDDEN_BY_DEFAULT, true),
             ),
-            ClientStatus::cases(),
+            $statuses,
         ));
     }
 
+    /**
+     * @throws \LogicException For a retired status, which has no column.
+     */
     public function column(ClientStatus $status): KanbanColumn
     {
         foreach ($this->columns as $column) {
@@ -71,7 +83,6 @@ final readonly class KanbanBoard
             }
         }
 
-        // Unreachable: there is a column for every case.
         throw new \LogicException("The board has no column for [{$status->value}].");
     }
 }

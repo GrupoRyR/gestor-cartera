@@ -125,14 +125,14 @@ describe('the client list', function () {
         config(['cartera.por_pagina' => 1]);
         CarteraWorld::client($this->fakes, name: 'Moroso chico', overdue: 1_000_000, status: ClientStatus::Overdue);
         CarteraWorld::client($this->fakes, name: 'Moroso grande', overdue: 5_000_000, status: ClientStatus::Overdue);
-        CarteraWorld::client($this->fakes, name: 'Cliente en gestión', overdue: 9_000_000, status: ClientStatus::InProgress);
+        CarteraWorld::client($this->fakes, name: 'Cliente en jurídico', overdue: 9_000_000, status: ClientStatus::Legal);
 
         $names = fn (string $query) => array_column(
             array_slice(workbookOf($this->actingAs(CarteraUsers::manager())->get("/cartera/clientes/exportar{$query}"))['Clientes'], 1),
             2,
         );
 
-        expect($names(''))->toBe(['Cliente en gestión', 'Moroso grande', 'Moroso chico'])
+        expect($names(''))->toBe(['Cliente en jurídico', 'Moroso grande', 'Moroso chico'])
             ->and($names('?estado=vencida'))->toBe(['Moroso grande', 'Moroso chico'])
             ->and($names('?estado=vencida&sort=name&direction=asc'))->toBe(['Moroso chico', 'Moroso grande'])
             ->and($names('?buscar=chico'))->toBe(['Moroso chico']);

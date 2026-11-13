@@ -33,6 +33,20 @@ final readonly class PortfolioFilter
     ) {}
 
     /**
+     * The choices of the status filter: every ClientStatus but the retired
+     * «En gestión», which no client has any more.
+     *
+     * @return array<string, string> value => label, for <x-ui.select>.
+     */
+    public static function statusOptions(): array
+    {
+        $options = ClientStatus::options();
+        unset($options[ClientStatus::InProgress->value]);
+
+        return $options;
+    }
+
+    /**
      * @param  array<array-key, mixed>  $query  The request query string.
      */
     public static function fromQuery(array $query): self
