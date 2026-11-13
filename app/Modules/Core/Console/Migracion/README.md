@@ -292,12 +292,13 @@ La gestión de cada compromiso guarda su origen en `metadata.legacy_key` (`fase1
 
 ## Estados manuales (`core:migrar-estados`)
 
-Lee `fase1_clients.csv` (con `fase1_client_codes.csv` si está, para encontrar los clientes) y lleva a la app los estados manuales de Fase 1: en gestión, compromiso, incumplido y jurídico. Los estados automáticos (al día, por vencer, vencida, pago recibido) no se migran: la app los calcula con cada carga de cartera.
+Lee `fase1_clients.csv` (con `fase1_client_codes.csv` si está, para encontrar los clientes) y lleva a la app los estados manuales de Fase 1: compromiso, incumplido y jurídico. Los estados automáticos (al día, por vencer, vencida, pago recibido) no se migran: la app los calcula con cada carga de cartera. «En gestión» se retiró de la app y tampoco se migra.
 
 Para cada cliente de Fase 1, en este orden:
 
 | Caso | Resultado |
 |---|---|
+| `estado` es `en_gestion` | Omitida: «estado retirado» |
 | `estado` no es un estado de la app | Rechazada: «estado desconocido: <estado>» |
 | `estado_manual` no es 1, o el estado no es manual | Omitida: «no es estado manual» |
 | El cliente no se encuentra en la app (como en las gestiones) | Rechazada, con el motivo |

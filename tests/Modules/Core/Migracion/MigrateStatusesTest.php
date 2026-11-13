@@ -20,12 +20,12 @@ use Tests\Modules\Core\Support\CommitmentRecords;
 const ESTADOS_CLIENTS = <<<'CSV'
 id,empresa,nit,nombre,estado,estado_manual
 1,SGX,900100100,Aplica,juridico,1
-2,SGX,900200200,Marcado automático,en_gestion,0
+2,SGX,900200200,Estado retirado,en_gestion,1
 3,SGX,900300300,Estado automático,vencida,1
 4,SGX,900400400,Estado raro,rarito,1
 5,SGX,900500500,Sin saldo,compromiso,1
 6,SGX,900600600,Ya igual,incumplido,1
-7,SGX,900700700,Manual distinto,en_gestion,1
+7,SGX,900700700,Manual distinto,incumplido,1
 8,SGX,900999999,Fantasma,juridico,1
 
 CSV;
@@ -69,7 +69,8 @@ it('applies a manual status only where every rule allows it', function () {
             ['Fase 1', 'fase1_clients.csv', 8, 1, 5, 2],
         ])
         ->expectsTable(MigrationFolder::SKIPPED, [
-            ['fase1_clients.csv', 'no es estado manual', 2],
+            ['fase1_clients.csv', 'estado retirado', 1],
+            ['fase1_clients.csv', 'no es estado manual', 1],
             ['fase1_clients.csv', 'sin saldo pendiente en la app', 1],
             ['fase1_clients.csv', 'ya aplicado', 1],
             ['fase1_clients.csv', 'ya tiene estado manual en la app: Jurídico', 1],
@@ -86,6 +87,26 @@ it('applies a manual status only where every rule allows it', function () {
         ->and($this->same->refresh()->status)->toBe(ClientStatus::Defaulted)
         ->and($this->manual->refresh()->status)->toBe(ClientStatus::Legal)
         ->and(collect($this->others)->map(fn (ClientRecord $client) => $client->refresh()->status)->unique()->values()->all())->toBe([ClientStatus::Overdue]);
+});
+
+it('skips the retired status «En gestión», even where it would apply', function () {
+    MigrationFolder::put($this->folder, 'fase1_clients.csv', <<<'CSV'
+        id,empresa,nit,nombre,estado,estado_manual
+        2,SGX,900200200,Estado retirado,en_gestion,1
+        3,SGX,900300300,Retirado en mayúsculas,EN_GESTION,0
+
+        CSV);
+
+    estadosRun($this->folder)
+        ->expectsTable(MigrationFolder::SKIPPED, [
+            ['fase1_clients.csv', 'estado retirado', 2],
+        ])
+        ->assertSuccessful();
+
+    expect($this->others[0]->refresh()->status)->toBe(ClientStatus::Overdue)
+        ->and($this->others[1]->refresh()->status)->toBe(ClientStatus::Overdue)
+        ->and(ActivityRecord::query()->count())->toBe(0)
+        ->and(AuditLogRecord::query()->count())->toBe(0);
 });
 
 it('logs and audits the change as the app does, as the system', function () {
