@@ -18,6 +18,7 @@ return [
         'sin_vencer' => 'Sin vencer',
         'vencido' => 'Vencido',
         'cupo' => 'Cupo de crédito',
+        'saldo_antes_iva' => 'Saldo antes de IVA',
         'del_total' => ':porcentaje del total',
         'documentos' => '{0} Sin documentos abiertos|{1} 1 documento abierto|[2,*] :cantidad documentos abiertos',
         'disponible' => 'Disponible: :valor',
@@ -48,6 +49,8 @@ return [
             'estado' => 'Vencimiento',
             'valor' => 'Valor',
             'saldo' => 'Saldo',
+            'valor_antes_iva' => 'Valor antes de IVA',
+            'saldo_antes_iva' => 'Saldo antes de IVA',
             'edad' => 'Antigüedad',
         ],
         'dias' => [

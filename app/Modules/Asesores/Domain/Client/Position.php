@@ -10,7 +10,8 @@ use App\Modules\Core\Contracts\Data\Invoice;
  * it is overdue, how old it is and where it stands against the credit limit.
  *
  * Balances are signed: a credit note or an advance lowers the figure of the
- * bucket it falls in, as it does in Core's totals.
+ * bucket it falls in, as it does in Core's totals. The pre-VAT balance is
+ * null when any open invoice lacks it (manual uploads, older snapshots).
  */
 final readonly class Position
 {
@@ -20,6 +21,7 @@ final readonly class Position
         public float $notDue,
         public AgingBuckets $aging,
         public ?float $creditLimit,
+        public ?float $balanceBeforeTax = null,
     ) {}
 
     /**
@@ -29,9 +31,16 @@ final readonly class Position
     {
         $cents = ['not_due' => 0, 'days_1_30' => 0, 'days_31_60' => 0, 'days_61_90' => 0, 'over_90' => 0];
 
+        // Pre-VAT balance: unknown as soon as one invoice lacks it, never a partial sum.
+        $beforeTaxCents = 0;
+
         // Whole cents, so thirty invoices of 0,10 add up to exactly 3,00.
         foreach ($invoices as $invoice) {
             $cents[InvoiceAging::key($invoice->daysOverdue)] += (int) round($invoice->balance * 100);
+
+            if ($beforeTaxCents !== null) {
+                $beforeTaxCents = $invoice->balanceBeforeTax === null ? null : $beforeTaxCents + (int) round($invoice->balanceBeforeTax * 100);
+            }
         }
 
         $overdue = $cents['days_1_30'] + $cents['days_31_60'] + $cents['days_61_90'] + $cents['over_90'];
@@ -48,6 +57,7 @@ final readonly class Position
                 over90: $cents['over_90'] / 100,
             ),
             creditLimit: $creditLimit,
+            balanceBeforeTax: $beforeTaxCents === null ? null : $beforeTaxCents / 100,
         );
     }
 

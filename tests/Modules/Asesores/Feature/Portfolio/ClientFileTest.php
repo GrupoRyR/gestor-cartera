@@ -2,6 +2,7 @@
 
 use App\Modules\Core\Contracts\Enums\CommitmentStatus;
 use App\Modules\Core\Infrastructure\Persistence\ContactRecord;
+use App\Modules\Core\Infrastructure\Persistence\InvoiceRecord;
 use App\Support\Formatting\Money;
 use Carbon\CarbonImmutable;
 use Tests\Modules\Asesores\Support\AdvisorWorld;
@@ -46,7 +47,32 @@ it('lists the open documents with their due date and age', function () {
 
     expect(Page::tableColumn($response, $caption, 4))->toBe(['100 días de mora', 'Vence en 10 días'])
         ->and(Page::tableColumn($response, $caption, 6))->toBe([Money::format(5_000_000), Money::format(2_000_000)])
-        ->and(Page::tableColumn($response, $caption, 7))->toBe(['Más de 90 días', 'Sin vencer']);
+        ->and(Page::tableColumn($response, $caption, 9))->toBe(['Más de 90 días', 'Sin vencer']);
+});
+
+it('shows the pre-VAT amount and balance of each document, and the pre-VAT balance of the client', function () {
+    InvoiceRecord::query()->where('client_id', $this->agro->id)->where('days_overdue', 100)->update(['amount_before_tax' => '4201680.67', 'balance_before_tax' => '4201680.67']);
+    InvoiceRecord::query()->where('client_id', $this->agro->id)->where('days_overdue', -10)->update(['amount_before_tax' => '1680672.27', 'balance_before_tax' => '840336.13']);
+
+    $response = $this->actingAs($this->world->ana)->get(route('asesores.clientes.show', $this->agro->id))->assertOk();
+    $caption = 'Facturas y otros documentos abiertos del cliente';
+
+    expect(Page::html($response)->all("//table[caption[normalize-space(.)='{$caption}']]/thead//th[normalize-space(.)='Valor antes de IVA' or normalize-space(.)='Saldo antes de IVA']"))->toHaveCount(2)
+        ->and(Page::tableColumn($response, $caption, 7))->toBe([Money::format(4_201_680.67), Money::format(1_680_672.27)])
+        ->and(Page::tableColumn($response, $caption, 8))->toBe([Money::format(4_201_680.67), Money::format(840_336.13)])
+        ->and(Page::stat($response, 'Saldo antes de IVA'))->toBe(Money::format(5_042_016.80));
+});
+
+it('shows a dash, never a zero, for the pre-VAT figures a snapshot did not bring', function () {
+    // Only one of the two documents has them: the client total would be partial.
+    InvoiceRecord::query()->where('client_id', $this->agro->id)->where('days_overdue', 100)->update(['amount_before_tax' => '4201680.67', 'balance_before_tax' => '4201680.67']);
+
+    $response = $this->actingAs($this->world->ana)->get(route('asesores.clientes.show', $this->agro->id))->assertOk();
+    $caption = 'Facturas y otros documentos abiertos del cliente';
+
+    expect(Page::tableColumn($response, $caption, 7))->toBe([Money::format(4_201_680.67), '—'])
+        ->and(Page::tableColumn($response, $caption, 8))->toBe([Money::format(4_201_680.67), '—'])
+        ->and(Page::stat($response, 'Saldo antes de IVA'))->toBe('—');
 });
 
 it('names the SAP document types it knows and shows the others as they come', function () {

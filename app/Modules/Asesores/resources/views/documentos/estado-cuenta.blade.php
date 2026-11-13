@@ -119,6 +119,8 @@
                 <th class="end">{{ __('asesores::exportar.pdf.columnas.dias') }}</th>
                 <th class="end">{{ __('asesores::exportar.pdf.columnas.valor') }}</th>
                 <th class="end">{{ __('asesores::exportar.pdf.columnas.saldo') }}</th>
+                <th class="end">{{ __('asesores::exportar.pdf.columnas.valor_antes_iva') }}</th>
+                <th class="end">{{ __('asesores::exportar.pdf.columnas.saldo_antes_iva') }}</th>
             </tr>
             @foreach ($invoices as $invoice)
                 @php($typeKey = 'asesores::ficha.facturas.tipos.'.$invoice->documentType)
@@ -130,6 +132,8 @@
                     <td class="end">{{ $invoice->daysOverdue > 0 ? $invoice->daysOverdue : __('asesores::comun.sin_datos') }}</td>
                     <td class="end">{{ Money::format($invoice->amount) }}</td>
                     <td class="end"><strong>{{ Money::format($invoice->balance) }}</strong></td>
+                    <td class="end">{{ Money::format($invoice->amountBeforeTax) }}</td>
+                    <td class="end">{{ Money::format($invoice->balanceBeforeTax) }}</td>
                 </tr>
             @endforeach
         </table>

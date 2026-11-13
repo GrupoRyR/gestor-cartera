@@ -19,7 +19,7 @@ final readonly class ReceivablesRow
 {
     /**
      * @param  array{code: string, name: string, tax_id: string, group: string|null, city: string|null, payment_terms: string|null, credit_limit: string|null, advisor_code: int|null}  $client
-     * @param  array{document_number: string, document_type: string, installment: int|null, issued_at: CarbonImmutable, due_at: CarbonImmutable, amount: string, balance: string, days_overdue: int, advisor_code: int|null}  $invoice
+     * @param  array{document_number: string, document_type: string, installment: int|null, issued_at: CarbonImmutable, due_at: CarbonImmutable, amount: string, balance: string, amount_before_tax: string|null, balance_before_tax: string|null, days_overdue: int, advisor_code: int|null}  $invoice
      */
     private function __construct(
         public array $client,
@@ -48,6 +48,9 @@ final readonly class ReceivablesRow
         // SAP uses -1 for "no sales employee".
         $advisorCode = $advisorCode !== null && $advisorCode >= 0 ? $advisorCode : null;
         $creditLimit = self::cents($row, 'limite_credito');
+        // Pre-VAT figures: manual uploads leave them out, and no value is not 0.
+        $amountBeforeTax = self::cents($row, 'base_gravable');
+        $balanceBeforeTax = self::cents($row, 'saldo_base');
 
         return new self(
             client: [
@@ -68,6 +71,8 @@ final readonly class ReceivablesRow
                 'due_at' => $dueAt,
                 'amount' => Cents::toDecimal(self::cents($row, 'importe_original') ?? 0),
                 'balance' => Cents::toDecimal($balance),
+                'amount_before_tax' => $amountBeforeTax === null ? null : Cents::toDecimal($amountBeforeTax),
+                'balance_before_tax' => $balanceBeforeTax === null ? null : Cents::toDecimal($balanceBeforeTax),
                 'days_overdue' => $daysOverdue,
                 'advisor_code' => $advisorCode,
             ],

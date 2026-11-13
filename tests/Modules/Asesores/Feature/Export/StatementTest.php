@@ -7,9 +7,11 @@ use App\Modules\Core\Contracts\CurrentCompany;
 use App\Modules\Core\Contracts\Data\BrandPalette;
 use App\Modules\Core\Contracts\Enums\CompanyCode;
 use App\Modules\Core\Infrastructure\Persistence\AuditLogRecord;
+use App\Modules\Core\Infrastructure\Persistence\InvoiceRecord;
 use App\Support\Formatting\Money;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\File;
+use Tests\Feature\Design\Support\Html;
 use Tests\Modules\Asesores\Support\AdvisorWorld;
 use Tests\Modules\Core\Support\CommitmentRecords;
 
@@ -72,6 +74,25 @@ it('prints what the client owes, how old it is and the open documents', function
         ->toContain('15/10/2026')
         ->toContain('Más de 90 días')
         ->toContain('Documentos abiertos');
+});
+
+it('prints the pre-VAT amount and balance of each document, and a dash when the snapshot did not bring them', function () {
+    InvoiceRecord::query()->where('client_id', $this->agro->id)->where('days_overdue', 100)->update(['amount_before_tax' => '4201680.67', 'balance_before_tax' => '3361344.54']);
+    $this->actingAs($this->world->ana);
+
+    $html = Html::parse(asesoresStatementHtml($this->agro->id));
+    $documents = "//h2[normalize-space(.)='Documentos abiertos']/following-sibling::table[1]";
+    $titles = array_map(fn ($cell): string => Html::clean($cell->textContent), $html->all("{$documents}//th"));
+    $rows = array_map(
+        fn ($row): array => array_map(fn ($cell): string => Html::clean($cell->textContent), iterator_to_array($row->getElementsByTagName('td'))),
+        $html->all("{$documents}//tr[td]"),
+    );
+
+    expect(array_slice($titles, -2))->toBe(['Valor antes de IVA', 'Saldo antes de IVA'])
+        ->and(array_map(fn (array $cells): array => array_slice($cells, -2), $rows))->toBe([
+            [Money::format(4_201_680.67), Money::format(3_361_344.54)],
+            ['—', '—'],
+        ]);
 });
 
 it('is a document for the client: it leaves out the commitments and the log', function () {

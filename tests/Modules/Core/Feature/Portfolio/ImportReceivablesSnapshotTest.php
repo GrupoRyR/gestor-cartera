@@ -108,6 +108,22 @@ it('stores blank SAP text as no value and SAP\'s "no sales employee" as no advis
         ->and(InvoiceRecord::query()->sole()->advisor_code)->toBeNull();
 });
 
+it('keeps the pre-VAT amount and balance of each invoice, and no value when the row has none', function () {
+    $this->robot->receivables(CompanyCode::SGX, '2026-10-15', [
+        RobotBatches::receivable(['documento' => '1', 'base_gravable' => '1000000.00', 'saldo_base' => '420168.07']),
+        RobotBatches::receivable(['documento' => '2', 'base_gravable' => null, 'saldo_base' => null]),
+    ]);
+
+    $invoices = InvoiceRecord::query()->orderBy('document_number')->get()->map(fn (InvoiceRecord $invoice): array => [
+        $invoice->amount_before_tax, $invoice->balance_before_tax,
+    ])->all();
+
+    expect($invoices)->toBe([
+        ['1000000.00', '420168.07'],
+        [null, null],
+    ]);
+});
+
 it('falls back to the days overdue and the other dates when SAP leaves a date out', function () {
     $this->robot->receivables(CompanyCode::SGX, '2026-10-15', [
         RobotBatches::receivable([

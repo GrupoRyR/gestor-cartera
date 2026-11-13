@@ -112,6 +112,8 @@ final class PortfolioMapper
             balance: (float) $invoice->balance,
             daysOverdue: $invoice->days_overdue,
             advisorCode: $invoice->advisor_code,
+            amountBeforeTax: $invoice->amount_before_tax === null ? null : (float) $invoice->amount_before_tax,
+            balanceBeforeTax: $invoice->balance_before_tax === null ? null : (float) $invoice->balance_before_tax,
         );
     }
 

@@ -91,6 +91,9 @@ final readonly class PortfolioWorkbook
             Column::number(__('asesores::exportar.facturas.dias'), 16),
             Column::money(__('asesores::exportar.facturas.valor')),
             Column::money(__('asesores::exportar.facturas.saldo')),
+            // Empty when the snapshot did not bring them (manual uploads, older snapshots).
+            Column::money(__('asesores::exportar.facturas.valor_antes_iva'), 22),
+            Column::money(__('asesores::exportar.facturas.saldo_antes_iva'), 22),
             Column::text(__('asesores::exportar.facturas.edad'), 18),
         ]);
 
@@ -132,6 +135,8 @@ final readonly class PortfolioWorkbook
             $invoice->daysOverdue,
             $invoice->amount,
             $invoice->balance,
+            $invoice->amountBeforeTax,
+            $invoice->balanceBeforeTax,
             __('asesores::comun.edades.'.InvoiceAging::key($invoice->daysOverdue)),
         ];
     }
