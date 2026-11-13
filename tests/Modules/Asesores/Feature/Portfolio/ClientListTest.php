@@ -54,6 +54,14 @@ it('filters by status', function () {
     expect(Page::clientNames($response))->toBe(['Ferretería Franco']);
 });
 
+it('does not offer the retired status «En gestión» as a filter', function () {
+    $this->actingAs($this->world->ana)
+        ->get(route('asesores.clientes.index'))
+        ->assertOk()
+        ->assertSee('<option value="por_vencer"', false)
+        ->assertDontSee('<option value="en_gestion"', false);
+});
+
 it('can show only the clients with overdue balance', function () {
     $response = $this->actingAs($this->world->ana)->get(route('asesores.clientes.index', ['vencidos' => '1']));
 

@@ -99,12 +99,20 @@ it('searches by name or NIT', function () {
 
 it('filters by status', function () {
     CarteraWorld::client($this->fakes, name: 'Cliente vencido', overdue: 1_000_000, status: ClientStatus::Overdue);
-    CarteraWorld::client($this->fakes, name: 'Cliente en gestión', overdue: 1_000_000, status: ClientStatus::InProgress);
+    CarteraWorld::client($this->fakes, name: 'Cliente en jurídico', overdue: 1_000_000, status: ClientStatus::Legal);
 
     $this->actingAs(CarteraUsers::manager())
-        ->get('/cartera/clientes?estado=en_gestion')
-        ->assertSeeText('Cliente en gestión')
+        ->get('/cartera/clientes?estado=juridico')
+        ->assertSeeText('Cliente en jurídico')
         ->assertDontSeeText('Cliente vencido');
+});
+
+it('does not offer the retired status «En gestión» as a filter', function () {
+    $this->actingAs(CarteraUsers::manager())
+        ->get('/cartera/clientes')
+        ->assertOk()
+        ->assertSee('<option value="juridico"', false)
+        ->assertDontSee('<option value="en_gestion"', false);
 });
 
 it('filters by advisor', function () {

@@ -1,4 +1,4 @@
-@use('App\Modules\Core\Contracts\Enums\ClientStatus')
+@use('App\Modules\Asesores\Application\Portfolio\PortfolioFilter')
 @use('App\Support\Formatting\Money')
 
 {{--
@@ -52,7 +52,7 @@
             <x-ui.select
                 name="estado"
                 :label="__('asesores::clientes.filtros.estado')"
-                :options="ClientStatus::options()"
+                :options="PortfolioFilter::statusOptions()"
                 :value="$filter->status"
                 :placeholder="__('asesores::clientes.filtros.todos_estados')"
             />
