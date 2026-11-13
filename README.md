@@ -16,7 +16,7 @@ Plataforma de cartera del Grupo RYR para Segurex (SGX) y Soluciones y Derivados 
 | `etl/` | Robot Python que extrae la cartera de SAP Business One (HANA). |
 | `scripts/` | Programación del robot en el Programador de tareas de Windows. |
 | `legacy/` | Código de las apps anteriores, solo como referencia. |
-| `docs/` | Prompt del proyecto, órdenes de los agentes y especificaciones. |
+| `docs/` | Prompt del proyecto, órdenes de los agentes, especificaciones y la [guía para el equipo de cartera](docs/guia-cartera.md). |
 
 ## Primer paso después de clonar
 
