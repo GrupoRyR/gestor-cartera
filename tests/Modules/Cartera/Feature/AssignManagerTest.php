@@ -335,6 +335,22 @@ describe('the client file', function () {
         $this->assignments->assertNothingAssigned();
     });
 
+    it('changes nothing and says so when the client already has that manager', function (?string $current, string $chosen) {
+        $managers = ['paula' => $this->paula, 'retired' => Make::userRef(id: 777, name: 'Persona retirada')];
+        $client = CarteraWorld::client($this->fakes, overdue: 1_000_000, manager: $current === null ? null : $managers[$current]);
+
+        $this->actingAs(CarteraUsers::analyst())
+            ->post("/cartera/clientes/{$client->id}/gestor", ['nuevo_gestor' => $chosen])
+            ->assertSessionHas('status', 'El cliente ya tenía ese gestor.')
+            ->assertSessionMissing('error');
+
+        $this->assignments->assertNothingAssigned();
+    })->with([
+        'an assignee' => ['paula', '501'],
+        'a manager who is no longer an assignee' => ['retired', '777'],
+        'no manager' => [null, 'sin_asignar'],
+    ]);
+
     it('is a 404 for a client out of reach', function () {
         $this->actingAs(CarteraUsers::manager())
             ->post('/cartera/clientes/987654/gestor', ['nuevo_gestor' => '501'])
