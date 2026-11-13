@@ -52,6 +52,38 @@ describe('the client list', function () {
             ->assertSee('<input type="hidden" name="gestor" value="sin_asignar">', false);
     });
 
+    it('asks to confirm "todos los filtrados" with the number of clients', function () {
+        foreach (['Uno', 'Dos', 'Tres'] as $name) {
+            CarteraWorld::client($this->fakes, name: $name, overdue: 1_000_000);
+        }
+
+        $this->actingAs(CarteraUsers::manager())
+            ->get('/cartera/clientes')
+            ->assertSee('data-confirm-all="Vas a asignar el gestor a los 3 clientes filtrados. ¿Seguir?"', false);
+    });
+
+    it('turns off "todos los filtrados" and says why when the list is above the cap', function () {
+        config(['cartera.assignment.max_bulk' => 2]);
+
+        foreach (['Uno', 'Dos', 'Tres'] as $name) {
+            CarteraWorld::client($this->fakes, name: $name, overdue: 1_000_000);
+        }
+
+        $response = $this->actingAs(CarteraUsers::manager())->get('/cartera/clientes')->assertOk();
+
+        $response->assertSeeText('Son 3 clientes y el máximo es 2; filtra un poco más para usar esta opción.');
+        expect($response->getContent())->toMatch('/<input[^>]*name="todos_filtrados"[^>]*disabled/');
+    });
+
+    it('leaves "todos los filtrados" on when the list is within the cap', function () {
+        CarteraWorld::client($this->fakes, overdue: 1_000_000);
+
+        $response = $this->actingAs(CarteraUsers::manager())->get('/cartera/clientes')->assertOk();
+
+        $response->assertDontSeeText('el máximo es');
+        expect($response->getContent())->not->toMatch('/<input[^>]*name="todos_filtrados"[^>]*disabled/');
+    });
+
     it('is not offered to those who may only look', function () {
         CarteraWorld::client($this->fakes, overdue: 1_000_000);
 
@@ -158,12 +190,12 @@ describe('the bulk assignment', function () {
         expect(config('cartera.assignment.max_bulk'))->toBe(1000);
     });
 
-    it('explains a manager who does not work in the company of every client', function () {
+    it('explains a manager who may not take every chosen client', function () {
         $client = CarteraWorld::client($this->fakes, overdue: 1_000_000);
 
         $this->actingAs(CarteraUsers::manager())
             ->post('/cartera/clientes/gestor', ['clientes' => [$client->id], 'nuevo_gestor' => '999'])
-            ->assertSessionHas('error', 'Esa persona no trabaja en la empresa de todos los clientes elegidos. Elige otra o filtra por empresa.');
+            ->assertSessionHas('error', 'Esa persona no puede encargarse de todos los clientes elegidos: ya no gestiona cartera o no trabaja en la empresa de alguno. Elige otra o filtra por empresa.');
 
         $this->assignments->assertNothingAssigned();
     });
@@ -192,6 +224,18 @@ describe('the bulk assignment', function () {
         'no manager' => [['clientes' => [1]], 'nuevo_gestor'],
         'a manager that is neither a user nor "Sin asignar"' => [['clientes' => [1], 'nuevo_gestor' => 'nadie'], 'nuevo_gestor'],
     ]);
+
+    it('refuses chosen clients together with "todos los filtrados" and changes nothing', function () {
+        $client = CarteraWorld::client($this->fakes, overdue: 1_000_000);
+
+        $this->actingAs(CarteraUsers::manager())
+            ->from('/cartera/clientes')
+            ->post('/cartera/clientes/gestor', ['clientes' => [$client->id], 'todos_filtrados' => '1', 'nuevo_gestor' => '501'])
+            ->assertRedirect('/cartera/clientes')
+            ->assertSessionHasErrors(['clientes' => 'Elige filas o marca «todos los filtrados», no las dos cosas.']);
+
+        $this->assignments->assertNothingAssigned();
+    });
 
     it('explains why it needs a client', function () {
         $this->actingAs(CarteraUsers::manager())

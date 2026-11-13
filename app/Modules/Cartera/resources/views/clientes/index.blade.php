@@ -6,13 +6,17 @@
     ClientSummary within the user's scope; $statusOptions, $advisorOptions
     and $managerOptions: value => label for the filters; $isGroup: the group view
     shows the company of each client; $assigneeOptions: the choices of the
-    bulk "Asignar gestor" form, or null for those who may not assign.
+    bulk "Asignar gestor" form, or null for those who may not assign; $maxBulk:
+    the most clients "todos los filtrados" may change (above it, it is off).
 
     The bulk form wraps the table, so its row boxes post without JavaScript;
-    Alpine only adds "choose this page" and the count of chosen clients.
+    Alpine only adds "choose this page", kept in step with the row boxes, the
+    count of chosen clients and a confirmation before "todos los filtrados"
+    (the server refuses rows and "todos los filtrados" together).
 --}}
 @php
     $canAssign = $assigneeOptions !== null;
+    $overCap = $clients->total() > $maxBulk;
     $columns = [
         ...($canAssign ? [['key' => 'choose', 'label' => __('cartera::clientes.asignar.columna')]] : []),
         ['key' => 'name', 'label' => __('cartera::clientes.columnas.cliente'), 'sortable' => true],
@@ -98,8 +102,18 @@
             <form
                 method="POST"
                 action="{{ route('cartera.clientes.asignar') }}"
-                x-data="{ chosen: 0, count() { this.chosen = this.$root.querySelectorAll('[data-choose-client]:checked').length } }"
-                x-init="count()"
+                x-data="{
+                    chosen: 0,
+                    count() {
+                        const boxes = [...this.$root.querySelectorAll('[data-choose-client]')];
+                        const page = this.$root.querySelector('[data-choose-page]');
+                        this.chosen = boxes.filter((box) => box.checked).length;
+                        if (page) page.checked = boxes.length > 0 && this.chosen === boxes.length;
+                    },
+                }"
+                x-init="$nextTick(() => count())"
+                data-confirm-all="{{ trans_choice('cartera::clientes.asignar.confirmar', $clients->total(), ['count' => number_format($clients->total(), 0, ',', '.')]) }}"
+                x-on:submit="if ($root.querySelector('[name=todos_filtrados]').checked && ! window.confirm($root.dataset.confirmAll)) $event.preventDefault()"
                 x-on:change="count()"
             >
                 @csrf
@@ -131,12 +145,15 @@
                                 <x-ui.checkbox
                                     name="elegir_pagina"
                                     :label="__('cartera::clientes.asignar.pagina')"
+                                    data-choose-page
                                     x-on:change="$root.querySelectorAll('[data-choose-client]').forEach(function (box) { box.checked = $event.target.checked })"
                                 />
                             </template>
                             <x-ui.checkbox
                                 name="todos_filtrados"
                                 :label="trans_choice('cartera::clientes.asignar.todos_filtrados', $clients->total(), ['count' => number_format($clients->total(), 0, ',', '.')])"
+                                :disabled="$overCap"
+                                :hint="$overCap ? __('cartera::clientes.asignar.limite', ['count' => number_format($clients->total(), 0, ',', '.'), 'max' => number_format($maxBulk, 0, ',', '.')]) : null"
                             />
                         </div>
                     </div>

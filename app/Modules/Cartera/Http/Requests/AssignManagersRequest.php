@@ -30,7 +30,9 @@ final class AssignManagersRequest extends FormRequest
         return [
             'nuevo_gestor' => ['required', 'string', 'regex:'.AssigneeOptions::PATTERN],
             'todos_filtrados' => ['sometimes', 'boolean'],
-            'clientes' => ['required_unless:todos_filtrados,1', 'array', 'max:'.(int) config('cartera.assignment.max_bulk')],
+            // Chosen rows and "todos los filtrados" together would silently
+            // drop the rows and change every filtered client.
+            'clientes' => ['required_unless:todos_filtrados,1', 'prohibited_if:todos_filtrados,1', 'array', 'max:'.(int) config('cartera.assignment.max_bulk')],
             'clientes.*' => ['integer', 'min:1'],
         ];
     }
@@ -42,6 +44,7 @@ final class AssignManagersRequest extends FormRequest
     {
         return [
             'clientes.required_unless' => __('cartera::clientes.asignar.errores.sin_clientes'),
+            'clientes.prohibited_if' => __('cartera::clientes.asignar.errores.ambos'),
             'nuevo_gestor.required' => __('cartera::clientes.asignar.errores.gestor'),
             'nuevo_gestor.regex' => __('cartera::clientes.asignar.errores.gestor'),
         ];

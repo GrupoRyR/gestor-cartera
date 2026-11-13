@@ -43,6 +43,7 @@ final class ClientListController
             'isGroup' => $company->isGroup(),
             'unmanagedDays' => (int) config('cartera.sin_gestion_dias'),
             'assigneeOptions' => $request->user()?->can('core.clients.assign') ? AssigneeOptions::from($assignments->assignees()) : null,
+            'maxBulk' => (int) config('cartera.assignment.max_bulk'),
         ]);
     }
 }
