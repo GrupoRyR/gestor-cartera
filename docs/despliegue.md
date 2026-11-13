@@ -238,7 +238,7 @@ En el PC, una sola vez:
 
 Cada vez que publiques:
 
-1. Fusiona los cambios en `main`. Si cambió alguna vista o clase de Tailwind, fusiona también un PR de compilados nuevo (paso 0).
+1. Fusiona los cambios en `main`. Si cambió alguna vista o clase de Tailwind, fusiona también un PR de compilados nuevo (paso 0). Si el despliegue trae migraciones de datos o lotes nuevos del robot, sigue su apartado, como el paso 16.
 2. Corre `powershell -ExecutionPolicy Bypass -File deploy\deploy-remoto.ps1`. Equivale a `ssh cartera-cpanel "cd ~/gestor-cartera && PHP=… bash deploy/deploy.sh"` y muestra la salida completa.
 3. Revisa que termine en `Deploy finished` y que `https://gestorcartera.segurex.com.co/up` responda 200.
 
@@ -283,7 +283,48 @@ En el PC con la VPN Sophos, desde la raíz del repositorio (`etl/README.md`):
 
 ## 15. Riesgos abiertos
 
-- **Envíos reales automáticos.** Con el cron activo y la cartera cargada, el cobro semanal sale a los clientes **los miércoles a las 5:00 p. m.** y la circularización **el día 1 a las 9:00 a. m.** No hay un interruptor en `.env`. Antes del primer miércoles, revisa las plantillas y las copias, y acuerda que el portal anterior deje de enviar los mismos correos, para que nadie los reciba dos veces.
+- **Envíos reales automáticos.** Con el cron activo y la cartera cargada, el cobro semanal sale a los clientes **los miércoles a las 5:00 p. m.** y la circularización **el día 1 a las 9:00 a. m.** No hay un interruptor en `.env`. Antes del primer miércoles, revisa las plantillas y las copias, y acuerda que el portal anterior deje de enviar los mismos correos, para que nadie los reciba dos veces. Mientras el lote `contactos` no esté activo, los clientes salen «Sin correo» y no reciben nada; al activarlo (paso 16), los envíos empiezan a llegar a los clientes.
+- **Cambio de estados sin vuelta atrás.** La migración `2026_10_01_000015` no se deshace con `migrate:rollback`; el plan es la copia de la base (paso 16).
 - **Proxy (S-28)** sin confirmar hasta hacer el paso 11.
 - **Secretos con vencimiento.** Los secretos de cliente de los dos registros de Entra ID vencen: renuévalos antes y luego corre un despliegue (o `php artisan optimize`).
 - **Fuera de este documento:** la migración de datos del portal anterior y el apagado de Cartera Fase 1 y del portal Next.js, con la rotación del secreto de OneDrive.
+
+## 16. Actualización de noviembre de 2026 (#116 a #125)
+
+Checklist del despliegue que sigue al de la primera instalación. Trae el lote `contactos`, los valores antes de IVA, el gestor del cliente, «Datos actualizados» y el retiro del estado «En gestión». Usa el paso 12 para el despliegue y este paso para lo que cambia.
+
+### Antes (en el PC)
+
+- [ ] **PR de compilados nuevo** (paso 0). El CSS compilado del primer despliegue no trae `xl:grid-cols-5`, que usa la ficha del cliente de Asesores (#120): sin recompilar, las cinco fichas de saldo se ven en tres columnas. Después de compilar, comprueba que el CSS lo trae: `grep -F -c 'xl\:grid-cols-5' public/build/assets/*.css` debe dar 1 o más.
+- [ ] **Versión de MySQL.** La migración `2026_10_01_000014_add_before_tax_amounts_to_invoices` agrega dos columnas con `->after()`. En MySQL anterior a 8.0.29 o en MariaDB puede reconstruir `invoices`, con un bloqueo corto. El sitio ya está en mantenimiento durante `migrate`, así que solo confirma la versión en cPanel › Manage My Databases (o con `SELECT VERSION();` en phpMyAdmin).
+- [ ] **Copia de la base.** Expórtala desde phpMyAdmin. La migración `2026_10_01_000015_retire_in_progress_client_status` cambia datos y su `down()` está vacío a propósito: `migrate:rollback` no la deshace.
+- [ ] Avisa a Cartera: los clientes que estaban «En gestión» cambian de columna del Kanban y de contador.
+
+### Durante
+
+`deploy.sh` entra en mantenimiento, corre `migrate --force` y siembra los permisos. No hay variables nuevas en `.env`.
+
+- [ ] `2026_10_01_000014`: agrega `amount_before_tax` y `balance_before_tax` (nulas) a `invoices`.
+- [ ] `2026_10_01_000015`: pasa todos los clientes en `en_gestion`, también los eliminados, a su estado automático según la última carga de su empresa: «Vencida», «Por vencer», «Al día» o, sin saldo, «Pago recibido». Escribe una gestión y una auditoría por cliente, sin mover la última actividad.
+- [ ] Permisos nuevos: `core.clients.assign` (`admin`, `gerente_cartera`, `analista_cartera`) y `cartera.clients.start_on_mine` (solo `analista_cartera`). Se siembran solos.
+- [ ] Termina en `Deploy finished`.
+
+### Después (en el servidor y en la app)
+
+- [ ] `<php-8.3> artisan core:verificar-auditoria`: la cadena de auditoría debe seguir válida después de la migración `000015`.
+- [ ] Gestores. `assignees()` solo lista a quien tenga rol `gerente_cartera` o `analista_cartera`, esté activo y trabaje en la empresa del cliente. En Equipo, revisa el rol y las empresas de las personas que serán gestores.
+- [ ] Recorre con cada rol: «Mi cartera» y «Sin asignar» en la lista de clientes (la analista abre en «Mi cartera»), «Asignar gestor» en la lista y en la ficha, el Kanban de 7 columnas, y la ficha del asesor con cinco fichas de saldo. Los cambios de #119, #120, #122, #123, #124 y #125 se probaron solo con pruebas automáticas, no en un navegador.
+- [ ] Los valores antes de IVA salen vacíos («—») hasta que el robot envíe la siguiente carga de `cartera`; no es un error.
+
+### Robot: activar el lote `contactos`
+
+Hasta ahora ninguna carga llenaba los contactos, y por eso el cobro salía «Sin correo». Desde #116, Core importa el lote `contactos`, pero el robot no lo extrae por defecto (`ETL_LOTES` trae `cartera,asesores`). En el PC de TI con la VPN, desde la raíz del repositorio (`etl/README.md`):
+
+- [ ] `.venv\Scripts\python.exe etl\run_etl.py --diagnostico --lotes contactos`. Revisa los conteos por empresa, que cada cliente tenga como mucho un contacto principal y los puntos marcados en `contactos_clientes.sql`.
+- [ ] Agrega `contactos` a `ETL_LOTES` en `etl/.env`: `ETL_LOTES=cartera,asesores,contactos`. No cambies las demás variables.
+- [ ] Después de la siguiente corrida del robot, y con el cron activo (paso 10), abre la ficha de varios clientes de cada empresa y confirma que aparecen sus contactos. La importación corre en la cola, así que puede tardar un minuto.
+
+### Antes del primer envío con contactos
+
+- [ ] Revisa el riesgo de «Envíos reales automáticos» (paso 15): con contactos cargados, el cobro semanal y la circularización dejan de salir «Sin correo» y llegan a los clientes.
+- [ ] Buzón de Derivados. El cobro semanal de SDC sale de verdad desde `COBRO_MAILBOX_SDC`. Confirma que `Test-ServicePrincipalAuthorization` da `InScope = True` para ese buzón y para el de Segurex (paso 6), y envía una prueba desde `/cobro/semanal` (`app/Modules/Cobro/README.md`, «Microsoft Graph»). El alcance se arma con un grupo de seguridad con correo que tenga solo esos dos buzones como miembros directos, y los ids del `New-ServicePrincipal` son los de Aplicaciones empresariales.
