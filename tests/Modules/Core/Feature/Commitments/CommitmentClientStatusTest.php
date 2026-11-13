@@ -130,14 +130,14 @@ it('keeps a status someone chose after the commitment was created', function (Cl
 
     expect($this->agro->refresh()->status)->toBe($status)
         ->and(TeamUsers::audits('core.client.status_changed'))->toHaveCount(1);
-})->with([ClientStatus::Legal, ClientStatus::InProgress, ClientStatus::PaymentReceived]);
+})->with([ClientStatus::Legal, ClientStatus::PaymentReceived]);
 
 it('does not touch the client status when a commitment is edited', function () {
     $commitment = ($this->create)();
-    $this->agro->update(['status' => ClientStatus::InProgress]);
+    $this->agro->update(['status' => ClientStatus::Legal]);
 
     $this->service->update($commitment->id, new CommitmentChanges(amount: 3_000_000));
 
-    expect($this->agro->refresh()->status)->toBe(ClientStatus::InProgress)
+    expect($this->agro->refresh()->status)->toBe(ClientStatus::Legal)
         ->and(CommitmentRecords::stored($commitment)->status)->toBe(CommitmentStatus::Pending);
 });

@@ -18,7 +18,6 @@
         ClientStatus::Current => 'bg-status-active-bg text-status-active',
         ClientStatus::DueSoon => 'bg-status-maintenance-bg text-status-maintenance',
         ClientStatus::Overdue => 'bg-status-failure-bg text-status-failure',
-        ClientStatus::InProgress => 'bg-status-local-bg text-status-local',
         ClientStatus::Committed => 'bg-status-scheduled-bg text-status-scheduled',
         // Solid fills: white text in light mode, dark text in dark mode (--color-surface flips).
         ClientStatus::Defaulted => 'bg-status-failure text-surface',

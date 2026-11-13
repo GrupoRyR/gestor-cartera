@@ -2,17 +2,14 @@
 
 namespace App\Modules\Cartera\Http\Requests;
 
-use App\Modules\Cartera\Domain\Clients\ChoosableStatuses;
 use App\Modules\Core\Contracts\Enums\ClientStatus;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 
 /**
  * POST /cartera/clientes/{client}/estado: the new status of a client, chosen
- * on the Kanban board or in the client file; a retired status
- * (ChoosableStatuses::RETIRED) is refused like an unknown one. The
- * permission to change a status is checked by the route and by Core's
- * ClientStatusService.
+ * on the Kanban board or in the client file. The permission to change a
+ * status is checked by the route and by Core's ClientStatusService.
  */
 final class MoveClientRequest extends FormRequest
 {
@@ -22,7 +19,7 @@ final class MoveClientRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'estado' => ['required', Rule::enum(ClientStatus::class)->except(ChoosableStatuses::RETIRED)],
+            'estado' => ['required', Rule::enum(ClientStatus::class)],
             'nota' => ['nullable', 'string', 'max:500'],
         ];
     }

@@ -42,7 +42,6 @@ describe('after a commitment is created', function () {
         'current' => [ClientStatus::Current, fn () => StatusDecision::set(ClientStatus::Committed)],
         'due soon' => [ClientStatus::DueSoon, fn () => StatusDecision::set(ClientStatus::Committed)],
         'overdue' => [ClientStatus::Overdue, fn () => StatusDecision::set(ClientStatus::Committed)],
-        'in progress' => [ClientStatus::InProgress, fn () => StatusDecision::set(ClientStatus::Committed)],
         'defaulted' => [ClientStatus::Defaulted, fn () => StatusDecision::set(ClientStatus::Committed)],
         'payment received' => [ClientStatus::PaymentReceived, fn () => StatusDecision::set(ClientStatus::Committed)],
         'already committed' => [ClientStatus::Committed, fn () => StatusDecision::keep()],
@@ -61,7 +60,6 @@ describe('after a commitment breaks', function () {
         'current' => [ClientStatus::Current, fn () => StatusDecision::set(ClientStatus::Defaulted)],
         'due soon' => [ClientStatus::DueSoon, fn () => StatusDecision::set(ClientStatus::Defaulted)],
         'overdue' => [ClientStatus::Overdue, fn () => StatusDecision::set(ClientStatus::Defaulted)],
-        'in progress' => [ClientStatus::InProgress, fn () => StatusDecision::set(ClientStatus::Defaulted)],
         'committed' => [ClientStatus::Committed, fn () => StatusDecision::set(ClientStatus::Defaulted)],
         'already defaulted' => [ClientStatus::Defaulted, fn () => StatusDecision::keep()],
         'payment received' => [ClientStatus::PaymentReceived, fn () => StatusDecision::keep()],
@@ -82,7 +80,6 @@ describe('after a commitment is fulfilled or cancelled', function () {
         'current' => [ClientStatus::Current, fn () => StatusDecision::keep()],
         'due soon' => [ClientStatus::DueSoon, fn () => StatusDecision::keep()],
         'overdue' => [ClientStatus::Overdue, fn () => StatusDecision::keep()],
-        'in progress' => [ClientStatus::InProgress, fn () => StatusDecision::keep()],
         'payment received' => [ClientStatus::PaymentReceived, fn () => StatusDecision::keep()],
         'legal' => [ClientStatus::Legal, fn () => StatusDecision::keep()],
     ]);
@@ -93,7 +90,6 @@ describe('after a commitment is fulfilled or cancelled', function () {
         'committed' => [ClientStatus::Committed, fn () => StatusDecision::set(ClientStatus::Defaulted)],
         'defaulted' => [ClientStatus::Defaulted, fn () => StatusDecision::keep()],
         'current' => [ClientStatus::Current, fn () => StatusDecision::keep()],
-        'in progress' => [ClientStatus::InProgress, fn () => StatusDecision::keep()],
         'legal' => [ClientStatus::Legal, fn () => StatusDecision::keep()],
     ]);
 

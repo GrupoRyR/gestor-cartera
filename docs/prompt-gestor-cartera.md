@@ -170,7 +170,7 @@ Cada módulo vive en `app/Modules/<Modulo>/` (ver C.2). Las funciones salen de l
 4. **Estados automáticos** del cliente, con **días de gracia por empresa** (parámetro):
    - SGX: la factura cuenta como vencida después de **15 días**.
    - SDC: después de **5 días**.
-   - Estados: Al día, Por vencer, Vencida, En gestión, Compromiso, Incumplido, Pago recibido y Jurídico.
+   - Estados: Al día, Por vencer, Vencida, Compromiso, Incumplido, Pago recibido y Jurídico.
 5. Un compromiso vencido sin pago pasa **solo** a «Incumplido» (tarea diaria).
 6. Borrado lógico de usuarios, clientes y gestiones, con bitácora de quién y cuándo.
 7. Bitácora de auditoría inmutable para todo el sistema.

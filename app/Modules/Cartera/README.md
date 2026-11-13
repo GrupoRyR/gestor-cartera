@@ -7,7 +7,7 @@ Gestor de cartera para la analista (María Paula) y el gerente (Miguel). Spec: `
 | URL | Ruta | Qué hace |
 |---|---|---|
 | `/cartera` | `cartera.tablero` | Total, vencido y % vencido, edades de la deuda, 10 clientes que más deben, compromisos de la semana, vencidos sin gestión, actividad reciente. En la vista Grupo compara SGX con SDC. Al final de la descripción del título, cuándo llegaron los datos («Datos actualizados hoy a las 07:10.»; ver «Decisiones»). |
-| `/cartera/kanban` | `cartera.kanban` | Siete columnas, una por estado que se puede elegir (sin «En gestión», retirado). Arrastrar o botón «Mover» (teclado y celular). «Al día» y «Pago recibido» arrancan ocultas. Si el tablero no cabe, los botones «Columnas anteriores» y «Columnas siguientes» lo desplazan de a una vista (suave, salvo con movimiento reducido) y una línea dice qué columnas se ven; el tablero también se mueve con las flechas del teclado. |
+| `/cartera/kanban` | `cartera.kanban` | Siete columnas, una por estado. Arrastrar o botón «Mover» (teclado y celular). «Al día» y «Pago recibido» arrancan ocultas. Si el tablero no cabe, los botones «Columnas anteriores» y «Columnas siguientes» lo desplazan de a una vista (suave, salvo con movimiento reducido) y una línea dice qué columnas se ven; el tablero también se mueve con las flechas del teclado. |
 | `/cartera/clientes` | `cartera.clientes.index` | Lista con búsqueda por nombre o NIT, filtros (también «Gestor»), orden por columna y paginación. |
 | `/cartera/clientes/{id}` | `cartera.clientes.show` | Ficha: datos, cupo, facturas abiertas, contactos de SAP, compromisos, bitácora, respuestas de correo. |
 | `/cartera/compromisos` | `cartera.compromisos.index` | Bandeja de compromisos con filtros por estado, asesor y fecha. |
@@ -45,7 +45,7 @@ Sin `gestor` en la URL, quien tiene el permiso `cartera.clients.start_on_mine` (
 - `cartera.commitments.write`: solo la analista. Crear, editar, cumplir y anular compromisos. Refleja la regla de Core (`CommitmentWriteRule`): en SDC escribe la analista; en SGX, el asesor del cliente desde Asesores. El `CompromisoService` sigue siendo la autoridad.
 - `cartera.clients.start_on_mine`: solo la analista. La lista de clientes abre en «Mi cartera» en vez de «Toda la cartera». Es un valor por defecto, no una restricción.
 
-Los estados que se ofrecen (columnas y «Mover» del Kanban, formulario de la ficha, filtro de la lista y validación de `MoveClientRequest`) salen de `Domain\Clients\ChoosableStatuses`: todos los de `ClientStatus` menos los retirados («En gestión»). Elegir uno retirado es un error de validación del campo `estado`.
+«En gestión» se retiró (migración de Core `2026_10_01_000015`); `en_gestion` ya no es un estado válido.
 
 El cambio de estado usa el permiso de Core `core.clients.change_status`; asignar el gestor, `core.clients.assign`, y borrar una gestión, `core.activities.delete`.
 

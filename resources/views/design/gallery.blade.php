@@ -382,7 +382,7 @@
             <h2 id="component-ui-select-title" class="{{ $headingClass }}"><code>&lt;x-ui.select&gt;</code></h2>
             <p class="{{ $leadClass }}">Opciones <code>valor =&gt; etiqueta</code>, por ejemplo <code>ClientStatus::options()</code>.</p>
             <div class="grid gap-5 md:grid-cols-2">
-                <x-ui.select name="galeria_filtro" label="Estado del cliente" :options="ClientStatus::options()" :value="ClientStatus::InProgress" />
+                <x-ui.select name="galeria_filtro" label="Estado del cliente" :options="ClientStatus::options()" :value="ClientStatus::Committed" />
                 <x-ui.select name="galeria_estado" label="Nuevo estado" :options="ClientStatus::options()" placeholder="Elige un estado" :required="true" />
                 <x-ui.select name="galeria_asesor" label="Asesor" :options="['10' => 'Carlos Pérez', '20' => 'Laura Martínez']" value="10" disabled />
                 <x-ui.select name="galeria_estados[]" label="Varios estados" :options="ClientStatus::options()" :value="[ClientStatus::Overdue, ClientStatus::Defaulted]" multiple size="4" hint="Mantén Ctrl o Cmd para elegir varios." />

@@ -79,9 +79,9 @@ describe('<x-ui.badge-state>', function () {
     })->with(ClientStatus::cases());
 
     it('accepts the status value as a string', function () {
-        $html = Html::parse((string) $this->blade('<x-ui.badge-state state="en_gestion" />'));
+        $html = Html::parse((string) $this->blade('<x-ui.badge-state state="compromiso" />'));
 
-        expect($html->text("//*[@data-state='en_gestion']"))->toBe('En gestión');
+        expect($html->text("//*[@data-state='compromiso']"))->toBe('Compromiso');
     });
 
     it('fails loudly on an unknown status', function () {
