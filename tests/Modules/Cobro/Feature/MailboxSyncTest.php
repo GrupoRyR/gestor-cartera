@@ -3,6 +3,7 @@
 use App\Modules\Cobro\Infrastructure\Graph\GraphClient;
 use App\Modules\Cobro\Infrastructure\Graph\GraphRequestFailed;
 use App\Modules\Cobro\Infrastructure\Mail\BounceLinked;
+use App\Modules\Cobro\Infrastructure\Mail\MailboxSync;
 use App\Modules\Cobro\Infrastructure\Persistence\InboundMessage;
 use App\Modules\Cobro\Infrastructure\Persistence\MailboxCursor;
 use App\Modules\Cobro\Infrastructure\Persistence\SentMessage;
@@ -489,6 +490,41 @@ it('counts the tenant domain as ours for our Exchange\'s reports only when it is
     'configured' => [['gruporyr.onmicrosoft.com'], true],
     'not configured' => [[], false],
 ]);
+
+it('counts a company\'s own tenant domain as ours only for that company\'s mailbox', function (string $company, bool $bounce) {
+    Event::fake([BounceLinked::class]);
+    cobroOneMessageGraph(
+        cobroReport([
+            'from' => ['emailAddress' => ['name' => 'Microsoft Outlook', 'address' => 'postmaster@inquilino-propio.onmicrosoft.com']],
+            'conversationId' => 'AAQkAGconversacion-original-andinas=',
+            'body' => ['contentType' => 'text', 'content' => "Your message to pagos@andinas-inexistente.example couldn't be delivered.\r\n550 5.1.10 RESOLVER.ADR.RecipientNotFound"],
+        ]),
+        GraphFake::fixture('message-headers-ndr.json'),
+    );
+    config(['cobro.company_tenant_domains' => ['SGX' => [], 'SDC' => [], $company => ['inquilino-propio.onmicrosoft.com']]]);
+
+    $this->artisan('cobro:sincronizar-buzones')->assertSuccessful();
+
+    expect(InboundMessage::query()->sole()->is_bounce)->toBe($bounce);
+
+    Event::assertDispatchedTimes(BounceLinked::class, $bounce ? 1 : 0);
+})->with([
+    'the mailbox company' => ['SGX', true],
+    'the other company' => ['SDC', false],
+]);
+
+it('judges each mailbox with the shared tenant domains plus its own company\'s', function () {
+    config([
+        'cobro.tenant_domains' => ['gruporyr.onmicrosoft.com'],
+        'cobro.company_tenant_domains' => ['SGX' => ['segurex.onmicrosoft.com'], 'SDC' => ['derivadoscol.onmicrosoft.com']],
+    ]);
+    $sync = app(MailboxSync::class);
+
+    expect($sync->envelope('postmaster@derivadoscol.onmicrosoft.com', 'REPORT.IPM.Note.NDR', 'Internal', CompanyCode::SDC)->ownDomains)
+        ->toBe(['segurex.com', 'derivadoscol.com', 'gruporyr.onmicrosoft.com', 'derivadoscol.onmicrosoft.com'])
+        ->and($sync->envelope('postmaster@segurex.onmicrosoft.com', 'REPORT.IPM.Note.NDR', 'Internal', CompanyCode::SGX)->ownDomains)
+        ->toBe(['segurex.com', 'derivadoscol.com', 'gruporyr.onmicrosoft.com', 'segurex.onmicrosoft.com']);
+});
 
 it('links a new mail from a contact the client was mailed at', function () {
     cobroInboxGraph();

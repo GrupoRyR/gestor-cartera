@@ -2,6 +2,14 @@
 
 // Cobro settings, merged by CobroServiceProvider under the "cobro" key:
 // read them with config('cobro.<setting>'). Only this file calls env().
+
+// A comma-separated list of domains, trimmed and in lower case, without
+// empty entries.
+$domains = static fn (mixed $list): array => array_values(array_filter(
+    array_map(fn (string $domain): string => mb_strtolower(trim($domain)), explode(',', is_string($list) ? $list : '')),
+    fn (string $domain): bool => $domain !== '',
+));
+
 return [
 
     // Microsoft Graph app registration that sends from and reads the company
@@ -41,10 +49,16 @@ return [
     // They count as ours only for the sender of our Exchange's own delivery
     // reports (postmaster@… or MicrosoftExchange…@, audit S-24), never as a
     // company mailbox or a copy domain. Empty: only the mailbox domains.
-    'tenant_domains' => array_values(array_filter(
-        array_map(fn (string $domain): string => mb_strtolower(trim($domain)), explode(',', (string) env('COBRO_TENANT_DOMAINS', ''))),
-        fn (string $domain): bool => $domain !== '',
-    )),
+    'tenant_domains' => $domains(env('COBRO_TENANT_DOMAINS')),
+
+    // Tenant domains of one company only, for a company whose mailbox lives
+    // in its own tenant (COBRO_TENANT_DOMAINS_SGX, COBRO_TENANT_DOMAINS_SDC,
+    // comma-separated). They are added to tenant_domains for that company's
+    // mailbox only, never for the other company's.
+    'company_tenant_domains' => [
+        'SGX' => $domains(env('COBRO_TENANT_DOMAINS_SGX')),
+        'SDC' => $domains(env('COBRO_TENANT_DOMAINS_SDC')),
+    ],
 
     // Inbox synchronization (cobro:sincronizar-buzones, every five minutes).
     'sync' => [
