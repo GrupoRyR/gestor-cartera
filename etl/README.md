@@ -143,7 +143,7 @@ Cada punto está marcado en su consulta con `VALIDAR CON DATOS REALES`. Valídal
 **contactos_clientes.sql**
 
 - [ ] `principal`: compara `OCPR.Name` con `OCRD.CntctPrsn` (SAP guarda ahí el nombre, no el código). Revisar que coincidan exactamente y que cada cliente tenga un solo `Y`.
-- [ ] Fila general: sale para todos los clientes, aunque no tengan correo ni teléfonos. Confirmar con Core si la quiere así.
+- [ ] Fila general: sale para todos los clientes, aunque no tengan correo ni teléfonos. Core ya decidió qué hacer con ella: la guarda solo si trae un correo válido o un teléfono; si no, la descarta (`app/Modules/Core/README.md`, «Contactos»). No hay nada que confirmar con Core.
 
 **ventas.sql**
 
@@ -191,6 +191,39 @@ Para Derivados, pon `INGESTA_EMPRESA=SDC` en `etl/.env` y corre `--diagnostico -
 Con `ETL_EMPRESAS=SGX,SDC`, `--diagnostico` hace las dos empresas en una sola conexión a la VPN y deja los CSV separados por empresa (`SGX_ventas_…csv` y `SDC_ventas_…csv`). Termina con código 1 si alguna falla.
 
 Revisa el CSV y compara los totales con el informe equivalente de SAP antes de agregar el lote a `ETL_LOTES`.
+
+## Activar el lote `contactos`
+
+El robot no extrae `contactos` por defecto (`ETL_LOTES` trae `cartera,asesores`). Core lo importa desde #116, pero hasta que lo actives la tabla `contacts` solo tiene lo que se creó a mano en la plataforma, y el cobro sale «Sin correo». Hazlo en el PC del robot, con la VPN, desde la raíz del repositorio:
+
+1. Valida la consulta (sección anterior):
+
+   ```powershell
+   .venv\Scripts\python.exe etl\run_etl.py --diagnostico --lotes contactos
+   ```
+
+   Con `ETL_EMPRESAS=SGX,SDC` revisa los dos CSV (`SGX_contactos_…csv` y `SDC_contactos_…csv`) y cierra los puntos de «Pendiente de validar» de `contactos_clientes.sql`. Si el lote sale con 0 filas, el robot no lo envía y no hay nada que activar.
+2. Agrega `contactos` a `ETL_LOTES` en `etl/.env`, sin tocar las demás variables:
+
+   ```text
+   ETL_LOTES=cartera,asesores,contactos
+   ```
+
+3. Haz una corrida manual, o espera la tarea `CarteraWeb-ETL`:
+
+   ```powershell
+   .venv\Scripts\python.exe etl\run_etl.py
+   ```
+
+4. En la app, abre la ficha de varios clientes de cada empresa y confirma que aparecen sus contactos. Core los importa en la cola, que vacía el cron de cada minuto, así que puede tardar un minuto.
+
+Cómo se comporta, para no asustarse:
+
+- Cada lote **reemplaza** los contactos de SAP de los clientes vigentes de la empresa. Los que se crearon en la plataforma no se tocan, y un cliente que no llegue en el lote se queda sin contactos de SAP.
+- Solo cuenta el lote más reciente de cada empresa. Un lote sin filas activas se ignora, para que una extracción fallida no borre todos los contactos.
+- Repetir el lote deja los mismos contactos.
+
+Antes de activarlo en producción, avisa a Cobro: desde ese momento el cobro semanal y la circularización tienen destinatarios y salen de verdad (`docs/despliegue.md`, paso 15 y §16).
 
 ## Pruebas
 
