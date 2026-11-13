@@ -3,8 +3,8 @@
 {{--
     GET /cartera/clientes (cartera.clientes.index): the client list.
     $filter: Application\Clients\ClientListFilter; $clients: paginator of
-    ClientSummary within the user's scope; $statusOptions and
-    $advisorOptions: value => label for the filters; $isGroup: the group view
+    ClientSummary within the user's scope; $statusOptions, $advisorOptions
+    and $managerOptions: value => label for the filters; $isGroup: the group view
     shows the company of each client.
 --}}
 @php
@@ -58,6 +58,12 @@
             :value="$filter->advisorCode"
             :placeholder="__('cartera::clientes.filtros.todos_asesores')"
         />
+        <x-ui.select
+            name="gestor"
+            :label="__('cartera::clientes.filtros.gestor')"
+            :options="$managerOptions"
+            :value="$filter->manager"
+        />
 
         <fieldset class="grid content-start gap-2">
             <legend class="sr-only">{{ __('cartera::clientes.filtros.etiqueta') }}</legend>
@@ -68,7 +74,7 @@
         <div class="flex flex-wrap items-center gap-2 md:col-span-2 lg:col-span-4">
             <x-ui.button type="submit" icon="search">{{ __('cartera::clientes.filtros.aplicar') }}</x-ui.button>
             @if ($filter->isFiltered())
-                <x-ui.link-button :href="route('cartera.clientes.index')" variant="ghost">{{ __('cartera::clientes.filtros.limpiar') }}</x-ui.link-button>
+                <x-ui.link-button :href="route('cartera.clientes.index', $filter->clearQuery())" variant="ghost">{{ __('cartera::clientes.filtros.limpiar') }}</x-ui.link-button>
             @endif
         </div>
     </form>
@@ -76,7 +82,7 @@
     @if ($clients->isEmpty())
         @if ($filter->isFiltered())
             <x-ui.empty icon="search" :title="__('cartera::clientes.vacio.sin_resultados.titulo')" :description="__('cartera::clientes.vacio.sin_resultados.detalle')">
-                <x-ui.link-button :href="route('cartera.clientes.index')" variant="secondary">{{ __('cartera::clientes.vacio.sin_resultados.accion') }}</x-ui.link-button>
+                <x-ui.link-button :href="route('cartera.clientes.index', $filter->clearQuery())" variant="secondary">{{ __('cartera::clientes.vacio.sin_resultados.accion') }}</x-ui.link-button>
             </x-ui.empty>
         @else
             <x-ui.empty icon="users" :title="__('cartera::clientes.vacio.sin_clientes.titulo')" :description="__('cartera::clientes.vacio.sin_clientes.detalle')" />

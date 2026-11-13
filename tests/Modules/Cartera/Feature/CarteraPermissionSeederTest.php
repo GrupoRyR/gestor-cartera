@@ -29,9 +29,19 @@ it('lets only the analyst write commitments, like the Core service', function ()
     }
 });
 
+it('opens the client list on «Mi cartera» only for the analyst', function () {
+    $this->seed(CorePermissionSeeder::class);
+    $this->seed(CarteraPermissionSeeder::class);
+
+    foreach (Role::cases() as $role) {
+        expect(SpatieRole::findByName($role->value, 'web')->hasPermissionTo('cartera.clients.start_on_mine'))
+            ->toBe($role === Role::PortfolioAnalyst, $role->value);
+    }
+});
+
 it('can be seeded twice without duplicating anything', function () {
     $this->seed(CarteraPermissionSeeder::class);
     $this->seed(CarteraPermissionSeeder::class);
 
-    expect(Permission::query()->where('name', 'like', 'cartera.%')->count())->toBe(4);
+    expect(Permission::query()->where('name', 'like', 'cartera.%')->count())->toBe(5);
 });

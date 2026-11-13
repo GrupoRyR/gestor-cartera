@@ -13,7 +13,8 @@ use Symfony\Component\HttpFoundation\BinaryFileResponse;
 /**
  * GET /cartera/clientes/exportar (cartera.clientes.exportar): the client list
  * as an Excel file, with the search, filters and order of the list page but
- * not its paging: every client that matches. The export is audited because
+ * not its paging: every client that matches. The "Gestor" filter has the
+ * same per-role default as the list. The export is audited because
  * it carries the portfolio out of the application.
  */
 final class ClientListExportController
@@ -21,7 +22,7 @@ final class ClientListExportController
     public function __invoke(Request $request, ClientListSpreadsheet $spreadsheet, AuditLogger $audit): BinaryFileResponse
     {
         $today = CarbonImmutable::today();
-        $filter = ClientListFilter::fromInput($request->query());
+        $filter = ClientListFilter::forUser($request->query(), $request->user());
         $rows = 0;
 
         $download = SpreadsheetDownload::make(
