@@ -3,6 +3,8 @@
 return [
     'titulo' => 'Tablero de cartera',
     'contexto' => ':empresa · :fecha',
+    'actualizado_hoy' => 'Datos actualizados hoy a las :hora.',
+    'actualizado' => 'Datos actualizados el :fecha a las :hora.',
     'descripcion' => 'Cuánto se debe, qué tan atrasado está y quién necesita una llamada hoy.',
 
     'sin_cartera' => [

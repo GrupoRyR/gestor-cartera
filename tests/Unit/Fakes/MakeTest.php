@@ -52,6 +52,15 @@ it('derives invoice dates from the days overdue', function () {
         ->and($notDue->balance)->toBe(200.0);
 });
 
+it('leaves the amounts before tax empty unless given', function () {
+    $invoice = Make::invoice(amount: 1_190_000, amountBeforeTax: 1_000_000, balanceBeforeTax: 500_000);
+
+    expect(Make::invoice()->amountBeforeTax)->toBeNull()
+        ->and(Make::invoice()->balanceBeforeTax)->toBeNull()
+        ->and($invoice->amountBeforeTax)->toBe(1_000_000.0)
+        ->and($invoice->balanceBeforeTax)->toBe(500_000.0);
+});
+
 it('gives a client file one primary contact unless told otherwise', function () {
     $client = Make::client();
 

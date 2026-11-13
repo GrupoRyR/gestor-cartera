@@ -51,6 +51,15 @@ it('lets portfolio managers and analysts change client statuses by hand', functi
     }
 });
 
+it('lets portfolio managers, analysts and admins assign the manager of a client', function () {
+    $this->seed(CorePermissionSeeder::class);
+
+    foreach (Role::cases() as $role) {
+        expect(SpatieRole::findByName($role, 'web')->hasPermissionTo('core.clients.assign'))
+            ->toBe(in_array($role, [Role::Admin, Role::PortfolioManager, Role::PortfolioAnalyst], true));
+    }
+});
+
 it('lets only portfolio managers remove and restore clients', function () {
     $this->seed(CorePermissionSeeder::class);
 
@@ -69,5 +78,6 @@ it('can run again without duplicating permissions or roles', function () {
         ->and(Permission::query()->where('name', 'core.activities.delete')->count())->toBe(1)
         ->and(Permission::query()->where('name', 'core.clients.change_status')->count())->toBe(1)
         ->and(Permission::query()->where('name', 'core.clients.delete')->count())->toBe(1)
+        ->and(Permission::query()->where('name', 'core.clients.assign')->count())->toBe(1)
         ->and(SpatieRole::query()->count())->toBe(count(Role::cases()));
 });

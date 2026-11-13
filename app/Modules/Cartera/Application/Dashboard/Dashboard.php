@@ -18,6 +18,7 @@ final readonly class Dashboard
     public OverdueRisk $risk;
 
     /**
+     * @param  CarbonImmutable|null  $updatedAt  When Ingesta received the cartera batch behind the figures, in Bogotá time; null without a load.
      * @param  string  $scopeLabel  Name of the active company, or of the group.
      * @param  PortfolioTotals  $totals  Total, overdue and age of the debt.
      * @param  list<AgingSlice>  $aging  The overdue bands of $totals.
@@ -31,6 +32,7 @@ final readonly class Dashboard
      */
     public function __construct(
         public CarbonImmutable $today,
+        public ?CarbonImmutable $updatedAt,
         public string $scopeLabel,
         public bool $isGroup,
         public PortfolioTotals $totals,

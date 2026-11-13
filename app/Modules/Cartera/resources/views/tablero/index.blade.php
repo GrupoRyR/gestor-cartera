@@ -5,10 +5,17 @@
 {{--
     GET /cartera (cartera.tablero): the dashboard of the portfolio manager
     and the analyst. $dashboard: Application\Dashboard\Dashboard, already
-    limited to the companies of the user's current view.
+    limited to the companies of the user's current view. The description of
+    the heading ends with when the data was last refreshed
+    ($dashboard->updatedAt), if known.
 --}}
 @php
     $percent = fn (float $value): string => number_format($value, 1, ',', '.').' %';
+
+    $updated = $dashboard->updatedAt === null ? null : __(
+        DateFormat::date($dashboard->updatedAt) === DateFormat::date($dashboard->today) ? 'cartera::tablero.actualizado_hoy' : 'cartera::tablero.actualizado',
+        ['fecha' => DateFormat::date($dashboard->updatedAt), 'hora' => $dashboard->updatedAt->setTimezone(config('app.timezone'))->format('H:i')],
+    );
 
     $topColumns = [
         ['key' => 'client', 'label' => __('cartera::tablero.principales.columnas.cliente')],
@@ -36,7 +43,7 @@
     <x-ui.page-header
         :title="__('cartera::tablero.titulo')"
         :context="__('cartera::tablero.contexto', ['empresa' => $dashboard->scopeLabel, 'fecha' => DateFormat::date($dashboard->today)])"
-        :description="__('cartera::tablero.descripcion')"
+        :description="trim(__('cartera::tablero.descripcion').' '.$updated)"
     />
 
     @if (! $dashboard->hasPortfolio())

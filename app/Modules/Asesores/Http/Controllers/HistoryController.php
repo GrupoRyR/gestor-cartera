@@ -2,6 +2,7 @@
 
 namespace App\Modules\Asesores\Http\Controllers;
 
+use App\Modules\Asesores\Application\Portfolio\DataFreshness;
 use App\Modules\Asesores\Application\Portfolio\HistoryDays;
 use App\Modules\Asesores\Application\Portfolio\PortfolioFilter;
 use App\Modules\Core\Contracts\CarteraRepository;
@@ -15,7 +16,10 @@ use Illuminate\Http\Request;
  */
 final readonly class HistoryController
 {
-    public function __construct(private CarteraRepository $cartera) {}
+    public function __construct(
+        private CarteraRepository $cartera,
+        private DataFreshness $freshness,
+    ) {}
 
     public function __invoke(Request $request): View
     {
@@ -31,6 +35,7 @@ final readonly class HistoryController
             'filter' => $filter,
             'days' => $days,
             'today' => $today,
+            'updatedAt' => $this->freshness->updatedAt($filter->advisorQuery()->companies),
             'history' => $this->cartera->history($today->subDays($days)->startOfDay(), $today, $filter->advisorQuery()),
             'advisors' => $this->cartera->advisors(),
         ]);

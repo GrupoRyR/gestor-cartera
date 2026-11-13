@@ -24,6 +24,8 @@ return [
         'al' => 'Cartera al corte del :fecha.',
         'viejo_titulo' => 'Es posible que esta cartera esté desactualizada',
         'viejo' => 'El último corte es del :fecha, hace :dias días. Si las cifras no te cuadran, avisa al área de cartera.',
+        'actualizado_hoy' => 'Datos actualizados hoy a las :hora.',
+        'actualizado' => 'Datos actualizados el :fecha a las :hora.',
     ],
 
     'asesor' => [

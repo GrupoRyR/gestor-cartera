@@ -26,6 +26,8 @@ Todas piden sesión iniciada y el permiso `asesores.view` (asesor y gerente come
 | `GET /asesores/clientes/{client}/exportar` | `clientes.exportar_cliente` | Excel de un cliente. | Asesor, gerente |
 | `GET /asesores/clientes/{client}/estado-de-cuenta` | `clientes.estado_cuenta` | PDF del estado de cuenta del cliente. | Asesor, gerente |
 
+**Corte y actualización.** El resumen, la lista de clientes, el histórico y el equipo dicen bajo el filtro el corte de la cartera («Cartera al corte del 15/10/2026.») y, si hay carga, cuándo llegaron los datos: «Datos actualizados hoy a las 07:10.» o «Datos actualizados el 11/11/2026 a las 07:10.», en hora de Bogotá. Ese momento es el `receivedAt` de la última carga de cartera de Ingesta, leído por `IngestaSink::latest()` solo para las empresas de `CurrentCompany::scope()`, y con un asesor elegido solo para la empresa de ese asesor (`Application/Portfolio/DataFreshness`); en la vista de grupo manda la empresa con el corte más viejo, como en el corte que se muestra, y con el mismo corte, la carga recibida primero. Si el corte tiene más de `stale_after_days` días, la frase va dentro del aviso de cartera desactualizada.
+
 El botón de WhatsApp está en la ficha: abre `wa.me` con el estado de cuenta escrito; el asesor lo revisa y lo envía él.
 
 `asesores.inicio` es la primera entrada del menú (`order: 10`), así que es la pantalla de inicio del asesor y del gerente comercial (Core manda a cada usuario a su primera entrada). La entrada **Agenda** lleva como insignia el número de compromisos incumplidos.
@@ -61,7 +63,7 @@ Los crea, edita y marca el asesor del cliente, **en SGX**; en SDC los escribe la
 | Portal Next.js | Aquí | Por qué |
 |---|---|---|
 | Rangos de edad de 8 tramos, con «0-30» incluyendo lo que vence hoy. | 5 tramos de Core: sin vencer (incluye lo que vence hoy), 1-30, 31-60, 61-90 y más de 90. | Core es la fuente de verdad de edades y de «vencido» (días de mora > 0). |
-| «Excel» era un CSV con 17 columnas, que ignoraba filtros y búsqueda. | Un `.xlsx` real que sí respeta los filtros. Sin las columnas «antes de impuestos» (`base_gravable`, `saldo_base`). | El contrato de facturas de Core no las trae. |
+| «Excel» era un CSV con 17 columnas, que ignoraba filtros y búsqueda. | Un `.xlsx` real que sí respeta los filtros. Sin las columnas «antes de impuestos» (`base_gravable`, `saldo_base`). | `Invoice` ya tiene `amountBeforeTax` y `balanceBeforeTax`, pero Core todavía no los llena: llegan con la siguiente entrega. |
 | Agenda con bloques de facturas (vencen hoy, en 7 días, vencidas hace menos de 30 días). | Agenda de **compromisos**. | `CarteraRepository` no lista facturas de toda la cartera, y pedirlas cliente por cliente en cada visita no escala. Es un candidato a seguimiento: un contrato nuevo en Core. |
 | Búsqueda por número de factura. | Nombre, NIT y código. | Es lo que filtra `ClientQuery`. |
 | WhatsApp sin número (`wa.me/?text=`). | Con el celular del contacto cuando existe. | Core ya trae los contactos de SAP. |

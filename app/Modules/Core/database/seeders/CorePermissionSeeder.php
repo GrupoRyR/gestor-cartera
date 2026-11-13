@@ -35,6 +35,10 @@ final class CorePermissionSeeder extends PermissionSeeder
      * core.clients.delete: soft-delete and restore clients. Only the
      * portfolio manager, a decision still to confirm with the business.
      *
+     * core.clients.assign: set the portfolio manager of clients, one at a
+     * time or in bulk (ClientAssignmentService). The portfolio manager, the
+     * analyst and admins.
+     *
      * @return array<string, list<string|\BackedEnum>>
      */
     public function permissions(): array
@@ -46,6 +50,7 @@ final class CorePermissionSeeder extends PermissionSeeder
             'core.activities.delete' => [Role::PortfolioManager, Role::PortfolioAnalyst],
             'core.clients.change_status' => [Role::PortfolioManager, Role::PortfolioAnalyst],
             'core.clients.delete' => [Role::PortfolioManager],
+            'core.clients.assign' => [Role::Admin, Role::PortfolioManager, Role::PortfolioAnalyst],
         ];
     }
 }

@@ -7,7 +7,8 @@
     priority clients and the trend of the overdue balance, all for the
     portfolio the user may see; a sales manager (or an advisor with several
     SAP codes) can narrow it to one advisor. $overview holds what the contract
-    returned, $filter the query string, $today the current date in Bogotá.
+    returned, $filter the query string, $today the current date in Bogotá,
+    $updatedAt when the data was last refreshed (null without a load).
 --}}
 @php
     $totals = $overview->totals;
@@ -32,7 +33,7 @@
 
         <x-asesores::advisor-filter :advisors="$overview->advisors" :filter="$filter" :action="route('asesores.inicio')" />
 
-        <x-asesores::cutoff :cutoff="$totals->cutoffDate" :today="$today" />
+        <x-asesores::cutoff :cutoff="$totals->cutoffDate" :today="$today" :updated-at="$updatedAt" />
 
         @if ($totals->cutoffDate === null)
             <x-ui.empty icon="document" :title="__('asesores::resumen.vacio.titulo')" :description="__('asesores::resumen.vacio.detalle')" />
