@@ -13,6 +13,7 @@ use App\Modules\Core\Console\Migracion\MigrateUsersCommand;
 use App\Modules\Core\Console\VerifyAuditChainCommand;
 use App\Modules\Core\Contracts\AuditLogger;
 use App\Modules\Core\Contracts\CarteraRepository;
+use App\Modules\Core\Contracts\ClientAssignmentService;
 use App\Modules\Core\Contracts\ClientStatusService;
 use App\Modules\Core\Contracts\CompromisoService;
 use App\Modules\Core\Contracts\CurrentCompany;
@@ -32,6 +33,7 @@ use App\Modules\Core\Infrastructure\Ingest\ImportReceivablesSnapshot;
 use App\Modules\Core\Infrastructure\Persistence\AdvisorRecord;
 use App\Modules\Core\Infrastructure\Persistence\CompanyRecord;
 use App\Modules\Core\Infrastructure\Portfolio\EloquentCarteraRepository;
+use App\Modules\Core\Infrastructure\Portfolio\EloquentClientAssignmentService;
 use App\Modules\Core\Infrastructure\Portfolio\EloquentClientStatusService;
 use App\Support\Modules\ModuleServiceProvider;
 use App\Support\Navigation\NavItem;
@@ -78,6 +80,7 @@ final class CoreServiceProvider extends ModuleServiceProvider
         $this->app->scoped(CarteraRepository::class, EloquentCarteraRepository::class);
         $this->app->scoped(GestionLogger::class, DatabaseGestionLogger::class);
         $this->app->scoped(ClientStatusService::class, EloquentClientStatusService::class);
+        $this->app->scoped(ClientAssignmentService::class, EloquentClientAssignmentService::class);
         $this->app->scoped(CompromisoService::class, EloquentCompromisoService::class);
 
         // Microsoft Entra ID sign-in; tests bind a fake instead.
