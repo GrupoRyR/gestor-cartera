@@ -7,7 +7,7 @@ Gestor de cartera para la analista (María Paula) y el gerente (Miguel). Spec: `
 | URL | Ruta | Qué hace |
 |---|---|---|
 | `/cartera` | `cartera.tablero` | Total, vencido y % vencido, edades de la deuda, 10 clientes que más deben, compromisos de la semana, vencidos sin gestión, actividad reciente. En la vista Grupo compara SGX con SDC. Al final de la descripción del título, cuándo llegaron los datos («Datos actualizados hoy a las 07:10.»; ver «Decisiones»). |
-| `/cartera/kanban` | `cartera.kanban` | Ocho columnas (una por estado). Arrastrar o botón «Mover» (teclado y celular). «Al día» y «Pago recibido» arrancan ocultas. |
+| `/cartera/kanban` | `cartera.kanban` | Ocho columnas (una por estado). Arrastrar o botón «Mover» (teclado y celular). «Al día» y «Pago recibido» arrancan ocultas. Si el tablero no cabe, los botones «Columnas anteriores» y «Columnas siguientes» lo desplazan de a una vista (suave, salvo con movimiento reducido) y una línea dice qué columnas se ven; el tablero también se mueve con las flechas del teclado. |
 | `/cartera/clientes` | `cartera.clientes.index` | Lista con búsqueda por nombre o NIT, filtros, orden por columna y paginación. |
 | `/cartera/clientes/{id}` | `cartera.clientes.show` | Ficha: datos, cupo, facturas abiertas, contactos de SAP, compromisos, bitácora, respuestas de correo. |
 | `/cartera/compromisos` | `cartera.compromisos.index` | Bandeja de compromisos con filtros por estado, asesor y fecha. |
