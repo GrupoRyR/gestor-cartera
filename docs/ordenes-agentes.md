@@ -304,7 +304,7 @@ Al terminar: corre composer lint y composer test, sube tu rama, abre el PR contr
 
 ---
 
-## Fase 3 — Despliegue
+## Fase 3 — Despliegue · ✅ Hecho (PR #114 y #115)
 
 **Modelo:** Opus 5.5 · **Esfuerzo:** high · **Abrir:** al final, cuando todo esté en `main`.
 
@@ -318,3 +318,37 @@ Eres el agente «Despliegue» (Fase 3) del gestor de cartera.
 
 Al terminar: dame los comandos ejecutados, lo pendiente y los riesgos abiertos.
 ```
+
+---
+
+## Trabajo posterior a las fases
+
+Lo que se hizo después, con sus PR. Son encargos que ya están fusionados en `main`; no los vuelvas a abrir. Para desplegarlos, sigue `docs/despliegue.md` (paso 16 para el de noviembre).
+
+**Auditoría de seguridad · ✅ Hecho**
+
+- Informe de la fase 1: PR #76 (`docs/seguridad/auditoria-2026-10.md`).
+- Correcciones de la fase 2: PR #77, #78, #80 a #83, #85 a #91, #93, #94, #96, #98 a #103.
+- Abierto: S-28 (proxy), que se confirma en el paso 11 de `docs/despliegue.md`.
+
+**Marca v2 · ✅ Hecho (PR #104 y #106 a #113)**
+
+- Colores, Helvetica, logos y selector de empresa en los componentes, las pantallas de los módulos, los correos y los PDF. El PR #105 se cerró sin fusionar.
+
+**F0: importación de contactos · ✅ Hecho (PR #116)**
+
+- Core importa el lote `contactos` en la tabla `contacts`. Para activarlo en el robot, `etl/README.md`.
+
+**F1-B: datos de cartera · ✅ Hecho (PR #117 a #124)**
+
+- Valores antes de IVA: contratos (#117) y almacenamiento y pantallas (#120).
+- «Datos actualizados a las HH:MM» (#118) y botones de desplazamiento del Kanban (#119).
+- Gestor del cliente: servicio de Core (#121), filtro «Gestor» (#122), asignación en bloque (#123) y desde la ficha (#124).
+
+**Punto 5: retiro de «En gestión» · ✅ Hecho (PR #125 y #126)**
+
+- #125 pasa los clientes a su estado automático y deja de ofrecer el estado; #126 quita el estado del código.
+
+**Documentación · ✅ Hecho (PR #127 a #129)**
+
+- Checklist de la actualización de noviembre (#127), activación del lote `contactos` (#128) y guía para el equipo de cartera (#129).
