@@ -3,6 +3,7 @@
 namespace App\Modules\Cartera\Http\Controllers;
 
 use App\Modules\Cartera\Application\Clients\ClientListFilter;
+use App\Modules\Cartera\Http\Requests\AssignManagerRequest;
 use App\Modules\Cartera\Http\Requests\AssignManagersRequest;
 use App\Modules\Core\Contracts\CarteraRepository;
 use App\Modules\Core\Contracts\ClientAssignmentService;
@@ -20,6 +21,12 @@ use InvalidArgumentException;
  * clients of the list, or every client that matches its filters, capped at
  * cartera.assignment.max_bulk. The cap is checked on a count taken before
  * the assignment, so clients that start matching in between can pass it.
+ *
+ * POST /cartera/clientes/{client}/gestor (cartera.clientes.gestor): one
+ * client, from its file; a client out of reach is a 404. Saving the manager
+ * the client already has changes nothing and skips Core, whose check would
+ * refuse a current manager who is no longer an assignee (the form keeps
+ * that one as a choice).
  */
 final class AssignManagerController
 {
@@ -53,6 +60,26 @@ final class AssignManagerController
         }
 
         return back()->with('status', trans_choice('cartera::clientes.asignar.hecho', $changed, ['count' => self::number($changed)]));
+    }
+
+    public function single(AssignManagerRequest $request, int $client, ClientAssignmentService $assignments, CarteraRepository $cartera): RedirectResponse
+    {
+        $current = $cartera->client($client) ?? abort(404);
+        $managerUserId = $request->managerUserId();
+
+        if ($current->summary->manager?->id === $managerUserId) {
+            return back()->with('status', __('cartera::ficha.gestor.sin_cambio'));
+        }
+
+        try {
+            $assignments->assign([$client], $managerUserId);
+        } catch (RecordNotFound) {
+            abort(404);
+        } catch (InvalidArgumentException) {
+            return back()->with('error', __('cartera::ficha.gestor.no_trabaja'));
+        }
+
+        return back()->with('status', __('cartera::ficha.gestor.hecho'));
     }
 
     private static function number(int $value): string

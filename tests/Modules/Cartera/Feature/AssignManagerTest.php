@@ -17,11 +17,13 @@ beforeEach(function () {
 });
 
 it('serves the assignment under /cartera/clientes', function () {
-    expect(route('cartera.clientes.asignar', absolute: false))->toBe('/cartera/clientes/gestor');
+    expect(route('cartera.clientes.asignar', absolute: false))->toBe('/cartera/clientes/gestor')
+        ->and(route('cartera.clientes.gestor', 12, absolute: false))->toBe('/cartera/clientes/12/gestor');
 });
 
 it('sends guests to the sign-in page', function () {
     $this->post('/cartera/clientes/gestor', ['clientes' => [1], 'nuevo_gestor' => '501'])->assertRedirect('/login');
+    $this->post('/cartera/clientes/1/gestor', ['nuevo_gestor' => '501'])->assertRedirect('/login');
 
     $this->assignments->assertNothingAssigned();
 });
@@ -260,5 +262,118 @@ describe('the bulk assignment', function () {
         $this->actingAs(CarteraUsers::manager())
             ->post('/cartera/clientes/gestor', ['clientes' => [$client->id], 'nuevo_gestor' => '501'])
             ->assertForbidden();
+    });
+});
+
+describe('the client file', function () {
+    it('offers to change the manager, with the current one chosen', function () {
+        $client = CarteraWorld::client($this->fakes, overdue: 1_000_000, manager: $this->miguel);
+
+        $this->actingAs(CarteraUsers::analyst())
+            ->get("/cartera/clientes/{$client->id}")
+            ->assertOk()
+            ->assertSee('action="'.route('cartera.clientes.gestor', $client->id).'"', false)
+            ->assertSee('<option value="502" selected>Miguel Gerente</option>', false)
+            ->assertSee('<option value="sin_asignar" >Sin asignar</option>', false)
+            ->assertSeeText('Cambiar el gestor');
+    });
+
+    it('keeps a current manager who is no longer an assignee among the options', function () {
+        $client = CarteraWorld::client($this->fakes, overdue: 1_000_000, manager: Make::userRef(id: 777, name: 'Persona retirada'));
+
+        $this->actingAs(CarteraUsers::analyst())
+            ->get("/cartera/clientes/{$client->id}")
+            ->assertSee('<option value="777" selected>Persona retirada</option>', false);
+    });
+
+    it('chooses "Sin asignar" for a client without a manager', function () {
+        $client = CarteraWorld::client($this->fakes, overdue: 1_000_000);
+
+        $this->actingAs(CarteraUsers::analyst())
+            ->get("/cartera/clientes/{$client->id}")
+            ->assertSee('<option value="sin_asignar" selected>Sin asignar</option>', false);
+    });
+
+    it('is not offered to those who may only look', function () {
+        $client = CarteraWorld::client($this->fakes, overdue: 1_000_000);
+
+        $this->actingAs(CarteraUsers::viewer())
+            ->get("/cartera/clientes/{$client->id}")
+            ->assertOk()
+            ->assertDontSee('action="'.route('cartera.clientes.gestor', $client->id).'"', false);
+    });
+
+    it('changes the manager of the client', function () {
+        $client = CarteraWorld::client($this->fakes, overdue: 1_000_000);
+
+        $this->actingAs(CarteraUsers::analyst())
+            ->from("/cartera/clientes/{$client->id}")
+            ->post("/cartera/clientes/{$client->id}/gestor", ['nuevo_gestor' => '501'])
+            ->assertRedirect("/cartera/clientes/{$client->id}")
+            ->assertSessionHas('status', 'Gestor actualizado.');
+
+        expect($this->assignments->assignments())->toBe([['clientIds' => [$client->id], 'managerUserId' => 501]]);
+    });
+
+    it('leaves the client without a manager', function () {
+        $client = CarteraWorld::client($this->fakes, overdue: 1_000_000, manager: $this->paula);
+
+        $this->actingAs(CarteraUsers::manager())
+            ->post("/cartera/clientes/{$client->id}/gestor", ['nuevo_gestor' => 'sin_asignar'])
+            ->assertSessionHas('status', 'Gestor actualizado.');
+
+        expect($this->assignments->assignments())->toBe([['clientIds' => [$client->id], 'managerUserId' => null]]);
+    });
+
+    it('explains a manager who does not work in the company of the client', function () {
+        $client = CarteraWorld::client($this->fakes, overdue: 1_000_000);
+
+        $this->actingAs(CarteraUsers::manager())
+            ->post("/cartera/clientes/{$client->id}/gestor", ['nuevo_gestor' => '999'])
+            ->assertSessionHas('error', 'Esa persona no puede encargarse de este cliente: ya no gestiona cartera o no trabaja en su empresa. Elige otra.');
+
+        $this->assignments->assertNothingAssigned();
+    });
+
+    it('changes nothing and says so when the client already has that manager', function (?string $current, string $chosen) {
+        $managers = ['paula' => $this->paula, 'retired' => Make::userRef(id: 777, name: 'Persona retirada')];
+        $client = CarteraWorld::client($this->fakes, overdue: 1_000_000, manager: $current === null ? null : $managers[$current]);
+
+        $this->actingAs(CarteraUsers::analyst())
+            ->post("/cartera/clientes/{$client->id}/gestor", ['nuevo_gestor' => $chosen])
+            ->assertSessionHas('status', 'El cliente ya tenía ese gestor.')
+            ->assertSessionMissing('error');
+
+        $this->assignments->assertNothingAssigned();
+    })->with([
+        'an assignee' => ['paula', '501'],
+        'a manager who is no longer an assignee' => ['retired', '777'],
+        'no manager' => [null, 'sin_asignar'],
+    ]);
+
+    it('is a 404 for a client out of reach', function () {
+        $this->actingAs(CarteraUsers::manager())
+            ->post('/cartera/clientes/987654/gestor', ['nuevo_gestor' => '501'])
+            ->assertNotFound();
+    });
+
+    it('asks for a valid manager', function () {
+        $client = CarteraWorld::client($this->fakes, overdue: 1_000_000);
+
+        $this->actingAs(CarteraUsers::manager())
+            ->post("/cartera/clientes/{$client->id}/gestor", ['nuevo_gestor' => 'nadie'])
+            ->assertSessionHasErrors('nuevo_gestor');
+
+        $this->assignments->assertNothingAssigned();
+    });
+
+    it('is forbidden to those who may only look', function () {
+        $client = CarteraWorld::client($this->fakes, overdue: 1_000_000);
+
+        $this->actingAs(CarteraUsers::viewer())
+            ->post("/cartera/clientes/{$client->id}/gestor", ['nuevo_gestor' => '501'])
+            ->assertForbidden();
+
+        $this->assignments->assertNothingAssigned();
     });
 });
