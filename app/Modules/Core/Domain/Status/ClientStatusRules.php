@@ -18,7 +18,6 @@ final class ClientStatusRules
 
     /** @var list<ClientStatus> */
     public const MANUAL = [
-        ClientStatus::InProgress,
         ClientStatus::Committed,
         ClientStatus::Defaulted,
         ClientStatus::Legal,

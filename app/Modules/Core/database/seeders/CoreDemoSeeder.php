@@ -83,7 +83,7 @@ final class CoreDemoSeeder extends Seeder
      * @var list<ClientStatus>
      */
     private const array STATUS_PLAN = [
-        ClientStatus::Overdue, ClientStatus::Current, ClientStatus::DueSoon, ClientStatus::InProgress,
+        ClientStatus::Overdue, ClientStatus::Current, ClientStatus::DueSoon, ClientStatus::Defaulted,
         ClientStatus::Committed, ClientStatus::Overdue, ClientStatus::Current, ClientStatus::Defaulted,
         ClientStatus::PaymentReceived, ClientStatus::Overdue, ClientStatus::DueSoon, ClientStatus::Legal,
         ClientStatus::Current, ClientStatus::Committed,
@@ -206,7 +206,7 @@ final class CoreDemoSeeder extends Seeder
                 // Manual statuses survive the snapshot; a client that paid
                 // everything was overdue before it.
                 'status' => match (true) {
-                    in_array($planned, [ClientStatus::InProgress, ClientStatus::Committed, ClientStatus::Defaulted, ClientStatus::Legal], true) => $planned,
+                    in_array($planned, [ClientStatus::Committed, ClientStatus::Defaulted, ClientStatus::Legal], true) => $planned,
                     $planned === ClientStatus::PaymentReceived => ClientStatus::Overdue,
                     default => ClientStatus::Current,
                 },

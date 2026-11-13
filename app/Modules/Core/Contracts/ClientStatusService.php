@@ -24,9 +24,8 @@ use Illuminate\Auth\Access\AuthorizationException;
  * Any ClientStatus may be chosen, and Core's rules still apply to it on the
  * next snapshot: an automatic status chosen by hand (Current, DueSoon,
  * Overdue, PaymentReceived) is recomputed then, while a manual one
- * (InProgress, Committed, Defaulted, Legal) survives new snapshots as long as
- * the client still owes money, and becomes PaymentReceived once it owes
- * nothing.
+ * (Committed, Defaulted, Legal) survives new snapshots as long as the client
+ * still owes money, and becomes PaymentReceived once it owes nothing.
  */
 interface ClientStatusService
 {

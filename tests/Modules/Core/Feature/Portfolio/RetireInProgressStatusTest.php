@@ -71,7 +71,7 @@ function untouchedClient(mixed $snapshot, string $name, ClientStatus $status): C
     return $client;
 }
 
-function runRetireInProgress(): void
+function runEnGestionRetirement(): void
 {
     $migration = require base_path('app/Modules/Core/database/migrations/2026_10_01_000015_retire_in_progress_client_status.php');
     $migration->up();
@@ -85,7 +85,7 @@ function rawStatus(ClientRecord $client): ?string
 }
 
 it('moves every en_gestion client, soft-deleted ones included, to its automatic status', function () {
-    runRetireInProgress();
+    runEnGestionRetirement();
 
     expect(rawStatus($this->overdue))->toBe('vencida')
         ->and(rawStatus($this->dueSoon))->toBe('por_vencer')
@@ -97,7 +97,7 @@ it('moves every en_gestion client, soft-deleted ones included, to its automatic 
 });
 
 it('leaves every other status alone', function () {
-    runRetireInProgress();
+    runEnGestionRetirement();
 
     foreach ($this->untouched as $client) {
         $before = $client->status;
@@ -110,7 +110,7 @@ it('leaves every other status alone', function () {
 });
 
 it('leaves one system entry in the log of each moved client, without moving its last activity', function () {
-    runRetireInProgress();
+    runEnGestionRetirement();
 
     $entries = ActivityRecord::query()->orderBy('client_id')->get();
     $entry = $entries->firstWhere('client_id', $this->dueSoon->id);
@@ -129,7 +129,7 @@ it('leaves one system entry in the log of each moved client, without moving its 
 });
 
 it('audits each change as the system', function () {
-    runRetireInProgress();
+    runEnGestionRetirement();
 
     $audits = AuditLogRecord::query()->where('action', 'core.client.status_changed')->orderBy('id')->get();
     $audit = $audits->firstWhere('subject_id', (string) $this->overdue->id);
@@ -144,11 +144,11 @@ it('audits each change as the system', function () {
 });
 
 it('changes nothing when it runs again', function () {
-    runRetireInProgress();
+    runEnGestionRetirement();
     $statuses = DB::table('clients')->orderBy('id')->pluck('status', 'id')->all();
     $this->travelTo(CarteraRecords::at('2026-10-21 08:00:00'));
 
-    runRetireInProgress();
+    runEnGestionRetirement();
 
     expect(DB::table('clients')->orderBy('id')->pluck('status', 'id')->all())->toBe($statuses)
         ->and(ActivityRecord::query()->count())->toBe(5)
@@ -162,7 +162,7 @@ it('keeps the audit hash chain whole, the entries written before it included', f
     $this->app->instance(MailSender::class, $mail = new FakeMailSender);
     $before = (array) DB::table('audit_logs')->orderBy('id')->first();
 
-    runRetireInProgress();
+    runEnGestionRetirement();
 
     $this->artisan('core:verificar-auditoria')
         ->expectsOutputToContain('6 entradas')

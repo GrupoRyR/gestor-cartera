@@ -8,7 +8,6 @@ use App\Modules\Core\Domain\Status\StatusParameters;
 describe('status families', function () {
     it('lists the manual statuses', function () {
         expect(ClientStatusRules::MANUAL)->toBe([
-            ClientStatus::InProgress,
             ClientStatus::Committed,
             ClientStatus::Defaulted,
             ClientStatus::Legal,
@@ -184,7 +183,6 @@ describe('resolve from a manual status', function () {
 
         expect($status)->toBe($current);
     })->with([
-        ClientStatus::InProgress,
         ClientStatus::Committed,
         ClientStatus::Defaulted,
         ClientStatus::Legal,
@@ -202,7 +200,6 @@ describe('resolve from a manual status', function () {
 
         expect($status)->toBe(ClientStatus::PaymentReceived);
     })->with([
-        ClientStatus::InProgress,
         ClientStatus::Committed,
         ClientStatus::Defaulted,
         ClientStatus::Legal,

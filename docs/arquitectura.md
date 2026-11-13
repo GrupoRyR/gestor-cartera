@@ -495,7 +495,7 @@ Todos son `string` y usan el trait `HasOptions`: `label()` da el texto en españ
 | Enum | Caso → valor («etiqueta») |
 |---|---|
 | `CompanyCode` | `SGX` → `SGX` («Segurex Latam»), `SDC` → `SDC` («Soluciones y Derivados»). La vista de grupo no es un caso: los contratos la representan con `null`. |
-| `ClientStatus` (orden = columnas del Kanban) | `Current` → `al_dia` («Al día»), `DueSoon` → `por_vencer` («Por vencer»), `Overdue` → `vencida` («Vencida»), `InProgress` → `en_gestion` («En gestión»), `Committed` → `compromiso` («Compromiso»), `Defaulted` → `incumplido` («Incumplido»), `PaymentReceived` → `pago_recibido` («Pago recibido»), `Legal` → `juridico` («Jurídico») |
+| `ClientStatus` (orden = columnas del Kanban) | `Current` → `al_dia` («Al día»), `DueSoon` → `por_vencer` («Por vencer»), `Overdue` → `vencida` («Vencida»), `Committed` → `compromiso` («Compromiso»), `Defaulted` → `incumplido` («Incumplido»), `PaymentReceived` → `pago_recibido` («Pago recibido»), `Legal` → `juridico` («Jurídico») |
 | `CommitmentStatus` | `Pending` → `pendiente` («Pendiente»), `Fulfilled` → `cumplido` («Cumplido»), `Broken` → `incumplido` («Incumplido»), `Cancelled` → `anulado` («Anulado») |
 | `ActivityType` | `Call` → `llamada` («Llamada»), `Note` → `nota` («Nota»), `Commitment` → `compromiso` («Compromiso de pago»), `DiscountOffered` → `descuento` («Descuento ofrecido»), `EmailSent` → `correo_enviado` («Correo enviado»), `EmailReceived` → `correo_recibido` («Correo recibido»), `StatusChange` → `cambio_estado` («Cambio de estado»), `System` → `sistema` («Sistema») |
 | `Dataset` (valor = segmento `{lote}`) | `Receivables` → `cartera` («Cartera»), `Advisors` → `asesores` («Asesores»), `Contacts` → `contactos` («Contactos»), `Sales` → `ventas` («Ventas»), `Collections` → `recaudos` («Recaudos»), `Offsets` → `cruces` («Cruces»), `CustomerMaster` → `maestro_clientes` («Maestro de clientes»), `SalesRepMaster` → `maestro_vendedores` («Maestro de vendedores») |
@@ -505,7 +505,7 @@ Todos son `string` y usan el trait `HasOptions`: `label()` da el texto en españ
 | `MailRunKind` (valor = tipo de lote de Cobro y categoría de `OutgoingMail`) | `WeeklyCollection` → `cobro_semanal` («Cobro semanal»), `Circularization` → `circularizacion` («Circularización») |
 | `Role` (valor = rol de Spatie) | `Admin` → `admin` («Administrador»), `PortfolioManager` → `gerente_cartera` («Gerente de cartera»), `PortfolioAnalyst` → `analista_cartera` («Analista de cartera»), `SalesAdvisor` → `asesor` («Asesor comercial»), `SalesManager` → `gerente_comercial` («Gerente comercial»), `Treasury` → `tesoreria` («Tesorería») |
 
-En `ClientStatus`, los estados automáticos (`Current`, `DueSoon`, `Overdue`, `PaymentReceived`) se recalculan con cada instantánea y los días de gracia; los manuales (`InProgress`, `Committed`, `Defaulted`, `Legal`) sobreviven a nuevas instantáneas mientras el cliente tenga saldo. Las reglas son de Core.
+En `ClientStatus`, los estados automáticos (`Current`, `DueSoon`, `Overdue`, `PaymentReceived`) se recalculan con cada instantánea y los días de gracia; los manuales (`Committed`, `Defaulted`, `Legal`) sobreviven a nuevas instantáneas mientras el cliente tenga saldo. Las reglas son de Core.
 
 ### 6.15 Excepciones (`Contracts\Exceptions`)
 

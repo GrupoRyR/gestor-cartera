@@ -105,22 +105,6 @@ it('refuses a client that is missing, deleted or out of scope', function () {
         ->and(TeamUsers::audits('core.client.status_changed'))->toBe([]);
 });
 
-it('refuses the retired status «En gestión»', function () {
-    $this->actingAs(CoreUsers::create(Role::PortfolioManager, CompanyCode::SGX));
-
-    expect(fn () => ($this->service)()->change($this->client->id, ClientStatus::InProgress, 'Lo estoy llamando'))
-        ->toThrow(InvalidArgumentException::class, 'The client status [en_gestion] is retired and cannot be chosen.')
-        ->and($this->client->refresh()->status)->toBe(ClientStatus::Overdue)
-        ->and($this->client->status_changed_at)->toBeNull()
-        ->and(ActivityRecord::query()->count())->toBe(0)
-        ->and(TeamUsers::audits('core.client.status_changed'))->toBe([]);
-});
-
-it('checks the permission before refusing the retired status', function () {
-    expect(fn () => ($this->service)()->change($this->client->id, ClientStatus::InProgress))
-        ->toThrow(AuthorizationException::class);
-});
-
 it('changes nothing when the status is the same', function () {
     $this->actingAs(CoreUsers::create(Role::PortfolioAnalyst, CompanyCode::SGX));
 

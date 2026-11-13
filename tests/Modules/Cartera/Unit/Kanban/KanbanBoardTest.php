@@ -4,27 +4,11 @@ use App\Modules\Cartera\Domain\Kanban\KanbanBoard;
 use App\Modules\Core\Contracts\Enums\ClientStatus;
 use Tests\Fakes\Make;
 
-it('has one column per status that may be chosen, in the order of the statuses', function () {
+it('has one column per status, in the order of the statuses', function () {
     $board = KanbanBoard::fromClients([], 10);
 
-    expect(array_map(fn ($column) => $column->status, $board->columns))->toBe([
-        ClientStatus::Current,
-        ClientStatus::DueSoon,
-        ClientStatus::Overdue,
-        ClientStatus::Committed,
-        ClientStatus::Defaulted,
-        ClientStatus::PaymentReceived,
-        ClientStatus::Legal,
-    ]);
-});
-
-it('leaves out a client still in the retired status «En gestión»', function () {
-    $overdue = Make::client(name: 'Vencido', status: ClientStatus::Overdue, balance: 100.0);
-
-    $board = KanbanBoard::fromClients([Make::client(name: 'En gestión', status: ClientStatus::InProgress, balance: 50.0), $overdue], 10);
-
-    expect(array_sum(array_map(fn ($column) => $column->count, $board->columns)))->toBe(1)
-        ->and($board->column(ClientStatus::Overdue)->cards)->toBe([$overdue]);
+    expect(array_map(fn ($column) => $column->status, $board->columns))->toBe(ClientStatus::cases())
+        ->and($board->columns)->toHaveCount(7);
 });
 
 it('puts every client in the column of its status', function () {

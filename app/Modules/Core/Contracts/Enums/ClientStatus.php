@@ -13,9 +13,9 @@ use App\Modules\Core\Contracts\Enums\Concerns\HasOptions;
  * - Automatic statuses (Current, DueSoon, Overdue, PaymentReceived) are
  *   recomputed from the latest receivables snapshot, using the grace days
  *   of the client's company (Company::$graceDays).
- * - Manual statuses (InProgress, Committed, Defaulted, Legal) are set by
- *   users or by the commitment workflow and survive new snapshots while the
- *   client still has a balance.
+ * - Manual statuses (Committed, Defaulted, Legal) are set by users or by
+ *   the commitment workflow and survive new snapshots while the client still
+ *   has a balance.
  */
 enum ClientStatus: string
 {
@@ -29,9 +29,6 @@ enum ClientStatus: string
 
     /** At least one invoice is past its due date plus the company's grace days. */
     case Overdue = 'vencida';
-
-    /** Someone is actively working on the collection. */
-    case InProgress = 'en_gestion';
 
     /** The client has a pending payment commitment. */
     case Committed = 'compromiso';
@@ -51,7 +48,6 @@ enum ClientStatus: string
             self::Current => 'Al día',
             self::DueSoon => 'Por vencer',
             self::Overdue => 'Vencida',
-            self::InProgress => 'En gestión',
             self::Committed => 'Compromiso',
             self::Defaulted => 'Incumplido',
             self::PaymentReceived => 'Pago recibido',

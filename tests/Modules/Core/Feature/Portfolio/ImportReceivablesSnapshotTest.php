@@ -226,17 +226,17 @@ it('leaves owing nothing a client missing from the latest snapshot', function ()
 
 it('keeps a manual status while the client owes and drops it once paid', function () {
     $this->robot->receivables(CompanyCode::SGX, '2026-10-15', [
-        RobotBatches::receivable(['codigo_sn' => 'C-GESTION', 'fecha_vencimiento' => '2026-09-01']),
+        RobotBatches::receivable(['codigo_sn' => 'C-INCUMPLIDO', 'fecha_vencimiento' => '2026-09-01']),
         RobotBatches::receivable(['codigo_sn' => 'C-JURIDICO', 'fecha_vencimiento' => '2026-09-01']),
     ]);
-    importedClient('C-GESTION')->update(['status' => ClientStatus::InProgress]);
+    importedClient('C-INCUMPLIDO')->update(['status' => ClientStatus::Defaulted]);
     importedClient('C-JURIDICO')->update(['status' => ClientStatus::Legal]);
 
     $this->robot->receivables(CompanyCode::SGX, '2026-10-16', [
-        RobotBatches::receivable(['codigo_sn' => 'C-GESTION', 'fecha_vencimiento' => '2026-09-01']),
+        RobotBatches::receivable(['codigo_sn' => 'C-INCUMPLIDO', 'fecha_vencimiento' => '2026-09-01']),
     ]);
 
-    expect(importedClient('C-GESTION')->status)->toBe(ClientStatus::InProgress)
+    expect(importedClient('C-INCUMPLIDO')->status)->toBe(ClientStatus::Defaulted)
         ->and(importedClient('C-JURIDICO')->status)->toBe(ClientStatus::PaymentReceived);
 });
 
