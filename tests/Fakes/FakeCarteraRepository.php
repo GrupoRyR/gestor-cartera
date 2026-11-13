@@ -278,6 +278,8 @@ final class FakeCarteraRepository implements CarteraRepository
                 || ($query->advisorCode !== null && $client->advisor?->code !== $query->advisorCode)
                 || ($query->onlyOverdue && $client->overdue <= 0)
                 || ($query->inactiveSince !== null && $client->lastActivityAt !== null && $client->lastActivityAt >= $query->inactiveSince)
+                || ($query->managerUserId !== null && $client->manager?->id !== $query->managerUserId)
+                || ($query->unassigned && $client->manager !== null)
             ) {
                 continue;
             }

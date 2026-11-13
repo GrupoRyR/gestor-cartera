@@ -110,6 +110,18 @@ it('filters by status, advisor, overdue and inactivity', function () {
         ->toBe(['Andina de Químicos SAS', 'Distribuidora Andina SA', 'Ferretería El Tornillo SAS']);
 });
 
+it('filters by the manager of the client, or by clients without one', function () {
+    $mine = Make::userRef(id: 7);
+    $other = Make::userRef(id: 8, name: 'Óscar Toro');
+    $repository = (new FakeCarteraRepository)
+        ->addClient(Make::clientDetail(Make::client(name: 'Agro Arango', manager: $mine)))
+        ->addClient(Make::clientDetail(Make::client(name: 'Bodega Bedoya', manager: $other)))
+        ->addClient(Make::clientDetail(Make::client(name: 'Comercial Castaño')));
+
+    expect(clientNames($repository->allClients(new ClientQuery(managerUserId: 7))))->toBe(['Agro Arango'])
+        ->and(clientNames($repository->allClients(new ClientQuery(unassigned: true))))->toBe(['Comercial Castaño']);
+});
+
 it('sorts by any documented column and breaks ties by name', function () {
     $repository = $this->repository;
 

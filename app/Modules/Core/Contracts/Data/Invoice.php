@@ -26,6 +26,9 @@ final readonly class Invoice
      *                            0 = due on the cutoff date, negative = not due yet. Grace days do
      *                            not change it.
      * @param  int|null  $advisorCode  Advisor of the document (OSLP.SlpCode).
+     * @param  float|null  $amountBeforeTax  $amount without VAT (cartera "base_gravable"); null when the
+     *                                       snapshot did not bring it (manual uploads, older snapshots).
+     * @param  float|null  $balanceBeforeTax  $balance without VAT (cartera "saldo_base"); null as above.
      */
     public function __construct(
         public int $id,
@@ -39,5 +42,7 @@ final readonly class Invoice
         public float $balance,
         public int $daysOverdue,
         public ?int $advisorCode = null,
+        public ?float $amountBeforeTax = null,
+        public ?float $balanceBeforeTax = null,
     ) {}
 }

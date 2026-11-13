@@ -50,7 +50,14 @@ it('builds a client query with sensible defaults', function () {
         ->and($query->companies)->toBe([])
         ->and($query->onlyOverdue)->toBeFalse()
         ->and($query->sort)->toBe('name')
-        ->and($query->direction)->toBe('asc');
+        ->and($query->direction)->toBe('asc')
+        ->and($query->managerUserId)->toBeNull()
+        ->and($query->unassigned)->toBeFalse();
+});
+
+it('rejects a client query for a manager and for unassigned clients at once', function () {
+    expect(fn () => new ClientQuery(managerUserId: 7, unassigned: true))
+        ->toThrow(InvalidArgumentException::class, 'manager');
 });
 
 it('accepts every documented client sort', function (string $sort) {

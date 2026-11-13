@@ -61,7 +61,7 @@ Los crea, edita y marca el asesor del cliente, **en SGX**; en SDC los escribe la
 | Portal Next.js | Aquí | Por qué |
 |---|---|---|
 | Rangos de edad de 8 tramos, con «0-30» incluyendo lo que vence hoy. | 5 tramos de Core: sin vencer (incluye lo que vence hoy), 1-30, 31-60, 61-90 y más de 90. | Core es la fuente de verdad de edades y de «vencido» (días de mora > 0). |
-| «Excel» era un CSV con 17 columnas, que ignoraba filtros y búsqueda. | Un `.xlsx` real que sí respeta los filtros. Sin las columnas «antes de impuestos» (`base_gravable`, `saldo_base`). | El contrato de facturas de Core no las trae. |
+| «Excel» era un CSV con 17 columnas, que ignoraba filtros y búsqueda. | Un `.xlsx` real que sí respeta los filtros. Sin las columnas «antes de impuestos» (`base_gravable`, `saldo_base`). | `Invoice` ya tiene `amountBeforeTax` y `balanceBeforeTax`, pero Core todavía no los llena: llegan con la siguiente entrega. |
 | Agenda con bloques de facturas (vencen hoy, en 7 días, vencidas hace menos de 30 días). | Agenda de **compromisos**. | `CarteraRepository` no lista facturas de toda la cartera, y pedirlas cliente por cliente en cada visita no escala. Es un candidato a seguimiento: un contrato nuevo en Core. |
 | Búsqueda por número de factura. | Nombre, NIT y código. | Es lo que filtra `ClientQuery`. |
 | WhatsApp sin número (`wa.me/?text=`). | Con el celular del contacto cuando existe. | Core ya trae los contactos de SAP. |

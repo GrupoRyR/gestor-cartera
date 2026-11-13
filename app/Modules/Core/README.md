@@ -189,6 +189,7 @@ Los roles son los de `Contracts\Enums\Role` (Spatie, guard `web`, sin equipos). 
 | `core.companies.manage` | `admin`, `gerente_cartera` | Editar los días de gracia y la ventana de «Por vencer» de cada empresa: pantalla Parámetros (ver «Empresas y parámetros»). |
 | `core.activities.delete` | `gerente_cartera`, `analista_cartera` | Eliminar (borrado lógico) una gestión de la bitácora de un cliente (ver «Bitácora de gestiones»). |
 | `core.clients.change_status` | `gerente_cartera`, `analista_cartera` | Cambiar a mano el estado de un cliente: Kanban y ficha (ver «Cambio de estado manual»). |
+| `core.clients.assign` | `admin`, `gerente_cartera`, `analista_cartera` | Asignar el gestor de los clientes, en bloque o uno por uno (ver «Gestor del cliente»). |
 | `core.clients.delete` | `gerente_cartera` | Eliminar (borrado lógico) y restaurar clientes (ver «Borrado lógico de clientes»). Por confirmar (ver «Pendientes»). |
 
 Sembrar `core.access` también garantiza que existan los seis roles, para que la pantalla de equipo pueda asignarlos. Correr el seeder otra vez no duplica nada.
@@ -332,6 +333,10 @@ Solo se escriben los clientes cuyos valores cambian. Cuando cambia el estado de 
 | `advisorCode` | Los de ese `SlpCode`. |
 | `onlyOverdue` | Los que tienen `overdue` mayor que 0. |
 | `inactiveSince` | Los que no tienen actividad (`last_activity_at` vacío) o cuya última actividad es anterior a ese momento. |
+| `managerUserId` | Los que tienen a ese usuario como gestor (`manager_user_id`): «Mi cartera». |
+| `unassigned` | Los que no tienen gestor: «Sin asignar». No se combina con `managerUserId` (`InvalidArgumentException`). |
+
+`openInvoices()` todavía no llena `Invoice::$amountBeforeTax` ni `$balanceBeforeTax` (los valores antes de IVA del lote `cartera`): llegan en `null` hasta que Core los guarde.
 
 | Orden (`sort`) | Columna |
 |---|---|
@@ -427,6 +432,10 @@ Sin sesión iniciada las dos devuelven `[]` (§6.2).
 5. Devuelve el `ClientSummary` ya cambiado.
 
 Se puede elegir cualquier estado, y las reglas de «Estados del cliente» le siguen aplicando en la siguiente instantánea: un estado automático elegido a mano (Al día, Por vencer, Vencida, Pago recibido) se recalcula con ella; uno manual (En gestión, Compromiso, Incumplido, Jurídico) sobrevive mientras el cliente deba y pasa a «Pago recibido» cuando ya no debe.
+
+## Gestor del cliente
+
+`Contracts\ClientAssignmentService` es un contrato nuevo de Core para asignar a cada cliente su gestor (`clients.manager_user_id`): la pantalla de Cartera asigna en bloque desde la lista de clientes, o uno por uno desde la ficha. Los filtros «Mi cartera» y «Sin asignar» son `managerUserId` y `unassigned` de `ClientQuery` (ver «CarteraRepository»). El gestor es solo un filtro: todo el equipo de cartera sigue viendo todos los clientes. La implementación de Core llega con la pantalla; por ahora el contenedor no lo resuelve.
 
 ## Borrado lógico de clientes
 
