@@ -34,7 +34,7 @@
     <div class="mt-6 grid gap-6">
         <x-asesores::advisor-filter :advisors="$advisors" :filter="$filter" :action="route('asesores.clientes.index')" />
 
-        <x-asesores::cutoff :cutoff="$totals->cutoffDate" :today="$today" />
+        <x-asesores::cutoff :cutoff="$totals->cutoffDate" :today="$today" :updated-at="$updatedAt" />
 
         <form method="GET" action="{{ route('asesores.clientes.index') }}" role="search" data-part="client-filters" class="grid gap-4 rounded-card border border-line bg-surface p-4 md:grid-cols-[minmax(0,2fr)_minmax(0,1fr)] md:items-end">
             @foreach ($filter->params(['buscar' => null, 'estado' => null, 'vencidos' => null]) as $name => $value)

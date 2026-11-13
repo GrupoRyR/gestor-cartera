@@ -6,7 +6,7 @@ Gestor de cartera para la analista (María Paula) y el gerente (Miguel). Spec: `
 
 | URL | Ruta | Qué hace |
 |---|---|---|
-| `/cartera` | `cartera.tablero` | Total, vencido y % vencido, edades de la deuda, 10 clientes que más deben, compromisos de la semana, vencidos sin gestión, actividad reciente. En la vista Grupo compara SGX con SDC. |
+| `/cartera` | `cartera.tablero` | Total, vencido y % vencido, edades de la deuda, 10 clientes que más deben, compromisos de la semana, vencidos sin gestión, actividad reciente. En la vista Grupo compara SGX con SDC. Al final de la descripción del título, cuándo llegaron los datos («Datos actualizados hoy a las 07:10.»; ver «Decisiones»). |
 | `/cartera/kanban` | `cartera.kanban` | Ocho columnas (una por estado). Arrastrar o botón «Mover» (teclado y celular). «Al día» y «Pago recibido» arrancan ocultas. |
 | `/cartera/clientes` | `cartera.clientes.index` | Lista con búsqueda por nombre o NIT, filtros, orden por columna y paginación. |
 | `/cartera/clientes/{id}` | `cartera.clientes.show` | Ficha: datos, cupo, facturas abiertas, contactos de SAP, compromisos, bitácora, respuestas de correo. |
@@ -24,7 +24,7 @@ El cambio de estado usa el permiso de Core `core.clients.change_status`, y borra
 
 ## Cómo se une al resto
 
-Solo usa `Core/Contracts`: `CarteraRepository`, `CompromisoService`, `GestionLogger`, `ClientStatusService`, `CurrentCompany`, `AuditLogger` y `MailboxReader`. No tiene tablas ni migraciones propias (el prefijo `2026_10_03_*` queda reservado).
+Solo usa `Core/Contracts`: `CarteraRepository`, `CompromisoService`, `GestionLogger`, `ClientStatusService`, `CurrentCompany`, `AuditLogger`, `MailboxReader` e `IngestaSink`. No tiene tablas ni migraciones propias (el prefijo `2026_10_03_*` queda reservado).
 
 `MailboxReader` lo implementa Cobro. Mientras no esté enlazado, la ficha muestra un aviso en vez de las respuestas (`Infrastructure/Mail/ClientReplies`).
 
@@ -39,6 +39,7 @@ Solo usa `Core/Contracts`: `CarteraRepository`, `CompromisoService`, `GestionLog
 - «Vencidos sin gestión» pasa de «nunca gestionado» (app Fase 1) a «sin gestión en N días», porque el contrato expone `ClientQuery::$inactiveSince`.
 - Descuento ofrecido = entrada `ActivityType::DiscountOffered` con el valor en `metadata['discount_amount']`.
 - La app Fase 1 no tenía exportación a Excel; las columnas son nuevas. Los valores van como números y los textos siempre como texto (OpenSpout convierte en fórmula todo texto que empiece por `=`).
+- «Datos actualizados» del tablero es el `receivedAt` de la última carga de cartera (`IngestaSink::latest()`) en hora de Bogotá: «hoy a las 07:10» o «el 11/11/2026 a las 07:10». `IngestaSink` no filtra por usuario, así que `Application/Dashboard/DataFreshness` solo lee las empresas de `CurrentCompany::scope()`; en la vista Grupo manda la empresa con el corte más viejo (como el corte de los totales) y, con el mismo corte, la carga recibida primero. Sin carga no se muestra nada. Asesores tiene su propia copia de esta regla: los módulos no comparten clases.
 - Los formularios de la ficha anidan sus campos (`llamada[...]`, `nota[...]`, `edicion_{id}[...]`) para que varios formularios convivan sin compartir errores ni valores antiguos.
 
 ## Pruebas
