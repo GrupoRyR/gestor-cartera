@@ -18,7 +18,8 @@ use UnexpectedValueException;
  * --probar-delta it also asks Graph for one page of the inbox delta query
  * with the message class, to confirm Graph accepts the $expand. It reads
  * the inbox with the Graph credential of that company. The domains it
- * prints as ours include cobro.tenant_domains.
+ * prints as ours include cobro.tenant_domains and that company's
+ * cobro.company_tenant_domains.
  *
  * Read-only: it never prints the body or the subject, never writes to the
  * database and never moves the sync cursors.
@@ -73,7 +74,7 @@ final class DiagnoseBounceCommand extends Command
         }
 
         if ($messageId !== '') {
-            $ok = $this->diagnose($graph, $sync, $bounces, $mailbox, $messageId) && $ok;
+            $ok = $this->diagnose($graph, $sync, $bounces, $company, $mailbox, $messageId) && $ok;
         }
 
         return $ok ? self::SUCCESS : self::FAILURE;
@@ -96,7 +97,7 @@ final class DiagnoseBounceCommand extends Command
         return true;
     }
 
-    private function diagnose(GraphClient $graph, MailboxSync $sync, BounceDetector $bounces, string $mailbox, string $messageId): bool
+    private function diagnose(GraphClient $graph, MailboxSync $sync, BounceDetector $bounces, CompanyCode $company, string $mailbox, string $messageId): bool
     {
         try {
             $message = $graph->get(GraphClient::mailbox($mailbox).'/messages/'.rawurlencode($messageId), [
@@ -113,7 +114,7 @@ final class DiagnoseBounceCommand extends Command
         $class = MailboxSync::messageClass($message);
         $authAs = MailboxSync::header($message, MailboxSync::AUTH_AS_HEADER);
         $contentType = (string) MailboxSync::header($message, 'Content-Type');
-        $envelope = $sync->envelope(is_string($from) ? $from : '', $class, $authAs);
+        $envelope = $sync->envelope(is_string($from) ? $from : '', $class, $authAs, $company);
 
         $this->line('Clase del mensaje: '.($class ?? '(sin dato)'));
         $this->line(MailboxSync::AUTH_AS_HEADER.': '.($authAs ?? '(sin dato)'));

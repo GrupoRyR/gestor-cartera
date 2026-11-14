@@ -253,18 +253,24 @@ final class MailboxSync
     }
 
     /**
-     * What the bounce rule reads from a message, with the domains of every
-     * company mailbox and of the tenant (cobro.tenant_domains) as ours.
+     * What the bounce rule reads from a message of $company's mailbox, with
+     * the domains of every company mailbox, of the shared tenant
+     * (cobro.tenant_domains) and of $company's own tenant
+     * (cobro.company_tenant_domains) as ours. The other company's tenant
+     * domains never count.
      */
-    public function envelope(string $from, ?string $messageClass, ?string $authAs): InboundEnvelope
+    public function envelope(string $from, ?string $messageClass, ?string $authAs, CompanyCode $company): InboundEnvelope
     {
         $domains = array_map(
             fn (string $address): string => (string) substr($address, (int) strrpos($address, '@') + 1),
             array_values(array_filter($this->mailboxes->all(), fn (string $address): bool => str_contains($address, '@'))),
         );
-        $tenant = array_values(array_filter((array) config('cobro.tenant_domains', []), is_string(...)));
+        $tenant = array_filter([
+            ...(array) config('cobro.tenant_domains', []),
+            ...(array) config("cobro.company_tenant_domains.{$company->value}", []),
+        ], is_string(...));
 
-        return new InboundEnvelope($from, $messageClass, $authAs, [...$domains, ...$tenant]);
+        return new InboundEnvelope($from, $messageClass, $authAs, array_values([...$domains, ...$tenant]));
     }
 
     /**
@@ -292,7 +298,7 @@ final class MailboxSync
         $preview = self::text($message, 'bodyPreview') ?? '';
         $body = mb_substr((string) data_get($message, 'body.content', ''), 0, self::BODY_LIMIT);
         $conversationId = self::text($message, 'conversationId');
-        $kind = $this->classify($graph, $mailbox, $graphId, $from, $message, $withoutClass);
+        $kind = $this->classify($graph, $company, $mailbox, $graphId, $from, $message, $withoutClass);
 
         // Another server's report counts only when it quotes the Message-ID
         // of a send: without a conversation the linker runs that step alone.
@@ -347,7 +353,7 @@ final class MailboxSync
      *
      * @param  array<array-key, mixed>  $message
      */
-    private function classify(GraphClient $graph, string $mailbox, string $graphId, string $from, array $message, bool $withoutClass): string
+    private function classify(GraphClient $graph, CompanyCode $company, string $mailbox, string $graphId, string $from, array $message, bool $withoutClass): string
     {
         $class = self::messageClass($message);
 
@@ -361,7 +367,7 @@ final class MailboxSync
 
         $authAs = BounceDetector::isFailureClass($class) ? $this->authAs($graph, $mailbox, $graphId) : null;
 
-        return $this->bounces->classify($this->envelope($from, $class, $authAs));
+        return $this->bounces->classify($this->envelope($from, $class, $authAs, $company));
     }
 
     /**

@@ -80,6 +80,24 @@ it('prints the tenant domains among ours when they are configured', function () 
         ->assertSuccessful();
 });
 
+it('prints only the tenant domains of the diagnosed company among ours', function () {
+    config([
+        'cobro.tenant_domains' => ['gruporyr.onmicrosoft.com'],
+        'cobro.company_tenant_domains' => ['SGX' => ['segurex.onmicrosoft.com'], 'SDC' => ['derivadoscol.onmicrosoft.com']],
+    ]);
+    GraphFake::install()->on('GET', 'users/derivados.info@derivadoscol.com/messages/*', cobroDiagnosedMessage(
+        'message-headers-ndr.json',
+        'postmaster@derivadoscol.onmicrosoft.com',
+        'REPORT.IPM.Note.NDR',
+    ));
+
+    $this->artisan('cobro:diagnosticar-rebote', ['buzon' => 'SDC', 'mensaje' => COBRO_DIAGNOSED])
+        ->expectsOutputToContain('Dominios propios: segurex.com, derivadoscol.com, gruporyr.onmicrosoft.com, derivadoscol.onmicrosoft.com')
+        ->doesntExpectOutputToContain('segurex.onmicrosoft.com')
+        ->expectsOutputToContain('Decisión: rebote de nuestro Exchange')
+        ->assertSuccessful();
+});
+
 it('prints a forged report as a reply', function () {
     GraphFake::install()->on('GET', 'users/segurex.info@segurex.com/messages/*', cobroDiagnosedMessage(
         'message-headers-forged.json',
