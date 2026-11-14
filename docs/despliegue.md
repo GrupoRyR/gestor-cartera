@@ -128,6 +128,12 @@ Son dos registros separados: uno para el ingreso de las personas y otro solo par
 - [ ] En Exchange Online, con RBAC para aplicaciones, dale `Application Mail.Send` y `Application Mail.ReadWrite` con un alcance que cubra solo los dos buzones (`New-ServicePrincipal`, `New-ManagementScope` y `New-ManagementRoleAssignment`). Los buzones son `segurex.info@segurex.com` y `derivados.info@derivadoscol.com`, salvo que `COBRO_MAILBOX_*` diga otros.
 - [ ] `Test-ServicePrincipalAuthorization` debe dar `InScope = True` para los dos buzones y `False` para cualquier otro. Los cambios tardan entre 30 minutos y 2 horas.
 
+**Correo de Derivados, en su propio inquilino** (#132). Segurex y Derivados siguen en inquilinos de Microsoft separados, y los dos inquilinos nunca comparten un token. Por eso el registro de correo de Derivados se hace **en el inquilino de Derivados**, no en el de Segurex:
+
+- [ ] Repite en el inquilino de Derivados los tres pasos de arriba con su propio registro: aplicación de un solo inquilino con secreto de cliente y sin permisos de Microsoft Graph en Entra ID, `New-ServicePrincipal` con los ids de Aplicaciones empresariales de ese inquilino, y los dos roles de aplicación con un alcance de Exchange que cubra solo el buzón de Derivados (`derivados.info@derivadoscol.com`, salvo que `COBRO_MAILBOX_SDC` diga otro).
+- [ ] `Test-ServicePrincipalAuthorization` en el inquilino de Derivados debe dar `InScope = True` para su buzón y `False` para cualquier otro.
+- [ ] El registro de correo de Segurex sigue como estaba y cubre solo el buzón de Segurex. Sus tres variables `GRAPH_*` son la credencial común (paso 7).
+
 ## 7. `.env` de producción (solo en el servidor)
 
 Primero instala las dependencias, porque `artisan` las necesita:
@@ -155,11 +161,15 @@ Variables (solo los nombres; los valores van en el servidor):
 | Sesión, caché y cola | `SESSION_DRIVER`, `SESSION_SECURE_COOKIE`, `SESSION_ENCRYPT`, `CACHE_STORE`, `QUEUE_CONNECTION` | `database`, `true` o fuera, `true` o fuera, `database`, `database` |
 | Correo del framework | `MAIL_MAILER` | `log`: el correo de negocio va por Graph |
 | Ingreso | `MICROSOFT_TENANT_ID`, `MICROSOFT_CLIENT_ID`, `MICROSOFT_CLIENT_SECRET`, `MICROSOFT_REDIRECT_URI` | del registro de ingreso; la URI es la del paso 6; nunca `common` |
-| Correo (Graph) | `GRAPH_TENANT_ID`, `GRAPH_CLIENT_ID`, `GRAPH_CLIENT_SECRET` | del registro de correo |
+| Correo (Graph) | `GRAPH_TENANT_ID`, `GRAPH_CLIENT_ID`, `GRAPH_CLIENT_SECRET` | del registro de correo; es la credencial común |
+| Correo de Derivados (Graph) | `GRAPH_SDC_TENANT_ID`, `GRAPH_SDC_CLIENT_ID`, `GRAPH_SDC_CLIENT_SECRET` | del registro de correo hecho en el inquilino de Derivados (paso 6). Las **tres** o ninguna: con solo una o dos, Derivados usa la credencial común, que es de otro inquilino, y sus llamadas fallan |
+| Correo de Segurex (Graph), opcional | `GRAPH_SGX_TENANT_ID`, `GRAPH_SGX_CLIENT_ID`, `GRAPH_SGX_CLIENT_SECRET` | solo si Segurex deja de usar la credencial común. Misma regla: las tres o ninguna |
 | Buzones | `COBRO_MAILBOX_SGX`, `COBRO_MAILBOX_SDC`, `COBRO_TENANT_DOMAINS` | los dos buzones del paso 6; dominios solo si hace falta |
-| Llaves de 32 bytes o más | `INGESTA_HMAC_KEYS` (`id:secreto`), `BANCOS_API_TOKEN`, `BANCOS_INGEST_TOKEN` | una más corta se ignora y deja la API cerrada |
+| Dominios del inquilino por empresa, opcionales | `COBRO_TENANT_DOMAINS_SGX`, `COBRO_TENANT_DOMAINS_SDC` | dominios, separados por comas, con los que el Exchange de cada inquilino firma sus informes de no entrega (por ejemplo `…onmicrosoft.com`). Cada lista cuenta solo para el buzón de su empresa y se suma a `COBRO_TENANT_DOMAINS`, no lo reemplaza || Llaves de 32 bytes o más | `INGESTA_HMAC_KEYS` (`id:secreto`), `BANCOS_API_TOKEN`, `BANCOS_INGEST_TOKEN` | una más corta se ignora y deja la API cerrada |
 | Destinatarios | `CORE_AUDIT_ALERT_RECIPIENTS`, `COMISIONES_APPROVAL_RECIPIENTS`, `INGESTA_ALERT_RECIPIENTS` | correos separados por comas; sin ellos, las alertas quedan solo en el log |
 | Opcionales | `APP_TIMEZONE`, `INGESTA_HMAC_MAX_SKEW`, `INGESTA_ALERT_DEADLINE`, `BANCOS_IMPORT_PATH`, `BANCOS_IMPORT_AT`, `BANCOS_MIAMI_CURRENCY`, `CARTERA_SIN_GESTION_DIAS` | déjalas con su valor por defecto |
+
+Una empresa usa su credencial propia (`GRAPH_SGX_*` o `GRAPH_SDC_*`) solo si tiene las tres variables con valor; si no, usa la común. Con solo las tres `GRAPH_*` comunes, todo sigue funcionando como antes para las dos empresas. Si una empresa no tiene ninguna credencial completa, no envía y `cobro:sincronizar-buzones` se salta su buzón.
 
 Genera cada secreto de llave en el servidor y pégalo directo en `nano`. Cada uno sale de 64 caracteres:
 
@@ -289,9 +299,9 @@ En el PC con la VPN Sophos, desde la raíz del repositorio (`etl/README.md`):
 - **Secretos con vencimiento.** Los secretos de cliente de los dos registros de Entra ID vencen: renuévalos antes y luego corre un despliegue (o `php artisan optimize`).
 - **Fuera de este documento:** la migración de datos del portal anterior y el apagado de Cartera Fase 1 y del portal Next.js, con la rotación del secreto de OneDrive.
 
-## 16. Actualización de noviembre de 2026 (#116 a #125)
+## 16. Actualización de noviembre de 2026 (#116 a #125, #132 y #133)
 
-Checklist del despliegue que sigue al de la primera instalación. Trae el lote `contactos`, los valores antes de IVA, el gestor del cliente, «Datos actualizados» y el retiro del estado «En gestión». Usa el paso 12 para el despliegue y este paso para lo que cambia.
+Checklist del despliegue que sigue al de la primera instalación. Trae el lote `contactos`, los valores antes de IVA, el gestor del cliente, «Datos actualizados», el retiro del estado «En gestión» y la credencial de Microsoft Graph por empresa. Usa el paso 12 para el despliegue y este paso para lo que cambia.
 
 ### Antes (en el PC)
 
@@ -302,7 +312,7 @@ Checklist del despliegue que sigue al de la primera instalación. Trae el lote `
 
 ### Durante
 
-`deploy.sh` entra en mantenimiento, corre `migrate --force` y siembra los permisos. No hay variables nuevas en `.env`.
+`deploy.sh` entra en mantenimiento, corre `migrate --force` y siembra los permisos. #132 y #133 no traen migraciones. Las variables nuevas de Graph por empresa son opcionales y las agrega el usuario a mano en el `.env` del servidor (ver «Correo de Derivados» más abajo).
 
 - [ ] `2026_10_01_000014`: agrega `amount_before_tax` y `balance_before_tax` (nulas) a `invoices`.
 - [ ] `2026_10_01_000015`: pasa todos los clientes en `en_gestion`, también los eliminados, a su estado automático según la última carga de su empresa: «Vencida», «Por vencer», «Al día» o, sin saldo, «Pago recibido». Escribe una gestión y una auditoría por cliente, sin mover la última actividad.
@@ -323,6 +333,16 @@ Hasta ahora ninguna carga llenaba los contactos, y por eso el cobro salía «Sin
 - [ ] `.venv\Scripts\python.exe etl\run_etl.py --diagnostico --lotes contactos`. Revisa los conteos por empresa, que cada cliente tenga como mucho un contacto principal y los puntos marcados en `contactos_clientes.sql`.
 - [ ] Agrega `contactos` a `ETL_LOTES` en `etl/.env`: `ETL_LOTES=cartera,asesores,contactos`. No cambies las demás variables.
 - [ ] Después de la siguiente corrida del robot, y con el cron activo (paso 10), abre la ficha de varios clientes de cada empresa y confirma que aparecen sus contactos. La importación corre en la cola, así que puede tardar un minuto.
+
+### Correo de Derivados: credencial propia (#132 y #133)
+
+Derivados vive en otro inquilino de Microsoft, así que el registro de correo común no llega a su buzón. Cada petición a Graph usa la credencial de la empresa dueña del buzón. Antes de configurar `COBRO_MAILBOX_SDC`:
+
+- [ ] TI registra la aplicación de correo de Derivados en el inquilino de Derivados y fija su alcance de Exchange al buzón de Derivados (paso 6).
+- [ ] El usuario agrega a mano en el `.env` del servidor `GRAPH_SDC_TENANT_ID`, `GRAPH_SDC_CLIENT_ID` y `GRAPH_SDC_CLIENT_SECRET`, las tres a la vez. Con solo una o dos, Derivados usa la credencial de Segurex y sus llamadas fallan. Si el Exchange de Derivados firma sus informes de no entrega con un dominio propio, agrega también `COBRO_TENANT_DOMAINS_SDC`.
+- [ ] Corre `<php-8.3> artisan config:cache` para que el servidor lea las variables nuevas.
+- [ ] `<php-8.3> artisan cobro:sincronizar-buzones`: cada empresa dice si sincronizó o si se saltó por no tener una credencial completa. Derivados no debe aparecer como saltada.
+- [ ] `<php-8.3> artisan cobro:diagnosticar-rebote SDC --probar-delta`: confirma que Graph responde con la credencial de Derivados y que «Dominios propios» muestra los dominios esperados para ese buzón.
 
 ### Antes del primer envío con contactos
 
