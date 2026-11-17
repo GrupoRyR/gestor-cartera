@@ -2,6 +2,7 @@
 
 namespace App\Support\Modules;
 
+use App\Modules\Core\Contracts\Enums\Role as UserRole;
 use BackedEnum;
 use Illuminate\Database\Seeder;
 use Spatie\Permission\Models\Permission;
@@ -12,6 +13,10 @@ use Spatie\Permission\PermissionRegistrar;
  * Base of each module's <Module>PermissionSeeder, which DatabaseSeeder
  * discovers (docs/prompt-gestor-cartera.md, Part C.2). Running it again is
  * safe: permissions and roles are created only when missing.
+ *
+ * Every permission also goes to the superadmin role, so a module's new
+ * permissions reach it without a change here, except the ones the module
+ * lists in superAdminExcludes().
  */
 abstract class PermissionSeeder extends Seeder
 {
@@ -23,10 +28,24 @@ abstract class PermissionSeeder extends Seeder
      */
     abstract public function permissions(): array;
 
+    /**
+     * Permissions of the module the superadmin does not receive: the ones
+     * that change a default behaviour instead of granting a capability
+     * (for example, which tab a list opens on).
+     *
+     * @return list<string>
+     */
+    protected function superAdminExcludes(): array
+    {
+        return [];
+    }
+
     public function run(): void
     {
         $registrar = app(PermissionRegistrar::class);
         $registrar->forgetCachedPermissions();
+
+        $excluded = $this->superAdminExcludes();
 
         foreach ($this->permissions() as $name => $roles) {
             $permission = Permission::findOrCreate($name, 'web');
@@ -35,9 +54,16 @@ abstract class PermissionSeeder extends Seeder
             // cache reset; without it the next lookup misses new permissions.
             $registrar->forgetCachedPermissions();
 
-            foreach ($roles as $role) {
-                $roleName = $role instanceof BackedEnum ? (string) $role->value : $role;
+            $roleNames = array_map(
+                fn (string|BackedEnum $role): string => $role instanceof BackedEnum ? (string) $role->value : $role,
+                $roles,
+            );
 
+            if (! in_array($name, $excluded, true)) {
+                $roleNames[] = UserRole::SuperAdmin->value;
+            }
+
+            foreach (array_unique($roleNames) as $roleName) {
                 Role::findOrCreate($roleName, 'web')->givePermissionTo($permission);
             }
         }

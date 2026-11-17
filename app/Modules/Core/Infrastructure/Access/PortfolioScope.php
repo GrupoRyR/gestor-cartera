@@ -19,7 +19,7 @@ use Illuminate\Database\Query\Builder as QueryBuilder;
  * some companies and, within them, every client or only the clients of some
  * SAP advisors.
  *
- * - admin, gerente_cartera and analista_cartera: every client;
+ * - superadmin, admin, gerente_cartera and analista_cartera: every client;
  * - asesor: the clients of the advisors linked to them (advisors.user_id);
  * - gerente_comercial: the clients of the advisors in their team
  *   (advisor_team) and of the advisors linked to them;
@@ -34,7 +34,7 @@ final readonly class PortfolioScope
     /**
      * The roles that see every client of their companies.
      */
-    private const array FULL_ACCESS = [Role::Admin, Role::PortfolioManager, Role::PortfolioAnalyst];
+    private const array FULL_ACCESS = [Role::SuperAdmin, Role::Admin, Role::PortfolioManager, Role::PortfolioAnalyst];
 
     /**
      * @param  list<CompanyCode>  $companies  In CompanyCode order.

@@ -35,14 +35,15 @@ function comisionesGrants(): array
 
 it('grants each permission to the roles of the feature document, and seeds again safely', function () {
     $expected = [
+        // The superadmin gets everything but approving (separation of duties).
         'comisiones.approve' => ['comisiones_aprobador'],
-        'comisiones.audit' => ['admin', 'comisiones_aprobador', 'gerente_cartera'],
-        'comisiones.calculate' => ['gerente_cartera'],
-        'comisiones.capture' => ['gerente_cartera'],
-        'comisiones.close' => ['comisiones_aprobador', 'gerente_cartera'],
-        'comisiones.parameters' => ['admin', 'gerente_cartera'],
-        'comisiones.reports' => ['comisiones_aprobador', 'gerente_cartera'],
-        'comisiones.view' => ['comisiones_aprobador', 'comisiones_consulta', 'gerente_cartera'],
+        'comisiones.audit' => ['admin', 'comisiones_aprobador', 'gerente_cartera', 'superadmin'],
+        'comisiones.calculate' => ['gerente_cartera', 'superadmin'],
+        'comisiones.capture' => ['gerente_cartera', 'superadmin'],
+        'comisiones.close' => ['comisiones_aprobador', 'gerente_cartera', 'superadmin'],
+        'comisiones.parameters' => ['admin', 'gerente_cartera', 'superadmin'],
+        'comisiones.reports' => ['comisiones_aprobador', 'gerente_cartera', 'superadmin'],
+        'comisiones.view' => ['comisiones_aprobador', 'comisiones_consulta', 'gerente_cartera', 'superadmin'],
     ];
 
     expect(comisionesGrants())->toBe($expected);
@@ -105,6 +106,19 @@ it('assigns only the two module roles', function () {
 
     expect($user->fresh()?->roles)->toHaveCount(0);
 });
+
+it('refuses a module role to a superadmin, who keeps one role', function (string $role) {
+    $user = User::factory()->create(['email' => 'sofia.super@segurex.com']);
+    $user->assignRole(SpatieRole::findOrCreate('superadmin', 'web'));
+
+    $this->artisan('comisiones:rol', ['email' => 'sofia.super@segurex.com', 'rol' => $role])
+        ->expectsOutputToContain('sofia.super@segurex.com es superadministrador y no puede tener otro rol. Aprobar comisiones le toca a otra persona.')
+        ->assertFailed();
+
+    expect($user->fresh()?->getRoleNames()->all())->toBe(['superadmin']);
+
+    $this->fakes->audit->assertNothingRecorded();
+})->with(ModuleRoles::ALL);
 
 it('fails for an e-mail without a user', function () {
     $this->artisan('comisiones:rol', ['email' => 'nadie@segurex.com', 'rol' => 'comisiones_consulta'])

@@ -8,14 +8,14 @@ use Spatie\Permission\Models\Role as SpatieRole;
 
 dataset('cartera permissions', ['cartera.view', 'cartera.manage', 'cartera.export']);
 
-it('gives every Cartera permission to the portfolio manager and analyst only', function (string $permission) {
-    // Core runs first in DatabaseSeeder and creates the six roles.
+it('gives every Cartera permission to the portfolio manager, the analyst and the superadmin only', function (string $permission) {
+    // Core runs first in DatabaseSeeder and creates every role.
     $this->seed(CorePermissionSeeder::class);
     $this->seed(CarteraPermissionSeeder::class);
 
     foreach (Role::cases() as $role) {
         expect(SpatieRole::findByName($role->value, 'web')->hasPermissionTo($permission))
-            ->toBe(in_array($role, [Role::PortfolioManager, Role::PortfolioAnalyst], true), "{$role->value} / {$permission}");
+            ->toBe(in_array($role, [Role::PortfolioManager, Role::PortfolioAnalyst, Role::SuperAdmin], true), "{$role->value} / {$permission}");
     }
 })->with('cartera permissions');
 

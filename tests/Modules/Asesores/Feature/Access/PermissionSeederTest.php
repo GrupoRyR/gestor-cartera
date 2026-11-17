@@ -13,28 +13,28 @@ function asesoresRoleCan(Role $role, string $permission): bool
     return SpatieRole::findOrCreate($role->value, 'web')->hasPermissionTo($permission);
 }
 
-it('lets advisors and sales managers open the portfolio viewer', function () {
+it('lets advisors, sales managers and the superadmin open the portfolio viewer', function () {
     $this->seed(AsesoresPermissionSeeder::class);
 
     foreach (Role::cases() as $role) {
         expect(asesoresRoleCan($role, 'asesores.view'))
-            ->toBe(in_array($role, [Role::SalesAdvisor, Role::SalesManager], true), $role->value);
+            ->toBe(in_array($role, [Role::SalesAdvisor, Role::SalesManager, Role::SuperAdmin], true), $role->value);
     }
 });
 
-it('lets only advisors write commitments and notes', function () {
+it('lets only advisors and the superadmin hold the write permission', function () {
     $this->seed(AsesoresPermissionSeeder::class);
 
     foreach (Role::cases() as $role) {
-        expect(asesoresRoleCan($role, 'asesores.manage'))->toBe($role === Role::SalesAdvisor, $role->value);
+        expect(asesoresRoleCan($role, 'asesores.manage'))->toBe(in_array($role, [Role::SalesAdvisor, Role::SuperAdmin], true), $role->value);
     }
 });
 
-it('lets only sales managers see their team', function () {
+it('lets only sales managers and the superadmin see the team screen', function () {
     $this->seed(AsesoresPermissionSeeder::class);
 
     foreach (Role::cases() as $role) {
-        expect(asesoresRoleCan($role, 'asesores.team'))->toBe($role === Role::SalesManager, $role->value);
+        expect(asesoresRoleCan($role, 'asesores.team'))->toBe(in_array($role, [Role::SalesManager, Role::SuperAdmin], true), $role->value);
     }
 });
 

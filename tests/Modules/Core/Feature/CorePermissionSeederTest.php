@@ -5,7 +5,7 @@ use App\Modules\Core\Database\Seeders\CorePermissionSeeder;
 use Spatie\Permission\Models\Permission;
 use Spatie\Permission\Models\Role as SpatieRole;
 
-it('creates the six roles, each allowed to use the platform', function () {
+it('creates every role, each allowed to use the platform', function () {
     $this->seed(CorePermissionSeeder::class);
 
     expect(SpatieRole::query()->where('guard_name', 'web')->pluck('name')->all())
@@ -16,11 +16,11 @@ it('creates the six roles, each allowed to use the platform', function () {
     }
 });
 
-it('lets only admins manage the team', function () {
+it('lets only admins and the superadmin manage the team', function () {
     $this->seed(CorePermissionSeeder::class);
 
     foreach (Role::cases() as $role) {
-        expect(SpatieRole::findByName($role, 'web')->hasPermissionTo('core.team.manage'))->toBe($role === Role::Admin);
+        expect(SpatieRole::findByName($role, 'web')->hasPermissionTo('core.team.manage'))->toBe(in_array($role, [Role::Admin, Role::SuperAdmin], true));
     }
 });
 
@@ -29,7 +29,7 @@ it('lets admins and portfolio managers edit the company parameters', function ()
 
     foreach (Role::cases() as $role) {
         expect(SpatieRole::findByName($role, 'web')->hasPermissionTo('core.companies.manage'))
-            ->toBe(in_array($role, [Role::Admin, Role::PortfolioManager], true));
+            ->toBe(in_array($role, [Role::Admin, Role::PortfolioManager, Role::SuperAdmin], true));
     }
 });
 
@@ -38,7 +38,7 @@ it('lets portfolio managers and analysts remove entries of a client log', functi
 
     foreach (Role::cases() as $role) {
         expect(SpatieRole::findByName($role, 'web')->hasPermissionTo('core.activities.delete'))
-            ->toBe(in_array($role, [Role::PortfolioManager, Role::PortfolioAnalyst], true));
+            ->toBe(in_array($role, [Role::PortfolioManager, Role::PortfolioAnalyst, Role::SuperAdmin], true));
     }
 });
 
@@ -47,7 +47,7 @@ it('lets portfolio managers and analysts change client statuses by hand', functi
 
     foreach (Role::cases() as $role) {
         expect(SpatieRole::findByName($role, 'web')->hasPermissionTo('core.clients.change_status'))
-            ->toBe(in_array($role, [Role::PortfolioManager, Role::PortfolioAnalyst], true));
+            ->toBe(in_array($role, [Role::PortfolioManager, Role::PortfolioAnalyst, Role::SuperAdmin], true));
     }
 });
 
@@ -56,15 +56,15 @@ it('lets portfolio managers, analysts and admins assign the manager of a client'
 
     foreach (Role::cases() as $role) {
         expect(SpatieRole::findByName($role, 'web')->hasPermissionTo('core.clients.assign'))
-            ->toBe(in_array($role, [Role::Admin, Role::PortfolioManager, Role::PortfolioAnalyst], true));
+            ->toBe(in_array($role, [Role::Admin, Role::PortfolioManager, Role::PortfolioAnalyst, Role::SuperAdmin], true));
     }
 });
 
-it('lets only portfolio managers remove and restore clients', function () {
+it('lets only portfolio managers and the superadmin remove and restore clients', function () {
     $this->seed(CorePermissionSeeder::class);
 
     foreach (Role::cases() as $role) {
-        expect(SpatieRole::findByName($role, 'web')->hasPermissionTo('core.clients.delete'))->toBe($role === Role::PortfolioManager);
+        expect(SpatieRole::findByName($role, 'web')->hasPermissionTo('core.clients.delete'))->toBe(in_array($role, [Role::PortfolioManager, Role::SuperAdmin], true));
     }
 });
 

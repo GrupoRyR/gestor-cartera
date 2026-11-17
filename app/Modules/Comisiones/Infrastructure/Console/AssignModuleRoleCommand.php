@@ -5,6 +5,7 @@ namespace App\Modules\Comisiones\Infrastructure\Console;
 use App\Models\User;
 use App\Modules\Comisiones\Infrastructure\Audit\AuditTrail;
 use App\Modules\Comisiones\Infrastructure\Permissions\ModuleRoles;
+use App\Modules\Core\Contracts\Enums\Role as CoreRole;
 use Illuminate\Console\Command;
 use Spatie\Permission\Models\Role;
 use Spatie\Permission\PermissionRegistrar;
@@ -12,7 +13,8 @@ use Spatie\Permission\PermissionRegistrar;
 /**
  * comisiones:rol: assigns (or with --quitar removes) one of the two module
  * roles, comisiones_aprobador or comisiones_consulta, until Core's team
- * screen can. Every change goes to the audit trail.
+ * screen can. Every change goes to the audit trail. A superadmin is
+ * refused: one role per person, and approving stays with someone else.
  */
 final class AssignModuleRoleCommand extends Command
 {
@@ -38,6 +40,14 @@ final class AssignModuleRoleCommand extends Command
 
         if ($user === null) {
             $this->components->error("No hay un usuario activo con el correo {$email}.");
+
+            return self::FAILURE;
+        }
+
+        // A superadmin has one role and sees every commission screen already;
+        // approving stays with someone else (separation of duties).
+        if ($user->hasRole(CoreRole::SuperAdmin->value)) {
+            $this->components->error("{$email} es superadministrador y no puede tener otro rol. Aprobar comisiones le toca a otra persona.");
 
             return self::FAILURE;
         }

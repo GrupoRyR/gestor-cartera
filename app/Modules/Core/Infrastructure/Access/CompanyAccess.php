@@ -10,8 +10,8 @@ use Illuminate\Contracts\Auth\Authenticatable;
 
 /**
  * Which companies a user may see (Part A.5). Spatie roles are global to the
- * user; the company comes from company_user, except for admins (IT), who
- * have no company assignment and see every company.
+ * user; the company comes from company_user, except for admins (IT) and
+ * superadmins, who have no company assignment and see every company.
  */
 final class CompanyAccess
 {
@@ -33,7 +33,7 @@ final class CompanyAccess
             return [];
         }
 
-        if ($roles->contains(Role::Admin->value)) {
+        if ($roles->contains(Role::Admin->value) || $roles->contains(Role::SuperAdmin->value)) {
             return CompanyCode::cases();
         }
 

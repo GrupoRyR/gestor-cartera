@@ -33,9 +33,17 @@ enum Role: string
     /** Treasury: delivers the bank movements (future role). */
     case Treasury = 'tesoreria';
 
+    /**
+     * Every permission of every module (except the ones a module seeder
+     * excludes) and both companies whole. Assigned and removed only from the
+     * console (core:superadmin), never from the team screen.
+     */
+    case SuperAdmin = 'superadmin';
+
     public function label(): string
     {
         return match ($this) {
+            self::SuperAdmin => 'Superadministrador',
             self::Admin => 'Administrador',
             self::PortfolioManager => 'Gerente de cartera',
             self::PortfolioAnalyst => 'Analista de cartera',
@@ -43,5 +51,24 @@ enum Role: string
             self::SalesManager => 'Gerente comercial',
             self::Treasury => 'Tesorería',
         };
+    }
+
+    /**
+     * The roles the team screen offers and accepts, as value => label: every
+     * role but SuperAdmin, which only the console assigns.
+     *
+     * @return array<string, string>
+     */
+    public static function options(): array
+    {
+        $options = [];
+
+        foreach (self::cases() as $case) {
+            if ($case !== self::SuperAdmin) {
+                $options[$case->value] = $case->label();
+            }
+        }
+
+        return $options;
     }
 }

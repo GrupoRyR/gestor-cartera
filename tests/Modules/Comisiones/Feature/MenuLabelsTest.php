@@ -33,4 +33,15 @@ it('never shows a user two menu entries with the same label', function (Role $ro
     $labels = collect(app(NavRegistry::class)->visibleTo($user))->pluck('label');
 
     expect($labels->duplicates()->values()->all())->toBe([]);
-})->with(Role::cases());
+})->with(array_values(array_filter(Role::cases(), fn (Role $role): bool => $role !== Role::SuperAdmin)));
+
+it('never shows the superadmin two entries with the same label in the same group', function () {
+    // The superadmin sees Cartera and Asesores together, so «Clientes» and
+    // «Equipo» repeat across groups; inside a group they must not.
+    $user = User::factory()->create();
+    $user->assignRole(SpatieRole::findOrCreate(Role::SuperAdmin->value, 'web'));
+
+    foreach (app(NavRegistry::class)->groupedFor($user) as $group => $items) {
+        expect(collect($items)->pluck('label')->duplicates()->values()->all())->toBe([], $group);
+    }
+});
