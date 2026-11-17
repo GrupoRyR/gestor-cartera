@@ -52,5 +52,7 @@
         <!-- Never reach real Microsoft services from tests, even if .env has credentials (see tests/Fakes). -->
         <env name="MICROSOFT_CLIENT_SECRET" value="" force="true"/>
         <env name="GRAPH_CLIENT_SECRET" value="" force="true"/>
+        <env name="GRAPH_SGX_CLIENT_SECRET" value="" force="true"/>
+        <env name="GRAPH_SDC_CLIENT_SECRET" value="" force="true"/>
     </php>
 </phpunit>
