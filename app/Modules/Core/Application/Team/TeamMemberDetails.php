@@ -27,14 +27,15 @@ final readonly class TeamMemberDetails
     ) {}
 
     /**
-     * The companies to store, as sorted codes. Admins see every company
-     * without assignments (see CompanyAccess), so theirs are dropped.
+     * The companies to store, as sorted codes. Admins and superadmins see
+     * every company without assignments (see CompanyAccess), so theirs are
+     * dropped.
      *
      * @return list<string>
      */
     public function companyCodes(): array
     {
-        if ($this->role === Role::Admin) {
+        if ($this->role === Role::Admin || $this->role === Role::SuperAdmin) {
             return [];
         }
 

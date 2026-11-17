@@ -23,6 +23,9 @@ enum TeamRefusal: string
     /** One of the advisors to link is already linked to someone else. */
     case AdvisorTaken = 'advisor_taken';
 
+    /** A superadmin changes only from the console (core:superadmin). */
+    case SuperAdminLocked = 'superadmin_locked';
+
     /**
      * The key of the Spanish message for the admin.
      */

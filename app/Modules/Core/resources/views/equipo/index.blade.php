@@ -77,7 +77,7 @@
                     <td>{{ $member->email }}</td>
                     <td>{{ $role?->label() ?? __('core::equipo.sin_rol') }}</td>
                     <td>
-                        @if ($role === Role::Admin)
+                        @if ($role === Role::Admin || $role === Role::SuperAdmin)
                             <x-ui.chip :dot="false">{{ __('core::equipo.todas') }}</x-ui.chip>
                         @else
                             @foreach ($companies[$member->id] ?? [] as $company)

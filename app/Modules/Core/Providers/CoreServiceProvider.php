@@ -10,6 +10,7 @@ use App\Modules\Core\Console\Migracion\MigrateActivitiesCommand;
 use App\Modules\Core\Console\Migracion\MigrateCommitmentsCommand;
 use App\Modules\Core\Console\Migracion\MigrateStatusesCommand;
 use App\Modules\Core\Console\Migracion\MigrateUsersCommand;
+use App\Modules\Core\Console\SuperAdminCommand;
 use App\Modules\Core\Console\VerifyAuditChainCommand;
 use App\Modules\Core\Contracts\AuditLogger;
 use App\Modules\Core\Contracts\CarteraRepository;
@@ -110,7 +111,7 @@ final class CoreServiceProvider extends ModuleServiceProvider
         Event::listen(BatchAccepted::class, ImportAdvisors::class);
         Event::listen(BatchAccepted::class, ImportContacts::class);
 
-        $this->commands([BreakOverdueCommitmentsCommand::class, MigrateUsersCommand::class, MigrateActivitiesCommand::class, MigrateCommitmentsCommand::class, MigrateStatusesCommand::class, VerifyAuditChainCommand::class]);
+        $this->commands([BreakOverdueCommitmentsCommand::class, MigrateUsersCommand::class, MigrateActivitiesCommand::class, MigrateCommitmentsCommand::class, MigrateStatusesCommand::class, SuperAdminCommand::class, VerifyAuditChainCommand::class]);
 
         // Every web page signs out a deactivated user, with or without auth.
         // Appended through the HTTP kernel, not only the router: resolving the

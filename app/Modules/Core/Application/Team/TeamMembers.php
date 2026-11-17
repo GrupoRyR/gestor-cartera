@@ -21,7 +21,9 @@ use Spatie\Permission\Models\Role as SpatieRole;
  * (the audit logger adds the admin as the actor); a refused change writes
  * nothing. Lock-out guards: an admin may not deactivate, delete or take the
  * admin role away from themselves. An advisor belongs to one user at most:
- * one linked to someone else is never taken over from here.
+ * one linked to someone else is never taken over from here. Nobody changes,
+ * deletes or restores-by-e-mail a superadmin from here: only the console
+ * command core:superadmin does.
  */
 final class TeamMembers
 {
@@ -56,6 +58,7 @@ final class TeamMembers
             );
 
             if (! $user->wasRecentlyCreated) {
+                $this->refuseSuperAdmin($user);
                 $this->audit->record('core.user.restored', 'user', $user->id, $this->identity($user), self::CONTEXT);
                 $this->apply($user, $details);
 
@@ -89,6 +92,8 @@ final class TeamMembers
      */
     public function update(User $actor, User $member, TeamMemberDetails $details): void
     {
+        $this->refuseSuperAdmin($member);
+
         if ($member->is($actor)) {
             if (! $details->active) {
                 throw new TeamChangeRefused(TeamRefusal::SelfDeactivation);
@@ -114,6 +119,8 @@ final class TeamMembers
         if ($member->is($actor)) {
             throw new TeamChangeRefused(TeamRefusal::SelfDeletion);
         }
+
+        $this->refuseSuperAdmin($member);
 
         $this->database->transaction(function () use ($member): void {
             $member->delete();
@@ -268,6 +275,20 @@ final class TeamMembers
         sort($labels, SORT_NATURAL);
 
         return $labels;
+    }
+
+    /**
+     * A superadmin is assigned and removed only from the console
+     * (core:superadmin): the team screen may not change their role or
+     * companies, deactivate them or delete them, whoever the actor is.
+     *
+     * @throws TeamChangeRefused When $member is a superadmin.
+     */
+    private function refuseSuperAdmin(User $member): void
+    {
+        if ($member->hasRole(Role::SuperAdmin->value)) {
+            throw new TeamChangeRefused(TeamRefusal::SuperAdminLocked);
+        }
     }
 
     /**
