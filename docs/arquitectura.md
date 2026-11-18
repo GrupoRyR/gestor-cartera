@@ -851,7 +851,7 @@ protected function navigation(NavRegistry $navigation): void
 - No hay un `Gate::before` para `admin` ni para `superadmin`: si un rol debe poder algo, recibe el permiso en el seeder.
 - **`superadmin`:** ve y administra todo, con separación de funciones. La base del seeder le da cada permiso de cada módulo, sin que el módulo lo nombre. El módulo excluye en `superAdminExcludes()` dos clases de permisos:
   - los que cambian un comportamiento por defecto en vez de dar una capacidad (p. ej. con qué pestaña abre una lista): `cartera.clients.start_on_mine`;
-  - los que romperían la separación de funciones: `cartera.commitments.write` (escribe quien cobra) y `comisiones.approve` (aprueba otra persona, no quien calcula).
+  - los que romperían la separación de funciones: `cartera.commitments.write` y `cartera.commitments.status` (escribe y cambia el estado de los compromisos quien cobra) y `comisiones.approve` (aprueba otra persona, no quien calcula).
 
   Ve las dos empresas completas, igual que `admin`. Se asigna solo por consola (`core:superadmin`, ver `app/Modules/Core/README.md`). Un permiso nuevo llega al superadmin solo: quien lo agregue decide si va en `superAdminExcludes()`.
 
@@ -876,7 +876,7 @@ public function permissions(): array
 ```php
 protected function superAdminExcludes(): array
 {
-    return ['cartera.clients.start_on_mine', 'cartera.commitments.write'];
+    return ['cartera.clients.start_on_mine', 'cartera.commitments.write', 'cartera.commitments.status'];
 }
 ```
 

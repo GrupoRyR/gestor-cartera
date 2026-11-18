@@ -95,6 +95,7 @@ return [
             'notas' => 'Notas',
         ],
         'solo_lectura_sgx' => 'En SGX los compromisos los registra el asesor del cliente; aquí solo los ves.',
+        'solo_estado_sgx' => 'En SGX los compromisos los registra el asesor del cliente; aquí puedes marcarlos cumplidos o incumplidos.',
     ],
 
     'bitacora' => [

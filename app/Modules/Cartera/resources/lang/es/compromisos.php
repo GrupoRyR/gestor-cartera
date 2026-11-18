@@ -5,8 +5,10 @@ return [
         'registrado' => 'Compromiso registrado.',
         'actualizado' => 'Compromiso actualizado.',
         'cumplido' => 'Compromiso marcado como cumplido.',
+        'incumplido' => 'Compromiso marcado como incumplido.',
         'anulado' => 'Compromiso anulado.',
         'cerrado' => 'Este compromiso ya no se puede cambiar.',
+        'no_pendiente' => 'Solo un compromiso pendiente se puede marcar incumplido.',
     ],
 
     'cancelar' => 'Cancelar',
@@ -39,6 +41,11 @@ return [
         'de' => 'el compromiso de :cliente por :valor',
     ],
 
+    'incumplir' => [
+        'boton' => 'Marcar incumplido',
+        'de' => 'el compromiso de :cliente por :valor',
+    ],
+
     'anular' => [
         'boton' => 'Anular',
         'titulo' => 'Anular compromiso',
@@ -55,6 +62,7 @@ return [
         'titulo' => 'Compromisos de pago',
         'descripcion' => 'Todo lo que los clientes prometieron pagar, con sus fechas y quién lo registró.',
         'solo_lectura_sgx' => 'En SGX los compromisos los registra el asesor del cliente; aquí los ves todos.',
+        'solo_estado_sgx' => 'En SGX los compromisos los registra el asesor del cliente; aquí puedes marcarlos cumplidos o incumplidos.',
         'tabla' => 'Compromisos de pago',
         'total' => 'Total de esta página',
 

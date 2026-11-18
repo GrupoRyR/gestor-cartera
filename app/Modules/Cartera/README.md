@@ -42,7 +42,8 @@ Sin `gestor` en la URL, quien tiene el permiso `cartera.clients.start_on_mine` (
 - `cartera.view`: gerente y analista. Todas las pantallas.
 - `cartera.manage`: gerente y analista. Registrar llamadas, notas y descuentos ofrecidos.
 - `cartera.export`: gerente y analista. Exportar a Excel (queda en la auditoría).
-- `cartera.commitments.write`: solo la analista. Crear, editar, cumplir y anular compromisos. Refleja la regla de Core (`CommitmentWriteRule`): en SDC escribe la analista; en SGX, el asesor del cliente desde Asesores. El `CompromisoService` sigue siendo la autoridad.
+- `cartera.commitments.write`: solo la analista. Crear, editar y anular compromisos. Refleja la regla de Core (`CommitmentWriteRule`): en SDC escribe la analista; en SGX, el asesor del cliente desde Asesores. El `CompromisoService` sigue siendo la autoridad.
+- `cartera.commitments.status`: gerente y analista. Marcar cualquier compromiso «Cumplido» (`POST /cartera/compromisos/{id}/cumplir`) o «Incumplido» (`POST /cartera/compromisos/{id}/incumplir`) en SGX y SDC, también los que creó el asesor, desde la bandeja y la ficha (`<x-cartera::commitment-status-actions>`). Refleja `CommitmentWriteRule::authorizeStatus()`. «Marcar cumplido» sale en un compromiso pendiente o incumplido; «Marcar incumplido», solo en uno pendiente. En SGX no hay editar ni anular. El superadmin no lo tiene (`superAdminExcludes()`).
 - `cartera.clients.start_on_mine`: solo la analista. La lista de clientes abre en «Mi cartera» en vez de «Toda la cartera». Es un valor por defecto, no una restricción.
 
 «En gestión» se retiró (migración de Core `2026_10_01_000015`); `en_gestion` ya no es un estado válido.

@@ -28,6 +28,11 @@ final class CarteraPermissionSeeder extends PermissionSeeder
      * the Asesores module. The service stays the authority; this permission
      * only decides which buttons the screens show.
      *
+     * cartera.commitments.status: mark any commitment fulfilled or broken, in
+     * SGX and SDC, including those the advisor created. The portfolio manager
+     * and the analyst; Core's CommitmentWriteRule::authorizeStatus() is the
+     * authority. They never change the date, amount or notes in SGX.
+     *
      * cartera.clients.start_on_mine: the client list opens on «Mi cartera»
      * (the clients whose manager is the user) instead of the whole
      * portfolio. The analyst only. It is a default, never a restriction: the
@@ -44,6 +49,7 @@ final class CarteraPermissionSeeder extends PermissionSeeder
             'cartera.manage' => $portfolioTeam,
             'cartera.export' => $portfolioTeam,
             'cartera.commitments.write' => [Role::PortfolioAnalyst],
+            'cartera.commitments.status' => $portfolioTeam,
             'cartera.clients.start_on_mine' => [Role::PortfolioAnalyst],
         ];
     }
@@ -51,14 +57,15 @@ final class CarteraPermissionSeeder extends PermissionSeeder
     /**
      * cartera.clients.start_on_mine is a default, not a capability: the
      * superadmin opens the client list on the whole portfolio.
-     * cartera.commitments.write stays with whoever collects (separation of
-     * duties); Core's CommitmentWriteRule would refuse the superadmin anyway,
-     * so the screens do not show it buttons it cannot use.
+     * cartera.commitments.write and cartera.commitments.status stay with
+     * whoever collects (separation of duties); Core's CommitmentWriteRule
+     * would refuse the superadmin anyway, so the screens do not show it
+     * buttons it cannot use.
      *
      * @return list<string>
      */
     protected function superAdminExcludes(): array
     {
-        return ['cartera.clients.start_on_mine', 'cartera.commitments.write'];
+        return ['cartera.clients.start_on_mine', 'cartera.commitments.write', 'cartera.commitments.status'];
     }
 }

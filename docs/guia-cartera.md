@@ -43,6 +43,20 @@ Cada cambio queda en la gestión del cliente («Gestor asignado», «Gestor camb
 
 **Asignar no es gestionar.** Asignar un gestor no cuenta como una gestión: un cliente vencido que nadie ha contactado sigue en «vencidos sin gestión» hasta que una persona registre una llamada o una nota.
 
+## Marcar compromisos cumplidos o incumplidos
+
+La analista y el gerente de cartera pueden marcar cualquier compromiso de pago como **cumplido** o **incumplido**, en SGX y en SDC, también los que registró el asesor. Los botones están en **Cartera › Compromisos** y en la tarjeta de compromisos de la ficha del cliente.
+
+| Botón | Cuándo aparece | Qué hace |
+|---|---|---|
+| **Marcar cumplido** | En un compromiso pendiente o incumplido. | El cliente pagó, aunque sea tarde. |
+| **Marcar incumplido** | Solo en un compromiso pendiente. | El cliente no va a pagar como prometió; no tienes que esperar a que venza. El cliente pasa a «Incumplido», igual que cuando el sistema lo marca por vencido. |
+
+- En SGX solo cambias el estado: la fecha, el valor y las notas los cambia el asesor. En SDC la analista sigue registrando, editando y anulando como antes.
+- Cada cambio queda en la gestión del cliente y en la auditoría con tu nombre.
+- El sistema sigue marcando «Incumplido» cada noche los compromisos vencidos sin pago.
+- Los botones solo aparecen a quien puede usarlos.
+
 ## Datos actualizados
 
 Bajo los filtros del resumen, la lista de clientes, el histórico y el equipo de Asesores, y en el tablero de Cartera, verás dos datos distintos:
