@@ -31,7 +31,7 @@ Permisos (`CobroPermissionSeeder`): `cobro.view` para administrador, gerente y a
 
 **Derivados entra al cobro semanal**: el primer miércoles después de desplegar sale de verdad para sus clientes vencidos desde `COBRO_MAILBOX_SDC`. Antes, confirma que ese buzón está en el alcance de Graph (ver «Microsoft Graph») y envíate una prueba desde `/cobro/semanal`.
 
-**Clientes en jurídico**: el cobro semanal nunca le escribe a un cliente en estado «Jurídico», en ninguna empresa. Queda en el envío como «Excluido», con el motivo «Cliente en cobro jurídico», en la vista previa y en el informe, sin agregarlo a la lista de exclusión. El estado se lee al preparar el envío. La circularización mensual no aplica esta regla.
+**Clientes en jurídico**: ni el cobro semanal ni la circularización mensual le escriben a un cliente en estado «Jurídico», en ninguna empresa. Queda en el envío como «Excluido», con el motivo «Cliente en cobro jurídico», en la vista previa y en el informe, sin agregarlo a la lista de exclusión. El estado se lee al preparar el envío.
 
 Cada trabajo reclama su cliente antes de enviar (pendiente → enviando), así que un reintento nunca le manda dos correos al mismo cliente. Los trabajos salen escalonados a `cobro.send_per_minute` correos por minuto (25 por defecto; Exchange Online acepta 30 por minuto por buzón) y el limitador `cobro-mail` queda de respaldo: 300 clientes tardan unos 12 minutos en salir. El informe muestra en español por qué no salió un correo; el detalle técnico queda en el registro.
 
@@ -144,7 +144,7 @@ Protecciones de `GraphClient`:
 
 **El envío programado sale de verdad**: el día 1 de cada mes a las 9:00 a. m. (hora de Bogotá), para Segurex y Derivados (`cobro.circularizacion`, con `draft` en `false`). **Antes del primer envío real, envíate una prueba desde `/cobro/circularizacion` a un buzón interno** y revisa el correo de cada empresa.
 
-`Circularizacion/CircularizationRun.php` define el envío: programación mensual, lote, envío e informe, con la misma lista de exclusión, el mismo informe de entrega y la misma bandeja de respuestas del cobro semanal. Cada cliente con saldo recibe todas sus partidas abiertas (las notas crédito incluidas, como en el cobro semanal) con el total que debe. El robot fecha cada corte con el día en que lo extrae (hacia las 19:00), así que el día 1 a las 9:00 el último corte es el último día del mes cerrado.
+`Circularizacion/CircularizationRun.php` define el envío: programación mensual, lote, envío e informe, con la misma lista de exclusión, el mismo informe de entrega y la misma bandeja de respuestas del cobro semanal. Cada cliente con saldo, salvo los que están en jurídico (ver «Clientes en jurídico»), recibe todas sus partidas abiertas (las notas crédito incluidas, como en el cobro semanal) con el total que debe. El robot fecha cada corte con el día en que lo extrae (hacia las 19:00), así que el día 1 a las 9:00 el último corte es el último día del mes cerrado.
 
 **Espera el cierre del mes.** Antes de enviar, el comando revisa el último corte cargado de cada empresa (día calendario de Bogotá). Si no es el último día del mes anterior (por ejemplo, el robot no corrió la noche del 31) o no hay cartera cargada, esa empresa no se envía: no se guarda el envío, así que el mes queda libre para enviarlo a mano después, y queda un aviso en la consola y en el registro (`Log::warning` con la empresa, el corte y el cierre esperado). Las demás empresas salen normalmente; si ninguna sale, el comando termina con error.
 
