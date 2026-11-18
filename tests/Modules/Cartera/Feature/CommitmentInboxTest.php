@@ -245,14 +245,14 @@ it('explains an empty tab', function () {
         ->assertSeeText('No hay compromisos en esta pestaña');
 });
 
-it('tells that SGX commitments are read-only here', function () {
+it('tells that the advisor writes SGX commitments and the team only changes their status', function () {
     $this->actingAs(CarteraUsers::manager())
         ->get('/cartera/compromisos')
-        ->assertSeeText('En SGX los compromisos los registra el asesor del cliente');
+        ->assertSeeText('En SGX los compromisos los registra el asesor del cliente; aquí puedes marcarlos cumplidos o incumplidos.');
 });
 
 describe('marking a commitment as fulfilled from the inbox', function () {
-    it('is offered to the analyst on open SDC commitments only', function () {
+    it('is offered to the analyst on open commitments of both companies', function () {
         $sdc = inboxCommitment('Compromiso de SDC', CompanyCode::SDC);
         $broken = inboxCommitment('Compromiso roto de SDC', CompanyCode::SDC, CommitmentStatus::Broken, dueInDays: -1);
         $sgx = inboxCommitment('Compromiso de SGX', CompanyCode::SGX);
@@ -260,7 +260,7 @@ describe('marking a commitment as fulfilled from the inbox', function () {
         $html = $this->actingAs(CarteraUsers::analyst())->get('/cartera/compromisos?estado=todos')->getContent();
 
         expect($html)->toContain('action="'.route('cartera.compromisos.cumplir', $sdc->id).'"')
-            ->and($html)->not->toContain('action="'.route('cartera.compromisos.cumplir', $sgx->id).'"');
+            ->and($html)->toContain('action="'.route('cartera.compromisos.cumplir', $sgx->id).'"');
 
         $html = $this->actingAs(CarteraUsers::analyst())->get('/cartera/compromisos?estado=incumplidos')->getContent();
 
@@ -275,13 +275,12 @@ describe('marking a commitment as fulfilled from the inbox', function () {
             ->assertDontSee(route('cartera.compromisos.cumplir', $fulfilled->id), false);
     });
 
-    it('is not offered to the manager, who only reads', function () {
+    it('is offered to the manager too', function () {
         $commitment = inboxCommitment('Compromiso de SDC');
 
         $this->actingAs(CarteraUsers::manager())
             ->get('/cartera/compromisos')
-            ->assertSeeText('Compromiso de SDC')
-            ->assertDontSee(route('cartera.compromisos.cumplir', $commitment->id), false);
+            ->assertSee('action="'.route('cartera.compromisos.cumplir', $commitment->id).'"', false);
     });
 });
 

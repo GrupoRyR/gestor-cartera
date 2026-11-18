@@ -4,12 +4,14 @@
 
 {{--
     Payment commitments of the client. In SDC the analyst creates them and
-    acts on the open ones (fulfil, edit while pending, cancel); in SGX the
-    advisor writes them, so the collection team only reads. $file, $client.
+    edits or cancels the open ones; in SGX the advisor writes them. In both
+    companies the analyst and the manager mark them fulfilled or broken
+    (cartera.commitments.status). $file, $client.
 --}}
 @php
     $collectorWrites = CommitmentWriting::byCollector($client->company);
     $canWrite = $collectorWrites && auth()->user()?->can('cartera.commitments.write');
+    $canChangeStatus = auth()->user()?->can('cartera.commitments.status') ?? false;
 
     $commitmentColumns = [
         ['key' => 'due', 'label' => __('cartera::ficha.compromisos.columnas.vence')],
@@ -17,13 +19,13 @@
         ['key' => 'status', 'label' => __('cartera::ficha.compromisos.columnas.estado')],
         ['key' => 'created_by', 'label' => __('cartera::ficha.compromisos.columnas.creado_por')],
         ['key' => 'notes', 'label' => __('cartera::ficha.compromisos.columnas.notas')],
-        ...($canWrite ? [['key' => 'actions', 'label' => __('cartera::compromisos.acciones'), 'align' => 'end']] : []),
+        ...($canWrite || $canChangeStatus ? [['key' => 'actions', 'label' => __('cartera::compromisos.acciones'), 'align' => 'end']] : []),
     ];
 @endphp
 
 <x-ui.card :title="__('cartera::ficha.compromisos.titulo')" :description="__('cartera::ficha.compromisos.descripcion')">
     @unless ($collectorWrites)
-        <p class="mb-4 text-sm text-fg-muted">{{ __('cartera::ficha.compromisos.solo_lectura_sgx') }}</p>
+        <p class="mb-4 text-sm text-fg-muted">{{ __($canChangeStatus ? 'cartera::ficha.compromisos.solo_estado_sgx' : 'cartera::ficha.compromisos.solo_lectura_sgx') }}</p>
     @endunless
 
     @if ($file->commitments === [])
@@ -41,18 +43,19 @@
                     <td><x-cartera::commitment-status :status="$commitment->status" /></td>
                     <td>{{ $commitment->createdBy->name }}</td>
                     <td>{{ $commitment->notes ?? '—' }}</td>
-                    @if ($canWrite)
+                    @if ($canWrite || $canChangeStatus)
                         <td data-align="end">
                             @if ($isOpen)
                                 <div class="flex flex-wrap justify-end gap-2">
-                                    <form method="POST" action="{{ route('cartera.compromisos.cumplir', $commitment->id) }}">
-                                        @csrf
-                                        <x-ui.button type="submit" variant="secondary" icon="check">{{ __('cartera::compromisos.cumplir.boton') }}<span data-visually-hidden> {{ __('cartera::compromisos.cumplir.de', $about) }}</span></x-ui.button>
-                                    </form>
-                                    @if ($commitment->status === CommitmentStatus::Pending)
+                                    @if ($canChangeStatus)
+                                        <x-cartera::commitment-status-actions :commitment="$commitment" :client-name="$client->name" />
+                                    @endif
+                                    @if ($canWrite && $commitment->status === CommitmentStatus::Pending)
                                         <x-ui.button variant="ghost" icon="edit" data-modal-open="compromiso-{{ $commitment->id }}-editar">{{ __('cartera::compromisos.editar.boton') }}<span data-visually-hidden> {{ __('cartera::compromisos.editar.de', $about) }}</span></x-ui.button>
                                     @endif
-                                    <x-ui.button variant="ghost" icon="close" data-modal-open="compromiso-{{ $commitment->id }}-anular">{{ __('cartera::compromisos.anular.boton') }}<span data-visually-hidden> {{ __('cartera::compromisos.anular.de', $about) }}</span></x-ui.button>
+                                    @if ($canWrite)
+                                        <x-ui.button variant="ghost" icon="close" data-modal-open="compromiso-{{ $commitment->id }}-anular">{{ __('cartera::compromisos.anular.boton') }}<span data-visually-hidden> {{ __('cartera::compromisos.anular.de', $about) }}</span></x-ui.button>
+                                    @endif
                                 </div>
                             @endif
                         </td>

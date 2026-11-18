@@ -212,6 +212,7 @@ Sembrar `core.access` también garantiza que existan todos los roles, para que l
 |---|---|
 | `cartera.clients.start_on_mine` | Cambia un comportamiento por defecto, no da una capacidad: el superadmin abre la lista de clientes en «Toda la cartera». |
 | `cartera.commitments.write` | Separación de funciones: los compromisos los escribe quien cobra (la analista en SDC, el asesor en SGX). `CommitmentWriteRule` lo rechazaría igual; sin el permiso, las pantallas no le muestran botones que no puede usar. |
+| `cartera.commitments.status` | Separación de funciones: el estado de los compromisos lo cambia quien cobra (la analista y el gerente de cartera, y quien los escribe). `CommitmentWriteRule::authorizeStatus()` lo rechazaría igual. |
 | `comisiones.approve` | Separación de funciones: el superadmin calcula y captura liquidaciones, así que aprobar le toca a otra persona. `comisiones:rol` tampoco le da un rol de comisiones. |
 - **Alcance.** Ve las dos empresas completas, sin filas en `company_user` (`CompanyAccess`), y todos sus clientes (`PortfolioScope`).
 - **Gestor.** `assignees()` no lo lista: solo lista `gerente_cartera` y `analista_cartera`.

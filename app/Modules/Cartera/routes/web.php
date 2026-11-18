@@ -59,7 +59,13 @@ Route::middleware(['auth', 'can:cartera.view'])->group(function () {
     Route::middleware('can:cartera.commitments.write')->controller(CommitmentController::class)->group(function () {
         Route::post('clientes/{client}/compromisos', 'store')->whereNumber('client')->name('compromisos.store');
         Route::put('compromisos/{commitment}', 'update')->whereNumber('commitment')->name('compromisos.update');
-        Route::post('compromisos/{commitment}/cumplir', 'fulfil')->whereNumber('commitment')->name('compromisos.cumplir');
         Route::post('compromisos/{commitment}/anular', 'cancel')->whereNumber('commitment')->name('compromisos.anular');
+    });
+
+    // The analyst and the manager mark any commitment fulfilled or broken,
+    // in both companies (cartera.commitments.status).
+    Route::middleware('can:cartera.commitments.status')->controller(CommitmentController::class)->group(function () {
+        Route::post('compromisos/{commitment}/cumplir', 'fulfil')->whereNumber('commitment')->name('compromisos.cumplir');
+        Route::post('compromisos/{commitment}/incumplir', 'breakOff')->whereNumber('commitment')->name('compromisos.incumplir');
     });
 });

@@ -15,7 +15,8 @@ use Illuminate\Http\RedirectResponse;
 
 /**
  * Writes to payment commitments (cartera.compromisos.*): the analyst creates,
- * edits, fulfils and cancels those of SDC clients.
+ * edits and cancels those of SDC clients; the analyst and the manager mark
+ * any commitment fulfilled or broken, in both companies.
  *
  * CompromisoService decides who may write, keeps the client's log and the
  * audit trail, and moves the client's status. A commitment or client out of
@@ -72,6 +73,14 @@ final class CommitmentController
     }
 
     /**
+     * POST /cartera/compromisos/{commitment}/incumplir
+     */
+    public function breakOff(int $commitment): RedirectResponse
+    {
+        return $this->change(fn () => $this->commitments->markBroken($commitment), 'incumplido', 'no_pendiente');
+    }
+
+    /**
      * POST /cartera/compromisos/{commitment}/anular
      */
     public function cancel(CancelCommitmentRequest $request, int $commitment): RedirectResponse
@@ -83,18 +92,19 @@ final class CommitmentController
 
     /**
      * Runs a change of an existing commitment and goes back to where the
-     * request came from.
+     * request came from. $refusal names the message for a commitment whose
+     * status does not allow the change.
      *
      * @param  callable(): mixed  $change
      */
-    private function change(callable $change, string $message): RedirectResponse
+    private function change(callable $change, string $message, string $refusal = 'cerrado'): RedirectResponse
     {
         try {
             $change();
         } catch (RecordNotFound) {
             abort(404);
         } catch (DomainException) {
-            return back()->with('error', __('cartera::compromisos.mensajes.cerrado'));
+            return back()->with('error', __('cartera::compromisos.mensajes.'.$refusal));
         }
 
         return back()->with('status', __('cartera::compromisos.mensajes.'.$message));

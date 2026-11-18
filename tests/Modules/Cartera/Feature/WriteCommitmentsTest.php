@@ -51,14 +51,13 @@ it('sends guests to the sign-in page', function () {
     $this->post('/cartera/compromisos/1/anular', [])->assertRedirect('/login');
 });
 
-it('is closed to everyone but the analyst, the manager included', function (?Role $role) {
+it('refuses to create, edit and cancel to everyone but the analyst, the manager included', function (?Role $role) {
     $commitment = sdcCommitment();
     $user = $role === null ? CarteraUsers::viewer() : CarteraUsers::create($role);
     $payload = ['compromiso' => ['fecha' => $this->tomorrow->toDateString(), 'valor' => '500000']];
 
     $this->actingAs($user)->post("{$this->file}/compromisos", $payload)->assertForbidden();
     $this->actingAs($user)->put("/cartera/compromisos/{$commitment->id}", ['edicion_'.$commitment->id => ['valor' => '1']])->assertForbidden();
-    $this->actingAs($user)->post("/cartera/compromisos/{$commitment->id}/cumplir")->assertForbidden();
     $this->actingAs($user)->post("/cartera/compromisos/{$commitment->id}/anular", ['anulacion_'.$commitment->id => ['motivo' => 'x']])->assertForbidden();
 
     $this->fakes->compromisos->assertNothingCreated();
@@ -250,7 +249,9 @@ describe('the client file', function () {
             ->and($html)->toContain('action="'.route('cartera.compromisos.cumplir', $pending->id).'"')
             ->and($html)->toContain('data-modal-open="compromiso-'.$pending->id.'-editar"')
             ->and($html)->toContain('data-modal-open="compromiso-'.$pending->id.'-anular"')
+            ->and($html)->toContain('action="'.route('cartera.compromisos.incumplir', $pending->id).'"')
             ->and($html)->toContain('action="'.route('cartera.compromisos.cumplir', $broken->id).'"')
+            ->and($html)->not->toContain('action="'.route('cartera.compromisos.incumplir', $broken->id).'"')
             ->and($html)->toContain('data-modal-open="compromiso-'.$broken->id.'-anular"')
             ->and($html)->not->toContain('data-modal-open="compromiso-'.$broken->id.'-editar"');
     });
@@ -262,28 +263,41 @@ describe('the client file', function () {
         $html = $this->actingAs(CarteraUsers::analyst())->get($this->file)->assertOk()->getContent();
 
         expect($html)->not->toContain(route('cartera.compromisos.cumplir', $fulfilled->id))
-            ->and($html)->not->toContain(route('cartera.compromisos.cumplir', $cancelled->id));
+            ->and($html)->not->toContain(route('cartera.compromisos.cumplir', $cancelled->id))
+            ->and($html)->not->toContain(route('cartera.compromisos.incumplir', $fulfilled->id))
+            ->and($html)->not->toContain(route('cartera.compromisos.incumplir', $cancelled->id));
     });
 
-    it('only shows the commitments to the manager', function () {
+    it('lets the manager only change the status', function () {
         $commitment = sdcCommitment();
 
         $html = $this->actingAs(CarteraUsers::manager())->get($this->file)->assertOk()->getContent();
 
         expect($html)->toContain(Money::format($commitment->amount))
+            ->and($html)->toContain('action="'.route('cartera.compromisos.cumplir', $commitment->id).'"')
+            ->and($html)->toContain('action="'.route('cartera.compromisos.incumplir', $commitment->id).'"')
             ->and($html)->not->toContain('data-modal-open="compromiso-nuevo"')
-            ->and($html)->not->toContain(route('cartera.compromisos.cumplir', $commitment->id));
+            ->and($html)->not->toContain('data-modal-open="compromiso-'.$commitment->id.'-editar"')
+            ->and($html)->not->toContain('data-modal-open="compromiso-'.$commitment->id.'-anular"');
     });
 
-    it('says SGX commitments are written by the advisor', function () {
+    it('says SGX commitments are written by the advisor, and lets the analyst change their status', function () {
         $this->fakes->currentCompany->switchTo(null);
         $sgx = CarteraWorld::client($this->fakes, name: 'Cliente de SGX', company: CompanyCode::SGX, overdue: 1_000_000);
+        $commitment = Make::commitment(company: CompanyCode::SGX, clientId: $sgx->id, clientName: 'Cliente de SGX', status: CommitmentStatus::Pending);
+        $this->fakes->compromisos->add($commitment);
 
-        $this->actingAs(CarteraUsers::analyst())
+        $html = $this->actingAs(CarteraUsers::analyst())
             ->get("/cartera/clientes/{$sgx->id}")
             ->assertOk()
-            ->assertDontSee('data-modal-open="compromiso-nuevo"', false)
-            ->assertSeeText('En SGX los compromisos los registra el asesor del cliente');
+            ->assertSeeText('En SGX los compromisos los registra el asesor del cliente; aquí puedes marcarlos cumplidos o incumplidos.')
+            ->getContent();
+
+        expect($html)->toContain('action="'.route('cartera.compromisos.cumplir', $commitment->id).'"')
+            ->and($html)->toContain('action="'.route('cartera.compromisos.incumplir', $commitment->id).'"')
+            ->and($html)->not->toContain('data-modal-open="compromiso-nuevo"')
+            ->and($html)->not->toContain('data-modal-open="compromiso-'.$commitment->id.'-editar"')
+            ->and($html)->not->toContain('data-modal-open="compromiso-'.$commitment->id.'-anular"');
     });
 
     it('reopens the form that failed, with what was typed', function () {

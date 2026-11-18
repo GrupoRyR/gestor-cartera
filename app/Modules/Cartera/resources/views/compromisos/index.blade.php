@@ -1,7 +1,4 @@
 @use('App\Modules\Cartera\Application\Commitments\CommitmentTab')
-@use('App\Modules\Cartera\Domain\Commitments\CommitmentWriting')
-@use('App\Modules\Core\Contracts\Enums\CommitmentStatus')
-@use('App\Support\Formatting\Money')
 
 {{--
     GET /cartera/compromisos (cartera.compromisos.index): the commitments
@@ -10,12 +7,13 @@
     $advisorNames: "COMPANY:code" => name; $advisorOptions: code => name for
     the filter; $isGroup: name the company of each commitment.
 
-    Only the analyst writes, and only SDC commitments: her rows get a
-    "Marcar cumplido" button. Everything else is read-only; editing and
-    cancelling happen in the client file.
+    The analyst and the manager change the status of any commitment, in
+    both companies (cartera.commitments.status): open rows get "Marcar
+    cumplido", pending ones also "Marcar incumplido". Editing and
+    cancelling happen in the client file, for SDC only.
 --}}
 @php
-    $canWrite = auth()->user()?->can('cartera.commitments.write') ?? false;
+    $canChangeStatus = auth()->user()?->can('cartera.commitments.status') ?? false;
     $total = array_sum(array_map(fn ($commitment): float => $commitment->amount, $commitments->items()));
 
     $columns = [
@@ -28,7 +26,7 @@
         ['key' => 'created_by', 'label' => __('cartera::compromisos.bandeja.columnas.registrado_por')],
         ['key' => 'created_at', 'label' => __('cartera::compromisos.bandeja.columnas.registrado'), 'sortable' => true],
         ['key' => 'notes', 'label' => __('cartera::compromisos.bandeja.columnas.notas')],
-        ...($canWrite ? [['key' => 'actions', 'label' => __('cartera::compromisos.acciones'), 'align' => 'end']] : []),
+        ...($canChangeStatus ? [['key' => 'actions', 'label' => __('cartera::compromisos.acciones'), 'align' => 'end']] : []),
     ];
 
     $amountPosition = array_search('amount', array_column($columns, 'key'), true);
@@ -70,7 +68,7 @@
         </div>
     </form>
 
-    <p class="mb-4 text-sm text-fg-muted">{{ __('cartera::compromisos.bandeja.solo_lectura_sgx') }}</p>
+    <p class="mb-4 text-sm text-fg-muted">{{ __($canChangeStatus ? 'cartera::compromisos.bandeja.solo_estado_sgx' : 'cartera::compromisos.bandeja.solo_lectura_sgx') }}</p>
 
     @if ($commitments->isEmpty())
         @if ($filter->isFiltered())
@@ -101,14 +99,11 @@
                     <td>{{ $commitment->createdBy->name }}</td>
                     <td><x-ui.date :value="$commitment->createdAt" /></td>
                     <td>{{ $commitment->notes ?? '—' }}</td>
-                    @if ($canWrite)
+                    @if ($canChangeStatus)
                         <td data-align="end">
-                            @if (CommitmentWriting::byCollector($commitment->company) && in_array($commitment->status, [CommitmentStatus::Pending, CommitmentStatus::Broken], true))
-                                <form method="POST" action="{{ route('cartera.compromisos.cumplir', $commitment->id) }}">
-                                    @csrf
-                                    <x-ui.button type="submit" variant="secondary" icon="check">{{ __('cartera::compromisos.cumplir.boton') }}<span data-visually-hidden> {{ __('cartera::compromisos.cumplir.de', ['cliente' => $commitment->clientName, 'valor' => Money::format($commitment->amount)]) }}</span></x-ui.button>
-                                </form>
-                            @endif
+                            <div class="flex flex-wrap justify-end gap-2">
+                                <x-cartera::commitment-status-actions :commitment="$commitment" :client-name="$commitment->clientName" />
+                            </div>
                         </td>
                     @endif
                 </tr>
