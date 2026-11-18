@@ -14,6 +14,7 @@ final readonly class Candidate
      * @param  list<string>  $emails  Contact e-mails, primary first; empty = no address.
      * @param  float  $amount  Overdue total (weekly) or balance (circularization) of the mail.
      * @param  list<string>  $cc  Carbon copies the mail would carry, for the preview.
+     * @param  string|null  $exclusionReason  Why the run itself never mails this client (in Spanish, for the report); null = it may.
      */
     public function __construct(
         public ClientSummary $client,
@@ -21,5 +22,6 @@ final readonly class Candidate
         public float $amount,
         public int $invoiceCount,
         public array $cc = [],
+        public ?string $exclusionReason = null,
     ) {}
 }

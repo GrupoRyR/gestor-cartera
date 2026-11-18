@@ -9,6 +9,9 @@ return [
         'asesor' => 'ASESOR DE EJEMPLO',
     ],
 
+    // Exclusion reason of a client in legal collection, in the run report.
+    'excluido_juridico' => 'Cliente en cobro jurídico',
+
     'vista' => [
         'descripcion' => [
             'cobro_semanal' => 'Así queda el próximo envío a los clientes con facturas vencidas. Revisa quién lo recibe, abre el correo de cada cliente y envíate una prueba.',

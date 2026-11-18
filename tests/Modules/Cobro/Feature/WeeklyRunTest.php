@@ -15,6 +15,7 @@ use App\Modules\Core\Contracts\Data\Activity;
 use App\Modules\Core\Contracts\Data\NewActivity;
 use App\Modules\Core\Contracts\Data\OutgoingMail;
 use App\Modules\Core\Contracts\Enums\ActivityType;
+use App\Modules\Core\Contracts\Enums\ClientStatus;
 use App\Modules\Core\Contracts\Enums\CompanyCode;
 use App\Modules\Core\Contracts\Exceptions\MailNotSent;
 use App\Modules\Core\Contracts\GestionLogger;
@@ -70,6 +71,35 @@ it('plans one item per overdue client of the company and mails the pending ones'
         ->and(cobroItem($this->portfolio->andinas->summary->id)->status)->toBe(ItemStatus::NoEmail)
         ->and(cobroItem($this->portfolio->excluido->summary->id)->status)->toBe(ItemStatus::Excluded)
         ->and(cobroItem($this->portfolio->excluido->summary->id)->exclusion_reason)->toBe('Acuerdo de pago vigente');
+});
+
+it('never mails a client in legal collection, in Segurex or Derivados, and lists it as excluded', function () {
+    $legal = [];
+
+    foreach ([[CompanyCode::SGX, 'cartera@juridico-sgx.example'], [CompanyCode::SDC, 'cartera@juridico-sdc.example']] as [$company, $email]) {
+        $client = Make::clientDetail(
+            Make::client(company: $company, name: 'Cliente Jurídico '.$company->value.' SAS', status: ClientStatus::Legal, balance: 900_000, overdue: 900_000, maxDaysOverdue: 120),
+            contacts: [Make::contact(email: $email, isPrimary: true)],
+        );
+        $this->fakes->cartera->addClient($client, Make::invoice(company: $company, clientId: $client->summary->id, amount: 900_000, daysOverdue: 120));
+        $legal[$email] = $client->summary->id;
+    }
+
+    $this->artisan('cobro:cobro-semanal')
+        ->expectsOutputToContain('Segurex Latam: Cobro semanal en cola para 1 clientes; 1 sin correo y 2 excluidos.')
+        ->assertSuccessful();
+
+    foreach ($legal as $email => $clientId) {
+        $item = cobroItem($clientId);
+
+        expect($item->status)->toBe(ItemStatus::Excluded)
+            ->and($item->exclusion_reason)->toBe('Cliente en cobro jurídico')
+            ->and($item->recipients)->toBe([$email])
+            ->and(collect($this->fakes->mail->sent())->contains(fn (OutgoingMail $mail): bool => $mail->clientId === $clientId))->toBeFalse();
+    }
+
+    $this->fakes->mail->assertSentTo('tesoreria@tornillo.example');
+    $this->fakes->mail->assertSentTo('pagos@quimicos.example');
 });
 
 it('mails the overdue invoices only, from the company mailbox, linked to the client', function () {
