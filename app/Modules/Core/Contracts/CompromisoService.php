@@ -21,10 +21,11 @@ use InvalidArgumentException;
  * CarteraRepository: commitments of clients outside the scope behave as if
  * they did not exist. Writing is authorized per company: in SGX the advisor
  * of the client creates and edits commitments; in SDC the portfolio analyst
- * does. The portfolio manager and analyst read every commitment.
+ * does. The portfolio manager and analyst read every commitment and, in
+ * both companies, change its status (markFulfilled(), markBroken()).
  *
- * Lifecycle: create() makes a Pending commitment; Core's daily task turns a
- * Pending commitment whose due date has passed without payment into Broken.
+ * Lifecycle: create() makes a Pending commitment; Core's daily task, or a
+ * user through markBroken(), turns a Pending commitment into Broken.
  * Fulfilled and Cancelled are final. Every write is also recorded in the
  * client's activity log (ActivityType::Commitment) and in the audit log.
  * Amounts are Colombian pesos and must be greater than zero.
@@ -57,10 +58,23 @@ interface CompromisoService
      * @param  string|null  $note  Optional remark for the activity log.
      *
      * @throws RecordNotFound When the commitment does not exist or is out of scope.
-     * @throws AuthorizationException When the user may not edit commitments in its company.
+     * @throws AuthorizationException When the user may not change the status of commitments in its company.
      * @throws DomainException When the commitment is already Fulfilled or Cancelled.
      */
     public function markFulfilled(int $commitmentId, ?string $note = null): Commitment;
+
+    /**
+     * Marks a Pending commitment as Broken before the daily task does, e.g.
+     * when the client says it will not pay; the client moves as when the
+     * daily task breaks it. A Broken commitment may still be fulfilled.
+     *
+     * @param  string|null  $note  Optional remark for the activity and audit logs.
+     *
+     * @throws RecordNotFound When the commitment does not exist or is out of scope.
+     * @throws AuthorizationException When the user may not change the status of commitments in its company.
+     * @throws DomainException When the commitment is not Pending.
+     */
+    public function markBroken(int $commitmentId, ?string $note = null): Commitment;
 
     /**
      * Voids a Pending or Broken commitment, e.g. when it was renegotiated (a

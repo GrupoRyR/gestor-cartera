@@ -311,15 +311,16 @@ Lectura de clientes, facturas e instantáneas, con la regla de §6.2. Salvo que 
 
 ### 6.5 `CompromisoService`
 
-Compromisos de pago. Actúa como el usuario autenticado y sigue la regla de §6.2. **Escritura por empresa:** en SGX crea y edita el asesor del cliente; en SDC, la analista de cartera. La gerente y la analista leen todos. Cada escritura queda también en la bitácora del cliente (`ActivityType::Commitment`) y en la auditoría. Montos en pesos y mayores que cero.
+Compromisos de pago. Actúa como el usuario autenticado y sigue la regla de §6.2. **Escritura por empresa:** en SGX crea, edita y anula el asesor del cliente; en SDC, la analista de cartera. **Cambio de estado:** además de quien escribe, la analista y el gerente de cartera marcan cualquier compromiso «Cumplido» o «Incumplido» en las dos empresas, también los que creó un asesor; en SGX no cambian fecha, monto ni notas. Nadie más cambia el estado: ni el superadmin (separación de funciones), ni el gerente comercial, ni un asesor fuera de sus clientes. La gerente y la analista leen todos. Cada escritura queda también en la bitácora del cliente (`ActivityType::Commitment`) y en la auditoría, con quién la hizo. Montos en pesos y mayores que cero.
 
-Ciclo de vida: `create()` deja el compromiso `Pending`; la tarea diaria de Core pasa a `Broken` el `Pending` vencido sin pago; `Fulfilled` y `Cancelled` son finales.
+Ciclo de vida: `create()` deja el compromiso `Pending`; la tarea diaria de Core, o un usuario con `markBroken()`, pasa a `Broken` un `Pending`; `Fulfilled` y `Cancelled` son finales. Un `Broken` todavía se puede cumplir.
 
 | Método | Qué hace | Lanza |
 |---|---|---|
 | `create(NewCommitment $commitment): Commitment` | Registra un compromiso `Pending`. | `RecordNotFound`, `AuthorizationException`, `InvalidArgumentException` (monto) |
 | `update(int $commitmentId, CommitmentChanges $changes): Commitment` | Cambia fecha, monto o notas de un `Pending`. | `RecordNotFound`, `AuthorizationException`, `InvalidArgumentException`, `DomainException` (no está `Pending`) |
-| `markFulfilled(int $commitmentId, ?string $note = null): Commitment` | Marca `Fulfilled` un `Pending` o `Broken` (un pago tardío también cumple) y fija `fulfilledAt`. | `RecordNotFound`, `AuthorizationException`, `DomainException` (ya final) |
+| `markFulfilled(int $commitmentId, ?string $note = null): Commitment` | Marca `Fulfilled` un `Pending` o `Broken` (un pago tardío también cumple) y fija `fulfilledAt`. Regla de cambio de estado. | `RecordNotFound`, `AuthorizationException`, `DomainException` (ya final) |
+| `markBroken(int $commitmentId, ?string $note = null): Commitment` | Marca `Broken` un `Pending` antes que la tarea diaria (p. ej. el cliente avisa que no pagará), con nota opcional; el cliente se mueve igual que con la tarea diaria. Regla de cambio de estado. | `RecordNotFound`, `AuthorizationException`, `DomainException` (no está `Pending`) |
 | `cancel(int $commitmentId, string $reason): Commitment` | Anula un `Pending` o `Broken` con motivo obligatorio. | `RecordNotFound`, `AuthorizationException`, `InvalidArgumentException` (motivo vacío), `DomainException` |
 | `find(int $commitmentId): ?Commitment` | El compromiso; `null` si no existe o está fuera del alcance. | — |
 | `paginate(CommitmentQuery $query, int $perPage = 25): LengthAwarePaginator` | Una página de `Commitment` (`?page=`). | `InvalidArgumentException` (`$perPage < 1`) |
@@ -594,7 +595,7 @@ Enlaza los diez fakes como instancias del contenedor y devuelve un `ContractFake
 Diferencias con las implementaciones reales que conviene saber:
 
 - `FakeCarteraRepository` filtra `managerUserId` y `unassigned` con `ClientSummary::$manager`. Calcula `totals()` con las **facturas** agregadas, no con `balance` ni `overdue` del `ClientSummary`; `history()` ignora la consulta. Sin usuario autenticado no vacía resultados: se comporta como una analista que ve todo. `addClient()` lanza `InvalidArgumentException` si una factura es de otro cliente o empresa: créala con `clientId:` y `company:`.
-- `FakeCompromisoService` no escribe en `gestiones` ni en `audit`: afirma esas escrituras en tu propio código, no como efecto del servicio. Su usuario por defecto es `UserRef(1, 'Usuario de prueba', 'prueba@example.com')`.
+- `FakeCompromisoService` no escribe en `gestiones` ni en `audit`: afirma esas escrituras en tu propio código, no como efecto del servicio. Su usuario por defecto es `UserRef(1, 'Usuario de prueba', 'prueba@example.com')`. No conoce la regla por empresa ni la de cambio de estado: todo usuario escribe salvo con `denyAuthorization()`. `markBroken()` solo acepta un `Pending` (`DomainException` si no) y no mueve el estado del cliente.
 - `FakeIngestaSink` despacha `BatchAccepted` con `event()`: los listeners registrados corren de verdad. Para solo afirmar el despacho, usa `Event::fake([BatchAccepted::class])`.
 - `FakeMailboxReader::forClient()` no emula el alcance por cliente.
 - `FakeMailSender` numera los envíos: el N-ésimo devuelve `<fake-N@gestor-cartera.test>` y `fake-conversation-N`.
