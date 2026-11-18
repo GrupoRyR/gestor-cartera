@@ -171,6 +171,18 @@ final class FakeCompromisoService implements CompromisoService
         ]);
     }
 
+    public function markBroken(int $commitmentId, ?string $note = null): Commitment
+    {
+        $commitment = $this->findOrFail($commitmentId);
+        $this->authorize();
+
+        if ($commitment->status !== CommitmentStatus::Pending) {
+            throw new DomainException("Commitment {$commitmentId} is {$commitment->status->value}; only pending commitments break.");
+        }
+
+        return $this->replace($commitment, ['status' => CommitmentStatus::Broken]);
+    }
+
     public function cancel(int $commitmentId, string $reason): Commitment
     {
         $commitment = $this->findOrFail($commitmentId);

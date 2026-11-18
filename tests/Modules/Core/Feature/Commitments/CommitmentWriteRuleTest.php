@@ -23,7 +23,7 @@ use Tests\Modules\Core\Support\CoreUsers;
 /*
  * Who writes commitments (docs/arquitectura.md §6.5): in SGX the advisor of
  * the client, in SDC the portfolio analyst; the portfolio manager and analyst
- * read them all. Agro Arango is an overdue SGX client of advisor 12
+ * read them all and change their status (CommitmentStatusRuleTest). Agro Arango is an overdue SGX client of advisor 12
  * (Carlos); Granos Giraldo, an overdue SDC client of advisor 12 (Hernán).
  */
 beforeEach(function () {
@@ -75,14 +75,13 @@ it('lets the portfolio analyst create, edit, fulfil and cancel the commitments o
         ->and(CommitmentRecord::query()->count())->toBe(2);
 });
 
-it('refuses anyone else who sees the client, without writing anything', function (string $writer, string $client) {
+it('refuses anyone else who sees the client to create, edit or cancel, without writing anything', function (string $writer, string $client) {
     $existing = CommitmentRecords::commitment($this->{$client}, $this->people['carlos'], '2026-10-20');
     $this->actingAs($this->people[$writer]);
     $service = CommitmentRecords::service();
 
     expect(fn () => $service->create(new NewCommitment($this->{$client}->id, $this->dueDate, 2_500_000)))->toThrow(AuthorizationException::class)
         ->and(fn () => $service->update($existing->id, new CommitmentChanges(amount: 5)))->toThrow(AuthorizationException::class)
-        ->and(fn () => $service->markFulfilled($existing->id))->toThrow(AuthorizationException::class)
         ->and(fn () => $service->cancel($existing->id, 'Error'))->toThrow(AuthorizationException::class)
         ->and(CommitmentRecord::query()->count())->toBe(1)
         ->and(CommitmentRecords::stored($existing)->status)->toBe(CommitmentStatus::Pending)

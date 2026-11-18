@@ -42,8 +42,9 @@ use InvalidArgumentException;
  * Out of reach behaves as missing: null, an empty page or RecordNotFound.
  *
  * Writes check, in this order: the reach (RecordNotFound), the write rule of
- * the client's company (CommitmentWriteRule, AuthorizationException), the
- * input (InvalidArgumentException) and the lifecycle (DomainException).
+ * the client's company (CommitmentWriteRule, AuthorizationException; its
+ * status rule for markFulfilled() and markBroken()), the input
+ * (InvalidArgumentException) and the lifecycle (DomainException).
  * Each one runs in a single transaction with the commitment and the client
  * locked: the change, an ActivityType::Commitment entry in the client's log
  * written by the user, an audit entry core.commitment.<verb> and the
@@ -154,7 +155,7 @@ final class EloquentCompromisoService implements CompromisoService
     public function markFulfilled(int $commitmentId, ?string $note = null): Commitment
     {
         $this->database->transaction(function () use ($commitmentId, $note): void {
-            [$commitment, $client] = $this->lockForWrite($commitmentId);
+            [$commitment, $client] = $this->lockForWrite($commitmentId, statusOnly: true);
             self::guardNotFinal($commitment);
 
             $previous = $commitment->status;
@@ -172,6 +173,36 @@ final class EloquentCompromisoService implements CompromisoService
             );
 
             $this->clientStatus->afterClose($client, $commitment);
+        });
+
+        return $this->load($commitmentId);
+    }
+
+    public function markBroken(int $commitmentId, ?string $note = null): Commitment
+    {
+        $this->database->transaction(function () use ($commitmentId, $note): void {
+            [$commitment, $client] = $this->lockForWrite($commitmentId, statusOnly: true);
+
+            if ($commitment->status !== CommitmentStatus::Pending) {
+                throw new DomainException("Commitment {$commitmentId} is {$commitment->status->value}; only pending commitments break.");
+            }
+
+            $note = self::text($note);
+            $commitment->update(['status' => CommitmentStatus::Broken, 'broken_at' => now()]);
+
+            $this->log->log(CommitmentActivity::broken($commitment, $note));
+
+            $context = ['client_id' => $client->id, 'due_date' => $commitment->due_date->toDateString()];
+
+            $this->audit->record(
+                'core.commitment.broken',
+                'commitment',
+                $commitment->id,
+                ['status' => ['old' => CommitmentStatus::Pending->value, 'new' => CommitmentStatus::Broken->value]],
+                $note === null ? $context : [...$context, 'note' => $note],
+            );
+
+            $this->clientStatus->afterBreak($client, $commitment);
         });
 
         return $this->load($commitmentId);
@@ -271,14 +302,14 @@ final class EloquentCompromisoService implements CompromisoService
     /**
      * The commitment and its client, locked, when the client is within the
      * user's reach and not deleted, and the write rule lets the user write
-     * its commitments.
+     * its commitments (only change their status when $statusOnly).
      *
      * @return array{CommitmentRecord, ClientRecord}
      *
      * @throws RecordNotFound
      * @throws AuthorizationException
      */
-    private function lockForWrite(int $commitmentId): array
+    private function lockForWrite(int $commitmentId, bool $statusOnly = false): array
     {
         $commitment = CommitmentRecord::query()->whereKey($commitmentId)->lockForUpdate()->first();
         $client = $commitment === null
@@ -289,7 +320,8 @@ final class EloquentCompromisoService implements CompromisoService
             throw RecordNotFound::for('commitment', $commitmentId);
         }
 
-        $this->rule->authorize($this->auth->guard()->user(), $client);
+        $user = $this->auth->guard()->user();
+        $statusOnly ? $this->rule->authorizeStatus($user, $client) : $this->rule->authorize($user, $client);
 
         return [$commitment, $client];
     }

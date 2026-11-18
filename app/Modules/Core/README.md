@@ -73,14 +73,16 @@ Los valores de la tabla son los de siembra (`config('core.companies')`). Los vig
 | `created_by` | Quién lo registró. Un usuario con compromisos no se borra del todo; con el borrado lógico se sigue mostrando como autor. |
 | `fulfilled_at`, `broken_at`, `cancelled_at`, `cancellation_reason` | Cuándo se cumplió, se incumplió o se anuló, y el motivo de la anulación. |
 
-**Quién escribe** (crear, editar, cumplir y anular; `Application\Commitments\CommitmentWriteRule`):
+**Quién escribe** (crear, editar y anular; `Application\Commitments\CommitmentWriteRule::authorize()`):
 
 | Empresa del cliente | Escribe |
 |---|---|
 | SGX | El asesor del cliente: un usuario con el rol `asesor` vinculado (`advisors.user_id`) al asesor de SAP que el cliente tiene hoy (`clients.advisor_code`, en SGX). |
 | SDC | La analista de cartera (`analista_cartera`). |
 
-- Cualquier otro usuario que ve al cliente recibe `AuthorizationException`: `gerente_cartera`, `admin`, `gerente_comercial`, la analista en SGX y el asesor en SDC leen, pero no escriben.
+- Cualquier otro usuario que ve al cliente recibe `AuthorizationException`: `gerente_cartera`, `admin`, `superadmin`, `gerente_comercial`, la analista en SGX y el asesor en SDC no crean, editan ni anulan.
+
+**Quién cambia el estado** (cumplir con `markFulfilled()` e incumplir con `markBroken()`; `CommitmentWriteRule::authorizeStatus()`): quien escribe y, en las dos empresas, `analista_cartera` y `gerente_cartera`, que hacen el seguimiento de todos los compromisos, también de los que creó un asesor. Así la analista y el gerente marcan un compromiso de SGX sin poder cambiar su fecha, valor ni notas. El `superadmin` (separación de funciones), el `gerente_comercial`, el `admin` y el asesor en SDC reciben `AuthorizationException`.
 - Antes de la regla se revisa el alcance: un cliente (o el cliente de un compromiso) que no existe, está eliminado o está fuera del alcance del usuario en sus empresas (`Portfolio\ClientReach`, como en la bitácora) lanza `RecordNotFound`. Por eso un asesor que intenta escribir en un cliente de otro asesor recibe `RecordNotFound` y no `AuthorizationException`: para él ese cliente no existe (§6.2) y la respuesta no revela que el id existe. Sin sesión iniciada pasa lo mismo.
 - El orden de las revisiones es: alcance (`RecordNotFound`), regla de la empresa (`AuthorizationException`), datos (`InvalidArgumentException`) y ciclo de vida (`DomainException`).
 
@@ -98,11 +100,12 @@ Los valores de la tabla son los de siembra (`config('core.companies')`). Los vig
 | `create()` | Crea el compromiso «Pendiente» con el asesor que el cliente tiene hoy. El valor se redondea a centavos; las notas se guardan sin espacios sobrantes (en blanco, ninguna). | «Compromiso de pago por $ 2.500.000 para el 22/10/2026», con las notas como detalle. | `core.commitment.created`, con `changes` `advisor_code`, `amount`, `due_date` y `notes`. |
 | `update()` | Solo un «Pendiente»; si no, `DomainException`. Cambia los campos que no vienen en `null`. Unas notas en blanco tampoco cambian: no se pueden borrar. Si nada cambia, no escribe nada. | «Compromiso actualizado: $ 3.000.000 para el 25/10/2026», con las notas como detalle. | `core.commitment.updated`, solo con los campos que cambian (`old` y `new`). |
 | `markFulfilled()` | Un «Pendiente» o un «Incumplido» (un pago tardío también cumple) pasa a «Cumplido» y guarda `fulfilled_at`. Un compromiso cumplido o anulado lanza `DomainException`. | «Compromiso cumplido: $ 2.500.000 para el 22/10/2026», con la nota como detalle. | `core.commitment.fulfilled`, con `changes.status` y `context.note` si hay nota. |
+| `markBroken()` | Solo un «Pendiente» pasa a «Incumplido» y guarda `broken_at`, sin esperar la tarea diaria; si no, `DomainException`. El cliente se mueve con `afterBreak()`, como en la tarea diaria. | «Compromiso incumplido: vencía el 22/10/2026», con la nota como detalle. | `core.commitment.broken`, con `changes.status` y `context` `client_id`, `due_date` y `note` si hay nota. |
 | `cancel()` | Un «Pendiente» o un «Incumplido» pasa a «Anulado» con su motivo y `cancelled_at`. Un motivo en blanco lanza `InvalidArgumentException`; un compromiso cumplido o anulado, `DomainException`. | «Compromiso anulado: <motivo>», cortado a 255 caracteres (el motivo completo queda en el compromiso y en la auditoría). | `core.commitment.cancelled`, con `changes.status` y `context.reason`. |
 
 - El valor debe ser mayor que cero después de redondearlo a centavos, y caber en la columna; si no, `InvalidArgumentException`.
 - Las gestiones de compromiso llevan `metadata` `commitment_id`, `amount` (en pesos) y `due_date` (`Y-m-d`). La auditoría lleva `context.client_id`.
-- **Estado del cliente** (`Application\Commitments\CommitmentClientStatus`, con la tabla de arriba): al crear aplica `afterCreate()`, y al cumplir o anular, `afterClose()` según si el cliente tiene otro compromiso pendiente. Recalcular es tomar el estado automático de la última instantánea de la empresa (`RecomputeClientStatuses::automaticStatus()`) sin mirar el estado manual: «Vencida», «Por vencer» o «Al día» si el cliente debe, y «Pago recibido» si ya no debe (o no aparece en la instantánea). Editar un compromiso no cambia el estado.
+- **Estado del cliente** (`Application\Commitments\CommitmentClientStatus`, con la tabla de arriba): al crear aplica `afterCreate()`; al incumplir, `afterBreak()`; y al cumplir o anular, `afterClose()` según si el cliente tiene otro compromiso pendiente. Recalcular es tomar el estado automático de la última instantánea de la empresa (`RecomputeClientStatuses::automaticStatus()`) sin mirar el estado manual: «Vencida», «Por vencer» o «Al día» si el cliente debe, y «Pago recibido» si ya no debe (o no aparece en la instantánea). Editar un compromiso no cambia el estado.
 - Cada cambio de estado guarda `status` y `status_changed_at`, deja una gestión «Cambio de estado» («Por el compromiso de pago: de «Vencida» a «Compromiso»», con `metadata` `from`, `to` y `commitment_id`) y audita `core.client.status_changed` con `changes.status` y `context` `{"source": "commitment", "commitment_id": …}`.
 
 ### Tarea diaria de incumplimiento
