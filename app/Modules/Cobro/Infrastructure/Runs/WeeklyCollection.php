@@ -18,6 +18,7 @@ use App\Modules\Core\Contracts\Data\Advisor;
 use App\Modules\Core\Contracts\Data\ClientQuery;
 use App\Modules\Core\Contracts\Data\Company;
 use App\Modules\Core\Contracts\Data\Invoice;
+use App\Modules\Core\Contracts\Enums\ClientStatus;
 use App\Modules\Core\Contracts\Enums\CompanyCode;
 use Carbon\CarbonImmutable;
 
@@ -28,6 +29,9 @@ use Carbon\CarbonImmutable;
  * company's editable template. The run's amount and invoice count are the
  * overdue ones. The mail copies (Cc) the company's CopyStore recipients;
  * a test send copies nobody.
+ *
+ * A client in legal collection (ClientStatus::Legal) is never mailed: it
+ * stays in the run as excluded, with the reason, like the exclusion list.
  */
 final class WeeklyCollection implements RunDefinition
 {
@@ -85,6 +89,7 @@ final class WeeklyCollection implements RunDefinition
                 array_sum(array_map(fn (Invoice $invoice): float => $invoice->balance, $invoices)),
                 count($invoices),
                 CopyRecipients::resolve($copies, self::advisorEmail($client->advisor), $detail?->group, $emails),
+                $client->status === ClientStatus::Legal ? __('cobro::envios.excluido_juridico') : null,
             );
         }
     }

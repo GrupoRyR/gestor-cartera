@@ -4,12 +4,14 @@ use App\Models\User;
 use App\Modules\Cobro\Database\Seeders\CobroPermissionSeeder;
 use App\Modules\Cobro\Infrastructure\Persistence\Run;
 use App\Modules\Core\Contracts\Data\OutgoingMail;
+use App\Modules\Core\Contracts\Enums\ClientStatus;
 use App\Modules\Core\Contracts\Enums\Role;
 use App\Modules\Core\Contracts\Exceptions\MailNotSent;
 use App\Support\Navigation\NavItem;
 use App\Support\Navigation\NavRegistry;
 use Carbon\CarbonImmutable;
 use Tests\Fakes\ContractFakes;
+use Tests\Fakes\Make;
 use Tests\Modules\Cobro\Support\CobroPortfolio;
 use Tests\Modules\Cobro\Support\CobroUsers;
 
@@ -50,6 +52,18 @@ it('shows who gets the next mail, without e-mail or excluded, and when', functio
 
     expect(Run::query()->count())->toBe(0);
     $this->fakes->mail->assertNothingSent();
+});
+
+it('shows a client in legal collection as excluded, with the reason', function () {
+    $legal = Make::clientDetail(
+        Make::client(name: 'Constructora En Jurídico SAS', status: ClientStatus::Legal, balance: 900_000, overdue: 900_000, maxDaysOverdue: 120),
+        contacts: [Make::contact(email: 'cartera@juridico.example', isPrimary: true)],
+    );
+    $this->fakes->cartera->addClient($legal, Make::invoice(clientId: $legal->summary->id, amount: 900_000, daysOverdue: 120));
+
+    $this->actingAs($this->analyst)->get('/cobro/semanal?estado=excluido')->assertOk()
+        ->assertSee('data-client="'.$legal->summary->id.'"', false)
+        ->assertSeeText('Cliente en cobro jurídico');
 });
 
 it('filters the clients by status', function () {

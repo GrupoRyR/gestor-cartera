@@ -31,6 +31,8 @@ Permisos (`CobroPermissionSeeder`): `cobro.view` para administrador, gerente y a
 
 **Derivados entra al cobro semanal**: el primer miércoles después de desplegar sale de verdad para sus clientes vencidos desde `COBRO_MAILBOX_SDC`. Antes, confirma que ese buzón está en el alcance de Graph (ver «Microsoft Graph») y envíate una prueba desde `/cobro/semanal`.
 
+**Clientes en jurídico**: el cobro semanal nunca le escribe a un cliente en estado «Jurídico», en ninguna empresa. Queda en el envío como «Excluido», con el motivo «Cliente en cobro jurídico», en la vista previa y en el informe, sin agregarlo a la lista de exclusión. El estado se lee al preparar el envío. La circularización mensual no aplica esta regla.
+
 Cada trabajo reclama su cliente antes de enviar (pendiente → enviando), así que un reintento nunca le manda dos correos al mismo cliente. Los trabajos salen escalonados a `cobro.send_per_minute` correos por minuto (25 por defecto; Exchange Online acepta 30 por minuto por buzón) y el limitador `cobro-mail` queda de respaldo: 300 clientes tardan unos 12 minutos en salir. El informe muestra en español por qué no salió un correo; el detalle técnico queda en el registro.
 
 ## Cómo se unen las respuestas

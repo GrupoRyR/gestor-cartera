@@ -15,11 +15,14 @@ final readonly class PlannedItem
     ) {}
 
     /**
-     * The starting status of a candidate: excluded first, then without
-     * e-mail, else pending.
+     * The starting status of a candidate: excluded first (by the exclusion
+     * list, whose reason wins, or by the run itself), then without e-mail,
+     * else pending.
      */
     public static function for(Candidate $candidate, ?string $exclusionReason): self
     {
+        $exclusionReason ??= $candidate->exclusionReason;
+
         if ($exclusionReason !== null) {
             return new self($candidate, ItemStatus::Excluded, $exclusionReason);
         }
