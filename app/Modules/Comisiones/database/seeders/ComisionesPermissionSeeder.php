@@ -43,4 +43,15 @@ final class ComisionesPermissionSeeder extends PermissionSeeder
             'comisiones.audit' => [Role::Admin, Role::PortfolioManager, ModuleRoles::APPROVER],
         ];
     }
+
+    /**
+     * comisiones.approve stays with the approver: the superadmin calculates
+     * and captures, so approving too would break the separation of duties.
+     *
+     * @return list<string>
+     */
+    protected function superAdminExcludes(): array
+    {
+        return ['comisiones.approve'];
+    }
 }

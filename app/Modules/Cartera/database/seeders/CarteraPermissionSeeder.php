@@ -47,4 +47,18 @@ final class CarteraPermissionSeeder extends PermissionSeeder
             'cartera.clients.start_on_mine' => [Role::PortfolioAnalyst],
         ];
     }
+
+    /**
+     * cartera.clients.start_on_mine is a default, not a capability: the
+     * superadmin opens the client list on the whole portfolio.
+     * cartera.commitments.write stays with whoever collects (separation of
+     * duties); Core's CommitmentWriteRule would refuse the superadmin anyway,
+     * so the screens do not show it buttons it cannot use.
+     *
+     * @return list<string>
+     */
+    protected function superAdminExcludes(): array
+    {
+        return ['cartera.clients.start_on_mine', 'cartera.commitments.write'];
+    }
 }

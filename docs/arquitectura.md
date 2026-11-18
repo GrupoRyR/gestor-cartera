@@ -276,7 +276,7 @@ Mientras el dueño de un contrato no esté en `main`, la interfaz no tiene bindi
 La definen `CarteraRepository` y la siguen `CompromisoService`, `GestionLogger` y `MailboxReader`:
 
 - **Empresas:** las de `CurrentCompany::scope()`; si la consulta trae `companies`, esas, recortadas a `CurrentCompany::available()`.
-- **Clientes:** `asesor` ve los suyos (su asesor de SAP está vinculado a él); `gerente_comercial`, los de los asesores de su equipo; `gerente_cartera`, `analista_cartera` y `admin`, todos.
+- **Clientes:** `asesor` ve los suyos (su asesor de SAP está vinculado a él); `gerente_comercial`, los de los asesores de su equipo; `gerente_cartera`, `analista_cartera`, `admin` y `superadmin`, todos.
 - Sin usuario autenticado el resultado es vacío, salvo con `CarteraRepository::asSystem()`, que es solo para tareas programadas, colas y listeners, **nunca para controladores**.
 - Un registro fuera del alcance se comporta como si no existiera: `null`, lista vacía o `RecordNotFound`.
 
@@ -503,7 +503,7 @@ Todos son `string` y usan el trait `HasOptions`: `label()` da el texto en españ
 | `LoadStatus` | `Accepted` → `aceptada` («Aceptada»), `Rejected` → `rechazada` («Rechazada») |
 | `Bank` | `Bogota` → `bogota` («Banco de Bogotá»), `Davivienda` → `davivienda` («Davivienda»), `Bancolombia` → `bancolombia` («Bancolombia»), `Miami` → `miami` («Miami») |
 | `MailRunKind` (valor = tipo de lote de Cobro y categoría de `OutgoingMail`) | `WeeklyCollection` → `cobro_semanal` («Cobro semanal»), `Circularization` → `circularizacion` («Circularización») |
-| `Role` (valor = rol de Spatie) | `Admin` → `admin` («Administrador»), `PortfolioManager` → `gerente_cartera` («Gerente de cartera»), `PortfolioAnalyst` → `analista_cartera` («Analista de cartera»), `SalesAdvisor` → `asesor` («Asesor comercial»), `SalesManager` → `gerente_comercial` («Gerente comercial»), `Treasury` → `tesoreria` («Tesorería») |
+| `Role` (valor = rol de Spatie) | `Admin` → `admin` («Administrador»), `PortfolioManager` → `gerente_cartera` («Gerente de cartera»), `PortfolioAnalyst` → `analista_cartera` («Analista de cartera»), `SalesAdvisor` → `asesor` («Asesor comercial»), `SalesManager` → `gerente_comercial` («Gerente comercial»), `Treasury` → `tesoreria` («Tesorería»), `SuperAdmin` → `superadmin` («Superadministrador»; `options()` no lo incluye) |
 
 En `ClientStatus`, los estados automáticos (`Current`, `DueSoon`, `Overdue`, `PaymentReceived`) se recalculan con cada instantánea y los días de gracia; los manuales (`Committed`, `Defaulted`, `Legal`) sobreviven a nuevas instantáneas mientras el cliente tenga saldo. Las reglas son de Core.
 
@@ -847,7 +847,12 @@ protected function navigation(NavRegistry $navigation): void
 - **Roles:** los valores de `Role` (§6.14), que siguen A.5. Úsalos por el enum, no como texto suelto.
 - **Permisos:** nombre `<clave-del-módulo>.<acción>`, p. ej. `cartera.view`, `cobro.send`, `comisiones.approve`. Se usan con `can:` en rutas, `$this->authorize()`, `@can` y `NavItem::$permission`.
 - **Spatie sin equipos** (`'teams' => false` en `config/permission.php`): un rol es global al usuario. El acceso por empresa (SGX, SDC o ambas) es responsabilidad de Core y llega a los módulos por `CurrentCompany` y la regla de alcance.
-- No hay un `Gate::before` para `admin`: si un rol debe poder algo, recibe el permiso en el seeder.
+- No hay un `Gate::before` para `admin` ni para `superadmin`: si un rol debe poder algo, recibe el permiso en el seeder.
+- **`superadmin`:** ve y administra todo, con separación de funciones. La base del seeder le da cada permiso de cada módulo, sin que el módulo lo nombre. El módulo excluye en `superAdminExcludes()` dos clases de permisos:
+  - los que cambian un comportamiento por defecto en vez de dar una capacidad (p. ej. con qué pestaña abre una lista): `cartera.clients.start_on_mine`;
+  - los que romperían la separación de funciones: `cartera.commitments.write` (escribe quien cobra) y `comisiones.approve` (aprueba otra persona, no quien calcula).
+
+  Ve las dos empresas completas, igual que `admin`. Se asigna solo por consola (`core:superadmin`, ver `app/Modules/Core/README.md`). Un permiso nuevo llega al superadmin solo: quien lo agregue decide si va en `superAdminExcludes()`.
 
 **Seeder de permisos.** Cada módulo tiene `App\Modules\<Modulo>\Database\Seeders\<Modulo>PermissionSeeder`, que extiende `App\Support\Modules\PermissionSeeder` y devuelve `permiso => roles`:
 
@@ -865,6 +870,14 @@ public function permissions(): array
 
 - Crea permisos y roles solo si faltan (guard `web`): correrlo dos veces es seguro.
 - Acepta nombres de rol como `string` o como enum.
+- Suma `superadmin` a cada permiso, salvo los que devuelva `superAdminExcludes()`:
+
+```php
+protected function superAdminExcludes(): array
+{
+    return ['cartera.clients.start_on_mine', 'cartera.commitments.write'];
+}
+```
 
 **Descubrimiento.** `DatabaseSeeder` recorre los módulos (Core primero) y llama cada `<Modulo>PermissionSeeder` que exista; **solo con `APP_ENV=local`** llama después cada `<Modulo>DemoSeeder`. Los seeders de demostración usan factories y datos ficticios, nunca datos reales.
 
