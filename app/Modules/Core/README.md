@@ -167,6 +167,7 @@ La tabla `company_user` asigna empresas a los usuarios (`user_id`, `company`). C
 | Invitado, sin guardar, inactivo o borrado | Ninguna. |
 | Sin rol de Spatie | Ninguna, aunque tenga filas en `company_user`: ve la paleta neutra y la pantalla para solicitar acceso. |
 | `admin` (TI) | Las dos, sin filas en `company_user` (A.5). |
+| `superadmin` | Las dos, sin filas en `company_user` (ver «Superadministrador»). |
 | Cualquier otro rol | Las de sus filas en `company_user`. |
 
 **Reglas de la empresa activa:**
@@ -186,7 +187,7 @@ Los roles son los de `Contracts\Enums\Role` (Spatie, guard `web`, sin equipos). 
 
 | Permiso | Roles | Qué permite |
 |---|---|---|
-| `core.access` | Los seis | Usar la plataforma. Un usuario sin rol no lo tiene. |
+| `core.access` | Todos | Usar la plataforma. Un usuario sin rol no lo tiene. |
 | `core.team.manage` | `admin` | Usar la pantalla Equipo (ver «Pantalla Equipo»). |
 | `core.companies.manage` | `admin`, `gerente_cartera` | Editar los días de gracia y la ventana de «Por vencer» de cada empresa: pantalla Parámetros (ver «Empresas y parámetros»). |
 | `core.activities.delete` | `gerente_cartera`, `analista_cartera` | Eliminar (borrado lógico) una gestión de la bitácora de un cliente (ver «Bitácora de gestiones»). |
@@ -194,7 +195,34 @@ Los roles son los de `Contracts\Enums\Role` (Spatie, guard `web`, sin equipos). 
 | `core.clients.assign` | `admin`, `gerente_cartera`, `analista_cartera` | Asignar el gestor de los clientes, en bloque o uno por uno (ver «Gestor del cliente»). |
 | `core.clients.delete` | `gerente_cartera` | Eliminar (borrado lógico) y restaurar clientes (ver «Borrado lógico de clientes»). Por confirmar (ver «Pendientes»). |
 
-Sembrar `core.access` también garantiza que existan los seis roles, para que la pantalla de equipo pueda asignarlos. Correr el seeder otra vez no duplica nada.
+Sembrar `core.access` también garantiza que existan todos los roles, para que la pantalla de equipo pueda asignarlos. Correr el seeder otra vez no duplica nada.
+
+`superadmin` no aparece en la tabla: recibe todos los permisos de todos los módulos (ver «Superadministrador»).
+
+## Superadministrador
+
+`superadmin` («Superadministrador») es para quien revisa toda la plataforma sin depender de otros usuarios. `admin` sigue siendo el rol de TI. Cada persona tiene un solo rol.
+
+- **Permisos.** La base `App\Support\Modules\PermissionSeeder` le da cada permiso de cada módulo, también los que se agreguen después. No hay `Gate::before`: todo sigue en los seeders. Ve y administra todo, con separación de funciones. El seeder de cada módulo lista sus excepciones en `superAdminExcludes()`:
+
+| Permiso excluido | Por qué |
+|---|---|
+| `cartera.clients.start_on_mine` | Cambia un comportamiento por defecto, no da una capacidad: el superadmin abre la lista de clientes en «Toda la cartera». |
+| `cartera.commitments.write` | Separación de funciones: los compromisos los escribe quien cobra (la analista en SDC, el asesor en SGX). `CommitmentWriteRule` lo rechazaría igual; sin el permiso, las pantallas no le muestran botones que no puede usar. |
+| `comisiones.approve` | Separación de funciones: el superadmin calcula y captura liquidaciones, así que aprobar le toca a otra persona. `comisiones:rol` tampoco le da un rol de comisiones. |
+- **Alcance.** Ve las dos empresas completas, sin filas en `company_user` (`CompanyAccess`), y todos sus clientes (`PortfolioScope`).
+- **Gestor.** `assignees()` no lo lista: solo lista `gerente_cartera` y `analista_cartera`.
+- **Equipo.** El selector de rol nunca lo ofrece (`Role::options()`), y enviarlo falla la validación de «rol». Nadie puede cambiar desde Equipo el rol ni las empresas de un superadmin, ni desactivarlo, eliminarlo o restaurarlo por correo, tampoco otro superadmin ni él mismo. La respuesta es el flash `error`: «Solo puedes cambiar a un superadministrador desde la consola, con core:superadmin.» (`TeamRefusal::SuperAdminLocked`).
+- **Consola.** Es la única forma de asignarlo y quitarlo:
+
+| Paso | Comando |
+|---|---|
+| Asignar | `php artisan core:superadmin sofia.super@segurex.com` |
+| Quitar | `php artisan core:superadmin sofia.super@segurex.com --quitar` |
+
+- La persona debe haber entrado antes con Microsoft (`microsoft_id`), estar activa y no estar eliminada. Si no, el comando falla y no cambia nada.
+- Asignar reemplaza su rol anterior, también un rol de comisiones. Quitar la deja sin rol; un administrador le da uno después desde Equipo.
+- Cada cambio queda en la auditoría como `core.user.superadmin_granted` o `core.user.superadmin_revoked`, con `changes.role` = `old` y `new` y `context.source` = `consola`, sin actor. Repetir el comando cuando ya no hay nada que cambiar no deja entrada.
 
 ## Asesores de SAP
 
@@ -314,7 +342,7 @@ Solo se escriben los clientes cuyos valores cambian. Cuando cambia el estado de 
 
 | Usuario | Clientes y asesores que ve |
 |---|---|
-| `admin`, `gerente_cartera`, `analista_cartera` | Todos. |
+| `superadmin`, `admin`, `gerente_cartera`, `analista_cartera` | Todos. |
 | `asesor` | Los clientes de los asesores de SAP vinculados a él (`advisors.user_id`), y esos asesores. |
 | `gerente_comercial` | Los de los asesores de su equipo (`advisor_team`) y de los vinculados a él, y esos asesores. |
 | `tesoreria` o sin rol | Ninguno. |
@@ -618,12 +646,13 @@ Solo para administradores: el permiso `core.team.manage`, que `CorePermissionSee
 - Cada pestaña muestra cuántos usuarios tiene con la búsqueda actual.
 - `?buscar=` busca por parte del nombre o del correo dentro de la pestaña.
 - La tabla se ordena por nombre o por correo (`?sort=name|email&direction=asc|desc`); un valor desconocido vuelve al nombre ascendente. Muestra 25 por página, y los enlaces de pestañas y páginas conservan la búsqueda y el orden.
-- Columnas: nombre, correo, rol («Sin rol» si no tiene), empresas (chips; «Todas» para un administrador), asesor SAP (un chip por asesor vinculado, p. ej. «SGX 12 · Carlos Pérez», por empresa y luego por nombre, leídos en una sola consulta para toda la página), estado (Activo, Inactivo o Eliminado) y la acción.
+- Columnas: nombre, correo, rol («Sin rol» si no tiene), empresas (chips; «Todas» para un administrador o un superadministrador), asesor SAP (un chip por asesor vinculado, p. ej. «SGX 12 · Carlos Pérez», por empresa y luego por nombre, leídos en una sola consulta para toda la página), estado (Activo, Inactivo o Eliminado) y la acción.
 
 **Qué se edita.** El nombre, un solo rol o ninguno (`syncRoles()` de Spatie), las empresas (`company_user`), los asesores de SAP vinculados (`advisors.user_id`), el equipo del gerente comercial (`advisor_team`) y «Cuenta activa». El correo no se edita: es la identidad con la que la persona ingresa con Microsoft.
 
 - Todo rol salvo `admin` exige al menos una empresa («Elige al menos una empresa para este rol.»).
 - Las empresas de un administrador se ignoran y se guardan vacías: ve las dos (`CompanyAccess`).
+- Un superadministrador no se edita desde aquí (ver «Superadministrador»).
 - Una cuenta desactivada sale de la plataforma en su siguiente página (ver «Cuentas desactivadas»).
 - «Asesor de SAP vinculado» (`asesores[]`) y «Equipo del gerente comercial» (`equipo[]`) listan todos los asesores, agrupados por empresa (en el orden de `CompanyCode`) y por nombre: «<código> · <nombre>», con el correo de SAP como ayuda si lo tiene y «(inactivo)» si está inactivo en SAP. Las reglas del vínculo y del equipo están en «Asesores de SAP».
 - Un id de asesor que no existe falla la validación («El valor elegido en asesor no es válido.»).

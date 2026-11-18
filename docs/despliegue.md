@@ -289,6 +289,13 @@ En el PC con la VPN Sophos, desde la raíz del repositorio (`etl/README.md`):
   ```
 
   Ella debe haber entrado antes al menos una vez.
+- [ ] **Superadministrador** (opcional): todos los permisos, salvo escribir compromisos y aprobar comisiones, y las dos empresas completas, para revisar la plataforma sin depender de otros usuarios. Solo se da por consola, y la persona debe haber entrado antes con Microsoft:
+
+  ```bash
+  <php-8.3> artisan core:superadmin <correo>
+  ```
+
+  Reemplaza su rol anterior. Para quitarlo, agrega `--quitar`; la persona queda sin rol y le das uno desde Equipo. Equipo no ofrece ese rol ni deja cambiar a un superadministrador.
 - [ ] **Copias del cobro.** En `/cobro/copias`, guarda las copias de SGX y de SDC. No hay copias por defecto: un envío sin copias guardadas sale sin ellas (auditoría S-31).
 - [ ] **Prueba de circularización.** En `/cobro/circularizacion`, envía una prueba de cada empresa a un buzón interno y revisa remitente, formato y copias. Haz lo mismo con el cobro semanal en `/cobro/semanal`.
 

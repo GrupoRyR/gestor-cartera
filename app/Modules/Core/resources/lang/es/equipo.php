@@ -128,6 +128,7 @@ return [
         'self_deletion' => 'No puedes eliminar tu propia cuenta.',
         'email_taken' => 'Ya existe un usuario con ese correo.',
         'advisor_taken' => 'Ese asesor ya está vinculado a otra persona.',
+        'superadmin_locked' => 'Solo puedes cambiar a un superadministrador desde la consola, con core:superadmin.',
     ],
 
     // Attribute names inside the validation messages ("El campo nombre…").
