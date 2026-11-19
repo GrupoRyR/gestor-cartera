@@ -12,6 +12,7 @@ Correo de cobro por Microsoft Graph desde el buzón de cada empresa: cobro seman
 | `GET /cobro/circularizacion` (y las mismas subrutas) | `cobro.circularizacion.*` | igual | Lo mismo para la circularización. |
 | `GET /cobro/respuestas` | `cobro.respuestas.index` | `cobro.replies` | Respuestas y rebotes, pendientes o leídos; se marcan con casillas. |
 | `GET /cobro/respuestas/{mensaje}/outlook` | `cobro.respuestas.outlook` | `cobro.replies` | Abre el mensaje en Outlook en la web (ver «Abrir en Outlook»). |
+| `POST /cobro/respuestas/{mensaje}/responder` | `cobro.respuestas.reply` | `cobro.replies` | Responde al cliente desde el buzón de la empresa (ver «Responder desde la app»). |
 | `GET /cobro/lotes` | `cobro.lotes.index` | `cobro.view` | Informes de envío: enviados, rebotados, sin correo, excluidos y no enviados. |
 | `GET /cobro/lotes/{run}` | `cobro.lotes.show` | `cobro.view` | Un envío cliente por cliente, con el motivo del rebote leído del buzón. |
 | `GET /cobro/exclusiones` | `cobro.exclusiones.index` | `cobro.manage` | Lista de exclusión con casillas, motivo y fecha de vencimiento opcional. |
@@ -79,6 +80,14 @@ La bandeja y la pantalla de cada mensaje tienen el botón «Abrir en Outlook». 
 - **Si alguien movió el correo de carpeta**, su id de Graph cambió (la sincronización no pide ids inmutables) y Graph contesta 404. Entonces `MessageLocator` lo busca por su `internetMessageId`, que no cambia, y guarda el id nuevo. Si tampoco lo encuentra, la pantalla dice que ya no está en el buzón.
 - **Solo redirige a Outlook en la web** (`outlook.office365.com` u `outlook.office.com`, con https). Otro enlace, o una falla de Graph, vuelve a la pantalla del mensaje con un aviso y deja un `warning` con el id del mensaje y el código HTTP, sin contenido.
 - **Quien abre el enlace necesita acceso al buzón compartido** de la empresa en Outlook; si no lo tiene, Outlook no le muestra el correo.
+
+### Responder desde la app
+
+La pantalla de cada respuesta (no de un rebote) tiene el formulario «Responder desde la app», y la bandeja lleva a él con el enlace «Responder». Pueden responder el gerente y la analista de cartera (`cobro.replies`).
+
+- **Cómo sale:** `ReplySender` hace tres pasos en Graph con la credencial de la empresa: `createReply` sobre el mensaje del cliente (Graph arma el borrador para el remitente, en el mismo hilo y con el mensaje citado), `PATCH` del cuerpo del borrador con el texto escrito encima de la cita (escapado, con sus saltos de línea) y `send`. Antes busca el mensaje igual que «Abrir en Outlook», por si lo movieron de carpeta.
+- **Qué queda:** la respuesta se guarda en `cobro_sent_messages` con la categoría `respuesta`, así lo que el cliente conteste después se une a su ficha. El mensaje queda leído, la bitácora del cliente dice «Respuesta enviada a … por <nombre>» y la auditoría registra `cobro.reply.sent` con el usuario.
+- **Si falla:** si Graph rechaza un paso, se borra el borrador y el texto escrito vuelve al formulario. Si el envío no recibe respuesta, el borrador queda en el buzón para revisarlo en Outlook, porque pudo haber salido. Una falla al guardar la bitácora o la auditoría después del envío se registra, pero la respuesta cuenta como enviada.
 
 ## Copias del cobro semanal y de la circularización
 

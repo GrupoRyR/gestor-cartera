@@ -65,5 +65,19 @@
                 <p>{{ __('cobro::respuestas.detalle.sin_texto') }}</p>
             @endif
         </x-ui.card>
+
+        @unless ($message->is_bounce)
+            <div id="responder">
+                <x-ui.card :title="__('cobro::respuestas.responder.titulo')" :description="__('cobro::respuestas.responder.descripcion')">
+                    <form method="POST" action="{{ route('cobro.respuestas.reply', $message) }}" class="flex flex-col gap-4">
+                        @csrf
+                        <x-ui.textarea name="texto" :label="__('cobro::respuestas.responder.texto')" :hint="__('cobro::respuestas.responder.ayuda')" :rows="6" required />
+                        <div>
+                            <x-ui.button type="submit" icon="send">{{ __('cobro::respuestas.responder.enviar') }}</x-ui.button>
+                        </div>
+                    </form>
+                </x-ui.card>
+            </div>
+        @endunless
     </div>
 </x-layouts.app>

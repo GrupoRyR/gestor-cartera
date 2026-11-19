@@ -109,6 +109,18 @@ final class GraphClient
     }
 
     /**
+     * PATCH a JSON body (e.g. the body of a draft) and return the JSON answer.
+     *
+     * @param  array<string, mixed>  $body
+     * @return array<string, mixed>
+     */
+    public function patch(string $path, array $body): array
+    {
+        return $this->json($this->send('PATCH', $path, fn (PendingRequest $request, string $url): Response => $request
+            ->patch($url, $body)));
+    }
+
+    /**
      * POST without a body (e.g. /messages/{id}/send, which answers 202).
      */
     public function postEmpty(string $path): void

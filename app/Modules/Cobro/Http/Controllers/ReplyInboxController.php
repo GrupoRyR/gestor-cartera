@@ -4,16 +4,23 @@ namespace App\Modules\Cobro\Http\Controllers;
 
 use App\Modules\Cobro\Infrastructure\Graph\GraphRequestFailed;
 use App\Modules\Cobro\Infrastructure\Mail\MessageLocator;
+use App\Modules\Cobro\Infrastructure\Mail\ReplySender;
 use App\Modules\Cobro\Infrastructure\Persistence\InboundMessage;
+use App\Modules\Core\Contracts\AuditLogger;
 use App\Modules\Core\Contracts\CurrentCompany;
 use App\Modules\Core\Contracts\Data\Company;
+use App\Modules\Core\Contracts\Data\NewActivity;
+use App\Modules\Core\Contracts\Enums\ActivityType;
 use App\Modules\Core\Contracts\Enums\CompanyCode;
+use App\Modules\Core\Contracts\Exceptions\RecordNotFound;
+use App\Modules\Core\Contracts\GestionLogger;
 use Carbon\CarbonImmutable;
 use Illuminate\Contracts\View\View;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
+use Throwable;
 
 /**
  * The client replies inbox (Respuestas de clientes), cobro.respuestas.*:
@@ -25,6 +32,8 @@ use Illuminate\Support\Facades\Log;
  * - GET  /cobro/respuestas/{message}: one message with its text;
  * - GET  /cobro/respuestas/{message}/outlook: the message in Outlook on
  *   the web (MessageLocator), or back to its screen with the reason;
+ * - POST /cobro/respuestas/{message}/responder: answers a reply (not a
+ *   bounce) from the company mailbox (ReplySender);
  * - POST /cobro/respuestas/marcar: marks the checked messages (mensajes[])
  *   as read or pending (accion=leida|pendiente).
  *
@@ -105,6 +114,69 @@ final class ReplyInboxController
         }
 
         return redirect()->away($located->webLink);
+    }
+
+    /**
+     * Answers a client reply from the company mailbox (ReplySender), then
+     * marks it read, logs it in the client activity and audits it.
+     */
+    public function reply(Request $request, InboundMessage $message, MessageLocator $locator, ReplySender $sender, GestionLogger $activities, AuditLogger $audit): RedirectResponse
+    {
+        $this->authorizeCompany($message);
+        abort_if($message->is_bounce, 404);
+
+        $text = str_replace("\r\n", "\n", (string) $request->validate(
+            ['texto' => ['required', 'string', 'max:10000']],
+            ['texto.required' => __('cobro::respuestas.responder.falta_texto')],
+        )['texto']);
+        $back = redirect()->route('cobro.respuestas.show', $message);
+
+        try {
+            $located = $locator->locate($message);
+
+            if ($located === null) {
+                return $back->withInput()->with('error', __('cobro::respuestas.outlook.no_esta'));
+            }
+
+            $sent = $sender->reply($message, $located->id, $text);
+        } catch (GraphRequestFailed $e) {
+            Log::warning('Cobro: a reply to an inbound message was not sent.', ['inbound_message' => $message->id, 'status' => $e->status, 'graph_code' => $e->graphCode]);
+
+            return $back->withInput()->with('error', __('cobro::respuestas.responder.fallo'));
+        }
+
+        // The reply already left: a failure from here on is reported, never
+        // shown as "not sent".
+        try {
+            $user = $request->user();
+
+            if ($message->read_at === null) {
+                $message->update(['read_at' => CarbonImmutable::now(), 'read_by' => $user?->getAuthIdentifier()]);
+            }
+
+            $audit->record('cobro.reply.sent', 'cobro_inbound_message', $message->id, context: [
+                'client_id' => $message->client_id,
+                'to' => $sent->to,
+                'internet_message_id' => $sent->internetMessageId,
+            ]);
+
+            if ($message->client_id !== null) {
+                $activities->log(new NewActivity(
+                    clientId: $message->client_id,
+                    type: ActivityType::EmailSent,
+                    summary: __('cobro::respuestas.responder.bitacora', ['correos' => implode(', ', $sent->to), 'nombre' => $user->name ?? '—']),
+                    details: $sent->subject,
+                    occurredAt: $sent->sentAt,
+                    metadata: ['cobro_inbound_message_id' => $message->id],
+                ));
+            }
+        } catch (RecordNotFound) {
+            Log::info('Cobro: an answered client no longer exists; the activity was not logged.', ['client_id' => $message->client_id]);
+        } catch (Throwable $e) {
+            report($e);
+        }
+
+        return $back->with('status', __('cobro::respuestas.responder.enviada', ['correos' => implode(', ', $sent->to)]));
     }
 
     public function mark(Request $request): RedirectResponse
