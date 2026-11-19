@@ -51,6 +51,11 @@ function cobroHoldCutoffs(array $cutoffs): void
             return new self($this->inner->asSystem(), $this->cutoffs);
         }
 
+        public function closingSnapshot(CompanyCode $company, int $year, int $month): ?CarteraRepository
+        {
+            return $this->inner->closingSnapshot($company, $year, $month);
+        }
+
         public function paginateClients(ClientQuery $query, int $perPage = 25): LengthAwarePaginator
         {
             return $this->inner->paginateClients($query, $perPage);

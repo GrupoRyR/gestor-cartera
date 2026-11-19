@@ -71,6 +71,11 @@ final class PerCompanyHistoryCartera implements CarteraRepository
         return $this->inner->asSystem();
     }
 
+    public function closingSnapshot(CompanyCode $company, int $year, int $month): ?CarteraRepository
+    {
+        return $this->inner->closingSnapshot($company, $year, $month);
+    }
+
     public function paginateClients(ClientQuery $query, int $perPage = 25): LengthAwarePaginator
     {
         return $this->inner->paginateClients($query, $perPage);

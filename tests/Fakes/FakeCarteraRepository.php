@@ -31,6 +31,9 @@ use Tests\Fakes\Concerns\QueriesInMemory;
  * initials sort after "z".
  *
  * Copies made with asSystem() share the data of the original fake.
+ * closingSnapshot() returns the repository given to addClosingSnapshot() for
+ * that company and month (build it as another fake with the closing
+ * invoices), or null: the fake does not apply Core's rule.
  */
 final class FakeCarteraRepository implements CarteraRepository
 {
@@ -60,6 +63,13 @@ final class FakeCarteraRepository implements CarteraRepository
      * @var list<PortfolioTotals>
      */
     private array $history = [];
+
+    /**
+     * By "COMPANY:Y-m".
+     *
+     * @var array<string, CarteraRepository>
+     */
+    private array $closingSnapshots = [];
 
     private ?int $advisorScope = null;
 
@@ -114,6 +124,16 @@ final class FakeCarteraRepository implements CarteraRepository
     }
 
     /**
+     * Makes closingSnapshot($company, $year, $month) return $snapshot.
+     */
+    public function addClosingSnapshot(CompanyCode $company, int $year, int $month, CarteraRepository $snapshot): static
+    {
+        $this->data()->closingSnapshots[self::month($company, $year, $month)] = $snapshot;
+
+        return $this;
+    }
+
+    /**
      * Emulates an asesor: only clients whose advisor has this code are
      * visible; null lifts the restriction.
      */
@@ -130,6 +150,11 @@ final class FakeCarteraRepository implements CarteraRepository
         $system->origin = $this->data();
 
         return $system;
+    }
+
+    public function closingSnapshot(CompanyCode $company, int $year, int $month): ?CarteraRepository
+    {
+        return $this->data()->closingSnapshots[self::month($company, $year, $month)] ?? null;
     }
 
     public function paginateClients(ClientQuery $query, int $perPage = 25): LengthAwarePaginator
@@ -238,6 +263,18 @@ final class FakeCarteraRepository implements CarteraRepository
         usort($advisors, fn (Advisor $a, Advisor $b): int => [mb_strtolower($a->name), $a->code] <=> [mb_strtolower($b->name), $b->code]);
 
         return $advisors;
+    }
+
+    /**
+     * @throws InvalidArgumentException When $month is not 1 to 12, as in Core.
+     */
+    private static function month(CompanyCode $company, int $year, int $month): string
+    {
+        if ($month < 1 || $month > 12) {
+            throw new InvalidArgumentException("The month must be between 1 and 12, {$month} given.");
+        }
+
+        return sprintf('%s:%04d-%02d', $company->value, $year, $month);
     }
 
     /**
