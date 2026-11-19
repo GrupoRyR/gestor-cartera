@@ -34,6 +34,11 @@ use InvalidArgumentException;
  * caches from the latest snapshot of its company; invoices and totals come
  * from that snapshot (the latest cutoff date and, on a tie, the last one
  * imported).
+ *
+ * closingSnapshot() returns a system copy pinned to one snapshot
+ * (ClosingSnapshot decides which): its company only, the figures of the
+ * clients read from that snapshot (SnapshotClients), and its totals dated
+ * on the last day of the month.
  */
 final class EloquentCarteraRepository implements CarteraRepository
 {
@@ -48,11 +53,23 @@ final class EloquentCarteraRepository implements CarteraRepository
         private readonly PortfolioMapper $mapper,
         private readonly SnapshotTotals $snapshotTotals,
         private readonly bool $system = false,
+        private readonly ?PortfolioLoadRecord $snapshot = null,
     ) {}
 
     public function asSystem(): CarteraRepository
     {
-        return new self($this->currentCompany, $this->auth, $this->mapper, $this->snapshotTotals, system: true);
+        return $this->snapshot !== null
+            ? $this
+            : new self($this->currentCompany, $this->auth, $this->mapper, $this->snapshotTotals, system: true);
+    }
+
+    public function closingSnapshot(CompanyCode $company, int $year, int $month): ?CarteraRepository
+    {
+        $snapshot = ClosingSnapshot::find($company, $year, $month);
+
+        return $snapshot === null
+            ? null
+            : new self($this->currentCompany, $this->auth, $this->mapper, $this->snapshotTotals, system: true, snapshot: $snapshot);
     }
 
     public function paginateClients(ClientQuery $query, int $perPage = 25): LengthAwarePaginator
@@ -170,6 +187,7 @@ final class EloquentCarteraRepository implements CarteraRepository
             ->whereIn('company', array_map(fn (CompanyCode $code): string => $code->value, $scope->companies))
             ->whereDate('cutoff_date', '>=', $from->toDateString())
             ->whereDate('cutoff_date', '<=', $to->toDateString())
+            ->when($this->snapshot !== null, fn (Builder $loads) => $loads->whereKey($this->snapshot?->id))
             ->orderBy('cutoff_date')
             ->orderBy('id')
             ->get(['id', 'company', 'cutoff_date']);
@@ -219,15 +237,35 @@ final class EloquentCarteraRepository implements CarteraRepository
     }
 
     /**
-     * The scope of this repository: the signed-in user's, or the system's.
+     * The scope of this repository: the signed-in user's, or the system's;
+     * pinned to a snapshot, the system's in its company only.
      *
      * @param  list<CompanyCode>  $requested  ClientQuery::$companies.
      */
     private function scope(array $requested = []): PortfolioScope
     {
+        if ($this->snapshot !== null) {
+            $company = $this->snapshot->company;
+
+            return $requested === [] || in_array($company, $requested, true)
+                ? PortfolioScope::system([$company])
+                : PortfolioScope::forUser(null, $this->currentCompany);
+        }
+
         return $this->system
             ? PortfolioScope::system($requested)
             : PortfolioScope::forUser($this->auth->guard()->user(), $this->currentCompany, $requested);
+    }
+
+    /**
+     * The clients, with their figures from the latest snapshot or from the
+     * pinned one.
+     *
+     * @return Builder<ClientRecord>
+     */
+    private function clients(): Builder
+    {
+        return $this->snapshot === null ? ClientRecord::query() : SnapshotClients::of($this->snapshot);
     }
 
     /**
@@ -237,7 +275,7 @@ final class EloquentCarteraRepository implements CarteraRepository
      */
     private function matching(ClientQuery $query, PortfolioScope $scope): Builder
     {
-        return ClientListing::filter($scope->clients(ClientRecord::query()), $query);
+        return ClientListing::filter($scope->clients($this->clients()), $query);
     }
 
     /**
@@ -245,15 +283,19 @@ final class EloquentCarteraRepository implements CarteraRepository
      */
     private function visibleClient(int $clientId): ?ClientRecord
     {
-        return $this->scope()->clients(ClientRecord::query())->whereKey($clientId)->first();
+        return $this->scope()->clients($this->clients())->whereKey($clientId)->first();
     }
 
     /**
      * The latest snapshot of $company: the latest cutoff date and, on a tie,
-     * the last one imported.
+     * the last one imported; the pinned one, when there is one.
      */
     private function latestSnapshot(CompanyCode $company): ?PortfolioLoadRecord
     {
+        if ($this->snapshot !== null) {
+            return $this->snapshot->company === $company ? $this->snapshot : null;
+        }
+
         return PortfolioLoadRecord::query()
             ->where('company', $company)
             ->orderByDesc('cutoff_date')
@@ -290,7 +332,8 @@ final class EloquentCarteraRepository implements CarteraRepository
             $cutoffDate = $snapshot->cutoff_date->lessThan($cutoffDate) ? $snapshot->cutoff_date : $cutoffDate;
         }
 
-        return $combined->toTotals($cutoffDate);
+        // A closing snapshot stands for the last day of the month.
+        return $combined->toTotals($this->snapshot === null ? $cutoffDate : ClosingSnapshot::closingDate($this->snapshot));
     }
 
     /**

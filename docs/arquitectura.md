@@ -301,6 +301,7 @@ Lectura de clientes, facturas e instantáneas, con la regla de §6.2. Salvo que 
 | Método | Qué hace |
 |---|---|
 | `asSystem(): CarteraRepository` | Copia sin alcance de usuario (todas las empresas si `companies` está vacío). Solo jobs, colas y listeners. |
+| `closingSnapshot(CompanyCode $company, int $year, int $month): ?CarteraRepository` | Copia del sistema fijada a la foto del cierre del mes de esa empresa; `null` si esa foto no llegó. Ver «Foto del cierre». `InvalidArgumentException` si el mes no va de 1 a 12. |
 | `paginateClients(ClientQuery $query, int $perPage = 25): LengthAwarePaginator` | Una página de `ClientSummary`; la página sale de `?page=`. `InvalidArgumentException` si `$perPage < 1`. |
 | `allClients(ClientQuery $query): iterable` | Todos los `ClientSummary` que coinciden, en orden y de forma perezosa, para exportar. |
 | `client(int $clientId): ?ClientDetail` | La ficha; `null` si no existe o está fuera del alcance. |
@@ -308,6 +309,15 @@ Lectura de clientes, facturas e instantáneas, con la regla de §6.2. Salvo que 
 | `totals(?ClientQuery $query = null): PortfolioTotals` | Totales y edades; `null` = todo el alcance. En grupo combina la última instantánea de cada empresa y `cutoffDate` es la más antigua. `PortfolioTotals::empty()` sin instantánea. |
 | `history(CarbonImmutable $from, CarbonImmutable $to, ?ClientQuery $query = null): array` | `list<PortfolioTotals>`, uno por fecha de corte en el rango (inclusivo), ascendente. Ignora el orden de `$query`. `InvalidArgumentException` si `$from` es posterior a `$to`. |
 | `advisors(): array` | `list<Advisor>` de las empresas del alcance que el usuario puede ver (un asesor se ve solo a sí mismo), por nombre. |
+
+**Foto del cierre.** El robot de SAP corre a las 00:00, 05:00 y 12:00 y fecha cada carga con el día en que corre. La foto del fin del mes M es la carga de las 00:00 del día 1 de M+1: la del último día a las 12:00 deja fuera los pagos de la tarde, y las de las 05:00 y 12:00 del día 1 ya son del mes nuevo. Regla: la carga más temprana de la empresa con `cutoff_date` el día 1 del mes siguiente, importada (`portfolio_loads.created_at`) antes de las 03:00 de Bogotá. Vive solo en `Infrastructure\Portfolio\ClosingSnapshot`; cuando la fuente pase a las vistas de SAP (`v_cartera_fotos` fecha la foto el último día del mes), cambia ahí.
+
+La copia que devuelve `closingSnapshot()` es como `asSystem()` (`asSystem()` la devuelve igual), pero:
+
+- solo ve los clientes de esa empresa; una consulta con otras empresas sale vacía;
+- `allClients()`, `paginateClients()`, `client()`, `openInvoices()` y `totals()` toman de esa carga el saldo, lo vencido y los días de mora, y filtran y ordenan con esas cifras; lo demás del cliente (nombre, estado, asesor, gestor, contactos) es el actual;
+- `totals()->cutoffDate` es el último día del mes (31/10 para la foto del 1/11);
+- `history()` devuelve solo esa carga.
 
 ### 6.5 `CompromisoService`
 
@@ -582,7 +592,7 @@ Enlaza los diez fakes como instancias del contenedor y devuelve un `ContractFake
 | Fake | Preparar | Afirmar o inspeccionar |
 |---|---|---|
 | `FakeCurrentCompany` | `new FakeCurrentCompany(?CompanyCode $active = SGX, array $available = [SGX, SDC], array $graceDays = ['SGX' => 15, 'SDC' => 5])`, `::group()`, `::guest()`, `switchTo()`. Como el contrato, lanza `CompanyNotAvailable` con una activa que no está disponible o con `$active = null` y una sola empresa (la vista de grupo exige dos; sin empresas es un invitado). | Métodos del contrato |
-| `FakeCarteraRepository` | `addClient(ClientDetail $client, Invoice ...$invoices)`, `addAdvisor(Advisor ...)`, `addHistory(PortfolioTotals ...)`, `restrictToAdvisor(?int $code)`, propiedad `cutoffDate` | Métodos del contrato |
+| `FakeCarteraRepository` | `addClient(ClientDetail $client, Invoice ...$invoices)`, `addAdvisor(Advisor ...)`, `addHistory(PortfolioTotals ...)`, `addClosingSnapshot(CompanyCode $company, int $year, int $month, CarteraRepository $snapshot)`, `restrictToAdvisor(?int $code)`, propiedad `cutoffDate` | Métodos del contrato |
 | `FakeCompromisoService` | `actingAs(UserRef)`, `knowClient(int $id, string $name, CompanyCode $company = SGX, ?int $advisorCode = null)`, `add(Commitment ...)`, `denyAuthorization(bool $deny = true)` | `all()`, `cancellationReason(int)`, `assertCreated(?callable $filter = null)`, `assertNothingCreated()` |
 | `FakeGestionLogger` | `actingAs(?UserRef)` (`null` = sistema), `knowClient(int, string)`, `add(Activity ...)` | `logged()`, `assertLogged(ActivityType $type, ?int $clientId = null)`, `assertNothingLogged()` |
 | `FakeAuditLogger` | — (valida el patrón de `$action`) | `entries()` (`list<AuditEntry>`), `assertRecorded(string $action, ?callable $filter = null)`, `assertNothingRecorded()` |
@@ -594,7 +604,7 @@ Enlaza los diez fakes como instancias del contenedor y devuelve un `ContractFake
 
 Diferencias con las implementaciones reales que conviene saber:
 
-- `FakeCarteraRepository` filtra `managerUserId` y `unassigned` con `ClientSummary::$manager`. Calcula `totals()` con las **facturas** agregadas, no con `balance` ni `overdue` del `ClientSummary`; `history()` ignora la consulta. Sin usuario autenticado no vacía resultados: se comporta como una analista que ve todo. `addClient()` lanza `InvalidArgumentException` si una factura es de otro cliente o empresa: créala con `clientId:` y `company:`.
+- `FakeCarteraRepository` filtra `managerUserId` y `unassigned` con `ClientSummary::$manager`. Calcula `totals()` con las **facturas** agregadas, no con `balance` ni `overdue` del `ClientSummary`; `history()` ignora la consulta. Sin usuario autenticado no vacía resultados: se comporta como una analista que ve todo. `addClient()` lanza `InvalidArgumentException` si una factura es de otro cliente o empresa: créala con `clientId:` y `company:`. `closingSnapshot()` no aplica la regla de Core: devuelve el repositorio que registraste con `addClosingSnapshot()` para esa empresa y mes (otro fake con las facturas del cierre), o `null`.
 - `FakeCompromisoService` no escribe en `gestiones` ni en `audit`: afirma esas escrituras en tu propio código, no como efecto del servicio. Su usuario por defecto es `UserRef(1, 'Usuario de prueba', 'prueba@example.com')`. No conoce la regla por empresa ni la de cambio de estado: todo usuario escribe salvo con `denyAuthorization()`. `markBroken()` solo acepta un `Pending` (`DomainException` si no) y no mueve el estado del cliente.
 - `FakeIngestaSink` despacha `BatchAccepted` con `event()`: los listeners registrados corren de verdad. Para solo afirmar el despacho, usa `Event::fake([BatchAccepted::class])`.
 - `FakeMailboxReader::forClient()` no emula el alcance por cliente.

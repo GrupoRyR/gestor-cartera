@@ -8,6 +8,7 @@ use App\Modules\Core\Contracts\Data\ClientQuery;
 use App\Modules\Core\Contracts\Data\ClientSummary;
 use App\Modules\Core\Contracts\Data\Invoice;
 use App\Modules\Core\Contracts\Data\PortfolioTotals;
+use App\Modules\Core\Contracts\Enums\CompanyCode;
 use Carbon\CarbonImmutable;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use InvalidArgumentException;
@@ -39,6 +40,29 @@ interface CarteraRepository
      * queued work and event listeners; never in controllers.
      */
     public function asSystem(): CarteraRepository;
+
+    /**
+     * A read-only copy pinned to the closing snapshot of $company for $month
+     * of $year (the photo of the end of the month), without the user scope,
+     * as asSystem(); null when that snapshot never arrived. For monthly jobs
+     * that must not use the latest load, such as the circularization.
+     *
+     * The copy sees only the clients of $company. allClients(),
+     * paginateClients(), client(), openInvoices() and totals() take the
+     * balance, overdue and days overdue from that snapshot, and filters and
+     * sorts on those figures follow it too; everything else about a client
+     * (name, status, advisor, manager, contacts) stays current.
+     * PortfolioTotals::$cutoffDate is the last day of the month. history()
+     * returns only that snapshot.
+     *
+     * Which load is the closing snapshot is Core's rule
+     * (docs/arquitectura.md §6.4).
+     *
+     * @param  int  $month  1 to 12.
+     *
+     * @throws InvalidArgumentException When $month is out of range.
+     */
+    public function closingSnapshot(CompanyCode $company, int $year, int $month): ?CarteraRepository;
 
     /**
      * One page of clients; the page number comes from the request (?page=).
