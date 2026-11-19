@@ -71,6 +71,20 @@ return [
         'fallo' => 'No pudimos abrir el correo en Outlook. Intenta de nuevo en unos minutos.',
     ],
 
+    'responder' => [
+        'enlace' => 'Responder',
+        'enlace_de' => 'a :remitente',
+        'titulo' => 'Responder desde la app',
+        'descripcion' => 'Sale desde el buzón de la empresa, en el mismo hilo, con el mensaje del cliente citado debajo.',
+        'texto' => 'Tu respuesta',
+        'ayuda' => 'Escribe solo el texto: el saludo y la firma van como los escribas.',
+        'enviar' => 'Enviar respuesta',
+        'falta_texto' => 'Escribe tu respuesta.',
+        'fallo' => 'No pudimos enviar tu respuesta. Intenta de nuevo en unos minutos.',
+        'enviada' => 'Le respondiste a :correos.',
+        'bitacora' => 'Respuesta enviada a :correos por :nombre',
+    ],
+
     'mensajes' => [
         'marca_uno' => 'Marca al menos un mensaje.',
         'leidas' => '{0} No se marcó ningún mensaje.|{1} Marcaste 1 mensaje como leído.|[2,*] Marcaste :total mensajes como leídos.',

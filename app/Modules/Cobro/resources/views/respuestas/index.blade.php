@@ -71,6 +71,13 @@
                                 </span>
                             </td>
                             <td data-align="end">
+                                @unless ($message->is_bounce)
+                                    <x-ui.link-button
+                                        :href="route('cobro.respuestas.show', $message).'#responder'"
+                                        variant="ghost"
+                                        icon="mail"
+                                    >{{ __('cobro::respuestas.responder.enlace') }}<span data-visually-hidden> {{ __('cobro::respuestas.responder.enlace_de', ['remitente' => $message->from_name ?? $message->from_address ?? '—']) }}</span></x-ui.link-button>
+                                @endunless
                                 <x-ui.link-button
                                     :href="route('cobro.respuestas.outlook', $message)"
                                     variant="ghost"
