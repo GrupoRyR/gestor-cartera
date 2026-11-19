@@ -1,9 +1,9 @@
 <?php
 
-use App\Modules\Bancos\Domain\Calendar\ColombianHolidays;
+use App\Support\Calendar\ColombianHolidays;
 use Carbon\CarbonImmutable;
 
-function bancosCalendarDay(string $date): CarbonImmutable
+function supportCalendarDay(string $date): CarbonImmutable
 {
     return CarbonImmutable::parse($date, 'America/Bogota')->startOfDay();
 }
@@ -60,7 +60,7 @@ describe('the holidays of a year', function () {
 
 describe('business days', function () {
     it('is Monday to Friday and not a holiday', function (string $date, bool $business) {
-        expect((new ColombianHolidays)->isBusinessDay(bancosCalendarDay($date)))->toBe($business);
+        expect((new ColombianHolidays)->isBusinessDay(supportCalendarDay($date)))->toBe($business);
     })->with([
         'a Friday' => ['2026-10-16', true],
         'a Saturday' => ['2026-10-17', false],
@@ -73,12 +73,12 @@ describe('business days', function () {
     it('tells a holiday from a plain weekday', function () {
         $holidays = new ColombianHolidays;
 
-        expect($holidays->isHoliday(bancosCalendarDay('2026-10-12')))->toBeTrue()
-            ->and($holidays->isHoliday(bancosCalendarDay('2026-10-13')))->toBeFalse();
+        expect($holidays->isHoliday(supportCalendarDay('2026-10-12')))->toBeTrue()
+            ->and($holidays->isHoliday(supportCalendarDay('2026-10-13')))->toBeFalse();
     });
 
     it('finds the next business day, skipping weekends and holidays', function (string $from, string $next) {
-        expect((new ColombianHolidays)->nextBusinessDay(bancosCalendarDay($from))->toDateString())->toBe($next);
+        expect((new ColombianHolidays)->nextBusinessDay(supportCalendarDay($from))->toDateString())->toBe($next);
     })->with([
         'from a Friday to Monday' => ['2026-10-02', '2026-10-05'],
         'from a Friday over a holiday Monday' => ['2026-10-09', '2026-10-13'],
@@ -88,7 +88,7 @@ describe('business days', function () {
     ]);
 
     it('finds the previous business day, skipping weekends and holidays', function (string $from, string $previous) {
-        expect((new ColombianHolidays)->previousBusinessDay(bancosCalendarDay($from))->toDateString())->toBe($previous);
+        expect((new ColombianHolidays)->previousBusinessDay(supportCalendarDay($from))->toDateString())->toBe($previous);
     })->with([
         'from a Monday to Friday' => ['2026-10-05', '2026-10-02'],
         'from a Tuesday over a holiday Monday' => ['2026-10-13', '2026-10-09'],
@@ -97,6 +97,33 @@ describe('business days', function () {
     ]);
 
     it('keeps the time zone of the day it is given', function () {
-        expect((new ColombianHolidays)->nextBusinessDay(bancosCalendarDay('2026-10-09'))->getTimezone()->getName())->toBe('America/Bogota');
+        expect((new ColombianHolidays)->nextBusinessDay(supportCalendarDay('2026-10-09'))->getTimezone()->getName())->toBe('America/Bogota');
     });
+});
+
+describe('the nth business day of a month', function () {
+    it('counts weekdays that are not holidays from the 1st', function (int $year, int $month, int $n, string $day) {
+        expect((new ColombianHolidays)->nthBusinessDay($year, $month, $n, 'America/Bogota')->toDateString())->toBe($day);
+    })->with([
+        // Tue 1, Wed 2, Thu 3, Fri 4, Mon 7; the holiday on the 8th comes after.
+        'the 5th of December 2026' => [2026, 12, 5, '2026-12-07'],
+        // Mon 2 is All Saints' Day: Tue 3 is the 1st.
+        'the 1st of November 2026' => [2026, 11, 1, '2026-11-03'],
+        'the 5th of November 2026' => [2026, 11, 5, '2026-11-09'],
+        // Fri 1 is New Year's Day and Epiphany moves to Mon 11.
+        'the 5th of January 2027' => [2027, 1, 5, '2027-01-08'],
+        // Holy Thursday and Good Friday fall on April 2 and 3, 2026.
+        'the 5th of April 2026' => [2026, 4, 5, '2026-04-09'],
+    ]);
+
+    it('starts the day in the time zone it is given', function () {
+        $day = (new ColombianHolidays)->nthBusinessDay(2026, 12, 5, 'America/Bogota');
+
+        expect($day->getTimezone()->getName())->toBe('America/Bogota')
+            ->and($day->format('H:i:s'))->toBe('00:00:00');
+    });
+
+    it('refuses a position the month does not have', function (int $n) {
+        (new ColombianHolidays)->nthBusinessDay(2026, 12, $n, 'America/Bogota');
+    })->throws(InvalidArgumentException::class)->with([0, -1, 23]);
 });
