@@ -1,12 +1,12 @@
 <?php
 
-use App\Modules\Bancos\Domain\Calendar\ColombianHolidays;
 use App\Modules\Bancos\Domain\Collections\MonthCell;
 use App\Modules\Bancos\Domain\Collections\MonthCellState;
 use App\Modules\Bancos\Domain\Collections\MonthReport;
 use App\Modules\Bancos\Domain\Collections\MonthWeek;
 use App\Modules\Core\Contracts\Data\DailyCollection;
 use App\Modules\Core\Contracts\Enums\CompanyCode;
+use App\Support\Calendar\ColombianHolidays;
 use Carbon\CarbonImmutable;
 
 function bancosGridDay(string $date): CarbonImmutable

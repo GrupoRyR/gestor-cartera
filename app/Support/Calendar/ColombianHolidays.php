@@ -1,9 +1,10 @@
 <?php
 
-namespace App\Modules\Bancos\Domain\Calendar;
+namespace App\Support\Calendar;
 
 use Carbon\CarbonImmutable;
 use Carbon\CarbonInterface;
+use InvalidArgumentException;
 
 /**
  * The Colombian public holidays (festivos) and business days, computed by
@@ -17,6 +18,9 @@ use Carbon\CarbonInterface;
  *
  * A business day is Monday to Friday and not a holiday. Dates are compared
  * as calendar days, in the time zone of the date given.
+ *
+ * Shared by the modules (Bancos for its collection grids, Cobro for the
+ * day of the monthly circularization): it depends on nothing but Carbon.
  */
 final class ColombianHolidays
 {
@@ -58,6 +62,32 @@ final class ColombianHolidays
         do {
             $date = $date->addDay();
         } while (! $this->isBusinessDay($date));
+
+        return $date;
+    }
+
+    /**
+     * The $n-th business day of a month (1 = the first), at the start of
+     * that day in $timezone (null = the app's).
+     *
+     * @throws InvalidArgumentException When $n is below 1 or the month has fewer business days.
+     */
+    public function nthBusinessDay(int $year, int $month, int $n, ?string $timezone = null): CarbonImmutable
+    {
+        if ($n < 1) {
+            throw new InvalidArgumentException("The business day position must be at least 1, {$n} given.");
+        }
+
+        $date = CarbonImmutable::create($year, $month, 1, 0, 0, 0, $timezone);
+        $date = $this->isBusinessDay($date) ? $date : $this->nextBusinessDay($date);
+
+        for ($found = 1; $found < $n; $found++) {
+            $date = $this->nextBusinessDay($date);
+        }
+
+        if ($date->month !== $month) {
+            throw new InvalidArgumentException("{$year}-{$month} has fewer than {$n} business days.");
+        }
 
         return $date;
     }

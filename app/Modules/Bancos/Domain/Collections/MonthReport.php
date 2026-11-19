@@ -2,9 +2,9 @@
 
 namespace App\Modules\Bancos\Domain\Collections;
 
-use App\Modules\Bancos\Domain\Calendar\ColombianHolidays;
 use App\Modules\Core\Contracts\Data\DailyCollection;
 use App\Modules\Core\Contracts\Enums\CompanyCode;
+use App\Support\Calendar\ColombianHolidays;
 use Carbon\CarbonImmutable;
 use Carbon\CarbonInterface;
 

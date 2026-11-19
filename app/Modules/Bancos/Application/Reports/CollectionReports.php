@@ -2,12 +2,12 @@
 
 namespace App\Modules\Bancos\Application\Reports;
 
-use App\Modules\Bancos\Domain\Calendar\ColombianHolidays;
 use App\Modules\Bancos\Domain\Collections\DayReport;
 use App\Modules\Bancos\Domain\Collections\MonthReport;
 use App\Modules\Bancos\Domain\Statement\Cells;
 use App\Modules\Core\Contracts\Enums\CompanyCode;
 use App\Modules\Core\Contracts\RecaudoProvider;
+use App\Support\Calendar\ColombianHolidays;
 use Carbon\CarbonImmutable;
 
 /**
