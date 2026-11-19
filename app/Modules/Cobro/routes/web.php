@@ -36,6 +36,7 @@ Route::middleware(['auth', 'can:cobro.replies'])->prefix('respuestas')->name('re
     Route::get('/', [ReplyInboxController::class, 'index'])->name('index');
     Route::post('marcar', [ReplyInboxController::class, 'mark'])->name('mark');
     Route::get('{message}', [ReplyInboxController::class, 'show'])->whereNumber('message')->name('show');
+    Route::get('{message}/outlook', [ReplyInboxController::class, 'outlook'])->whereNumber('message')->middleware('throttle:30,1')->name('outlook');
 });
 
 // Delivery report: every run and its clients, with bounces.

@@ -12,6 +12,7 @@
     <x-ui.page-header :title="$title" :context="__('cobro::respuestas.detalle.contexto')">
         <x-slot:actions>
             <x-ui.link-button :href="route('cobro.respuestas.index')" variant="ghost" icon="chevron-left">{{ __('cobro::respuestas.acciones.volver') }}</x-ui.link-button>
+            <x-ui.link-button :href="route('cobro.respuestas.outlook', $message)" variant="secondary" icon="external" :external="true">{{ __('cobro::respuestas.outlook.abrir') }}</x-ui.link-button>
             <form method="POST" action="{{ route('cobro.respuestas.mark') }}">
                 @csrf
                 <input type="hidden" name="mensajes[]" value="{{ $message->id }}">

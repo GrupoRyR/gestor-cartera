@@ -20,6 +20,7 @@ return [
         'empresa' => 'Empresa',
         'recibido' => 'Recibido',
         'estado' => 'Estado',
+        'acciones' => 'Acciones',
     ],
     'sin_cliente' => 'Sin cliente identificado',
     'sin_asunto' => '(sin asunto)',
@@ -61,6 +62,13 @@ return [
         'texto' => 'Texto del mensaje',
         'leida_por' => 'Leída por :nombre el :fecha',
         'sin_texto' => 'El mensaje no tiene texto.',
+    ],
+
+    'outlook' => [
+        'abrir' => 'Abrir en Outlook',
+        'abrir_de' => 'el mensaje de :remitente',
+        'no_esta' => 'Este correo ya no está en el buzón de la empresa: puede que lo hayan borrado.',
+        'fallo' => 'No pudimos abrir el correo en Outlook. Intenta de nuevo en unos minutos.',
     ],
 
     'mensajes' => [
