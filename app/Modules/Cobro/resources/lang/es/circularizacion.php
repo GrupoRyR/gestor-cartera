@@ -8,11 +8,9 @@ return [
 
     // A company held back because its loaded cartera is not the month close.
     'consola' => [
-        'sin_cierre' => 'La circularización de :empresa no se envió: la cartera cargada es del :corte y el cierre del mes es el :cierre. '
-            .'Cuando cargues el cierre, ejecuta php artisan cobro:circularizacion --empresa=:codigo. '
-            .'Si ya no hay una carga del cierre, agrega --con-corte-actual para enviarla con el último corte.',
-        'sin_cartera' => 'La circularización de :empresa no se envió: no hay cartera cargada y el cierre del mes es el :cierre. '
-            .'Cuando cargues el cierre, ejecuta php artisan cobro:circularizacion --empresa=:codigo.',
+        'sin_cierre' => 'La circularización de :empresa no se envió: todavía no llega la foto del cierre del :cierre. '
+            .'Cuando llegue, ejecuta php artisan cobro:circularizacion --empresa=:codigo. '
+            .'Si no va a llegar, agrega --con-corte-actual para enviarla con la última carga.',
     ],
 
     'segurex' => [

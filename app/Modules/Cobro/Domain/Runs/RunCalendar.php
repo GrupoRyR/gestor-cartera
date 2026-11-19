@@ -2,6 +2,7 @@
 
 namespace App\Modules\Cobro\Domain\Runs;
 
+use App\Support\Calendar\ColombianHolidays;
 use Carbon\CarbonImmutable;
 use InvalidArgumentException;
 
@@ -28,19 +29,26 @@ final class RunCalendar
     }
 
     /**
-     * The next $dayOfMonth (1 to 28, so every month has it) at $time.
+     * The next $n-th business day of a month (ColombianHolidays) at $time,
+     * today when it is that day and the time has not passed yet.
      */
-    public static function nextMonthly(CarbonImmutable $now, int $dayOfMonth, string $time): CarbonImmutable
+    public static function nextBusinessDayOfMonth(CarbonImmutable $now, int $n, string $time, ColombianHolidays $holidays): CarbonImmutable
+    {
+        $candidate = self::businessDayOfMonth($now, $n, $time, $holidays);
+
+        return $candidate->lessThan($now) ? self::businessDayOfMonth($now, $n, $time, $holidays, 1) : $candidate;
+    }
+
+    /**
+     * The $n-th business day of the month of $now (or $monthsAhead later) at
+     * $time, in the timezone of $now.
+     */
+    public static function businessDayOfMonth(CarbonImmutable $now, int $n, string $time, ColombianHolidays $holidays, int $monthsAhead = 0): CarbonImmutable
     {
         [$hour, $minute] = self::time($time);
+        $month = $now->startOfMonth()->addMonthsNoOverflow($monthsAhead);
 
-        if ($dayOfMonth < 1 || $dayOfMonth > 28) {
-            throw new InvalidArgumentException("The day of month must be 1 to 28, {$dayOfMonth} given.");
-        }
-
-        $candidate = $now->setDate($now->year, $now->month, $dayOfMonth)->setTime($hour, $minute);
-
-        return $candidate->lessThan($now) ? $candidate->addMonthNoOverflow() : $candidate;
+        return $holidays->nthBusinessDay($month->year, $month->month, $n, $now->getTimezone()->getName())->setTime($hour, $minute);
     }
 
     /**

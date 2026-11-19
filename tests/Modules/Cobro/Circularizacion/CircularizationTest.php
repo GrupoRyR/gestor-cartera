@@ -13,8 +13,6 @@ use App\Modules\Core\Contracts\Enums\ClientStatus;
 use App\Modules\Core\Contracts\Enums\CompanyCode;
 use App\Modules\Core\Contracts\Enums\Role;
 use Carbon\CarbonImmutable;
-use Illuminate\Console\Scheduling\Event as ScheduledEvent;
-use Illuminate\Console\Scheduling\Schedule;
 use Tests\Fakes\ContractFakes;
 use Tests\Fakes\Make;
 use Tests\Modules\Cobro\Support\CobroPortfolio;
@@ -22,16 +20,18 @@ use Tests\Modules\Cobro\Support\CobroUsers;
 use Tests\Modules\Cobro\Support\VisibleText;
 
 /*
- * The monthly circularization run: the 1st at 09:00 (Bogotá) the latest
- * snapshot is the one of the closed month (cutoff 2026-10-31).
+ * The monthly circularization run: the 5th business day of November 2026
+ * (Monday the 9th) at 09:00 (Bogotá), with the closing snapshot of October
+ * (cutoff 2026-10-31).
  */
 
 beforeEach(function () {
     $this->seed(CobroPermissionSeeder::class);
-    $this->travelTo(CarbonImmutable::parse('2026-11-01 09:00:00', 'America/Bogota'));
+    $this->travelTo(CarbonImmutable::parse('2026-11-09 09:00:00', 'America/Bogota'));
     $this->fakes = ContractFakes::install($this->app);
     $this->portfolio = CobroPortfolio::seed($this->fakes);
     $this->fakes->cartera->cutoffDate = CarbonImmutable::parse('2026-10-31', 'America/Bogota');
+    CobroPortfolio::closeMonth($this->fakes, 2026, 10);
 });
 
 function cobroCircularizationItem(int $clientId): RunItem
@@ -57,7 +57,8 @@ it('sends on schedule for Segurex and Derivados without any flag', function () {
 
     expect($runs->pluck('company')->all())->toBe([CompanyCode::SGX, CompanyCode::SDC])
         ->and($runs->every(fn (Run $run): bool => $run->kind === RunKind::Circularization && $run->status === RunStatus::Completed))->toBeTrue()
-        ->and($runs->every(fn (Run $run): bool => $run->scheduled_for->equalTo(CarbonImmutable::parse('2026-11-01 09:00', 'America/Bogota'))))->toBeTrue()
+        ->and($runs->every(fn (Run $run): bool => $run->scheduled_for->equalTo(CarbonImmutable::parse('2026-11-09 09:00', 'America/Bogota'))))->toBeTrue()
+        ->and($runs->every(fn (Run $run): bool => $run->cutoff_date?->toDateString() === '2026-10-31'))->toBeTrue()
         ->and(cobroCircularizationItem($this->portfolio->tornillo->summary->id)->amount)->toBe('4500000.00')
         ->and(cobroCircularizationItem($this->portfolio->tornillo->summary->id)->invoice_count)->toBe(3)
         ->and(cobroCircularizationItem($this->portfolio->alDia->summary->id)->status)->toBe(ItemStatus::Sent)
@@ -210,7 +211,7 @@ it('copies what each company saved in the copies screen, the advisor and the gro
 
 it('runs once per month', function () {
     $this->artisan('cobro:circularizacion')->assertSuccessful();
-    $this->travelTo(CarbonImmutable::parse('2026-11-03 10:00:00', 'America/Bogota'));
+    $this->travelTo(CarbonImmutable::parse('2026-11-12 10:00:00', 'America/Bogota'));
 
     $this->artisan('cobro:circularizacion')
         ->expectsOutputToContain('ya se preparó')
@@ -265,13 +266,4 @@ it('sends a test to the user only, without copies', function () {
     $this->fakes->mail->assertSent(fn (OutgoingMail $mail): bool => $mail->subject === '[Prueba] Circularización de Cartera – Corte al 31 de octubre de 2026'
         && $mail->to === ['maria.rojas@segurex.com']
         && $mail->cc === [], times: 1);
-});
-
-it('is scheduled monthly at close, Bogotá time', function () {
-    $event = collect(app(Schedule::class)->events())
-        ->first(fn (ScheduledEvent $event): bool => str_contains((string) $event->command, 'cobro:circularizacion'));
-
-    expect($event)->toBeInstanceOf(ScheduledEvent::class)
-        ->and($event->expression)->toBe('0 9 1 * *')
-        ->and($event->timezone)->toBe('America/Bogota');
 });

@@ -19,7 +19,8 @@ use Tests\Fakes\Make;
  * - alDia (SGX): only an invoice not due yet;
  * - quimicos (SDC): one overdue invoice.
  *
- * The snapshot cutoff is 2026-10-20.
+ * The snapshot cutoff is 2026-10-20. closeMonth() also makes it the
+ * closing snapshot a circularization run needs.
  */
 final class CobroPortfolio
 {
@@ -84,5 +85,20 @@ final class CobroPortfolio
         $cartera->addClient($portfolio->quimicos, Make::invoice(company: CompanyCode::SDC, clientId: $portfolio->quimicos->summary->id, amount: 700_000, daysOverdue: 12));
 
         return $portfolio;
+    }
+
+    /**
+     * Makes the cartera fake itself the closing snapshot of $month of $year
+     * for $companies (both by default), so a circularization run reads the
+     * same clients and invoices as the latest load.
+     *
+     * @param  list<CompanyCode>  $companies
+     */
+    public static function closeMonth(ContractFakes $fakes, int $year, int $month, array $companies = [CompanyCode::SGX, CompanyCode::SDC]): void
+    {
+        // Without the user scope, as Core's closing snapshot.
+        foreach ($companies as $company) {
+            $fakes->cartera->addClosingSnapshot($company, $year, $month, $fakes->cartera->asSystem());
+        }
     }
 }

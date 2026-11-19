@@ -103,7 +103,8 @@ final class SendRunItem implements ShouldQueue
 
         try {
             $definition = $definitions->for($run->kind);
-            $notice = $definition->notice($item->client_id);
+            // The snapshot the run was planned with (a circularization's close).
+            $notice = $definition->notice($item->client_id, $run->cutoff_date);
 
             if ($notice === null) {
                 $item->update(['status' => ItemStatus::Skipped]);
