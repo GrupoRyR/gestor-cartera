@@ -20,6 +20,7 @@
         ...($isGroup ? [['key' => 'company', 'label' => __('cobro::respuestas.columnas.empresa')]] : []),
         ['key' => 'received', 'label' => __('cobro::respuestas.columnas.recibido')],
         ['key' => 'state', 'label' => __('cobro::respuestas.columnas.estado')],
+        ['key' => 'actions', 'label' => __('cobro::respuestas.columnas.acciones'), 'align' => 'end'],
     ];
     $empty = $filter === 'pendientes' ? 'pendientes' : 'otros';
 @endphp
@@ -68,6 +69,14 @@
                                         <x-ui.chip tone="neutral" :dot="false">{{ __('cobro::respuestas.leida') }}</x-ui.chip>
                                     @endif
                                 </span>
+                            </td>
+                            <td data-align="end">
+                                <x-ui.link-button
+                                    :href="route('cobro.respuestas.outlook', $message)"
+                                    variant="ghost"
+                                    icon="external"
+                                    :external="true"
+                                >{{ __('cobro::respuestas.outlook.abrir') }}<span data-visually-hidden> {{ __('cobro::respuestas.outlook.abrir_de', ['remitente' => $message->from_name ?? $message->from_address ?? '—']) }}</span></x-ui.link-button>
                             </td>
                         </tr>
                     @endforeach

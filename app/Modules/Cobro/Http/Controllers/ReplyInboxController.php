@@ -2,6 +2,8 @@
 
 namespace App\Modules\Cobro\Http\Controllers;
 
+use App\Modules\Cobro\Infrastructure\Graph\GraphRequestFailed;
+use App\Modules\Cobro\Infrastructure\Mail\MessageLocator;
 use App\Modules\Cobro\Infrastructure\Persistence\InboundMessage;
 use App\Modules\Core\Contracts\CurrentCompany;
 use App\Modules\Core\Contracts\Data\Company;
@@ -11,6 +13,7 @@ use Illuminate\Contracts\View\View;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Log;
 
 /**
  * The client replies inbox (Respuestas de clientes), cobro.respuestas.*:
@@ -20,6 +23,8 @@ use Illuminate\Http\Request;
  * - GET  /cobro/respuestas?estado=pendientes|leidas|todas: the list,
  *   pending first by default, newest first;
  * - GET  /cobro/respuestas/{message}: one message with its text;
+ * - GET  /cobro/respuestas/{message}/outlook: the message in Outlook on
+ *   the web (MessageLocator), or back to its screen with the reason;
  * - POST /cobro/respuestas/marcar: marks the checked messages (mensajes[])
  *   as read or pending (accion=leida|pendiente).
  *
@@ -66,6 +71,40 @@ final class ReplyInboxController
         $message->loadMissing(['sentMessage', 'reader']);
 
         return view('cobro::respuestas.show', ['message' => $message]);
+    }
+
+    /**
+     * Opens the message in Outlook on the web: redirects to the webLink
+     * Graph gives for it now, or back to its screen with the reason.
+     */
+    public function outlook(InboundMessage $message, MessageLocator $locator): RedirectResponse
+    {
+        $this->authorizeCompany($message);
+        $back = redirect()->route('cobro.respuestas.show', $message);
+
+        try {
+            $located = $locator->locate($message);
+        } catch (GraphRequestFailed $e) {
+            Log::warning('Cobro: the Outlook link of an inbound message could not be read from Graph.', [
+                'inbound_message' => $message->id,
+                'status' => $e->status,
+                'graph_code' => $e->graphCode,
+            ]);
+
+            return $back->with('error', __('cobro::respuestas.outlook.fallo'));
+        }
+
+        if ($located === null) {
+            return $back->with('error', __('cobro::respuestas.outlook.no_esta'));
+        }
+
+        if ($located->webLink === null) {
+            Log::warning('Cobro: Graph gave no Outlook link for an inbound message.', ['inbound_message' => $message->id]);
+
+            return $back->with('error', __('cobro::respuestas.outlook.fallo'));
+        }
+
+        return redirect()->away($located->webLink);
     }
 
     public function mark(Request $request): RedirectResponse

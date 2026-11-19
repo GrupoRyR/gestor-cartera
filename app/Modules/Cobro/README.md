@@ -11,6 +11,7 @@ Correo de cobro por Microsoft Graph desde el buzón de cada empresa: cobro seman
 | `POST /cobro/semanal/{empresa}/prueba` | `cobro.semanal.prueba` | `cobro.manage` | Envía el correo de un cliente, marcado como prueba, solo al usuario. |
 | `GET /cobro/circularizacion` (y las mismas subrutas) | `cobro.circularizacion.*` | igual | Lo mismo para la circularización. |
 | `GET /cobro/respuestas` | `cobro.respuestas.index` | `cobro.replies` | Respuestas y rebotes, pendientes o leídos; se marcan con casillas. |
+| `GET /cobro/respuestas/{mensaje}/outlook` | `cobro.respuestas.outlook` | `cobro.replies` | Abre el mensaje en Outlook en la web (ver «Abrir en Outlook»). |
 | `GET /cobro/lotes` | `cobro.lotes.index` | `cobro.view` | Informes de envío: enviados, rebotados, sin correo, excluidos y no enviados. |
 | `GET /cobro/lotes/{run}` | `cobro.lotes.show` | `cobro.view` | Un envío cliente por cliente, con el motivo del rebote leído del buzón. |
 | `GET /cobro/exclusiones` | `cobro.exclusiones.index` | `cobro.manage` | Lista de exclusión con casillas, motivo y fecha de vencimiento opcional. |
@@ -70,6 +71,14 @@ php artisan cobro:diagnosticar-rebote SGX --probar-delta
 ```
 
 El primero muestra la clase del mensaje, `X-MS-Exchange-Organization-AuthAs`, el remitente, si trae `multipart/report`, los dominios propios y la decisión de la regla; nunca muestra el cuerpo ni el asunto. Debe decir «rebote de nuestro Exchange»: si el remitente llega con otro dominio (por ejemplo `…onmicrosoft.com`), agrégalo a `COBRO_TENANT_DOMAINS` (o, si solo lo usa esa empresa, a `COBRO_TENANT_DOMAINS_SGX` o `COBRO_TENANT_DOMAINS_SDC`) y vuelve a correrlo; la línea de dominios propios ya lo incluye. `--probar-delta` pide una sola página de un mensaje de la consulta delta con la clase y solo dice si Graph la aceptó y, si no, el código HTTP. El comando no escribe en la base ni mueve los enlaces de la sincronización.
+
+### Abrir en Outlook
+
+La bandeja y la pantalla de cada mensaje tienen el botón «Abrir en Outlook». El enlace no se guarda: cada clic le pide a Graph el `webLink` del mensaje (`GET /users/{buzón}/messages/{id}?$select=id,webLink`, con la credencial de la empresa) y redirige a él.
+
+- **Si alguien movió el correo de carpeta**, su id de Graph cambió (la sincronización no pide ids inmutables) y Graph contesta 404. Entonces `MessageLocator` lo busca por su `internetMessageId`, que no cambia, y guarda el id nuevo. Si tampoco lo encuentra, la pantalla dice que ya no está en el buzón.
+- **Solo redirige a Outlook en la web** (`outlook.office365.com` u `outlook.office.com`, con https). Otro enlace, o una falla de Graph, vuelve a la pantalla del mensaje con un aviso y deja un `warning` con el id del mensaje y el código HTTP, sin contenido.
+- **Quien abre el enlace necesita acceso al buzón compartido** de la empresa en Outlook; si no lo tiene, Outlook no le muestra el correo.
 
 ## Copias del cobro semanal y de la circularización
 
