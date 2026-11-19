@@ -9,6 +9,7 @@ use App\Modules\Cobro\Infrastructure\Copies\CopyStore;
 use App\Modules\Cobro\Infrastructure\Persistence\Run;
 use App\Modules\Cobro\Infrastructure\Persistence\RunItem;
 use App\Modules\Core\Contracts\Data\OutgoingMail;
+use App\Modules\Core\Contracts\Enums\ClientStatus;
 use App\Modules\Core\Contracts\Enums\CompanyCode;
 use App\Modules\Core\Contracts\Enums\Role;
 use Carbon\CarbonImmutable;
@@ -102,6 +103,52 @@ it('mails neither excluded clients nor clients without an e-mail', function () {
     ])->sort()->values()->all())
         ->and(cobroCircularizationItem($this->portfolio->andinas->summary->id)->status)->toBe(ItemStatus::NoEmail)
         ->and(cobroCircularizationItem($this->portfolio->excluido->summary->id)->status)->toBe(ItemStatus::Excluded);
+});
+
+/**
+ * A client in legal collection of $company, with an e-mail and a balance.
+ */
+function cobroLegalClient(ContractFakes $fakes, CompanyCode $company, string $email): int
+{
+    $client = Make::clientDetail(
+        Make::client(company: $company, name: 'Cliente Jurídico '.$company->value.' SAS', status: ClientStatus::Legal, balance: 900_000, overdue: 900_000, maxDaysOverdue: 120),
+        contacts: [Make::contact(email: $email, isPrimary: true)],
+    );
+    $fakes->cartera->addClient($client, Make::invoice(company: $company, clientId: $client->summary->id, amount: 900_000, daysOverdue: 120));
+
+    return $client->summary->id;
+}
+
+it('never mails a client in legal collection, in Segurex or Derivados, and lists it as excluded', function () {
+    $legal = [
+        'cartera@juridico-sgx.example' => cobroLegalClient($this->fakes, CompanyCode::SGX, 'cartera@juridico-sgx.example'),
+        'cartera@juridico-sdc.example' => cobroLegalClient($this->fakes, CompanyCode::SDC, 'cartera@juridico-sdc.example'),
+    ];
+
+    $this->artisan('cobro:circularizacion')
+        ->expectsOutputToContain('Segurex Latam: Circularización en cola para 2 clientes; 1 sin correo y 2 excluidos.')
+        ->expectsOutputToContain('Soluciones y Derivados: Circularización en cola para 1 clientes; 0 sin correo y 1 excluidos.')
+        ->assertSuccessful();
+
+    foreach ($legal as $email => $clientId) {
+        $item = cobroCircularizationItem($clientId);
+
+        expect($item->status)->toBe(ItemStatus::Excluded)
+            ->and($item->exclusion_reason)->toBe('Cliente en cobro jurídico')
+            ->and($item->recipients)->toBe([$email])
+            ->and(collect($this->fakes->mail->sent())->contains(fn (OutgoingMail $mail): bool => $mail->clientId === $clientId))->toBeFalse();
+    }
+
+    $this->fakes->mail->assertSentTo('tesoreria@tornillo.example');
+    $this->fakes->mail->assertSentTo('pagos@quimicos.example');
+});
+
+it('previews a client in legal collection as excluded, with the reason', function () {
+    $clientId = cobroLegalClient($this->fakes, CompanyCode::SGX, 'cartera@juridico.example');
+
+    $this->actingAs(CobroUsers::create(Role::PortfolioAnalyst))->get('/cobro/circularizacion?estado=excluido')->assertOk()
+        ->assertSee('data-client="'.$clientId.'"', false)
+        ->assertSeeText('Cliente en cobro jurídico');
 });
 
 it('lists credit notes so the total is what the client owes', function () {

@@ -18,6 +18,7 @@ use App\Modules\Core\Contracts\Data\Advisor;
 use App\Modules\Core\Contracts\Data\ClientQuery;
 use App\Modules\Core\Contracts\Data\Company;
 use App\Modules\Core\Contracts\Data\Invoice;
+use App\Modules\Core\Contracts\Enums\ClientStatus;
 use App\Modules\Core\Contracts\Enums\CompanyCode;
 use Carbon\CarbonImmutable;
 
@@ -28,6 +29,9 @@ use Carbon\CarbonImmutable;
  * company sends today (cobro::circularizacion.estado-cartera). The mail
  * copies (Cc) the same recipients as the company's weekly collection
  * (CopyStore); a test send copies nobody.
+ *
+ * A client in legal collection (ClientStatus::Legal) is never mailed: it
+ * stays in the run as excluded, with the reason, as in the weekly run.
  *
  * The draft mechanism stays for a future format change: while
  * cobro.circularizacion.draft is true the scheduled run sends nothing and
@@ -104,6 +108,7 @@ final class CircularizationRun implements RunDefinition
                 self::total($items),
                 count($items),
                 CopyRecipients::resolve($copies, self::advisorEmail($client->advisor), $detail?->group, $emails),
+                $client->status === ClientStatus::Legal ? __('cobro::envios.excluido_juridico') : null,
             );
         }
     }
