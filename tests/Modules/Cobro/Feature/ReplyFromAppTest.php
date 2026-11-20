@@ -12,6 +12,7 @@ use Tests\Fakes\AuditEntry;
 use Tests\Fakes\ContractFakes;
 use Tests\Modules\Cobro\Support\CobroUsers;
 use Tests\Modules\Cobro\Support\GraphFake;
+use Tests\Modules\Cobro\Support\VisibleText;
 
 /*
  * "Responder desde la app": createReply on the client message (found
@@ -61,7 +62,8 @@ function cobroReplyDraft(): array
 }
 
 /**
- * Graph finding the message, creating the draft, taking its body and sending it.
+ * Graph finding the message, creating the draft, taking its body and its
+ * signature images, and sending it.
  */
 function cobroGraphReplying(string $currentId = 'AAMkAD-original'): GraphFake
 {
@@ -69,6 +71,7 @@ function cobroGraphReplying(string $currentId = 'AAMkAD-original'): GraphFake
         ->on('GET', "users/*/messages/{$currentId}", ['id' => $currentId, 'webLink' => 'https://outlook.office365.com/owa/?ItemID=x'])
         ->on('POST', "users/*/messages/{$currentId}/createReply", cobroReplyDraft(), 201)
         ->on('PATCH', 'users/*/messages/draft-1', cobroReplyDraft())
+        ->on('POST', 'users/*/messages/draft-1/attachments', ['id' => 'attachment-1'], 201)
         ->on('POST', 'users/*/messages/draft-1/send', status: 202);
 }
 
@@ -112,6 +115,51 @@ it('replies in the same thread from the company mailbox, above the quoted messag
         ->and($this->reply->read_by)->toBe($this->analyst->id);
 });
 
+it('signs the reply with the company signature, between the text and the quoted message', function () {
+    $graph = cobroGraphReplying();
+
+    cobroPostReply('Gracias, Laura.')->assertSessionHas('status');
+
+    $html = $graph->requestsTo('PATCH', 'users/*/messages/draft-1')[0]->data()['body']['content'];
+
+    expect(VisibleText::of($html))->toContain('Gracias, Laura. Cordialmente, María Paula Alvarez Auxiliar de Cartera SEGUREX LATAM S.A.S.')
+        ->and(strpos($html, 'Gracias, Laura.'))->toBeLessThan(strpos($html, 'data-firma="SGX"'))
+        ->and(strpos($html, 'data-firma="SGX"'))->toBeLessThan(strpos($html, 'id="quoted"'))
+        ->and($html)->toContain('src="cid:sgx-redes"')->toContain('src="cid:sgx-logo"');
+});
+
+it('adds the signature images to the draft, inline, before sending it', function () {
+    $graph = cobroGraphReplying();
+
+    cobroPostReply('Gracias, Laura.')->assertSessionHas('status');
+
+    $attachments = $graph->requestsTo('POST', 'users/segurex.info@segurex.com/messages/draft-1/attachments');
+    $order = array_map(fn ($request): string => $request->method().' '.basename((string) parse_url($request->url(), PHP_URL_PATH)), $graph->requests());
+
+    expect(array_map(fn ($request): array => [$request->data()['contentId'], $request->data()['isInline'], $request->data()['name']], $attachments))->toBe([
+        ['sgx-redes', true, 'sgx-redes.png'],
+        ['sgx-logo', true, 'sgx-logo.png'],
+    ])
+        ->and($attachments[1]->data()['contentBytes'])->toBe(base64_encode((string) file_get_contents(app_path('Modules/Cobro/resources/firmas/sgx-logo.png'))))
+        ->and(array_slice($order, -4))->toBe(['PATCH draft-1', 'POST attachments', 'POST attachments', 'POST send']);
+});
+
+it('deletes the draft and sends nothing when Graph refuses a signature image', function () {
+    $graph = GraphFake::install()
+        ->on('GET', 'users/*/messages/AAMkAD-original', ['id' => 'AAMkAD-original'])
+        ->on('POST', 'users/*/messages/AAMkAD-original/createReply', cobroReplyDraft(), 201)
+        ->on('PATCH', 'users/*/messages/draft-1', cobroReplyDraft())
+        ->on('POST', 'users/*/messages/draft-1/attachments', ['error' => ['code' => 'ErrorQuotaExceeded']], 507)
+        ->on('DELETE', 'users/*/messages/draft-1', status: 204);
+
+    cobroPostReply('Gracias, Laura.')
+        ->assertSessionHas('error', 'No pudimos enviar tu respuesta. Intenta de nuevo en unos minutos.');
+
+    expect($graph->requestsTo('POST', 'users/*/messages/draft-1/send'))->toBe([])
+        ->and($graph->requestsTo('DELETE', 'users/*/messages/draft-1'))->toHaveCount(1)
+        ->and(SentMessage::query()->count())->toBe(0);
+});
+
 it('logs the reply in the client activity and in the audit log, with who answered', function () {
     cobroGraphReplying();
 
@@ -153,6 +201,7 @@ it('replies to a moved message under its new id', function () {
         ->on('GET', 'users/*/messages', ['value' => [['id' => 'AAMkAD-moved']]])
         ->on('POST', 'users/*/messages/AAMkAD-moved/createReply', cobroReplyDraft(), 201)
         ->on('PATCH', 'users/*/messages/draft-1', cobroReplyDraft())
+        ->on('POST', 'users/*/messages/draft-1/attachments', ['id' => 'attachment-1'], 201)
         ->on('POST', 'users/*/messages/draft-1/send', status: 202);
 
     cobroPostReply('Gracias.')->assertSessionHas('status');
@@ -179,6 +228,7 @@ it('deletes the draft and keeps the text when Graph refuses the send', function 
         ->on('GET', 'users/*/messages/AAMkAD-original', ['id' => 'AAMkAD-original'])
         ->on('POST', 'users/*/messages/AAMkAD-original/createReply', cobroReplyDraft(), 201)
         ->on('PATCH', 'users/*/messages/draft-1', cobroReplyDraft())
+        ->on('POST', 'users/*/messages/draft-1/attachments', ['id' => 'attachment-1'], 201)
         ->on('POST', 'users/*/messages/draft-1/send', ['error' => ['code' => 'ErrorSendAsDenied']], 403)
         ->on('DELETE', 'users/*/messages/draft-1', status: 204);
 

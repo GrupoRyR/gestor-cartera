@@ -6,6 +6,7 @@ use App\Modules\Cobro\Infrastructure\Graph\GraphClient;
 use App\Modules\Cobro\Infrastructure\Graph\GraphRequestFailed;
 use App\Modules\Cobro\Infrastructure\Persistence\InboundMessage;
 use App\Modules\Cobro\Infrastructure\Persistence\SentMessage;
+use App\Modules\Core\Contracts\CurrentCompany;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\Log;
 use Throwable;
@@ -13,10 +14,12 @@ use Throwable;
 /**
  * Answers a client message from its company mailbox, in the same thread.
  *
- * Three Graph steps, with the credential of the message's company:
- * createReply on the message (a draft addressed by Graph, with the
- * original quoted), PATCH of the draft body with the user's text above
- * the quote, and send. The reply is kept in cobro_sent_messages (category
+ * Graph steps, with the credential of the message's company: createReply
+ * on the message (a draft addressed by Graph, with the original quoted),
+ * PATCH of the draft body with the user's text and the company's signature
+ * (cobro::correos.firma) above the quote, one POST …/attachments per
+ * signature image (inline, for its cid: reference) and send. The reply is
+ * kept in cobro_sent_messages (category
  * "respuesta"), so what the client answers next is linked to the client
  * like any other send.
  *
@@ -30,6 +33,8 @@ final class ReplySender
 
     public function __construct(
         private readonly GraphClient $graph,
+        private readonly NoticeRenderer $renderer,
+        private readonly CurrentCompany $companies,
     ) {}
 
     /**
@@ -56,9 +61,15 @@ final class ReplySender
             }
 
             $quoted = is_array($draft['body'] ?? null) ? (string) ($draft['body']['content'] ?? '') : '';
+            $signature = $this->renderer->signature($this->companies->of($message->company));
             $graph->patch("{$messages}/".rawurlencode($draftId), [
-                'body' => ['contentType' => 'HTML', 'content' => self::withText($quoted, $text)],
+                'body' => ['contentType' => 'HTML', 'content' => self::withText($quoted, $text, $signature['html'])],
             ]);
+
+            // The images the signature shows with cid:, inline on the draft.
+            foreach ($signature['attachments'] as $attachment) {
+                $graph->post("{$messages}/".rawurlencode($draftId).'/attachments', GraphMailSender::attachment($attachment));
+            }
 
             try {
                 $graph->postEmpty("{$messages}/".rawurlencode($draftId).'/send');
@@ -89,12 +100,14 @@ final class ReplySender
     }
 
     /**
-     * The user's text, escaped and with its line breaks, right after the
-     * <body> tag of the quoted draft (or before it, without one).
+     * The user's text, escaped and with its line breaks, then $signature
+     * (rendered HTML), right after the <body> tag of the quoted draft (or
+     * before it, without one).
      */
-    public static function withText(string $quoted, string $text): string
+    public static function withText(string $quoted, string $text, string $signature = ''): string
     {
-        $html = '<div style="font-family: Arial, sans-serif; font-size: 11pt;">'.nl2br(e($text), false).'</div><br>';
+        $html = '<div style="font-family:Helvetica,Arial,\'Helvetica Neue\',sans-serif;font-size:13px;line-height:1.5;">'.nl2br(e($text), false).'</div>'
+            .$signature.'<br>';
 
         if (preg_match('/<body\b[^>]*>/i', $quoted, $match, PREG_OFFSET_CAPTURE) === 1) {
             $at = $match[0][1] + strlen($match[0][0]);
