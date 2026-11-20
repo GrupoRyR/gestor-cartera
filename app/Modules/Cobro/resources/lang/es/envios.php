@@ -21,6 +21,11 @@ return [
         'proximo' => 'Próximo envío',
         'proximo_detalle' => ':fecha a las :hora (hora de Colombia)',
         'pausado' => 'Pausado mientras el envío esté en borrador',
+        'corte' => 'Corte de la cartera: :fecha',
+        'sin_cierre' => [
+            'titulo' => 'Falta la foto del cierre',
+            'detalle' => 'Todavía no llega la foto del cierre del :cierre: esta vista previa usa la última carga, del :corte. El envío la espera.',
+        ],
         'a_enviar' => 'Recibirán el correo',
         'sin_correo' => 'Sin dirección de correo',
         'excluidos' => 'Excluidos',

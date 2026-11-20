@@ -10,7 +10,10 @@
     With a company: $planned: list<PlannedItem>; $items: paginator of the
     PlannedItem filtered by $filter (?ItemStatus, ?estado=); $counts:
     ItemStatus value => clients; $amount: total to collect from pending
-    clients; $nextRunAt: next scheduled moment; $runs: latest Run rows.
+    clients; $nextRunAt: next scheduled moment; $cutoff: cutoff of the
+    cartera the preview reads; $waitingClose: the month close a
+    circularization still waits for (null when it arrived or the kind needs
+    none); $runs: latest Run rows.
 --}}
 @php
     $kind = $definition->kind();
@@ -60,12 +63,19 @@
                 </x-ui.alert>
             @endunless
 
+            @if ($waitingClose !== null)
+                <x-ui.alert tone="warning" :title="__('cobro::envios.vista.sin_cierre.titulo')">
+                    {{ __('cobro::envios.vista.sin_cierre.detalle', ['cierre' => DateFormat::date($waitingClose), 'corte' => DateFormat::date($cutoff)]) }}
+                </x-ui.alert>
+            @endif
+
             <div class="grid grid-cols-1 gap-3 min-[22rem]:grid-cols-2 md:gap-4 lg:grid-cols-4">
                 <x-ui.stat
                     :label="__('cobro::envios.vista.proximo')"
                     :value="$definition->sendsOnSchedule()
                         ? __('cobro::envios.vista.proximo_detalle', ['fecha' => DateFormat::date($nextRunAt), 'hora' => $nextRunAt->format('H:i')])
                         : __('cobro::envios.vista.pausado')"
+                    :hint="__('cobro::envios.vista.corte', ['fecha' => DateFormat::date($cutoff)])"
                 />
                 <x-ui.stat :label="__('cobro::envios.vista.a_enviar')" :value="number_format($counts[ItemStatus::Pending->value], 0, ',', '.')" tone="success" />
                 <x-ui.stat :label="__('cobro::envios.vista.sin_correo')" :value="number_format($counts[ItemStatus::NoEmail->value], 0, ',', '.')" :tone="$counts[ItemStatus::NoEmail->value] > 0 ? 'warning' : 'neutral'" />

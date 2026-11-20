@@ -68,7 +68,15 @@ final class WeeklyCollection implements RunDefinition
         );
     }
 
-    public function candidates(CompanyCode $company): iterable
+    /**
+     * The weekly collection always reads the latest load.
+     */
+    public function cutoffFor(CompanyCode $company, CarbonImmutable $runAt): ?CarbonImmutable
+    {
+        return null;
+    }
+
+    public function candidates(CompanyCode $company, ?CarbonImmutable $cutoff = null): iterable
     {
         $cartera = $this->cartera->asSystem();
         $copies = $this->copies->for($company);
@@ -99,7 +107,7 @@ final class WeeklyCollection implements RunDefinition
      * what the client owes (the overdue invoices are highlighted in the
      * mail), when at least one invoice is overdue.
      */
-    public function notice(int $clientId): ?NoticeData
+    public function notice(int $clientId, ?CarbonImmutable $cutoff = null): ?NoticeData
     {
         $cartera = $this->cartera->asSystem();
         $client = $cartera->client($clientId);

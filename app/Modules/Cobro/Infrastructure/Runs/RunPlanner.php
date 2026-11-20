@@ -43,15 +43,16 @@ final class RunPlanner
     ) {}
 
     /**
+     * @param  CarbonImmutable|null  $cutoff  The snapshot the run reads (RunDefinition::cutoffFor()); null = the latest load.
      * @return list<PlannedItem>
      */
-    public function plan(RunDefinition $definition, CompanyCode $company, ?CarbonImmutable $today = null): array
+    public function plan(RunDefinition $definition, CompanyCode $company, ?CarbonImmutable $today = null, ?CarbonImmutable $cutoff = null): array
     {
         $today ??= CarbonImmutable::now(CobroServiceProvider::TIMEZONE)->startOfDay();
         $excluded = $this->exclusions->activeFor($company, $today);
         $planned = [];
 
-        foreach ($definition->candidates($company) as $candidate) {
+        foreach ($definition->candidates($company, $cutoff) as $candidate) {
             $planned[] = PlannedItem::for($candidate, $excluded[$candidate->client->id]->reason ?? null);
         }
 
@@ -59,10 +60,11 @@ final class RunPlanner
     }
 
     /**
-     * Saves and queues the run of $company at $scheduledFor; null when that
-     * run already exists.
+     * Saves and queues the run of $company at $scheduledFor, reading the
+     * snapshot of $cutoff (saved as the run's cutoff_date; null = the latest
+     * load, whose cutoff is saved); null when that run already exists.
      */
-    public function start(RunDefinition $definition, CompanyCode $company, CarbonImmutable $scheduledFor, ?int $userId = null): ?Run
+    public function start(RunDefinition $definition, CompanyCode $company, CarbonImmutable $scheduledFor, ?int $userId = null, ?CarbonImmutable $cutoff = null): ?Run
     {
         $scheduledFor = $scheduledFor->setTimezone((string) config('app.timezone'))->startOfMinute();
 
@@ -70,16 +72,18 @@ final class RunPlanner
             return null;
         }
 
-        $planned = $this->plan($definition, $company, $scheduledFor->setTimezone(CobroServiceProvider::TIMEZONE)->startOfDay());
+        $planned = $this->plan($definition, $company, $scheduledFor->setTimezone(CobroServiceProvider::TIMEZONE)->startOfDay(), $cutoff);
+        $cutoffDate = $cutoff?->toDateString()
+            ?? $this->cartera->asSystem()->totals(new ClientQuery(companies: [$company]))->cutoffDate?->setTimezone(CobroServiceProvider::TIMEZONE)->toDateString();
 
         try {
-            $run = $this->database->transaction(function () use ($definition, $company, $scheduledFor, $userId, $planned): Run {
+            $run = $this->database->transaction(function () use ($definition, $company, $scheduledFor, $userId, $planned, $cutoffDate): Run {
                 $run = Run::query()->create([
                     'company' => $company,
                     'kind' => $definition->kind(),
                     'status' => RunStatus::Sending,
                     'scheduled_for' => $scheduledFor,
-                    'cutoff_date' => $this->cartera->asSystem()->totals(new ClientQuery(companies: [$company]))->cutoffDate,
+                    'cutoff_date' => $cutoffDate,
                     'triggered_by' => $userId,
                     'started_at' => CarbonImmutable::now(),
                 ]);

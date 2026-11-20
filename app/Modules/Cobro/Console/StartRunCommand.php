@@ -35,6 +35,15 @@ abstract class StartRunCommand extends Command
         return false;
     }
 
+    /**
+     * The snapshot the run of $company at $slot reads; null = the latest
+     * load.
+     */
+    protected function cutoff(RunDefinition $definition, CompanyCode $company, CarbonImmutable $slot): ?CarbonImmutable
+    {
+        return $definition->cutoffFor($company, $slot);
+    }
+
     public function handle(RunPlanner $planner): int
     {
         $definition = $this->definition();
@@ -56,7 +65,7 @@ abstract class StartRunCommand extends Command
 
         foreach ($companies as $company) {
             $name = ['empresa' => $company->label(), 'tipo' => $kind->label()];
-            $run = $planner->start($definition, $company, $slot);
+            $run = $planner->start($definition, $company, $slot, cutoff: $this->cutoff($definition, $company, $slot));
 
             if ($run === null) {
                 $this->info(__('cobro::envios.consola.ya_existe', $name));

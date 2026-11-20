@@ -3,6 +3,7 @@
 namespace App\Modules\Cobro\Http\Controllers;
 
 use App\Modules\Cobro\Application\Runs\RunDefinition;
+use App\Modules\Cobro\Circularizacion\CircularizationRun;
 use App\Modules\Cobro\Domain\Runs\ItemStatus;
 use App\Modules\Cobro\Domain\Runs\NoticeData;
 use App\Modules\Cobro\Domain\Runs\PlannedItem;
@@ -12,6 +13,7 @@ use App\Modules\Cobro\Infrastructure\Runs\RunDefinitions;
 use App\Modules\Cobro\Infrastructure\Runs\RunPlanner;
 use App\Modules\Core\Contracts\CarteraRepository;
 use App\Modules\Core\Contracts\CurrentCompany;
+use App\Modules\Core\Contracts\Data\ClientQuery;
 use App\Modules\Core\Contracts\Data\Company;
 use App\Modules\Core\Contracts\Data\OutgoingMail;
 use App\Modules\Core\Contracts\Enums\CompanyCode;
@@ -32,7 +34,9 @@ use Illuminate\Support\Facades\Log;
  *
  * - GET  …/?empresa=SGX&estado=pendiente: who would get the mail now, with
  *   its status (pending, without e-mail, excluded), the next scheduled
- *   moment and the latest runs;
+ *   moment, the cutoff of the cartera it reads (for the circularization,
+ *   the closing snapshot the next run needs, or the latest load with a
+ *   notice while it has not arrived) and the latest runs;
  * - GET  …/{empresa}/correo/{cliente}: one client's mail as it would leave;
  * - POST …/{empresa}/prueba: mails one client's message, marked as a test,
  *   to the signed-in user only.
@@ -64,7 +68,9 @@ final class RunPreviewController
         }
 
         $company = $this->pick($companies, $request->string('empresa')->toString()) ?? $companies[0];
-        $planned = $this->planner->plan($definition, $company->code);
+        $nextRunAt = $definition->nextRunAt(CarbonImmutable::now());
+        $cutoff = $definition->cutoffFor($company->code, $nextRunAt);
+        $planned = $this->planner->plan($definition, $company->code, cutoff: $cutoff);
 
         $filter = ItemStatus::tryFrom($request->string('estado')->toString());
         $filtered = $filter === null ? $planned : array_values(array_filter($planned, fn (PlannedItem $item): bool => $item->status === $filter));
@@ -85,7 +91,11 @@ final class RunPreviewController
             ),
             'counts' => self::counts($planned),
             'amount' => array_sum(array_map(fn (PlannedItem $item): float => $item->status === ItemStatus::Pending ? $item->candidate->amount : 0.0, $planned)),
-            'nextRunAt' => $definition->nextRunAt(CarbonImmutable::now()),
+            'nextRunAt' => $nextRunAt,
+            'cutoff' => $cutoff ?? $this->cartera->asSystem()->totals(new ClientQuery(companies: [$company->code]))->cutoffDate,
+            'waitingClose' => $definition->kind() === RunKind::Circularization && $cutoff === null
+                ? CircularizationRun::closeBefore($nextRunAt)
+                : null,
             'runs' => Run::query()->where('company', $company->code)->where('kind', $definition->kind())->orderByDesc('scheduled_for')->limit(5)->get(),
         ]);
     }
@@ -189,7 +199,7 @@ final class RunPreviewController
             return null;
         }
 
-        return $definition->notice($clientId);
+        return $definition->notice($clientId, $definition->cutoffFor($company->code, $definition->nextRunAt(CarbonImmutable::now())));
     }
 
     /**

@@ -18,9 +18,11 @@ use App\Modules\Cobro\Infrastructure\Runs\WeeklyCollection;
 use App\Modules\Core\Contracts\MailboxReader;
 use App\Modules\Core\Contracts\MailRunResultsProvider;
 use App\Modules\Core\Contracts\MailSender;
+use App\Support\Calendar\ColombianHolidays;
 use App\Support\Modules\ModuleServiceProvider;
 use App\Support\Navigation\NavItem;
 use App\Support\Navigation\NavRegistry;
+use Carbon\CarbonImmutable;
 use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Console\Scheduling\Schedule;
 use Illuminate\Support\Facades\Event;
@@ -77,8 +79,9 @@ final class CobroServiceProvider extends ModuleServiceProvider
      * - Wednesdays at 17:00 (Bogotá), the weekly collection: the command
      *   only plans the run and queues one job per client, so it takes
      *   seconds; the queue worker sends them.
-     * - Monthly at close, the circularization of each company whose loaded
-     *   cartera is the month close; nothing while cobro.circularizacion.draft
+     * - On the 5th business day of the month (cobro.circularizacion
+     *   business_day) at 09:00, the circularization of each company whose
+     *   closing snapshot arrived; nothing while cobro.circularizacion.draft
      *   is on.
      * - Every ten minutes, close the sends a killed worker left halfway.
      */
@@ -90,8 +93,9 @@ final class CobroServiceProvider extends ModuleServiceProvider
             ->withoutOverlapping(10);
 
         $schedule->command(SendCircularizationCommand::class)
-            ->monthlyOn((int) config('cobro.circularizacion.day', 1), (string) config('cobro.circularizacion.time', '09:00'))
+            ->dailyAt((string) config('cobro.circularizacion.time', '09:00'))
             ->timezone(self::TIMEZONE)
+            ->when(fn (ColombianHolidays $holidays): bool => self::isCircularizationDay($holidays))
             ->withoutOverlapping(30);
 
         $schedule->command(SyncMailboxesCommand::class)
@@ -184,5 +188,16 @@ final class CobroServiceProvider extends ModuleServiceProvider
                 activePattern: 'cobro.copias.*',
             ),
         );
+    }
+
+    /**
+     * Whether today, in Bogotá, is the circularization's business day of the
+     * month.
+     */
+    public static function isCircularizationDay(ColombianHolidays $holidays): bool
+    {
+        $today = CarbonImmutable::now(self::TIMEZONE);
+
+        return $holidays->nthBusinessDay($today->year, $today->month, CircularizationRun::businessDay(), self::TIMEZONE)->isSameDay($today);
     }
 }

@@ -20,15 +20,23 @@ use App\Modules\Core\Contracts\Data\Company;
 use App\Modules\Core\Contracts\Data\Invoice;
 use App\Modules\Core\Contracts\Enums\ClientStatus;
 use App\Modules\Core\Contracts\Enums\CompanyCode;
+use App\Support\Calendar\ColombianHolidays;
 use Carbon\CarbonImmutable;
 
 /**
- * 4.2: once a month at close (config cobro.circularizacion: the 1st at
+ * 4.2: once a month (config cobro.circularizacion: the 5th business day at
  * 09:00, Bogotá time), each client with a balance gets the statement of
- * every open item at the cutoff of the latest snapshot, in the format its
- * company sends today (cobro::circularizacion.estado-cartera). The mail
- * copies (Cc) the same recipients as the company's weekly collection
- * (CopyStore); a test send copies nobody.
+ * every open item in the closing snapshot of the month before
+ * (CarteraRepository::closingSnapshot), in the format its company sends
+ * today (cobro::circularizacion.estado-cartera). The mail copies (Cc) the
+ * same recipients as the company's weekly collection (CopyStore); a test
+ * send copies nobody.
+ *
+ * cutoffFor() is the last day of the month before, while that month's
+ * closing snapshot exists. A run planned with a month-end cutoff reads that
+ * snapshot to the last send; one planned without (--con-corte-actual)
+ * reads the latest load. The client's contacts, status and advisor are
+ * always current.
  *
  * A client in legal collection (ClientStatus::Legal) is never mailed: it
  * stays in the run as excluded, with the reason, as in the weekly run.
@@ -46,7 +54,17 @@ final class CircularizationRun implements RunDefinition
         private readonly TemplateStore $templates,
         private readonly NoticeRenderer $renderer,
         private readonly CopyStore $copies,
+        private readonly ColombianHolidays $holidays,
     ) {}
+
+    /**
+     * Which business day of the month the run goes out
+     * (config cobro.circularizacion.business_day).
+     */
+    public static function businessDay(): int
+    {
+        return (int) config('cobro.circularizacion.business_day', 5);
+    }
 
     public function kind(): RunKind
     {
@@ -72,20 +90,41 @@ final class CircularizationRun implements RunDefinition
 
     public function nextRunAt(CarbonImmutable $now): CarbonImmutable
     {
-        return RunCalendar::nextMonthly(
+        return RunCalendar::nextBusinessDayOfMonth(
             $now->setTimezone(CobroServiceProvider::TIMEZONE),
-            (int) config('cobro.circularizacion.day', 1),
+            self::businessDay(),
             (string) config('cobro.circularizacion.time', '09:00'),
+            $this->holidays,
         );
+    }
+
+    /**
+     * The last day of the month before $runAt (Bogotá), while the closing
+     * snapshot of that month exists for $company; null until it arrives.
+     */
+    public function cutoffFor(CompanyCode $company, CarbonImmutable $runAt): ?CarbonImmutable
+    {
+        $close = self::closeBefore($runAt);
+
+        return $this->cartera->closingSnapshot($company, $close->year, $close->month) === null ? null : $close;
+    }
+
+    /**
+     * The last day of the month before $runAt, at the start of the day in
+     * Bogotá.
+     */
+    public static function closeBefore(CarbonImmutable $runAt): CarbonImmutable
+    {
+        return $runAt->setTimezone(CobroServiceProvider::TIMEZONE)->startOfMonth()->subDay();
     }
 
     /**
      * Each client with a balance whose open items still add up to a debt;
      * the amount is that net total.
      */
-    public function candidates(CompanyCode $company): iterable
+    public function candidates(CompanyCode $company, ?CarbonImmutable $cutoff = null): iterable
     {
-        $cartera = $this->cartera->asSystem();
+        $cartera = $this->snapshot($company, $cutoff);
         $copies = $this->copies->for($company);
 
         foreach ($cartera->allClients(new ClientQuery(companies: [$company])) as $client) {
@@ -118,9 +157,15 @@ final class CircularizationRun implements RunDefinition
      * what the client owes (the weekly mail's rule), while that total is a
      * debt.
      */
-    public function notice(int $clientId): ?NoticeData
+    public function notice(int $clientId, ?CarbonImmutable $cutoff = null): ?NoticeData
     {
-        $cartera = $this->cartera->asSystem();
+        $company = $this->cartera->asSystem()->client($clientId)?->summary->company;
+
+        if ($company === null) {
+            return null;
+        }
+
+        $cartera = $this->snapshot($company, $cutoff);
         $client = $cartera->client($clientId);
         $open = $client === null ? [] : self::open($cartera->openInvoices($clientId));
 
@@ -180,6 +225,24 @@ final class CircularizationRun implements RunDefinition
             $mail->html,
             CopyRecipients::resolve($this->copies->for($company->code), $notice->advisorEmail, $notice->group),
         );
+    }
+
+    /**
+     * The cartera a run with $cutoff reads: the closing snapshot of that
+     * month when $cutoff is a month's last day and the snapshot exists;
+     * otherwise the latest load (a run planned with --con-corte-actual).
+     */
+    private function snapshot(CompanyCode $company, ?CarbonImmutable $cutoff): CarteraRepository
+    {
+        if ($cutoff !== null && $cutoff->day === $cutoff->daysInMonth) {
+            $closing = $this->cartera->closingSnapshot($company, $cutoff->year, $cutoff->month);
+
+            if ($closing !== null) {
+                return $closing;
+            }
+        }
+
+        return $this->cartera->asSystem();
     }
 
     /**
