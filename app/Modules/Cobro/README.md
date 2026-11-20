@@ -86,7 +86,11 @@ La bandeja y la pantalla de cada mensaje tienen el botón «Abrir en Outlook». 
 
 La pantalla de cada respuesta (no de un rebote) tiene el formulario «Responder desde la app», y la bandeja lleva a él con el enlace «Responder». Pueden responder el gerente y la analista de cartera (`cobro.replies`).
 
-- **Cómo sale:** `ReplySender` hace tres pasos en Graph con la credencial de la empresa: `createReply` sobre el mensaje del cliente (Graph arma el borrador para el remitente, en el mismo hilo y con el mensaje citado), `PATCH` del cuerpo del borrador con el texto escrito encima de la cita (escapado, con sus saltos de línea) y `send`. Antes busca el mensaje igual que «Abrir en Outlook», por si lo movieron de carpeta.
+- **Cómo sale:** `ReplySender` hace estos pasos en Graph con la credencial de la empresa. Antes busca el mensaje igual que «Abrir en Outlook», por si lo movieron de carpeta.
+  1. `createReply` sobre el mensaje del cliente: Graph arma el borrador para el remitente, en el mismo hilo y con el mensaje citado.
+  2. `PATCH` del cuerpo del borrador con el texto escrito (escapado, con sus saltos de línea) y la firma de la empresa (ver «Firma del correo»), encima de la cita.
+  3. Un `POST …/attachments` por cada imagen de la firma, en línea, para su referencia `cid:`.
+  4. `send`.
 - **Qué queda:** la respuesta se guarda en `cobro_sent_messages` con la categoría `respuesta`, así lo que el cliente conteste después se une a su ficha. El mensaje queda leído, la bitácora del cliente dice «Respuesta enviada a … por <nombre>» y la auditoría registra `cobro.reply.sent` con el usuario.
 - **Si falla:** si Graph rechaza un paso, se borra el borrador y el texto escrito vuelve al formulario. Si el envío no recibe respuesta, el borrador queda en el buzón para revisarlo en Outlook, porque pudo haber salido. Una falla al guardar la bitácora o la auditoría después del envío se registra, pero la respuesta cuenta como enviada.
 
@@ -111,7 +115,7 @@ Las copias solo pueden ir a los dominios de `config('cobro.copy_domains')` (`seg
 
 ## Firma del correo
 
-El cobro semanal y la circularización terminan con la firma de cartera de su empresa, con sus imágenes. En `/cobro/firma` (`cobro.manage`) se cambian, por empresa, los datos de la persona: nombre, cargo, móvil y extensión del PBX. Así, cuando otra persona lleve la cartera, no hay que tocar código.
+El cobro semanal, la circularización y las respuestas desde la app terminan con la firma de cartera de su empresa, con sus imágenes. En `/cobro/firma` (`cobro.manage`) se cambian, por empresa, los datos de la persona: nombre, cargo, móvil y extensión del PBX. Así, cuando otra persona lleve la cartera, no hay que tocar código.
 
 - Mientras nadie guarde otros datos, firma la persona de `cobro.firma` (María Paula Alvarez, Auxiliar de Cartera, en las dos empresas).
 - Guardar y volver a los datos por defecto queda en la auditoría (`cobro.signature.updated` y `cobro.signature.reset`), con los campos que cambiaron.
@@ -120,7 +124,7 @@ El cobro semanal y la circularización terminan con la firma de cartera de su em
 - **Imágenes en línea:** los PNG están en `resources/firmas/` (`sgx-redes.png`, `sgx-logo.png`, `sdc.png`). Cada correo los lleva como adjuntos en línea (`MailAttachment` con `contentId`) y el HTML los muestra con `<img src="cid:…">`, con su ancho, su alto y un texto alternativo; Outlook y Gmail bloquean las imágenes externas y no muestran SVG. Suman unos 100 KB por correo. La prueba que te envías también los lleva.
 - **Vistas previas:** el navegador no lee `cid:`, así que la vista previa del correo y la de la plantilla muestran las mismas imágenes como `data:` (lo permite la política de seguridad de la app). Nunca se envía ese HTML.
 - **Las plantillas ya no llevan la firma:** los textos por defecto terminan antes de «Cordialmente». La migración `2026_10_05_000009` cortó la firma escrita de las plantillas guardadas solo cuando era exactamente una de las de antes. Si alguien la había editado, la dejó y avisó en la consola y en el registro: quítala a mano en `/cobro/plantillas` para que no salga dos veces.
-- Las respuestas desde la app todavía no llevan la firma: llega en el siguiente cambio.
+- Las respuestas desde la app también la llevan, entre el texto y el mensaje citado del cliente (ver «Responder desde la app»).
 
 ## Aviso de cambios en la plantilla
 

@@ -77,7 +77,7 @@ return [
         'titulo' => 'Responder desde la app',
         'descripcion' => 'Sale desde el buzón de la empresa, en el mismo hilo, con el mensaje del cliente citado debajo.',
         'texto' => 'Tu respuesta',
-        'ayuda' => 'Escribe solo el texto: el saludo y la firma van como los escribas.',
+        'ayuda' => 'Escribe el saludo y el texto. La firma de cartera de la empresa se agrega sola al final.',
         'enviar' => 'Enviar respuesta',
         'falta_texto' => 'Escribe tu respuesta.',
         'fallo' => 'No pudimos enviar tu respuesta. Intenta de nuevo en unos minutos.',
