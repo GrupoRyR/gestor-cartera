@@ -159,6 +159,7 @@ function mailViews(): array
         app_path('Modules/Cobro/resources/views/correos/cobro-semanal.blade.php'),
         app_path('Modules/Cobro/resources/views/correos/plantilla-cambiada.blade.php'),
         app_path('Modules/Cobro/resources/views/circularizacion/estado-cartera.blade.php'),
+        app_path('Modules/Cobro/resources/views/correos/firma.blade.php'),
         app_path('Modules/Comisiones/resources/views/correos/aprobacion.blade.php'),
         app_path('Modules/Ingesta/resources/views/alerta/correo.blade.php'),
         app_path('Modules/Core/resources/views/auditoria/alerta.blade.php'),
@@ -202,9 +203,29 @@ it('never hard-codes a company color in an e-mail: it comes from the palette', f
     }
 });
 
-it('adds no image to an e-mail: the logo is separate work', function () {
+it('adds no image to an e-mail but the PNGs of the Cobro signature, attached inline', function () {
+    $signature = app_path('Modules/Cobro/resources/views/correos/firma.blade.php');
+
     foreach (mailViews() as $path) {
-        expect((string) file_get_contents($path))->not->toMatch('/<img\b|background-image|url\(/i', "{$path} adds an image.");
+        $source = (string) file_get_contents($path);
+
+        expect($source)->not->toMatch('/background-image|url\(/i', "{$path} adds a background image.");
+
+        if ($path !== $signature) {
+            expect($source)->not->toMatch('/<img\b/i', "{$path} adds an image.");
+
+            continue;
+        }
+
+        // Only cid: references to the inline attachments: Outlook and Gmail block
+        // external images and do not show data: or SVG sources.
+        preg_match_all('/<img\b[^>]*>/i', $source, $images);
+
+        expect($images[0])->not->toBeEmpty();
+
+        foreach ($images[0] as $image) {
+            expect($image)->toMatch('/\bsrc="cid:/', "{$path} shows an image that is not an inline attachment: {$image}");
+        }
     }
 });
 

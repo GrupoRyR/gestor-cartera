@@ -106,7 +106,7 @@ final class RunPreviewController
         $company = $this->pick($this->companies($definition), $empresa) ?? abort(404);
         $notice = $this->clientNotice($definition, $company, (int) $cliente) ?? abort(404);
 
-        return response($definition->render($company, $notice)->html)->header('Content-Type', 'text/html; charset=UTF-8');
+        return response($definition->render($company, $notice)->previewHtml())->header('Content-Type', 'text/html; charset=UTF-8');
     }
 
     public function test(Request $request, string $empresa): RedirectResponse
@@ -134,6 +134,7 @@ final class RunPreviewController
                 to: [$email],
                 subject: $mail->subject,
                 html: $mail->html,
+                attachments: $mail->attachments,
                 category: 'prueba',
             ));
         } catch (MailNotSent $e) {

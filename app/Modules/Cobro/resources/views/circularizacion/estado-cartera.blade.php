@@ -1,6 +1,5 @@
 @use('App\Modules\Cobro\Circularizacion\CircularizationTable')
 @use('App\Modules\Cobro\Circularizacion\ClosingNotice')
-@use('App\Modules\Core\Contracts\Enums\CompanyCode')
 @use('App\Support\Formatting\DateFormat')
 @use('App\Support\Formatting\Money')
 
@@ -9,18 +8,18 @@
     sends today: its opening text, the table of every open item of the
     client at the cutoff (CircularizationTable: the company's columns; the
     company name where the original has its logo) with the total, Segurex's
-    notice about payments made after the cutoff, the closing text and
-    Segurex's signature footer. $company: Company; $data: NoticeData;
-    $subject; $introHtml and $closingHtml: paragraphs as safe HTML
-    (NoticeRenderer escaped them); $test; $draft.
+    notice about payments made after the cutoff, the closing text and the
+    company's signature. $company: Company; $data: NoticeData; $subject;
+    $introHtml and $closingHtml: paragraphs as safe HTML (NoticeRenderer
+    escaped them); $signatureHtml: the rendered cobro::correos.firma;
+    $test; $draft.
 
     Brand v2 colors, inline only (mail clients ignore stylesheets): the
     company header is the BrandPalette button behind white text (4.51:1
     Segurex), the light one the tint behind ink (9.80:1 SDC); the company
-    name and the signature's company and web link in ink, the deep color
-    for titles and key data; the brand's error red #b42318 (6.57:1 on
-    white) for the notice; the neutral grays #e3e0dd (lines) and #6a6b6e
-    (legal notice, 5.33:1). Never the accent as text.
+    name in ink, the deep color for titles and key data; the brand's error
+    red #b42318 (6.57:1 on white) for the notice; the neutral gray #e3e0dd
+    for lines. Never the accent as text.
 --}}
 @php
     $palette = $company->palette;
@@ -47,7 +46,6 @@
         default => '',
     };
     $notice = ClosingNotice::for($company->code, $data->cutoffDate);
-    $segurexFooter = $company->code === CompanyCode::SGX;
 @endphp
 <x-cobro::correo :company="$company" :title="$subject" :test="$test" :draft="$draft" :framed="false">
     @foreach ($introHtml as $paragraph)
@@ -88,25 +86,6 @@
         <p style="margin:0 0 14px;">{!! $paragraph !!}</p>
     @endforeach
 
-    @if ($segurexFooter)
-        <div data-pie="segurex" style="margin:18px 0 0;font-size:13px;color:{{ $palette->text }};">
-            <p style="margin:0 0 14px;">
-                <strong style="color:{{ $palette->ink }};">{{ __('cobro::circularizacion.segurex.pie.empresa') }}</strong><br>
-                {{ __('cobro::circularizacion.segurex.pie.direccion') }}<br>
-                {{ __('cobro::circularizacion.segurex.pie.ciudad') }}<br>
-                {{ __('cobro::circularizacion.segurex.pie.movil') }}<br>
-                {{ __('cobro::circularizacion.segurex.pie.pbx') }}
-            </p>
-            <p style="margin:0 0 14px;">
-                <a href="mailto:{{ __('cobro::circularizacion.segurex.pie.correo') }}" style="color:{{ $palette->text }};">{{ __('cobro::circularizacion.segurex.pie.correo') }}</a><br>
-                <a href="{{ __('cobro::circularizacion.segurex.pie.web_url') }}" style="color:{{ $palette->ink }};font-weight:bold;">{{ __('cobro::circularizacion.segurex.pie.web') }}</a>
-            </p>
-            <p style="margin:0 0 14px;">{{ __('cobro::circularizacion.segurex.pie.ambiente') }}</p>
-            <p style="margin:0;font-size:11px;line-height:1.4;color:#6a6b6e;">
-                <strong>{{ __('cobro::circularizacion.segurex.pie.aviso_legal_titulo') }}</strong>
-                {{ __('cobro::circularizacion.segurex.pie.aviso_legal') }}
-                <a href="mailto:{{ __('cobro::circularizacion.segurex.pie.aviso_legal_correo') }}" style="color:#6a6b6e;">{{ __('cobro::circularizacion.segurex.pie.aviso_legal_correo') }}</a>.
-            </p>
-        </div>
-    @endif
+    {{-- cobro::correos.firma, rendered by NoticeRenderer (person data escaped there). --}}
+    {!! $signatureHtml !!}
 </x-cobro::correo>

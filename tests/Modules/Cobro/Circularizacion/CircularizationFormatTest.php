@@ -92,15 +92,15 @@ it('writes the Derivados texts, with the client and the cutoff in bold', functio
     expect($text)->toContain('Buen día Estimado cliente GOMEZ GOMEZ JOSE GREGORIO Cordial saludo, Con el fin de mantener actualizada nuestra información contable y dar cumplimiento a nuestros procesos de conciliación, nos permitimos circularizar el estado de su cartera con corte al 31 de octubre de 2026.')
         ->toContain('Agradecemos validar el saldo registrado y, en caso de presentarse alguna diferencia, remitirnos sus observaciones y/o soportes correspondientes dentro de los próximos cinco (5) días hábiles, a los correos cartera@derivadoscol.com y miguel.martinez@derivadoscol.com.')
         ->toContain('En caso de estar de acuerdo con la información suministrada, agradeceremos nos confirme su conformidad por este mismo medio. Su colaboración es fundamental para garantizar la correcta gestión y conciliación de nuestras cuentas.')
-        ->toContain('Quedamos atentos a cualquier inquietud. Cordialmente, María Paula Alvarez Auxiliar de Crédito y Cobranza Celular: +57 3153654788 E-mail: cartera@derivadoscol.com')
+        // The company's signature (cobro::correos.firma) follows the closing text.
+        ->toContain('Quedamos atentos a cualquier inquietud. Cordialmente, María Paula Alvarez Auxiliar de Cartera Móvil: +3153654788')
         ->and($mail->html)->toContain('Estimado cliente <strong>GOMEZ GOMEZ JOSE GREGORIO</strong>')
         ->toContain('<strong>corte al 31 de octubre de 2026</strong>')
         ->toContain('<strong>cinco (5) días hábiles</strong>')
-        ->toContain('<strong>Cordialmente,</strong>')
-        ->toContain('<strong>María Paula Alvarez</strong><br>'."\n".'<strong>Auxiliar de Crédito y Cobranza</strong>');
+        ->toContain('data-firma="SDC"');
 });
 
-it('writes the Segurex texts, with only the signature name in bold', function () {
+it('writes the Segurex texts, with only the signer name in bold', function () {
     $mail = cobroCircRender(CompanyCode::SGX);
     $text = VisibleText::of($mail->html);
 
@@ -108,7 +108,7 @@ it('writes the Segurex texts, with only the signature name in bold', function ()
         ->toContain('dentro de los próximos cinco (5) días hábiles, a los correos cartera@segurex.com, creditosgx@outlook.com y miguel.martinez@segurex.com.')
         ->toContain('Quedamos atentos a cualquier inquietud Cordialmente, María Paula Alvarez Auxiliar de Cartera')
         ->and($mail->html)->toContain('Estimado cliente GOMEZ GOMEZ JOSE GREGORIO')
-        ->toContain('<strong>María Paula Alvarez</strong><br>'."\nAuxiliar de Cartera")
+        ->toMatch('/<strong style="color:[^"]+;">María Paula Alvarez<\/strong>/')
         ->not->toContain('<strong>GOMEZ GOMEZ JOSE GREGORIO</strong>')
         ->not->toContain('<strong>corte al')
         ->not->toContain('<strong>Cordialmente,</strong>');
@@ -156,7 +156,8 @@ it('sets the mail in Helvetica, with the company text color and its deep color f
         ->toMatch('/<body style="[^"]*color:'.$palette->text.';/')
         ->toMatch('/<caption style="[^"]*color:'.$palette->ink.';/')
         ->not->toContain('Arial,Helvetica,sans-serif')
-        ->not->toContain('<img');
+        // The only images are the signature's, inline (cid:).
+        ->not->toMatch('/<img\b(?![^>]*\bsrc="cid:)/i');
 })->with([CompanyCode::SGX, CompanyCode::SDC]);
 
 it('adds the Segurex notice about payments after the cutoff, in bold red and sentence case', function () {
@@ -171,7 +172,7 @@ it('places the Segurex notice between the table and the closing text', function 
 
     expect(strpos($html, '</table>'))->toBeLessThan(strpos($html, 'data-aviso="cierre"'))
         ->and(strpos($html, 'data-aviso="cierre"'))->toBeLessThan(strpos($html, 'Agradecemos validar el saldo'))
-        ->and(strpos($html, 'Auxiliar de Cartera'))->toBeLessThan(strpos($html, 'data-pie="segurex"'));
+        ->and(strpos($html, 'Agradecemos validar el saldo'))->toBeLessThan(strpos($html, 'data-firma="SGX"'));
 });
 
 it('names December and January around a year-end cutoff', function () {
@@ -185,7 +186,7 @@ it('leaves the Segurex notice out without a cutoff date', function () {
     expect(cobroCircRender(CompanyCode::SGX, cobroCircNotice(CompanyCode::SGX, cutoff: null))->html)->not->toContain('data-aviso="cierre"');
 });
 
-it('signs the Segurex mail with the company footer and its legal notice', function () {
+it('signs the Segurex mail with the company data and its legal notice', function () {
     $html = cobroCircRender(CompanyCode::SGX)->html;
     $text = VisibleText::of($html);
     // The non-AA accent is never used as text: the company name and the web link take the deep color.
@@ -203,11 +204,11 @@ it('signs the Segurex mail with the company footer and its legal notice', functi
         ->not->toContain($palette->accent);
 });
 
-it('sends the Derivados mail without the notice or the footer', function () {
+it('sends the Derivados mail without the notice or the legal notice', function () {
     $html = cobroCircRender(CompanyCode::SDC)->html;
 
     expect($html)->not->toContain('data-aviso="cierre"')
-        ->not->toContain('data-pie="segurex"')
+        ->not->toContain('data-firma="SGX"')
         ->not->toContain('Aclaramos')
         ->not->toContain('Aviso legal');
 });

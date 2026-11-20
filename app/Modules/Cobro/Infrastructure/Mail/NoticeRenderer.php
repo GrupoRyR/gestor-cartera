@@ -7,8 +7,11 @@ use App\Modules\Cobro\Domain\Runs\RenderedMail;
 use App\Modules\Cobro\Domain\Templates\Placeholders;
 use App\Modules\Cobro\Domain\Templates\SpanishList;
 use App\Modules\Cobro\Domain\Templates\TemplateContent;
+use App\Modules\Cobro\Infrastructure\Signatures\SignatureImages;
+use App\Modules\Cobro\Infrastructure\Signatures\SignatureStore;
 use App\Modules\Core\Contracts\Data\Company;
 use App\Modules\Core\Contracts\Data\Invoice;
+use App\Modules\Core\Contracts\Data\MailAttachment;
 use App\Support\Formatting\DateFormat;
 use App\Support\Formatting\Money;
 use Carbon\CarbonImmutable;
@@ -17,10 +20,37 @@ use Carbon\CarbonImmutable;
  * Renders a collection mail: fills the template placeholders with the
  * client's data, splits the texts in paragraphs (blank lines) and renders
  * the mail view. Texts stay plain: html() escapes them and only turns
- * **text** into bold, so a value can never inject HTML.
+ * **text** into bold, so a value can never inject HTML. Every mail ends
+ * with the company's signature ($signatureHtml in the view), whose images
+ * travel as the RenderedMail's inline attachments.
  */
 final class NoticeRenderer
 {
+    public const string SIGNATURE_VIEW = 'cobro::correos.firma';
+
+    public function __construct(
+        private readonly SignatureStore $signatures,
+    ) {}
+
+    /**
+     * The company's signature (cobro::correos.firma: the person of
+     * /cobro/firma and the fixed company data) as HTML, with the inline
+     * images it refers to.
+     *
+     * @return array{html: string, attachments: list<MailAttachment>}
+     */
+    public function signature(Company $company): array
+    {
+        return [
+            'html' => view(self::SIGNATURE_VIEW, [
+                'company' => $company,
+                'person' => $this->signatures->for($company->code),
+                'images' => SignatureImages::for($company->code),
+            ])->render(),
+            'attachments' => SignatureImages::attachments($company->code),
+        ];
+    }
+
     /**
      * @param  string  $view  Mail view, e.g. cobro::correos.cobro-semanal.
      * @param  bool  $test  A test send: "[Prueba]" subject and banner.
@@ -41,6 +71,7 @@ final class NoticeRenderer
 
         $intro = self::paragraphs(Placeholders::fill($template->intro, $values));
         $closing = self::paragraphs(Placeholders::fill($template->closing, $values));
+        $signature = $this->signature($company);
 
         $html = view($view, [
             'company' => $company,
@@ -52,11 +83,12 @@ final class NoticeRenderer
             'closing' => array_map(fn (string $paragraph): string => str_replace('**', '', $paragraph), $closing),
             'introHtml' => array_map(self::html(...), $intro),
             'closingHtml' => array_map(self::html(...), $closing),
+            'signatureHtml' => $signature['html'],
             'test' => $test,
             'draft' => $draft,
         ])->render();
 
-        return new RenderedMail($subject, $html);
+        return new RenderedMail($subject, $html, attachments: $signature['attachments']);
     }
 
     /**

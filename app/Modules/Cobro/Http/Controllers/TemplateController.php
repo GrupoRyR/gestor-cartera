@@ -88,7 +88,7 @@ final class TemplateController
             $this->templates->for($company->code, RunKind::Weekly),
         );
 
-        return response($mail->html)->header('Content-Type', 'text/html; charset=UTF-8');
+        return response($mail->previewHtml())->header('Content-Type', 'text/html; charset=UTF-8');
     }
 
     /**

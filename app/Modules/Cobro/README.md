@@ -111,12 +111,16 @@ Las copias solo pueden ir a los dominios de `config('cobro.copy_domains')` (`seg
 
 ## Firma del correo
 
-El cobro semanal, la circularización y las respuestas desde la app terminan con la firma de cartera de su empresa. En `/cobro/firma` (`cobro.manage`) se cambian, por empresa, los datos de la persona: nombre, cargo, móvil y extensión del PBX. Así, cuando otra persona lleve la cartera, no hay que tocar código.
+El cobro semanal y la circularización terminan con la firma de cartera de su empresa, con sus imágenes. En `/cobro/firma` (`cobro.manage`) se cambian, por empresa, los datos de la persona: nombre, cargo, móvil y extensión del PBX. Así, cuando otra persona lleve la cartera, no hay que tocar código.
 
 - Mientras nadie guarde otros datos, firma la persona de `cobro.firma` (María Paula Alvarez, Auxiliar de Cartera, en las dos empresas).
 - Guardar y volver a los datos por defecto queda en la auditoría (`cobro.signature.updated` y `cobro.signature.reset`), con los campos que cambiaron.
-- La parte de la empresa no se edita: razón social, dirección, PBX, correo, web y, en Segurex, el aviso legal.
-- Los correos todavía no muestran esta firma: llega con las imágenes de cada empresa en el siguiente cambio.
+- La parte de la empresa no se edita: razón social, dirección, PBX, correo, web y, en Segurex, el aviso legal (`resources/lang/es/firma.php`, clave `correo`).
+- **Cómo se ve:** la vista `correos/firma.blade.php` arma la firma de cada empresa como la firman hoy. Segurex: despedida, persona, razón social y dirección, móvil, PBX, correo, web, la franja de redes y el logo, la nota del medio ambiente y el aviso legal. Derivados: despedida, persona, móvil, PBX, correo, razón social y dirección, y su imagen, sin aviso legal.
+- **Imágenes en línea:** los PNG están en `resources/firmas/` (`sgx-redes.png`, `sgx-logo.png`, `sdc.png`). Cada correo los lleva como adjuntos en línea (`MailAttachment` con `contentId`) y el HTML los muestra con `<img src="cid:…">`, con su ancho, su alto y un texto alternativo; Outlook y Gmail bloquean las imágenes externas y no muestran SVG. Suman unos 100 KB por correo. La prueba que te envías también los lleva.
+- **Vistas previas:** el navegador no lee `cid:`, así que la vista previa del correo y la de la plantilla muestran las mismas imágenes como `data:` (lo permite la política de seguridad de la app). Nunca se envía ese HTML.
+- **Las plantillas ya no llevan la firma:** los textos por defecto terminan antes de «Cordialmente». La migración `2026_10_05_000009` cortó la firma escrita de las plantillas guardadas solo cuando era exactamente una de las de antes. Si alguien la había editado, la dejó y avisó en la consola y en el registro: quítala a mano en `/cobro/plantillas` para que no salga dos veces.
+- Las respuestas desde la app todavía no llevan la firma: llega en el siguiente cambio.
 
 ## Aviso de cambios en la plantilla
 
@@ -187,7 +191,8 @@ El correo (`resources/views/circularizacion/estado-cartera.blade.php`) copia el 
 - Asunto `Circularización de Cartera – Corte al {fecha_cierre}` en Segurex y `… Corte al {fecha_cierre_del}` en Derivados. `{fecha_cierre}` es la fecha de corte en letras, por ejemplo «31 de mayo de 2026», y `{fecha_cierre_del}` la misma con «del», «31 de mayo del 2026» (las dos dan «—» si no hay corte); `{fecha_corte}` sigue siendo DD/MM/AAAA.
 - Textos de cada empresa, palabra por palabra (con «usted», como los escriben), en `resources/lang/es/plantillas.php` (`por_defecto.circularizacion.SGX` y `.SDC`). La pantalla de plantillas todavía edita solo el cobro semanal.
 - La tabla de cada empresa (`Circularizacion/CircularizationTable.php`) con sus columnas en el orden del original y el nombre de la empresa donde el original lleva el logo.
-- Solo Segurex: el aviso en rojo bajo la tabla («…corresponde al cierre del 31 de mayo…», `Circularizacion/ClosingNotice.php`) y el pie de firma con la dirección, los teléfonos y el aviso legal (`resources/lang/es/circularizacion.php`).
+- Solo Segurex: el aviso en rojo bajo la tabla («…corresponde al cierre del 31 de mayo…», `Circularizacion/ClosingNotice.php`).
+- Al final, la firma de cartera de la empresa, igual que en el cobro semanal (ver «Firma del correo»).
 - Copias (CC): las mismas del cobro semanal de la empresa (ver «Copias del cobro semanal y de la circularización»).
 
 Quedan por fuera las columnas Mora y Moneda, la marca de importancia alta, los logos y los íconos de redes: la cartera no trae esos datos y el contrato de envío no admite importancia ni imágenes. No se escribe un «COP» fijo ni se deduce «Corriente».

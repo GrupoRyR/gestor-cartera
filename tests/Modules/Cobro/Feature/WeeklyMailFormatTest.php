@@ -126,7 +126,8 @@ it('writes the Derivados texts and columns, with the business unit', function ()
         ->and($text)->toContain('Estimado cliente GALVIS ANAYA JUAN DE JESUS')
         ->toContain('presenta un saldo pendiente por $ 4.732.906 correspondiente a la factura 9952 con vencimiento el 26/09/2026.')
         ->toContain('cartera@derivadoscol.com y miguel.martinez@derivadoscol.com o a la línea celular y WhatsApp 3176490246 o 3153654788.')
-        ->toContain('María Paula Alvarez Auxiliar de Crédito y Cobranza Celular: +57 3153654788 E-mail: cartera@derivadoscol.com')
+        // The company's signature (cobro::correos.firma) follows the closing text.
+        ->toContain('Agradecemos su pronta atención a este asunto. Cordialmente, María Paula Alvarez Auxiliar de Cartera Móvil: +3153654788')
         ->and(cobroFormatHeaders($mail->html))->toBe([
             'NIT', 'Unidad de Negocio', 'Cod. Cliente', 'Razon Social', 'No. FV', 'Fecha Factura',
             'Condiciones de pago', 'Fecha Vencimiento', 'dias', 'Total',
@@ -145,7 +146,8 @@ it('sets the mail in Helvetica, with the company text color and its deep color f
         ->toMatch('/<body style="[^"]*color:'.$palette->text.';/')
         ->toMatch('/<caption style="[^"]*color:'.$palette->ink.';/')
         ->not->toContain('Arial,Helvetica,sans-serif')
-        ->not->toContain('<img');
+        // The only images are the signature's, inline (cid:).
+        ->not->toMatch('/<img\b(?![^>]*\bsrc="cid:)/i');
 })->with([CompanyCode::SGX, CompanyCode::SDC]);
 
 it('names several overdue invoices and their due dates in one sentence', function () {
