@@ -178,6 +178,24 @@ it('adds copies, reply-to and base64 attachments to the draft', function () {
         ]]);
 });
 
+it('sends an image with a content id inline, for a cid: reference in the body', function () {
+    $graph = cobroGraphAccepting();
+
+    app(GraphMailSender::class)->send(cobroOutgoing([
+        'html' => '<p>Hola</p><img src="cid:sgx-logo" alt="Segurex">',
+        'attachments' => [new MailAttachment('sgx-logo.png', 'image/png', 'png-bytes', contentId: 'sgx-logo')],
+    ]));
+
+    expect($graph->requests()[0]->data()['attachments'])->toBe([[
+        '@odata.type' => '#microsoft.graph.fileAttachment',
+        'name' => 'sgx-logo.png',
+        'contentType' => 'image/png',
+        'contentBytes' => base64_encode('png-bytes'),
+        'isInline' => true,
+        'contentId' => 'sgx-logo',
+    ]]);
+});
+
 it('keeps the ids of every accepted mail to link replies and bounces', function () {
     cobroGraphAccepting();
     $draft = GraphFake::fixture('draft-created.json');
