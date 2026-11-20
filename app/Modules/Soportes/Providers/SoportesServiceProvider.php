@@ -2,7 +2,10 @@
 
 namespace App\Modules\Soportes\Providers;
 
+use App\Modules\Soportes\Http\Policies\ReceiptPolicy;
+use App\Modules\Soportes\Infrastructure\Models\Receipt;
 use App\Support\Modules\ModuleServiceProvider;
+use Illuminate\Support\Facades\Gate;
 
 /**
  * Soportes: the inbox of payment receipts. The advisor or the portfolio team
@@ -14,4 +17,10 @@ use App\Support\Modules\ModuleServiceProvider;
  * when they exist).
  * Owner: the "Soportes" session.
  */
-final class SoportesServiceProvider extends ModuleServiceProvider {}
+final class SoportesServiceProvider extends ModuleServiceProvider
+{
+    protected function bootModule(): void
+    {
+        Gate::policy(Receipt::class, ReceiptPolicy::class);
+    }
+}
