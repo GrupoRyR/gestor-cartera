@@ -4,9 +4,9 @@ use App\Modules\Bancos\Providers\BancosServiceProvider;
 use App\Modules\Core\Providers\CoreServiceProvider;
 use App\Support\Modules\ModuleRegistry;
 
-it('discovers the eight modules with Core first', function () {
+it('discovers the nine modules with Core first', function () {
     expect(app(ModuleRegistry::class)->names())
-        ->toBe(['Core', 'Asesores', 'Bancos', 'Cartera', 'Cobro', 'Comisiones', 'Gerencia', 'Ingesta']);
+        ->toBe(['Core', 'Asesores', 'Bancos', 'Cartera', 'Cobro', 'Comisiones', 'Gerencia', 'Ingesta', 'Soportes']);
 });
 
 it('registers the service provider of every module', function () {
