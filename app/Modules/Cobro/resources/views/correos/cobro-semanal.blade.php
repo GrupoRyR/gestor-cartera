@@ -6,10 +6,11 @@
     The weekly collection mail (4.1), in the format each company sends
     today: its opening text, the table of every open invoice of the client
     (WeeklyTable: the company's columns; overdue invoices highlighted; the
-    company name where the original has its logo) with the total, and its
-    closing text. $company: Company; $data: NoticeData; $subject;
-    $introHtml and $closingHtml: paragraphs as safe HTML (NoticeRenderer
-    escaped them); $test; $draft.
+    company name where the original has its logo) with the total, its
+    closing text and the company's signature. $company: Company; $data:
+    NoticeData; $subject; $introHtml and $closingHtml: paragraphs as safe
+    HTML (NoticeRenderer escaped them); $signatureHtml: the rendered
+    cobro::correos.firma; $test; $draft.
 
     Brand v2 colors, inline (mail clients ignore stylesheets): the company
     header is the BrandPalette button behind white text (4.51:1 Segurex),
@@ -78,4 +79,7 @@
     @foreach ($closingHtml as $paragraph)
         <p style="margin:0 0 14px;">{!! $paragraph !!}</p>
     @endforeach
+
+    {{-- cobro::correos.firma, rendered by NoticeRenderer (person data escaped there). --}}
+    {!! $signatureHtml !!}
 </x-cobro::correo>

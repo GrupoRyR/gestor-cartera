@@ -120,6 +120,7 @@ final class SendRunItem implements ShouldQueue
                 subject: $mail->subject,
                 html: $mail->html,
                 cc: $this->copies($item, CopyRecipients::excluding($mail->cc, $item->recipients)),
+                attachments: $mail->attachments,
                 clientId: $item->client_id,
                 category: $run->kind->value,
             ));

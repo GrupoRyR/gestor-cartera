@@ -34,7 +34,9 @@ it('opens the editor with the default texts of each company', function () {
     $this->actingAs($this->analyst)->get('/cobro/plantillas?empresa=SDC')
         ->assertOk()
         ->assertSee('Cobro de cartera - Soluciones y Derivados de Colombia S.A.S', false)
-        ->assertSee('Auxiliar de Crédito y Cobranza', false);
+        ->assertSee('WhatsApp 3176490246 o 3153654788', false)
+        // The signature is not part of the texts: every mail adds the company's (/cobro/firma).
+        ->assertDontSee('María Paula Alvarez', false);
 });
 
 it('forbids the editor to roles without cobro.manage', function (?Role $role) {

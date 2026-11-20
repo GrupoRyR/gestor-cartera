@@ -69,7 +69,9 @@ return [
     // Default texts of each RunKind, with {placeholders} and **bold**: per
     // company (<kind>.<company>) or shared by every company (<kind>).
     // The weekly collection texts are the ones each company sends today,
-    // word for word (client-facing: they keep "usted" as written).
+    // word for word (client-facing: they keep "usted" as written). The
+    // signature is not part of the texts: every mail ends with the
+    // company's signature of /cobro/firma (cobro::correos.firma).
     'por_defecto' => [
         'cobro_semanal' => [
             'SGX' => [
@@ -85,10 +87,7 @@ return [
                 'cierre' => 'Si ya realizó el pago, por favor ignore este cobro de cartera y envíenos el comprobante de pago a vuelta de correo. De igual manera, '
                     .'si presenta dudas o necesita información adicional, no dude en contactarnos a través de los medios autorizados como lo son los correos '
                     ."cartera@segurex.com y miguel.martinez@segurex.com o a la línea celular y WhatsApp 3176490246.\n\n"
-                    ."Agradecemos su pronta atención a este asunto.\n\n"
-                    ."**Cordialmente,**\n\n"
-                    ."**María Paula Alvarez**\n"
-                    .'**Auxiliar de Cartera**',
+                    .'Agradecemos su pronta atención a este asunto.',
             ],
             'SDC' => [
                 'asunto' => 'Cobro de cartera - Soluciones y Derivados de Colombia S.A.S',
@@ -103,12 +102,7 @@ return [
                 'cierre' => 'Si ya realizó el pago, por favor ignore este cobro de cartera y envíenos el comprobante de pago a vuelta de correo. De igual manera, '
                     .'si presenta dudas o necesita información adicional, no dude en contactarnos a través de los medios autorizados como lo son los correos '
                     ."cartera@derivadoscol.com y miguel.martinez@derivadoscol.com o a la línea celular y WhatsApp 3176490246 o 3153654788.\n\n"
-                    ."Agradecemos su pronta atención a este asunto.\n\n"
-                    ."Cordialmente,\n\n"
-                    ."**María Paula Alvarez**\n"
-                    ."**Auxiliar de Crédito y Cobranza**\n"
-                    ."Celular: +57 3153654788\n"
-                    .'E-mail: cartera@derivadoscol.com',
+                    .'Agradecemos su pronta atención a este asunto.',
             ],
         ],
         // The monthly circularization texts each company sends today, word
@@ -126,10 +120,7 @@ return [
                     ."miguel.martinez@segurex.com.\n\n"
                     .'En caso de estar de acuerdo con la información suministrada, agradeceremos nos confirme su conformidad por este mismo medio. '
                     ."Su colaboración es fundamental para garantizar la correcta gestión y conciliación de nuestras cuentas.\n\n"
-                    ."Quedamos atentos a cualquier inquietud\n\n"
-                    ."Cordialmente,\n\n"
-                    ."**María Paula Alvarez**\n"
-                    .'Auxiliar de Cartera',
+                    .'Quedamos atentos a cualquier inquietud',
             ],
             'SDC' => [
                 'asunto' => 'Circularización de Cartera – Corte al {fecha_cierre_del}',
@@ -143,12 +134,7 @@ return [
                     ."miguel.martinez@derivadoscol.com.\n\n"
                     .'En caso de estar de acuerdo con la información suministrada, agradeceremos nos confirme su conformidad por este mismo medio. '
                     ."Su colaboración es fundamental para garantizar la correcta gestión y conciliación de nuestras cuentas.\n\n"
-                    ."Quedamos atentos a cualquier inquietud.\n\n"
-                    ."**Cordialmente,**\n\n"
-                    ."**María Paula Alvarez**\n"
-                    ."**Auxiliar de Crédito y Cobranza**\n"
-                    ."**Celular: +57 3153654788**\n"
-                    .'**E-mail: cartera@derivadoscol.com**',
+                    .'Quedamos atentos a cualquier inquietud.',
             ],
         ],
     ],

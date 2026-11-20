@@ -334,7 +334,7 @@ it('runs for Segurex and Derivados by default', function () {
         ->and($quimicos->subject)->toBe('Cobro de cartera - Soluciones y Derivados de Colombia S.A.S')
         ->and($quimicos->cc)->toBe([])
         ->and(VisibleText::of($quimicos->html))->toContain('Estimado cliente Químicos del Norte SAS')
-        ->toContain('Auxiliar de Crédito y Cobranza');
+        ->toContain('SOLUCIONES Y DERIVADOS DE COLOMBIA S.A.S.');
 });
 
 it('runs only for the companies of the weekly collection', function () {

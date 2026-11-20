@@ -220,11 +220,7 @@ final class CircularizationRun implements RunDefinition
             return $mail;
         }
 
-        return new RenderedMail(
-            $mail->subject,
-            $mail->html,
-            CopyRecipients::resolve($this->copies->for($company->code), $notice->advisorEmail, $notice->group),
-        );
+        return $mail->withCc(CopyRecipients::resolve($this->copies->for($company->code), $notice->advisorEmail, $notice->group));
     }
 
     /**
