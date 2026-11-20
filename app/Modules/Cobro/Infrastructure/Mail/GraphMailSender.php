@@ -160,15 +160,33 @@ final class GraphMailSender implements MailSender
         }
 
         if ($mail->attachments !== []) {
-            $message['attachments'] = array_map(fn (MailAttachment $attachment): array => [
-                '@odata.type' => '#microsoft.graph.fileAttachment',
-                'name' => $attachment->filename,
-                'contentType' => $attachment->contentType,
-                'contentBytes' => base64_encode($attachment->content),
-            ], $mail->attachments);
+            $message['attachments'] = array_map(self::attachment(...), $mail->attachments);
         }
 
         return $message;
+    }
+
+    /**
+     * The Graph fileAttachment of $attachment, base64 encoded; inline (for
+     * a cid: reference in the body) when it has a content id.
+     *
+     * @return array<string, mixed>
+     */
+    public static function attachment(MailAttachment $attachment): array
+    {
+        $file = [
+            '@odata.type' => '#microsoft.graph.fileAttachment',
+            'name' => $attachment->filename,
+            'contentType' => $attachment->contentType,
+            'contentBytes' => base64_encode($attachment->content),
+        ];
+
+        if ($attachment->isInline()) {
+            $file['isInline'] = true;
+            $file['contentId'] = $attachment->contentId;
+        }
+
+        return $file;
     }
 
     /**
