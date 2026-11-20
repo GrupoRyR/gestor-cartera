@@ -29,7 +29,7 @@ it('gives the superadmin every permission of every module except the excluded on
 
     // A default (start_on_mine) and the separation of duties: commitments
     // stay with whoever collects, approvals with the approver.
-    expect($missing)->toBe(['cartera.clients.start_on_mine', 'cartera.commitments.status', 'cartera.commitments.write', 'comisiones.approve']);
+    expect($missing)->toBe(['cartera.clients.start_on_mine', 'cartera.commitments.status', 'cartera.commitments.write', 'comisiones.approve', 'soportes.review', 'soportes.upload']);
 });
 
 it('keeps the excluded permissions with their own roles', function (string $permission, string $role) {
@@ -43,6 +43,8 @@ it('keeps the excluded permissions with their own roles', function (string $perm
     ['cartera.commitments.status', 'analista_cartera'],
     ['cartera.commitments.status', 'gerente_cartera'],
     ['comisiones.approve', 'comisiones_aprobador'],
+    ['soportes.review', 'analista_cartera'],
+    ['soportes.upload', 'asesor'],
 ]);
 
 it('lets each module seeder exclude permissions from the superadmin', function () {

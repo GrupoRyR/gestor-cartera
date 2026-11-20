@@ -44,6 +44,8 @@
             "App\\Modules\\Gerencia\\Database\\Seeders\\": "app/Modules/Gerencia/database/seeders/",
             "App\\Modules\\Ingesta\\Database\\Factories\\": "app/Modules/Ingesta/database/factories/",
             "App\\Modules\\Ingesta\\Database\\Seeders\\": "app/Modules/Ingesta/database/seeders/",
+            "App\\Modules\\Soportes\\Database\\Factories\\": "app/Modules/Soportes/database/factories/",
+            "App\\Modules\\Soportes\\Database\\Seeders\\": "app/Modules/Soportes/database/seeders/",
             "Database\\Factories\\": "database/factories/",
             "Database\\Seeders\\": "database/seeders/"
         }
