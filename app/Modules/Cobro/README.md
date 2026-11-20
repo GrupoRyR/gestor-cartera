@@ -18,6 +18,7 @@ Correo de cobro por Microsoft Graph desde el buzón de cada empresa: cobro seman
 | `GET /cobro/exclusiones` | `cobro.exclusiones.index` | `cobro.manage` | Lista de exclusión con casillas, motivo y fecha de vencimiento opcional. |
 | `GET /cobro/plantillas` | `cobro.plantillas.edit` | `cobro.manage` | Asunto y textos del cobro semanal por empresa, con datos como `{cliente}`. |
 | `GET /cobro/copias` | `cobro.copias.edit` | `cobro.manage` | Copias (CC) del cobro semanal y de la circularización por empresa: correos fijos, el asesor del cliente y los gerentes de cada grupo de SAP. |
+| `GET /cobro/firma` | `cobro.firma.edit` | `cobro.manage` | Quién firma los correos de cada empresa: nombre, cargo, móvil y extensión del PBX (ver «Firma del correo»). |
 
 Permisos (`CobroPermissionSeeder`): `cobro.view` para administrador, gerente y analista de cartera; `cobro.manage` y `cobro.replies` para gerente y analista.
 
@@ -107,6 +108,15 @@ Las copias solo pueden ir a los dominios de `config('cobro.copy_domains')` (`seg
 
 - `/cobro/copias` rechaza los correos de otros dominios con el mensaje «Solo se permiten copias a correos de segurex.com o derivadoscol.com: …» y muestra esos dominios en la ayuda de cada campo.
 - Justo antes de enviar, `SendRunItem` quita de la copia cualquier otro correo: filas guardadas antes de esta regla o un asesor de SAP con otro dominio. Deja un aviso `cobro.copies.dropped` en el registro con la empresa, el envío, cuántos correos quitó y solo sus dominios (no las direcciones, por minimización de datos de la Ley 1581). `GraphMailSender` no filtra, porque lo comparten otros módulos.
+
+## Firma del correo
+
+El cobro semanal, la circularización y las respuestas desde la app terminan con la firma de cartera de su empresa. En `/cobro/firma` (`cobro.manage`) se cambian, por empresa, los datos de la persona: nombre, cargo, móvil y extensión del PBX. Así, cuando otra persona lleve la cartera, no hay que tocar código.
+
+- Mientras nadie guarde otros datos, firma la persona de `cobro.firma` (María Paula Alvarez, Auxiliar de Cartera, en las dos empresas).
+- Guardar y volver a los datos por defecto queda en la auditoría (`cobro.signature.updated` y `cobro.signature.reset`), con los campos que cambiaron.
+- La parte de la empresa no se edita: razón social, dirección, PBX, correo, web y, en Segurex, el aviso legal.
+- Los correos todavía no muestran esta firma: llega con las imágenes de cada empresa en el siguiente cambio.
 
 ## Aviso de cambios en la plantilla
 

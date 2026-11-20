@@ -187,6 +187,16 @@ final class CobroServiceProvider extends ModuleServiceProvider
                 order: 155,
                 activePattern: 'cobro.copias.*',
             ),
+            new NavItem(
+                key: 'cobro.firma',
+                label: 'Firma del correo',
+                route: 'cobro.firma.edit',
+                icon: 'edit',
+                permission: 'cobro.manage',
+                group: 'Cobro',
+                order: 157,
+                activePattern: 'cobro.firma.*',
+            ),
         );
     }
 

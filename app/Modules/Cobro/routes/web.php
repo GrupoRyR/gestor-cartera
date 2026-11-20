@@ -6,6 +6,7 @@ use App\Modules\Cobro\Http\Controllers\ExclusionController;
 use App\Modules\Cobro\Http\Controllers\ReplyInboxController;
 use App\Modules\Cobro\Http\Controllers\RunPreviewController;
 use App\Modules\Cobro\Http\Controllers\RunReportController;
+use App\Modules\Cobro\Http\Controllers\SignatureController;
 use App\Modules\Cobro\Http\Controllers\TemplateController;
 use Illuminate\Support\Facades\Route;
 
@@ -69,4 +70,11 @@ Route::middleware(['auth', 'can:cobro.manage'])->prefix('copias')->name('copias.
     Route::get('/', [CopyController::class, 'edit'])->name('edit');
     Route::put('{empresa}', [CopyController::class, 'update'])->whereAlpha('empresa')->name('update');
     Route::delete('{empresa}', [CopyController::class, 'reset'])->whereAlpha('empresa')->name('reset');
+});
+
+// Who signs each company's Cobro mails.
+Route::middleware(['auth', 'can:cobro.manage'])->prefix('firma')->name('firma.')->group(function () {
+    Route::get('/', [SignatureController::class, 'edit'])->name('edit');
+    Route::put('{empresa}', [SignatureController::class, 'update'])->whereAlpha('empresa')->name('update');
+    Route::delete('{empresa}', [SignatureController::class, 'reset'])->whereAlpha('empresa')->name('reset');
 });

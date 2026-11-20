@@ -103,6 +103,16 @@ return [
         'SDC' => ['fixed' => [], 'advisor' => false, 'managers' => []],
     ],
 
+    // Who signs each company's Cobro mails (weekly collection,
+    // circularization and replies) until someone saves another person in
+    // /cobro/firma: the cartera assistant of the signatures the companies
+    // use today. The company part of the signature (legal name, address,
+    // PBX number, e-mail, web) is fixed.
+    'firma' => [
+        'SGX' => ['name' => 'María Paula Alvarez', 'title' => 'Auxiliar de Cartera', 'mobile' => '+3153654788', 'extension' => '141'],
+        'SDC' => ['name' => 'María Paula Alvarez', 'title' => 'Auxiliar de Cartera', 'mobile' => '+3153654788', 'extension' => '141'],
+    ],
+
     // The only domains a carbon copy may go to, for both companies: an exact
     // match without regard to case (no subdomains). /cobro/copias rejects
     // any other address, and the send drops any other copy (an address
