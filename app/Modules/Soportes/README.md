@@ -4,7 +4,7 @@ Inbox of payment receipts (soportes de pago). Clients send receipts by mail or W
 
 The app never marks an invoice as paid and does not change the weekly collection: an invoice only shows as paid once SAP has the payment and the robot brings the next snapshot. The module talks to the rest of the app only through Core's contracts (`docs/arquitectura.md` §6). The feature plan is `odd/tasks/soportes-pago.md`.
 
-The module ships the data, the rules, the permissions, the upload and the inbox with its menu entry ("Soportes de pago"). The detail, the file downloads and the review actions come next.
+The module ships the data, the rules, the permissions, the upload, the inbox with its menu entry ("Soportes de pago"), the detail and the file downloads. The review actions come next.
 
 ## States
 
@@ -63,7 +63,7 @@ Routes in `routes/web.php` (`auth` and `can:create` on `Receipt`, i.e. `soportes
 |---|---|---|
 | `GET /soportes/nuevo` | `soportes.create` | Step 1: search the overdue clients the user may upload for (`paginateClients` with `onlyOverdue`, by name or NIT). |
 | `GET /soportes/nuevo?cliente={id}` | `soportes.create` | Step 2: the form for that client (404 when `client()` does not find it): its overdue invoices as checkboxes, amount, payment date, method, note and files. Other screens can link here. |
-| `POST /soportes` | `soportes.store` | `StoreReceiptRequest`, then `UploadReceipt`. Errors and refusals go back to step 2 with the input; success goes back to step 1 with «Soporte cargado. Queda pendiente de revisión.». |
+| `POST /soportes` | `soportes.store` | `StoreReceiptRequest`, then `UploadReceipt`. Errors and refusals go back to step 2 with the input; success opens the new receipt (`soportes.show`) with «Soporte cargado. Queda pendiente de revisión.». |
 
 `StoreReceiptRequest` fields: `cliente`; `facturas[]` (document numbers, at least one, distinct); `valor` (pesos, digits with up to two decimals, above zero); `fecha_pago` (`Y-m-d`, not after today); `metodo` (optional, `PaymentMethod`); `nota` (optional, up to 1,000 characters); `archivos[]` (1 to `max_files`, each `file`, `extensions` and `mimetypes` from the config, which Laravel checks against the sniffed content type, up to `max_file_kilobytes`). Texts in `resources/lang/es/carga.php`.
 
@@ -80,9 +80,18 @@ Routes in `routes/web.php` (`auth` and `can:create` on `Receipt`, i.e. `soportes
 
 `SoportesServiceProvider::navigation()` adds «Soportes de pago» (`soportes.bandeja`, permission `soportes.view`) at the end of the Cartera group (order 45), so `/` still opens the dashboard of the portfolio roles. Its badge counts the pending receipts of the companies in view, only for reviewers (`VisibleReceipts::pendingCount()`); the advisor gets no badge, and nobody gets one when nothing is pending.
 
+## Detail and downloads
+
+Both routes sit behind `can:view,soporte` (`ReceiptPolicy::view`), so a user who may not open the receipt gets 403 and an unknown id 404. `ReceiptController`:
+
+| Route | Name | What |
+|---|---|---|
+| `GET /soportes/{soporte}` | `soportes.show` | The payment data (client, company, amount, payment date, method, note, who uploaded it and when), the review (status, who reviewed it and when, the cash receipt number or the rejection reason), the invoices it covers (the copies taken at upload) and its files. The inbox rows link here. |
+| `GET /soportes/{soporte}/archivos/{archivo}` | `soportes.files.download` | The file, streamed from `config('soportes.disk')` as an attachment named as it was uploaded (path separators replaced), with its stored sniffed type and `X-Content-Type-Options: nosniff`. A file of another receipt answers 404; a file missing on the disk answers 404 and logs a warning. 60 downloads a minute. Never a public URL. |
+
 ## Storage
 
-Files live on the private `local` disk (`storage/app/private`), never under `public/`, at `soportes/{company}/{yyyy}/{mm}/{uuid}.{ext}` under a generated name; the uploaded name is only shown. They are served only by the authorized download action. Settings in `config/soportes.php`, read with `config('soportes.<key>')`:
+Files live on the private `local` disk (`storage/app/private`), never under `public/`, at `soportes/{company}/{yyyy}/{mm}/{uuid}.{ext}` under a generated name; the uploaded name is only shown, and given back as the download name. They are served only by the authorized download action (see «Detail and downloads»). Settings in `config/soportes.php`, read with `config('soportes.<key>')`:
 
 | Key | Default | Purpose |
 |---|---|---|

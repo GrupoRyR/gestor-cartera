@@ -7,6 +7,7 @@
     receipts in that tab with the same filters; $isGroup: name the company
     of each receipt; $reviews: the user reviews (soportes.review), otherwise
     the page is the advisor's "Mis soportes"; $canUpload: soportes.upload.
+    Each client name links to the receipt's detail (soportes.show).
 --}}
 @php
     $rejectedTab = $filter->status === ReceiptStatus::Rejected;
@@ -75,7 +76,7 @@
             @foreach ($receipts as $receipt)
                 <tr data-receipt="{{ $receipt->id }}">
                     <td class="min-w-44">
-                        <span class="block font-semibold">{{ $receipt->client_name }}</span>
+                        <a href="{{ route('soportes.show', $receipt) }}" class="block font-semibold text-brand-ink underline-offset-4 hover:underline">{{ $receipt->client_name }}</a>
                         <span class="text-sm text-fg-muted">{{ $receipt->client_code }}</span>
                     </td>
                     @if ($isGroup)

@@ -128,16 +128,17 @@ describe('step 2: the form', function () {
 });
 
 describe('uploading', function () {
-    it('saves the advisor\'s receipt with its files and says it awaits review', function () {
+    it('saves the advisor\'s receipt with its files and opens it, saying it awaits review', function () {
         $this->fakes->cartera->restrictToAdvisor(10);
         $advisor = SoportesUsers::advisor();
 
-        soportesUpload($advisor)
+        $response = soportesUpload($advisor)
             ->assertSessionHasNoErrors()
-            ->assertRedirect('/soportes/nuevo')
             ->assertSessionHas('status', 'Soporte cargado. Queda pendiente de revisión.');
 
         $receipt = Receipt::query()->with(['invoices', 'files'])->sole();
+
+        $response->assertRedirect('/soportes/'.$receipt->id);
 
         expect($receipt->uploaded_by)->toBe($advisor->id)
             ->and($receipt->amount)->toBe('2000000.00')
@@ -149,9 +150,12 @@ describe('uploading', function () {
     });
 
     it('lets the analyst upload for any client of their company', function () {
-        soportesUpload(SoportesUsers::analyst(), ['metodo' => '', 'nota' => ''])->assertSessionHasNoErrors()->assertRedirect('/soportes/nuevo');
+        $response = soportesUpload(SoportesUsers::analyst(), ['metodo' => '', 'nota' => ''])->assertSessionHasNoErrors();
+        $receipt = Receipt::query()->sole();
 
-        expect(Receipt::query()->sole()->method)->toBeNull();
+        $response->assertRedirect(route('soportes.show', $receipt));
+
+        expect($receipt->method)->toBeNull();
     });
 
     it('accepts up to three files, PDF, JPG or PNG', function () {
