@@ -12,9 +12,8 @@ use Illuminate\Support\Facades\Gate;
  * uploads a client's receipt against its overdue invoices; the analyst
  * applies the payment in SAP and marks the receipt applied or rejected.
  *
- * Web routes: /soportes/*, named soportes.* (they arrive with the upload and
- * the inbox; this base has none, and the provider loads route files only
- * when they exist).
+ * Web routes: /soportes/*, named soportes.* (routes/web.php: the upload;
+ * the inbox and its menu entry arrive with the review).
  * Owner: the "Soportes" session.
  */
 final class SoportesServiceProvider extends ModuleServiceProvider
