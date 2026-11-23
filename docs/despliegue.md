@@ -162,7 +162,7 @@ Variables (solo los nombres; los valores van en el servidor):
 | Correo del framework | `MAIL_MAILER` | `log`: el correo de negocio va por Graph |
 | Ingreso | `MICROSOFT_TENANT_ID`, `MICROSOFT_CLIENT_ID`, `MICROSOFT_CLIENT_SECRET`, `MICROSOFT_REDIRECT_URI` | del registro de ingreso; la URI es la del paso 6; nunca `common` |
 | Correo (Graph) | `GRAPH_TENANT_ID`, `GRAPH_CLIENT_ID`, `GRAPH_CLIENT_SECRET` | del registro de correo; es la credencial común |
-| Correo de Derivados (Graph) | `GRAPH_SDC_TENANT_ID`, `GRAPH_SDC_CLIENT_ID`, `GRAPH_SDC_CLIENT_SECRET` | del registro de correo hecho en el inquilino de Derivados (paso 6). Las **tres** o ninguna: con solo una o dos, Derivados usa la credencial común, que es de otro inquilino, y sus llamadas fallan |
+| Correo de Derivados (Graph) | `GRAPH_SDC_TENANT_ID`, `GRAPH_SDC_CLIENT_ID`, `GRAPH_SDC_CLIENT_SECRET` | del registro de correo hecho en el inquilino de Derivados (paso 6). Las **tres** o ninguna. Derivados nunca usa la credencial común, que es de otro inquilino: sin las tres, no envía y `cobro:sincronizar-buzones` se salta su buzón |
 | Correo de Segurex (Graph), opcional | `GRAPH_SGX_TENANT_ID`, `GRAPH_SGX_CLIENT_ID`, `GRAPH_SGX_CLIENT_SECRET` | solo si Segurex deja de usar la credencial común. Misma regla: las tres o ninguna |
 | Buzones | `COBRO_MAILBOX_SGX`, `COBRO_MAILBOX_SDC`, `COBRO_TENANT_DOMAINS` | los dos buzones del paso 6; dominios solo si hace falta |
 | Dominios del inquilino por empresa, opcionales | `COBRO_TENANT_DOMAINS_SGX`, `COBRO_TENANT_DOMAINS_SDC` | dominios, separados por comas, con los que el Exchange de cada inquilino firma sus informes de no entrega (por ejemplo `…onmicrosoft.com`). Cada lista cuenta solo para el buzón de su empresa y se suma a `COBRO_TENANT_DOMAINS`, no lo reemplaza |
@@ -170,7 +170,7 @@ Variables (solo los nombres; los valores van en el servidor):
 | Destinatarios | `CORE_AUDIT_ALERT_RECIPIENTS`, `COMISIONES_APPROVAL_RECIPIENTS`, `INGESTA_ALERT_RECIPIENTS` | correos separados por comas; sin ellos, las alertas quedan solo en el log |
 | Opcionales | `APP_TIMEZONE`, `INGESTA_HMAC_MAX_SKEW`, `INGESTA_ALERT_DEADLINE`, `BANCOS_IMPORT_PATH`, `BANCOS_IMPORT_AT`, `BANCOS_MIAMI_CURRENCY`, `CARTERA_SIN_GESTION_DIAS` | déjalas con su valor por defecto |
 
-Una empresa usa su credencial propia (`GRAPH_SGX_*` o `GRAPH_SDC_*`) solo si tiene las tres variables con valor; si no, usa la común. Con solo las tres `GRAPH_*` comunes, todo sigue funcionando como antes para las dos empresas. Si una empresa no tiene ninguna credencial completa, no envía y `cobro:sincronizar-buzones` se salta su buzón.
+Una empresa usa su credencial propia (`GRAPH_SGX_*` o `GRAPH_SDC_*`) solo si tiene las tres variables con valor. Si no, solo Segurex usa la común (`cobro.graph.default_companies`, fijo en `['SGX']`); Derivados nunca, porque su buzón está en otro inquilino. Con solo las tres `GRAPH_*` comunes, Segurex funciona como antes y Derivados espera a sus `GRAPH_SDC_*`. Una empresa sin credencial que pueda usar no envía, y `cobro:sincronizar-buzones` se salta su buzón sin fallar (lo avisa en el log como mucho una vez al día).
 
 Genera cada secreto de llave en el servidor y pégalo directo en `nano`. Cada uno sale de 64 caracteres:
 
