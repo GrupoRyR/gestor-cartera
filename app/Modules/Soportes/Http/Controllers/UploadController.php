@@ -53,14 +53,14 @@ final readonly class UploadController
         abort_unless($user instanceof User, 403);
 
         try {
-            $this->upload->handle($request->toNewReceipt(), $user);
+            $receipt = $this->upload->handle($request->toNewReceipt(), $user);
         } catch (ReceiptRefused $e) {
             return redirect()->route('soportes.create', ['cliente' => $request->clientId()])
                 ->withErrors([$e->field => __('soportes::carga.errores.'.$e->reason)])
                 ->withInput($request->except('archivos'));
         }
 
-        return redirect()->route('soportes.create')->with('status', __('soportes::carga.resultado.cargado'));
+        return redirect()->route('soportes.show', $receipt)->with('status', __('soportes::carga.resultado.cargado'));
     }
 
     /**
