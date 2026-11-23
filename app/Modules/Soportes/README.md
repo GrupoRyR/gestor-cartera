@@ -4,7 +4,7 @@ Inbox of payment receipts (soportes de pago). Clients send receipts by mail or W
 
 The app never marks an invoice as paid and does not change the weekly collection: an invoice only shows as paid once SAP has the payment and the robot brings the next snapshot. The module talks to the rest of the app only through Core's contracts (`docs/arquitectura.md` §6). The feature plan is `odd/tasks/soportes-pago.md`.
 
-This base ships the data, the rules and the permissions. The upload, the inbox, the review actions and the menu entry ("Soportes de pago") come in the next pull requests.
+The module ships the data, the rules, the permissions and the upload. The inbox, the review actions and the menu entry ("Soportes de pago") come in the next pull request; until then the upload is reached only by its URL.
 
 ## States
 
@@ -54,6 +54,18 @@ Deleting a receipt deletes its invoice and file rows.
 - every file's sniffed content type must be PDF, JPEG or PNG; otherwise `ReceiptRefused` on `archivos`.
 
 The files are written first, then the receipt, its invoices and files are saved in one transaction with the audit entry `soportes.receipt.uploaded` (subject `soporte`; company, client id, amount, payment date, method and status; context: how many invoices and files). If anything fails, the files already written are deleted. No e-mail is sent.
+
+### Screens
+
+Routes in `routes/web.php` (`auth` and `can:create` on `Receipt`, i.e. `soportes.upload`):
+
+| Route | Name | What |
+|---|---|---|
+| `GET /soportes/nuevo` | `soportes.create` | Step 1: search the overdue clients the user may upload for (`paginateClients` with `onlyOverdue`, by name or NIT). |
+| `GET /soportes/nuevo?cliente={id}` | `soportes.create` | Step 2: the form for that client (404 when `client()` does not find it): its overdue invoices as checkboxes, amount, payment date, method, note and files. Other screens can link here. |
+| `POST /soportes` | `soportes.store` | `StoreReceiptRequest`, then `UploadReceipt`. Errors and refusals go back to step 2 with the input; success goes back to step 1 with «Soporte cargado. Queda pendiente de revisión.». |
+
+`StoreReceiptRequest` fields: `cliente`; `facturas[]` (document numbers, at least one, distinct); `valor` (pesos, digits with up to two decimals, above zero); `fecha_pago` (`Y-m-d`, not after today); `metodo` (optional, `PaymentMethod`); `nota` (optional, up to 1,000 characters); `archivos[]` (1 to `max_files`, each `file`, `extensions` and `mimetypes` from the config, which Laravel checks against the sniffed content type, up to `max_file_kilobytes`). Texts in `resources/lang/es/carga.php`.
 
 ## Storage
 
