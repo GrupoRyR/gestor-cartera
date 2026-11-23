@@ -4,6 +4,7 @@ namespace App\Modules\Soportes\Http\Controllers;
 
 use App\Models\User;
 use App\Modules\Core\Contracts\CurrentCompany;
+use App\Modules\Core\Contracts\Enums\Role;
 use App\Modules\Soportes\Application\Inbox\InboxFilter;
 use App\Modules\Soportes\Application\Inbox\VisibleReceipts;
 use App\Modules\Soportes\Domain\ReceiptStatus;
@@ -13,7 +14,8 @@ use Illuminate\Http\Request;
 
 /**
  * GET /soportes (soportes.index): the receipts inbox, one tab per status
- * with its count. Reviewers see the receipts of the companies in view;
+ * with its count. Reviewers see the receipts of the companies in view and,
+ * like the superadmin (who reaches every client), get the general title;
  * the advisor sees "Mis soportes" (VisibleReceipts). Pending receipts come
  * oldest first, as a queue; applied and rejected ones, latest review first.
  */
@@ -52,7 +54,7 @@ final readonly class InboxController
             'receipts' => $receipts->paginate(self::PER_PAGE),
             'counts' => $counts,
             'isGroup' => $current->isGroup(),
-            'reviews' => $user->can('soportes.review'),
+            'general' => $user->can('soportes.review') || $user->hasRole(Role::SuperAdmin->value),
             'canUpload' => $user->can('create', Receipt::class),
         ]);
     }
