@@ -463,6 +463,7 @@ En la app de escritorio, el modelo se elige en el selector junto al botón de en
    | Bancos | `2026_10_06_*` |
    | Gerencia | `2026_10_07_*` |
    | Comisiones | `2026_10_08_*` |
+   | Soportes | `2026_10_09_*` |
 
 4. **Pruebas primero:** cuando exista una prueba ejecutable con resultado claro, verla fallar, implementar y verla pasar. Las reglas de estados, días de gracia, exclusiones, tramos y comisiones van con pruebas unitarias.
 5. **Commits:** Conventional Commits, sin líneas de coautoría; una unidad de trabajo por commit, con pruebas y documentación junto al código.
