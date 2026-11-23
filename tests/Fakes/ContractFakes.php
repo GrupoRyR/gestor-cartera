@@ -3,6 +3,7 @@
 namespace Tests\Fakes;
 
 use App\Modules\Core\Contracts\AuditLogger;
+use App\Modules\Core\Contracts\AvisoService;
 use App\Modules\Core\Contracts\CarteraRepository;
 use App\Modules\Core\Contracts\CompromisoService;
 use App\Modules\Core\Contracts\CurrentCompany;
@@ -39,6 +40,7 @@ final readonly class ContractFakes
         public FakeMailboxReader $mailbox,
         public FakeRecaudoProvider $recaudo,
         public FakeMailRunResultsProvider $mailRuns,
+        public FakeAvisoService $avisos,
     ) {}
 
     /**
@@ -60,6 +62,7 @@ final readonly class ContractFakes
             mailbox: new FakeMailboxReader($currentCompany),
             recaudo: new FakeRecaudoProvider,
             mailRuns: new FakeMailRunResultsProvider,
+            avisos: new FakeAvisoService,
         );
 
         $app->instance(CurrentCompany::class, $fakes->currentCompany);
@@ -72,6 +75,7 @@ final readonly class ContractFakes
         $app->instance(MailboxReader::class, $fakes->mailbox);
         $app->instance(RecaudoProvider::class, $fakes->recaudo);
         $app->instance(MailRunResultsProvider::class, $fakes->mailRuns);
+        $app->instance(AvisoService::class, $fakes->avisos);
 
         return $fakes;
     }

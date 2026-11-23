@@ -1,6 +1,7 @@
 <?php
 
 use App\Modules\Core\Contracts\AuditLogger;
+use App\Modules\Core\Contracts\AvisoService;
 use App\Modules\Core\Contracts\CarteraRepository;
 use App\Modules\Core\Contracts\CompromisoService;
 use App\Modules\Core\Contracts\CurrentCompany;
@@ -11,6 +12,7 @@ use App\Modules\Core\Contracts\Enums\CompanyCode;
 use App\Modules\Core\Contracts\GestionLogger;
 use App\Modules\Core\Contracts\IngestaSink;
 use App\Modules\Core\Contracts\MailboxReader;
+use App\Modules\Core\Contracts\MailRunResultsProvider;
 use App\Modules\Core\Contracts\MailSender;
 use App\Modules\Core\Contracts\RecaudoProvider;
 use Carbon\CarbonImmutable;
@@ -28,7 +30,9 @@ it('binds every contract to its fake', function () {
         ->and(app(IngestaSink::class))->toBe($fakes->ingesta)
         ->and(app(MailSender::class))->toBe($fakes->mail)
         ->and(app(MailboxReader::class))->toBe($fakes->mailbox)
-        ->and(app(RecaudoProvider::class))->toBe($fakes->recaudo);
+        ->and(app(RecaudoProvider::class))->toBe($fakes->recaudo)
+        ->and(app(MailRunResultsProvider::class))->toBe($fakes->mailRuns)
+        ->and(app(AvisoService::class))->toBe($fakes->avisos);
 });
 
 it('shares the clients of the cartera fake and the active company', function () {

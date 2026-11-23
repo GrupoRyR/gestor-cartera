@@ -13,6 +13,7 @@ use App\Modules\Core\Console\Migracion\MigrateUsersCommand;
 use App\Modules\Core\Console\SuperAdminCommand;
 use App\Modules\Core\Console\VerifyAuditChainCommand;
 use App\Modules\Core\Contracts\AuditLogger;
+use App\Modules\Core\Contracts\AvisoService;
 use App\Modules\Core\Contracts\CarteraRepository;
 use App\Modules\Core\Contracts\ClientAssignmentService;
 use App\Modules\Core\Contracts\ClientStatusService;
@@ -31,6 +32,7 @@ use App\Modules\Core\Infrastructure\Companies\SessionCurrentCompany;
 use App\Modules\Core\Infrastructure\Ingest\ImportAdvisors;
 use App\Modules\Core\Infrastructure\Ingest\ImportContacts;
 use App\Modules\Core\Infrastructure\Ingest\ImportReceivablesSnapshot;
+use App\Modules\Core\Infrastructure\Notices\EloquentAvisoService;
 use App\Modules\Core\Infrastructure\Persistence\AdvisorRecord;
 use App\Modules\Core\Infrastructure\Persistence\CompanyRecord;
 use App\Modules\Core\Infrastructure\Portfolio\EloquentCarteraRepository;
@@ -41,6 +43,7 @@ use App\Support\Navigation\NavItem;
 use App\Support\Navigation\NavRegistry;
 use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Console\Scheduling\Schedule;
+use Illuminate\Contracts\Foundation\Application;
 use Illuminate\Contracts\Http\Kernel as HttpKernel;
 use Illuminate\Foundation\Http\Kernel as FoundationHttpKernel;
 use Illuminate\Http\Request;
@@ -83,6 +86,12 @@ final class CoreServiceProvider extends ModuleServiceProvider
         $this->app->scoped(ClientStatusService::class, EloquentClientStatusService::class);
         $this->app->scoped(ClientAssignmentService::class, EloquentClientAssignmentService::class);
         $this->app->scoped(CompromisoService::class, EloquentCompromisoService::class);
+
+        // One for the whole process: the link resolvers modules register in
+        // bootModule() must survive the request and every job of a worker.
+        // The concrete class also serves Core's inbox (the bell).
+        $this->app->singleton(EloquentAvisoService::class);
+        $this->app->singleton(AvisoService::class, fn (Application $app): AvisoService => $app->make(EloquentAvisoService::class));
 
         // Microsoft Entra ID sign-in; tests bind a fake instead.
         $this->app->bind(IdentityProvider::class, SocialiteMicrosoftIdentityProvider::class);

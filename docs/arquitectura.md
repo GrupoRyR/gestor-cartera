@@ -268,6 +268,7 @@ Todos viven en `App\Modules\Core\Contracts`. Son PHP sin base de datos, sin HTTP
 | `MailboxReader` | Cobro | 1 | `FakeMailboxReader` | Sí |
 | `RecaudoProvider` | Bancos | 1 | `FakeRecaudoProvider` | No; autoriza quien llama |
 | `MailRunResultsProvider` | Cobro | 2 | `FakeMailRunResultsProvider` | No; autoriza quien llama |
+| `AvisoService` | Core | Ajustes finales | `FakeAvisoService` | No; quien llama elige los destinatarios |
 
 Mientras el dueño de un contrato no esté en `main`, la interfaz no tiene binding: pruébala con su fake. El código de `app/` nunca importa `Tests\Fakes` (en producción ese namespace no existe: `composer install --no-dev`).
 
@@ -549,6 +550,39 @@ Un lote entra en el período cuando su fecha programada, como día calendario en
 |---|---|---|
 | `results(CompanyCode $company, MailRunKind $kind, CarbonImmutable $from, CarbonImmutable $to): MailRunResults` | Suma los lotes de la empresa y el tipo programados en el período; todo en cero si no hay ninguno. | `InvalidArgumentException` (`$from` posterior a `$to`) |
 
+### 6.18 `AvisoService`
+
+Avisos dentro de la plataforma (la campana del layout). Un módulo envía un `Aviso` y Core guarda un `Notice` por destinatario en la tabla `notices`. No filtra por usuario: quien llama elige los destinatarios (ids de `users`). Lo implementa `Infrastructure\Notices\EloquentAvisoService`, registrado como **singleton** para que los resolvedores de enlaces sobrevivan a la petición y a cada job de un worker.
+
+Cada aviso tiene dos estados independientes:
+
+- **No leído → leído:** el destinatario lo abrió o lo marcó en la campana. Solo lo cambia la bandeja de Core.
+- **Abierto → resuelto («hecho»):** lo que pedía ya no hace falta (p. ej. se saldó el compromiso). El módulo que lo envió llama `resolve()` con la `key` que le dio; se resuelve para todos los destinatarios, lo hayan leído o no.
+
+| Método | Qué hace | Lanza |
+|---|---|---|
+| `send(Aviso $aviso): void` | Guarda un aviso no leído y abierto por cada destinatario distinto. Escribe dentro de la transacción de quien llama, sin esperar el commit: si esa transacción se deshace, no queda ningún aviso. | — (`Aviso` valida al construirse) |
+| `resolve(string $key): int` | Marca `resolved_at` en todos los avisos abiertos con esa `key` y devuelve cuántos. Los ya resueltos conservan su fecha; no toca la lectura. | — |
+| `linkUsing(string $kind, Closure $resolver): void` | Registra a dónde lleva un aviso de ese tipo: `fn (Notice $notice): ?string` devuelve la URL para el usuario con sesión, o `null` para pasar. Varios por tipo: corren en el orden de registro y gana la primera URL; sin respuesta, el aviso no tiene enlace. | — |
+
+`Aviso` lanza `InvalidArgumentException` si no hay destinatarios o alguno no es un entero positivo (los repetidos se descartan), si `kind` (hasta 40) o `title` (hasta 160) están en blanco o son muy largos, si `company` no es un código de tres letras mayúsculas (`SGX`, `SDC`), si `subjectType` pasa de 20 o si `key` está en blanco o pasa de 80. Usa como `kind` la clave del módulo con un sufijo (`cartera.compromiso`) y como `key` algo que identifique lo que el aviso pide (`commitment:12:partial`).
+
+Los resolvedores se registran en `bootModule()`:
+
+```php
+protected function bootModule(): void
+{
+    $this->app->make(AvisoService::class)->linkUsing(
+        'commitment.remaining',
+        fn (Notice $notice): ?string => $notice->subjectType === 'client' && $notice->subjectId !== null
+            ? route('cartera.clientes.show', $notice->subjectId)
+            : null,
+    );
+}
+```
+
+La bandeja (listar, contar los no leídos, marcar como leído y resolver el enlace de un aviso) es interna de Core y no está en el contrato: `EloquentAvisoService::forUser()`, `latest()`, `unreadCount()` (no leídos y abiertos), `markRead()` (`null` si el aviso no es del usuario), `markAllRead()` y `link()`.
+
 ---
 
 ## 7. Fakes para pruebas
@@ -563,7 +597,7 @@ use Tests\Fakes\ContractFakes;
 $fakes = ContractFakes::install($this->app);
 ```
 
-Enlaza los diez fakes como instancias del contenedor y devuelve un `ContractFakes` con las propiedades `currentCompany`, `cartera`, `compromisos`, `gestiones`, `audit`, `ingesta`, `mail`, `mailbox`, `recaudo` y `mailRuns`. Los fakes vienen conectados: cartera, compromisos y buzón siguen a `currentCompany`; compromisos y bitácora conocen los clientes de `cartera` y respetan su alcance.
+Enlaza los once fakes como instancias del contenedor y devuelve un `ContractFakes` con las propiedades `currentCompany`, `cartera`, `compromisos`, `gestiones`, `audit`, `ingesta`, `mail`, `mailbox`, `recaudo`, `mailRuns` y `avisos`. Los fakes vienen conectados: cartera, compromisos y buzón siguen a `currentCompany`; compromisos y bitácora conocen los clientes de `cartera` y respetan su alcance.
 
 > **Ojo:** `currentCompany` arranca con SGX activa y SGX y SDC disponibles. Un cliente SDC no aparece hasta que cambies de empresa: `$fakes->currentCompany->switchTo(CompanyCode::SDC)` o `switchTo(null)` para la vista de grupo.
 
@@ -601,6 +635,7 @@ Enlaza los diez fakes como instancias del contenedor y devuelve un `ContractFake
 | `FakeMailboxReader` | `add(InboundMail ...)` | Métodos del contrato |
 | `FakeRecaudoProvider` | `addDaily(DailyCollection ...)` (`weekly()` se calcula de ahí) | Métodos del contrato |
 | `FakeMailRunResultsProvider` | `add(CompanyCode $company, MailRunKind $kind, CarbonImmutable $scheduledFor, int $sent = 0, int $bounced = 0, int $withoutEmail = 0, int $failed = 0, int $replies = 0)`, una llamada por lote (`results()` suma los del período, por día calendario de Bogotá) | Métodos del contrato |
+| `FakeAvisoService` | `linkUsing()` como el contrato | `sent()` (`list<Aviso>`), `assertSent(string $kind, ?int $userId = null)`, `assertNothingSent()`, `resolvedKeys()`, `assertResolved(string $key)`, `link(Notice $notice)` |
 
 Diferencias con las implementaciones reales que conviene saber:
 
@@ -609,6 +644,7 @@ Diferencias con las implementaciones reales que conviene saber:
 - `FakeIngestaSink` despacha `BatchAccepted` con `event()`: los listeners registrados corren de verdad. Para solo afirmar el despacho, usa `Event::fake([BatchAccepted::class])`.
 - `FakeMailboxReader::forClient()` no emula el alcance por cliente.
 - `FakeMailSender` numera los envíos: el N-ésimo devuelve `<fake-N@gestor-cartera.test>` y `fake-conversation-N`.
+- `FakeAvisoService` no guarda filas: `resolve()` cuenta, como la real, un aviso por destinatario de cada `Aviso` abierto con esa `key`, y lo marca resuelto. No tiene bandeja; `link()` corre los resolvedores como la real. Los que registran los módulos en `bootModule()` quedan en la implementación real, no en el fake.
 
 ### 7.4 Emular el alcance de un asesor
 
