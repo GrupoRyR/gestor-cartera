@@ -12,6 +12,7 @@ use App\Modules\Core\Contracts\Enums\CompanyCode;
 use Carbon\CarbonImmutable;
 use Illuminate\Http\Client\Request;
 use Illuminate\Support\Facades\Event;
+use Illuminate\Support\Facades\Log;
 use Tests\Fakes\ContractFakes;
 use Tests\Fakes\Make;
 use Tests\Modules\Cobro\Support\GraphFake;
@@ -697,6 +698,45 @@ it('still reads the inbox of a company with a credential when the other has none
     expect($graph->tokenRequests())->toBe(1)
         ->and($graph->requestsTo('GET', 'users/derivados.info@derivadoscol.com/*'))->toBe([])
         ->and(MailboxCursor::query()->pluck('mailbox')->all())->toBe(['segurex.info@segurex.com']);
+});
+
+it('skips SDC without its own credential and logs it at most once a day', function () {
+    $graph = GraphFake::install()
+        ->on('GET', COBRO_DELTA, ['value' => [], '@odata.deltaLink' => 'https://graph.microsoft.com/v1.0/'.COBRO_DELTA.'?$deltatoken=1']);
+    config(['cobro.graph.default_companies' => ['SGX']]);
+    Log::spy();
+
+    $this->artisan('cobro:sincronizar-buzones')
+        ->expectsOutputToContain('Segurex Latam: 0 mensajes nuevos.')
+        ->expectsOutputToContain('Soluciones y Derivados: Microsoft Graph no está configurado (GRAPH_SDC_TENANT_ID, GRAPH_SDC_CLIENT_ID y GRAPH_SDC_CLIENT_SECRET)')
+        ->assertSuccessful();
+
+    $this->travel(5)->minutes();
+    $this->artisan('cobro:sincronizar-buzones')->assertSuccessful();
+
+    expect($graph->requestsTo('GET', 'users/derivados.info@derivadoscol.com/*'))->toBe([]);
+    Log::shouldHaveReceived('warning')->with('Cobro: a company inbox is skipped because it has no Graph credential.', ['company' => 'SDC'])->once();
+    Log::shouldNotHaveReceived('error');
+
+    $this->travelTo(CarbonImmutable::parse('2026-10-24 08:00:00', 'America/Bogota'));
+    $this->artisan('cobro:sincronizar-buzones')->assertSuccessful();
+
+    Log::shouldHaveReceived('warning')->with('Cobro: a company inbox is skipped because it has no Graph credential.', ['company' => 'SDC'])->twice();
+});
+
+it('still fails when a company with its own credential cannot be read', function () {
+    $sdcDelta = 'users/derivados.info@derivadoscol.com/mailFolders/inbox/messages/delta';
+    GraphFake::install()->withSeparateTenants()
+        ->on('GET', COBRO_DELTA, ['value' => [], '@odata.deltaLink' => 'https://graph.microsoft.com/v1.0/'.COBRO_DELTA.'?$deltatoken=1'])
+        ->on('GET', $sdcDelta, ['error' => ['code' => 'ErrorInvalidUser', 'message' => 'The requested user is invalid.']], 404);
+    config(['cobro.graph.default_companies' => ['SGX']]);
+    Log::spy();
+
+    $this->artisan('cobro:sincronizar-buzones')
+        ->expectsOutputToContain('Soluciones y Derivados: no se pudo leer el buzón.')
+        ->assertFailed();
+
+    Log::shouldHaveReceived('error')->once();
 });
 
 it('reads each inbox, its next links and report headers with its own company\'s token only', function () {

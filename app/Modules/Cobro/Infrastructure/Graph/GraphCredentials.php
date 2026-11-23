@@ -8,7 +8,9 @@ use SensitiveParameter;
 /**
  * The app registration (tenant, client id and secret) that reaches the
  * mailbox of one company: its own override in cobro.graph.companies when
- * all three values are set, otherwise the default of cobro.graph.
+ * all three values are set, otherwise the default of cobro.graph, but only
+ * for the companies in cobro.graph.default_companies (the default lives in
+ * their tenant; another tenant answers its token with ErrorInvalidUser).
  *
  * The secret never goes into the cache key, a log or an exception message.
  */
@@ -22,13 +24,21 @@ final readonly class GraphCredentials
     ) {}
 
     /**
-     * The credential of $company, or null when neither its override nor the
-     * default is complete.
+     * The credential of $company, or null when its override is not complete
+     * and the default is not complete or not meant for it.
      */
     public static function for(CompanyCode $company): ?self
     {
         return self::complete((array) config("cobro.graph.companies.{$company->value}", []))
-            ?? self::complete((array) config('cobro.graph', []));
+            ?? (self::usesDefault($company) ? self::complete((array) config('cobro.graph', [])) : null);
+    }
+
+    /**
+     * Whether $company may fall back to the default credential.
+     */
+    public static function usesDefault(CompanyCode $company): bool
+    {
+        return in_array($company->value, (array) config('cobro.graph.default_companies', []), true);
     }
 
     /**
