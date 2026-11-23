@@ -347,7 +347,7 @@ Hasta ahora ninguna carga llenaba los contactos, y por eso el cobro salía «Sin
 Derivados vive en otro inquilino de Microsoft, así que el registro de correo común no llega a su buzón. Cada petición a Graph usa la credencial de la empresa dueña del buzón. Antes de configurar `COBRO_MAILBOX_SDC`:
 
 - [ ] TI registra la aplicación de correo de Derivados en el inquilino de Derivados y fija su alcance de Exchange al buzón de Derivados (paso 6).
-- [ ] El usuario agrega a mano en el `.env` del servidor `GRAPH_SDC_TENANT_ID`, `GRAPH_SDC_CLIENT_ID` y `GRAPH_SDC_CLIENT_SECRET`, las tres a la vez. Con solo una o dos, Derivados usa la credencial de Segurex y sus llamadas fallan. Si el Exchange de Derivados firma sus informes de no entrega con un dominio propio, agrega también `COBRO_TENANT_DOMAINS_SDC`.
+- [ ] El usuario agrega a mano en el `.env` del servidor `GRAPH_SDC_TENANT_ID`, `GRAPH_SDC_CLIENT_ID` y `GRAPH_SDC_CLIENT_SECRET`, las tres a la vez. Sin las tres, Derivados no envía y `cobro:sincronizar-buzones` se salta su buzón; nunca usa la credencial de Segurex. Si el Exchange de Derivados firma sus informes de no entrega con un dominio propio, agrega también `COBRO_TENANT_DOMAINS_SDC`.
 - [ ] Corre `<php-8.3> artisan config:cache` para que el servidor lea las variables nuevas.
 - [ ] `<php-8.3> artisan cobro:sincronizar-buzones`: cada empresa dice si sincronizó o si se saltó por no tener una credencial completa. Derivados no debe aparecer como saltada.
 - [ ] `<php-8.3> artisan cobro:diagnosticar-rebote SDC --probar-delta`: confirma que Graph responde con la credencial de Derivados y que «Dominios propios» muestra los dominios esperados para ese buzón.
