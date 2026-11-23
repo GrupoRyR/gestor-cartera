@@ -15,6 +15,8 @@ enum CommitmentTab: string
 
     case Fulfilled = 'cumplidos';
 
+    case PartiallyPaid = 'abonados';
+
     case Cancelled = 'anulados';
 
     case All = 'todos';
@@ -30,6 +32,7 @@ enum CommitmentTab: string
             self::Pending => [CommitmentStatus::Pending],
             self::Broken => [CommitmentStatus::Broken],
             self::Fulfilled => [CommitmentStatus::Fulfilled],
+            self::PartiallyPaid => [CommitmentStatus::PartiallyPaid],
             self::Cancelled => [CommitmentStatus::Cancelled],
             self::All => [],
         };

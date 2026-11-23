@@ -1,3 +1,4 @@
+@use('App\Modules\Cartera\Application\Commitments\SuggestedAmount')
 @use('App\Modules\Cartera\Domain\Commitments\CommitmentWriting')
 @use('App\Modules\Core\Contracts\Enums\CommitmentStatus')
 @use('App\Support\Formatting\Money')
@@ -6,12 +7,16 @@
     Payment commitments of the client. In SDC the analyst creates them and
     edits or cancels the open ones; in SGX the advisor writes them. In both
     companies the analyst and the manager mark them fulfilled or broken
-    (cartera.commitments.status). $file, $client.
+    (cartera.commitments.status). A partially paid one shows what was paid
+    and what is left. The balance notice links here with
+    ?nuevo-compromiso=1&valor=…: the "Nuevo compromiso" form opens with that
+    value for whoever may write. $file, $client.
 --}}
 @php
     $collectorWrites = CommitmentWriting::byCollector($client->company);
     $canWrite = $collectorWrites && auth()->user()?->can('cartera.commitments.write');
     $canChangeStatus = auth()->user()?->can('cartera.commitments.status') ?? false;
+    $suggestedAmount = SuggestedAmount::from(request()->query('valor'));
 
     $commitmentColumns = [
         ['key' => 'due', 'label' => __('cartera::ficha.compromisos.columnas.vence')],
@@ -39,7 +44,12 @@
                 @endphp
                 <tr>
                     <td><x-ui.date :value="$commitment->dueDate" /></td>
-                    <td data-align="end"><x-ui.money :value="$commitment->amount" /></td>
+                    <td data-align="end">
+                        <x-ui.money :value="$commitment->amount" />
+                        @if ($commitment->remaining() !== null)
+                            <div class="text-sm text-fg-muted">{{ __('cartera::compromisos.pagado', ['pagado' => Money::format($commitment->paidAmount), 'saldo' => Money::format($commitment->remaining())]) }}</div>
+                        @endif
+                    </td>
                     <td><x-cartera::commitment-status :status="$commitment->status" /></td>
                     <td>{{ $commitment->createdBy->name }}</td>
                     <td>{{ $commitment->notes ?? '—' }}</td>
@@ -109,11 +119,11 @@
         </x-ui.modal>
     @endforeach
 
-    <x-ui.modal id="compromiso-nuevo" :title="__('cartera::compromisos.nuevo.titulo')" :open="$errors->has('compromiso.*')">
+    <x-ui.modal id="compromiso-nuevo" :title="__('cartera::compromisos.nuevo.titulo')" :open="$errors->has('compromiso.*') || request()->boolean('nuevo-compromiso')">
         <form id="compromiso-nuevo-form" method="POST" action="{{ route('cartera.compromisos.store', $client->id) }}" class="grid gap-4">
             @csrf
             <x-ui.input name="compromiso[fecha]" type="date" :label="__('cartera::compromisos.nuevo.fecha')" :hint="__('cartera::compromisos.nuevo.fecha_ayuda')" :required="true" :min="now()->toDateString()" />
-            <x-ui.input name="compromiso[valor]" type="number" prefix="$" :label="__('cartera::compromisos.nuevo.valor')" :hint="__('cartera::compromisos.nuevo.valor_ayuda')" :required="true" min="1" step="1" inputmode="numeric" />
+            <x-ui.input name="compromiso[valor]" type="number" prefix="$" :label="__('cartera::compromisos.nuevo.valor')" :hint="__('cartera::compromisos.nuevo.valor_ayuda')" :value="$suggestedAmount" :required="true" min="1" step="1" inputmode="numeric" />
             <x-ui.textarea name="compromiso[notas]" :label="__('cartera::compromisos.nuevo.notas')" :hint="__('cartera::compromisos.nuevo.notas_ayuda')" :rows="3" />
         </form>
 

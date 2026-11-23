@@ -7,6 +7,7 @@ return [
         'cumplido' => 'Compromiso marcado como cumplido.',
         'incumplido' => 'Compromiso marcado como incumplido.',
         'anulado' => 'Compromiso anulado.',
+        'abonado' => 'Registraste el abono.',
         'cerrado' => 'Este compromiso ya no se puede cambiar.',
         'no_pendiente' => 'Solo un compromiso pendiente se puede marcar incumplido.',
     ],
@@ -41,6 +42,21 @@ return [
         'de' => 'el compromiso de :cliente por :valor',
     ],
 
+    'abonar' => [
+        'boton' => 'Registrar abono',
+        'titulo' => 'Registrar abono',
+        'pregunta' => '¿Cuánto pagó :cliente? El resto sigue como deuda vencida.',
+        'valor' => 'Valor pagado',
+        'valor_ayuda' => 'El compromiso es por :valor. En pesos colombianos, sin puntos ni comas.',
+        'nota' => 'Nota',
+        'nota_ayuda' => 'Opcional. Queda en la bitácora del cliente.',
+        'guardar' => 'Registrar abono',
+        'de' => 'del compromiso de :cliente por :valor',
+        'invalido' => 'El abono debe ser mayor que cero y menor que el valor del compromiso. Si pagó todo, márcalo cumplido.',
+    ],
+
+    'pagado' => 'Pagó :pagado · saldo :saldo',
+
     'incumplir' => [
         'boton' => 'Marcar incumplido',
         'de' => 'el compromiso de :cliente por :valor',
@@ -71,6 +87,7 @@ return [
             'pendientes' => 'Pendientes',
             'incumplidos' => 'Incumplidos',
             'cumplidos' => 'Cumplidos',
+            'abonados' => 'Abonados',
             'anulados' => 'Anulados',
             'todos' => 'Todos',
         ],
