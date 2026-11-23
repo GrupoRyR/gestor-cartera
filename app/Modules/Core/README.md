@@ -9,7 +9,7 @@ Core es la base de la plataforma: los contratos que usan los demás módulos (`C
 | `Contracts/` | Interfaces, objetos de datos, enums y excepciones públicos (ver `docs/arquitectura.md` §6). No cambian sin acordarlo. |
 | `Domain/` | Reglas puras en PHP: sin Laravel, sin base de datos y sin reloj. Reciben fechas, saldos y parámetros ya resueltos. |
 | `Application/` | Casos de uso: el ingreso con Microsoft (`Auth\`, ver «Ingreso con Microsoft»), la pantalla Equipo (`Team\`), el borrado de gestiones (`Activity\`, ver «Bitácora de gestiones»), el recálculo de saldos y estados de los clientes (`Portfolio\`, ver «Importación del robot»), los parámetros de las empresas (`Companies\`, ver «Empresas y parámetros») y la regla de escritura y los efectos de los compromisos (`Commitments\`, ver «Compromisos de pago»). |
-| `Infrastructure/` | Eloquent (`Persistence\*Record`), el acceso por empresa y el alcance de la cartera (`Access\`), el catálogo de empresas y la empresa activa (`Companies\`), la bitácora de auditoría (`Audit\`), la bitácora de gestiones (`Activity\`), el adaptador de Microsoft sobre Socialite (`Auth\`), la importación de los lotes del robot (`Ingest\`), la lectura de la cartera (`Portfolio\`, ver «CarteraRepository») y los compromisos de pago (`Commitments\`, ver «Compromisos de pago»). |
+| `Infrastructure/` | Eloquent (`Persistence\*Record`), el acceso por empresa y el alcance de la cartera (`Access\`), el catálogo de empresas y la empresa activa (`Companies\`), la bitácora de auditoría (`Audit\`), la bitácora de gestiones (`Activity\`), el adaptador de Microsoft sobre Socialite (`Auth\`), la importación de los lotes del robot (`Ingest\`), la lectura de la cartera (`Portfolio\`, ver «CarteraRepository»), los compromisos de pago (`Commitments\`, ver «Compromisos de pago») y los avisos de la campana (`Notices\`, ver «Avisos»). |
 | `Http/` | Controladores, FormRequests y middleware de las rutas web (ver «Ingreso con Microsoft», «Inicio y acceso», «Bitácora de gestiones», «Pantalla Equipo» y «Empresas y parámetros»). |
 | `Console/` | Comandos de Artisan (`core:<acción>`), registrados en `bootModule()`: la tarea diaria de compromisos (ver «Tarea diaria de incumplimiento»). |
 | `config/core.php` | Valores por defecto para sembrar los parámetros de cada empresa. |
@@ -123,6 +123,32 @@ El comando `core:compromisos-incumplidos` (`Console\BreakOverdueCommitmentsComma
 - Los compromisos de un cliente eliminado (borrado lógico) esperan: se incumplen en la primera corrida después de restaurarlo.
 - Imprime un resumen: «Marcamos 2 compromisos como incumplidos.» (o «No hay compromisos vencidos para marcar como incumplidos.») y, si algo falló, «No pudimos marcar 1 compromiso; el error quedó en el log.».
 - Un pago tardío sigue cumpliendo: `markFulfilled()` acepta un compromiso «Incumplido» y, si no queda otro pendiente, devuelve al cliente a su estado automático.
+
+## Avisos
+
+`Infrastructure\Notices\EloquentAvisoService` implementa `AvisoService` (`docs/arquitectura.md` §6.18). Core la registra como singleton: los resolvedores de enlaces que los módulos registran con `linkUsing()` en `bootModule()` viven todo el proceso. Guarda un aviso por destinatario en la tabla `notices` (`Persistence\NoticeRecord`, con `NoticeRecordFactory` y sus estados `read()` y `resolved()`).
+
+| Columna | Contenido |
+|---|---|
+| `user_id` | El destinatario. Si el usuario se borra del todo, sus avisos se borran en cascada; con el borrado lógico se conservan. |
+| `company`, `kind`, `title`, `body` | La empresa (opcional), el tipo (`cartera.compromiso`), la línea de la campana y el texto largo. |
+| `subject_type`, `subject_id` | A qué apunta (`commitment`, 12), si a algo. |
+| `key` | Agrupa los avisos que `resolve()` cierra juntos. |
+| `data` | Valores extra en JSON; vacío se guarda como `null` y se lee como `[]`. |
+| `read_at`, `resolved_at` | Cuándo lo leyó el destinatario y cuándo se resolvió. Son independientes. |
+
+Índices: (`user_id`, `read_at`) para la campana y (`key`, `resolved_at`) para `resolve()`.
+
+**Bandeja** (interna de Core, para la campana; toma el id del usuario y nunca toca avisos de otro):
+
+| Método | Hace |
+|---|---|
+| `forUser($userId, $unreadOnly = false, $perPage = 20)` | Una página (`?page=`) de los avisos del usuario, del más nuevo al más viejo (empates por id); con `$unreadOnly`, solo los no leídos. `InvalidArgumentException` si `$perPage < 1`. |
+| `latest($userId, $limit = 10)` | Los más nuevos, leídos o no. `InvalidArgumentException` si `$limit < 1`. |
+| `unreadCount($userId)` | Los no leídos y abiertos: el número de la campana. |
+| `markRead($userId, $noticeId)` | Lo marca leído y lo devuelve; si ya estaba leído conserva la primera fecha. `null` si no existe o es de otro usuario, sin cambiar nada. |
+| `markAllRead($userId)` | Marca leídos todos los no leídos del usuario y devuelve cuántos. |
+| `link($notice)` | La URL del primer resolvedor de su tipo que responde, o `null`. |
 
 ## Empresas y parámetros
 
