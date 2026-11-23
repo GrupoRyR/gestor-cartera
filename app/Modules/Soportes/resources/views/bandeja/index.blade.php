@@ -5,7 +5,8 @@
     Application\Inbox\InboxFilter; $receipts: paginator of Receipt (with
     uploader and invoices_count) of the current tab; $counts: status value =>
     receipts in that tab with the same filters; $isGroup: name the company
-    of each receipt; $reviews: the user reviews (soportes.review), otherwise
+    of each receipt; $general: the user sees every receipt in scope (a
+    reviewer or the superadmin) and gets the general title, otherwise
     the page is the advisor's "Mis soportes"; $canUpload: soportes.upload.
     Each client name links to the receipt's detail (soportes.show).
 --}}
@@ -31,12 +32,12 @@
         'count' => $counts[$status->value],
     ], ReceiptStatus::cases());
 
-    $title = $reviews ? __('soportes::bandeja.titulo') : __('soportes::bandeja.titulo_asesor');
+    $title = $general ? __('soportes::bandeja.titulo') : __('soportes::bandeja.titulo_asesor');
     $clearUrl = route('soportes.index', $filter->status === ReceiptStatus::Pending ? [] : ['estado' => $filter->status->value]);
 @endphp
 
 <x-layouts.app :title="$title">
-    <x-ui.page-header :title="$title" :description="$reviews ? __('soportes::bandeja.descripcion') : __('soportes::bandeja.descripcion_asesor')">
+    <x-ui.page-header :title="$title" :description="$general ? __('soportes::bandeja.descripcion') : __('soportes::bandeja.descripcion_asesor')">
         @if ($canUpload)
             <x-slot:actions>
                 <x-ui.link-button :href="route('soportes.create')" icon="upload">{{ __('soportes::bandeja.cargar') }}</x-ui.link-button>
@@ -69,7 +70,7 @@
                 <x-ui.link-button :href="$clearUrl" variant="secondary">{{ __('soportes::bandeja.filtros.limpiar') }}</x-ui.link-button>
             </x-ui.empty>
         @else
-            <x-ui.empty icon="inbox" :title="$reviews ? __('soportes::bandeja.vacio.equipo') : __('soportes::bandeja.vacio.asesor')" :description="__('soportes::bandeja.vacio.detalle')" />
+            <x-ui.empty icon="inbox" :title="$general ? __('soportes::bandeja.vacio.equipo') : __('soportes::bandeja.vacio.asesor')" :description="__('soportes::bandeja.vacio.detalle')" />
         @endif
     @else
         <x-ui.table :caption="__('soportes::bandeja.tabla')" :caption-hidden="true" :columns="$columns">

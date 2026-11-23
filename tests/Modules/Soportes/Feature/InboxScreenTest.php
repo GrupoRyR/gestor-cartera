@@ -74,6 +74,14 @@ describe('access', function () {
             ->assertSee('Ferretería El Tornillo SAS')
             ->assertDontSee(route('soportes.create'));
     });
+
+    it('gives the superadmin the general title, not the advisor\'s', function () {
+        $this->actingAs(SoportesUsers::create(Role::SuperAdmin))->get('/soportes')
+            ->assertOk()
+            ->assertSee('Los soportes que cargan los asesores y cartera.')
+            ->assertDontSee('Mis soportes')
+            ->assertDontSee('Los soportes de tus clientes y los que cargaste.');
+    });
 });
 
 describe('the advisor', function () {

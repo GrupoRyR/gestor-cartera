@@ -74,7 +74,9 @@ Routes in `routes/web.php` (`auth` and `can:create` on `Receipt`, i.e. `soportes
 `Application\Inbox\VisibleReceipts` decides which receipts the list holds, by the same rule as `ReceiptPolicy::view`:
 
 - reviewers (`soportes.review`): the receipts of the companies of `CurrentCompany::scope()`, so the inbox follows the company switcher; the group view adds the company column;
-- everyone else ("Mis soportes", the advisor; also the superadmin, who has `soportes.view` but not `soportes.review`): the receipts they uploaded, plus the ones of their own clients, whoever uploaded them. Ownership is read live: `CarteraRepository::allClients()` is walked once (it applies the advisor scope and the companies in view, like `client()` in the policy) and only the clients that have receipts are kept, so the query is `uploaded_by = user OR client_id IN (...)` with a short list, never one `client()` call per row.
+- everyone else (the advisor; also the superadmin, who has `soportes.view` but not `soportes.review`): the receipts they uploaded, plus the ones of their own clients, whoever uploaded them. Ownership is read live: `CarteraRepository::allClients()` is walked once (it applies the advisor scope and the companies in view, like `client()` in the policy) and only the clients that have receipts are kept, so the query is `uploaded_by = user OR client_id IN (...)` with a short list, never one `client()` call per row.
+
+The page is titled «Soportes de pago» for whoever reaches every client of the companies in view: reviewers and the superadmin (whose portfolio scope covers every client, so "the ones of their own clients" is all of them). The advisor gets «Mis soportes».
 
 ### Menu
 
