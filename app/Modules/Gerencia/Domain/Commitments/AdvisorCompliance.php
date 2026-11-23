@@ -16,6 +16,7 @@ final readonly class AdvisorCompliance
      * @param  int  $fulfilled  Paid, on time or late.
      * @param  int  $fulfilledOnTime  Of those, paid on or before the due date.
      * @param  int  $broken  Marked as broken (due and unpaid).
+     * @param  int  $partiallyPaid  Closed with part of the amount paid (abonado): evaluated, not fulfilled.
      * @param  int  $overduePending  Still pending although the due date passed.
      * @param  int  $upcoming  Pending and due today or later.
      * @param  int  $cancelled  Cancelled.
@@ -28,6 +29,7 @@ final readonly class AdvisorCompliance
         public int $fulfilled,
         public int $fulfilledOnTime,
         public int $broken,
+        public int $partiallyPaid,
         public int $overduePending,
         public int $upcoming,
         public int $cancelled,
@@ -36,11 +38,12 @@ final readonly class AdvisorCompliance
     ) {}
 
     /**
-     * Commitments that count towards the rate: fulfilled, broken and overdue pending.
+     * Commitments that count towards the rate: fulfilled, broken, overdue
+     * pending and partially paid.
      */
     public function evaluated(): int
     {
-        return $this->fulfilled + $this->broken + $this->overduePending;
+        return $this->fulfilled + $this->broken + $this->overduePending + $this->partiallyPaid;
     }
 
     /**

@@ -166,6 +166,21 @@ it('shows the commitments of the client', function () {
         ->assertDontSee(Money::format(777_000));
 });
 
+it('shows a partially paid commitment as closed, without actions', function () {
+    $client = CarteraWorld::client($this->fakes, overdue: 3_000_000);
+    $this->fakes->compromisos->add(
+        Make::commitment(clientId: $client->id, amount: 1_200_000, status: CommitmentStatus::PartiallyPaid, paidAmount: 400_000),
+    );
+
+    $response = $this->actingAs(CarteraUsers::analyst())->get("/cartera/clientes/{$client->id}")->assertOk();
+
+    $response->assertSee(Money::format(1_200_000))
+        ->assertSee('data-tone="warning"', false)
+        ->assertSeeText('Abonado')
+        ->assertDontSee('/cumplir', false)
+        ->assertDontSee('data-modal-open="compromiso-', false);
+});
+
 describe('mail replies', function () {
     it('shows the replies and the bounces of the client', function () {
         $client = CarteraWorld::client($this->fakes, overdue: 1_000_000);

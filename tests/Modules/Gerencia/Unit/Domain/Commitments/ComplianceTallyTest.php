@@ -63,6 +63,21 @@ it('evaluates fulfilled, broken and overdue pending commitments only', function 
         ->and($rows[0]->amountFulfilled)->toBe(100.0);
 });
 
+it('counts partially paid commitments apart and evaluates them as not fulfilled', function () {
+    $rows = ComplianceTally::fromCommitments([
+        Make::commitment(advisorCode: 7, status: CommitmentStatus::Fulfilled, amount: 100.0, dueDate: CarbonImmutable::parse('2026-10-05'), fulfilledAt: CarbonImmutable::parse('2026-10-05')),
+        Make::commitment(advisorCode: 7, status: CommitmentStatus::PartiallyPaid, amount: 300.0, dueDate: CarbonImmutable::parse('2026-10-06'), paidAmount: 120.0),
+    ], $this->today);
+
+    expect($rows[0]->partiallyPaid)->toBe(1)
+        ->and($rows[0]->fulfilled)->toBe(1)
+        ->and($rows[0]->broken)->toBe(0)
+        ->and($rows[0]->evaluated())->toBe(2)
+        ->and($rows[0]->rate())->toBe(50.0)
+        ->and($rows[0]->amountEvaluated)->toBe(400.0)
+        ->and($rows[0]->amountFulfilled)->toBe(100.0);
+});
+
 it('has no rate while nothing has been evaluated', function () {
     $rows = ComplianceTally::fromCommitments([
         Make::commitment(advisorCode: 7, status: CommitmentStatus::Pending, dueDate: CarbonImmutable::parse('2026-10-28')),

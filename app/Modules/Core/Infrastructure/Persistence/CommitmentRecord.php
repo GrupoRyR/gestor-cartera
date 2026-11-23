@@ -25,11 +25,13 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  * @property int $client_id
  * @property int|null $advisor_code The client's OSLP.SlpCode when it was created.
  * @property string $amount
+ * @property string|null $paid_amount Paid when it was closed as partially paid.
  * @property CarbonImmutable $due_date
  * @property CommitmentStatus $status
  * @property string|null $notes
  * @property int $created_by
  * @property CarbonImmutable|null $fulfilled_at
+ * @property CarbonImmutable|null $partially_paid_at
  * @property CarbonImmutable|null $broken_at
  * @property CarbonImmutable|null $cancelled_at
  * @property string|null $cancellation_reason
@@ -40,8 +42,8 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  */
 #[Table(name: 'commitments')]
 #[Fillable([
-    'company', 'client_id', 'advisor_code', 'amount', 'due_date', 'status', 'notes', 'created_by',
-    'fulfilled_at', 'broken_at', 'cancelled_at', 'cancellation_reason',
+    'company', 'client_id', 'advisor_code', 'amount', 'paid_amount', 'due_date', 'status', 'notes', 'created_by',
+    'fulfilled_at', 'partially_paid_at', 'broken_at', 'cancelled_at', 'cancellation_reason',
 ])]
 #[UseFactory(CommitmentRecordFactory::class)]
 final class CommitmentRecord extends Model
@@ -88,10 +90,12 @@ final class CommitmentRecord extends Model
             'client_id' => 'integer',
             'advisor_code' => 'integer',
             'amount' => 'decimal:2',
+            'paid_amount' => 'decimal:2',
             'due_date' => 'immutable_date',
             'status' => CommitmentStatus::class,
             'created_by' => 'integer',
             'fulfilled_at' => 'immutable_datetime',
+            'partially_paid_at' => 'immutable_datetime',
             'broken_at' => 'immutable_datetime',
             'cancelled_at' => 'immutable_datetime',
         ];

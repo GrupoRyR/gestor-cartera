@@ -153,6 +153,19 @@ it('cancels with a reason and keeps final statuses final', function () {
         ->and(fn () => $this->service->markFulfilled($commitment->id))->toThrow(DomainException::class);
 });
 
+it('keeps a partially paid commitment final', function () {
+    $commitment = Make::commitment(clientId: 10, status: CommitmentStatus::PartiallyPaid, paidAmount: 40.0);
+    $this->service->add($commitment);
+    $service = $this->service;
+
+    expect(fn () => $service->update($commitment->id, new CommitmentChanges(amount: 150)))->toThrow(DomainException::class)
+        ->and(fn () => $service->markBroken($commitment->id))->toThrow(DomainException::class)
+        ->and(fn () => $service->markFulfilled($commitment->id))->toThrow(DomainException::class)
+        ->and(fn () => $service->cancel($commitment->id, 'Error'))->toThrow(DomainException::class)
+        ->and($service->find($commitment->id)?->status)->toBe(CommitmentStatus::PartiallyPaid)
+        ->and($service->find($commitment->id)?->paidAmount)->toBe(40.0);
+});
+
 it('reports unknown commitments', function (string $write) {
     $service = $this->service;
 

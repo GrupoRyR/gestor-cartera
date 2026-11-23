@@ -386,7 +386,7 @@ final class CoreDemoSeeder extends Seeder
     /**
      * Committed clients have a pending promise (some due this week, some
      * already past due), defaulted ones a broken one; a few clients carry
-     * fulfilled and cancelled ones. The demo advisor writes those of their
+     * fulfilled, cancelled and partially paid ones. The demo advisor writes those of their
      * own clients.
      *
      * @param  list<ClientRecord>  $clients
@@ -418,6 +418,13 @@ final class CoreDemoSeeder extends Seeder
                     'due_date' => $today->addDays(10),
                     'cancelled_at' => $today->subDays(3),
                     'cancellation_reason' => 'El cliente pidió otra fecha.',
+                ],
+                // An overdue client that paid part of a promise: the rest stays overdue.
+                $i === 9 => [
+                    'status' => CommitmentStatus::PartiallyPaid,
+                    'due_date' => $today->subDays(5),
+                    'paid_amount' => '1500000.00',
+                    'partially_paid_at' => $today->subDays(5)->setTime(11, 0),
                 ],
                 $i % 10 === 6 => [
                     'status' => CommitmentStatus::Pending,

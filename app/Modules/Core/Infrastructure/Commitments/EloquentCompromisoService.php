@@ -393,11 +393,11 @@ final class EloquentCompromisoService implements CompromisoService
     }
 
     /**
-     * @throws DomainException When the commitment is Fulfilled or Cancelled.
+     * @throws DomainException When the commitment is Fulfilled, Cancelled or PartiallyPaid.
      */
     private static function guardNotFinal(CommitmentRecord $commitment): void
     {
-        if (in_array($commitment->status, [CommitmentStatus::Fulfilled, CommitmentStatus::Cancelled], true)) {
+        if (in_array($commitment->status, [CommitmentStatus::Fulfilled, CommitmentStatus::Cancelled, CommitmentStatus::PartiallyPaid], true)) {
             throw new DomainException("Commitment {$commitment->id} is already {$commitment->status->value}.");
         }
     }

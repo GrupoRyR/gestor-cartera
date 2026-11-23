@@ -2,6 +2,8 @@
 
 use App\Modules\Core\Contracts\Data\CommitmentChanges;
 use App\Modules\Core\Contracts\Data\CommitmentQuery;
+use App\Modules\Core\Contracts\Enums\CommitmentStatus;
+use Tests\Fakes\Make;
 
 it('builds a commitment query with sensible defaults', function () {
     $query = new CommitmentQuery;
@@ -37,4 +39,26 @@ it('leaves every field unchanged by default', function () {
     expect($changes->dueDate)->toBeNull()
         ->and($changes->amount)->toBeNull()
         ->and($changes->notes)->toBeNull();
+});
+
+it('derives the remaining balance of a partially paid commitment', function () {
+    $commitment = Make::commitment(amount: 1_000_000.1, status: CommitmentStatus::PartiallyPaid, paidAmount: 333_333.33);
+
+    expect($commitment->remaining())->toBe(666_666.77)
+        ->and($commitment->paidAmount)->toBe(333_333.33);
+});
+
+it('has no remaining balance unless partially paid with a paid amount', function (CommitmentStatus $status, ?float $paid) {
+    expect(Make::commitment(status: $status, paidAmount: $paid)->remaining())->toBeNull();
+})->with([
+    'pending' => [CommitmentStatus::Pending, null],
+    'fulfilled with a stray amount' => [CommitmentStatus::Fulfilled, 100.0],
+    'partially paid without an amount' => [CommitmentStatus::PartiallyPaid, null],
+]);
+
+it('leaves the partial payment empty by default', function () {
+    $commitment = Make::commitment();
+
+    expect($commitment->paidAmount)->toBeNull()
+        ->and($commitment->partiallyPaidAt)->toBeNull();
 });

@@ -61,14 +61,15 @@ Los valores de la tabla son los de siembra (`config('core.companies')`). Los vig
 
 ### CompromisoService
 
-`Infrastructure\Commitments\EloquentCompromisoService` implementa `CompromisoService` (`docs/arquitectura.md` §6.5) y Core la registra en el contenedor (una instancia por petición o por job). Guarda los compromisos en la tabla `commitments` (`Persistence\CommitmentRecord`, con `CommitmentRecordFactory` y sus estados `fulfilled()`, `broken()` y `cancelled()`). Los compromisos nunca se borran.
+`Infrastructure\Commitments\EloquentCompromisoService` implementa `CompromisoService` (`docs/arquitectura.md` §6.5) y Core la registra en el contenedor (una instancia por petición o por job). Guarda los compromisos en la tabla `commitments` (`Persistence\CommitmentRecord`, con `CommitmentRecordFactory` y sus estados `fulfilled()`, `broken()`, `cancelled()` y `partiallyPaid()`). Los compromisos nunca se borran.
 
 | Columna | Contenido |
 |---|---|
 | `company`, `client_id` | La empresa (copiada del cliente) y el cliente. Un cliente con compromisos nunca se borra del todo. |
 | `advisor_code` | El asesor de SAP (`SlpCode`) que tenía el cliente al crear el compromiso. |
 | `amount`, `due_date` | El valor prometido en pesos (`decimal(18,2)`) y la fecha de pago (solo la fecha, en America/Bogota). |
-| `status` | El valor de `CommitmentStatus`: `pendiente`, `cumplido`, `incumplido` o `anulado`. |
+| `status` | El valor de `CommitmentStatus`: `pendiente`, `cumplido`, `incumplido`, `anulado` o `abonado`. «Cumplido», «Anulado» y «Abonado» son finales. |
+| `paid_amount`, `partially_paid_at` | En un «Abonado», lo que el cliente pagó (`decimal(18,2)`) y cuándo; `null` en los demás. El saldo pendiente no se guarda: `Commitment::remaining()` lo deriva. |
 | `notes` | Texto libre que acompaña el compromiso. |
 | `created_by` | Quién lo registró. Un usuario con compromisos no se borra del todo; con el borrado lógico se sigue mostrando como autor. |
 | `fulfilled_at`, `broken_at`, `cancelled_at`, `cancellation_reason` | Cuándo se cumplió, se incumplió o se anuló, y el motivo de la anulación. |
@@ -99,9 +100,9 @@ Los valores de la tabla son los de siembra (`config('core.companies')`). Los vig
 |---|---|---|---|
 | `create()` | Crea el compromiso «Pendiente» con el asesor que el cliente tiene hoy. El valor se redondea a centavos; las notas se guardan sin espacios sobrantes (en blanco, ninguna). | «Compromiso de pago por $ 2.500.000 para el 22/10/2026», con las notas como detalle. | `core.commitment.created`, con `changes` `advisor_code`, `amount`, `due_date` y `notes`. |
 | `update()` | Solo un «Pendiente»; si no, `DomainException`. Cambia los campos que no vienen en `null`. Unas notas en blanco tampoco cambian: no se pueden borrar. Si nada cambia, no escribe nada. | «Compromiso actualizado: $ 3.000.000 para el 25/10/2026», con las notas como detalle. | `core.commitment.updated`, solo con los campos que cambian (`old` y `new`). |
-| `markFulfilled()` | Un «Pendiente» o un «Incumplido» (un pago tardío también cumple) pasa a «Cumplido» y guarda `fulfilled_at`. Un compromiso cumplido o anulado lanza `DomainException`. | «Compromiso cumplido: $ 2.500.000 para el 22/10/2026», con la nota como detalle. | `core.commitment.fulfilled`, con `changes.status` y `context.note` si hay nota. |
+| `markFulfilled()` | Un «Pendiente» o un «Incumplido» (un pago tardío también cumple) pasa a «Cumplido» y guarda `fulfilled_at`. Un compromiso cumplido, anulado o abonado lanza `DomainException`. | «Compromiso cumplido: $ 2.500.000 para el 22/10/2026», con la nota como detalle. | `core.commitment.fulfilled`, con `changes.status` y `context.note` si hay nota. |
 | `markBroken()` | Solo un «Pendiente» pasa a «Incumplido» y guarda `broken_at`, sin esperar la tarea diaria; si no, `DomainException`. El cliente se mueve con `afterBreak()`, como en la tarea diaria. | «Compromiso incumplido: vencía el 22/10/2026», con la nota como detalle. | `core.commitment.broken`, con `changes.status` y `context` `client_id`, `due_date` y `note` si hay nota. |
-| `cancel()` | Un «Pendiente» o un «Incumplido» pasa a «Anulado» con su motivo y `cancelled_at`. Un motivo en blanco lanza `InvalidArgumentException`; un compromiso cumplido o anulado, `DomainException`. | «Compromiso anulado: <motivo>», cortado a 255 caracteres (el motivo completo queda en el compromiso y en la auditoría). | `core.commitment.cancelled`, con `changes.status` y `context.reason`. |
+| `cancel()` | Un «Pendiente» o un «Incumplido» pasa a «Anulado» con su motivo y `cancelled_at`. Un motivo en blanco lanza `InvalidArgumentException`; un compromiso cumplido, anulado o abonado, `DomainException`. | «Compromiso anulado: <motivo>», cortado a 255 caracteres (el motivo completo queda en el compromiso y en la auditoría). | `core.commitment.cancelled`, con `changes.status` y `context.reason`. |
 
 - El valor debe ser mayor que cero después de redondearlo a centavos, y caber en la columna; si no, `InvalidArgumentException`.
 - Las gestiones de compromiso llevan `metadata` `commitment_id`, `amount` (en pesos) y `due_date` (`Y-m-d`). La auditoría lleva `context.client_id`.

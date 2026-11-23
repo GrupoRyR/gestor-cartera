@@ -54,6 +54,18 @@ final class CommitmentRecordFactory extends Factory
     }
 
     /**
+     * Indicate that the client paid $paid pesos of it and the rest stays open.
+     */
+    public function partiallyPaid(float $paid): static
+    {
+        return $this->state(fn (array $attributes) => [
+            'status' => CommitmentStatus::PartiallyPaid,
+            'paid_amount' => number_format($paid, 2, '.', ''),
+            'partially_paid_at' => now(),
+        ]);
+    }
+
+    /**
      * Indicate that the due date passed without payment.
      */
     public function broken(): static

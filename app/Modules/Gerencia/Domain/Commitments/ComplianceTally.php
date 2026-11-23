@@ -16,7 +16,8 @@ final class ComplianceTally
     /**
      * A commitment counts as fulfilled on time when it was paid on or before
      * its due date (calendar days); one fulfilled without a payment date
-     * cannot be shown to be on time.
+     * cannot be shown to be on time. A partially paid one is evaluated like
+     * a broken one: it was closed without the full amount.
      *
      * @param  iterable<Commitment>  $commitments
      * @return list<AdvisorCompliance> Lowest rate first (advisors with nothing evaluated last),
@@ -60,7 +61,7 @@ final class ComplianceTally
      */
     private static function summarize(array $group, string $today): AdvisorCompliance
     {
-        $counts = ['fulfilled' => 0, 'onTime' => 0, 'broken' => 0, 'overduePending' => 0, 'upcoming' => 0, 'cancelled' => 0];
+        $counts = ['fulfilled' => 0, 'onTime' => 0, 'broken' => 0, 'partiallyPaid' => 0, 'overduePending' => 0, 'upcoming' => 0, 'cancelled' => 0];
         $amountEvaluated = 0.0;
         $amountFulfilled = 0.0;
 
@@ -70,11 +71,12 @@ final class ComplianceTally
                 CommitmentStatus::Broken => 'broken',
                 CommitmentStatus::Pending => $commitment->dueDate->toDateString() < $today ? 'overduePending' : 'upcoming',
                 CommitmentStatus::Cancelled => 'cancelled',
+                CommitmentStatus::PartiallyPaid => 'partiallyPaid',
             };
 
             $counts[$kind]++;
 
-            if (in_array($kind, ['fulfilled', 'broken', 'overduePending'], true)) {
+            if (in_array($kind, ['fulfilled', 'broken', 'partiallyPaid', 'overduePending'], true)) {
                 $amountEvaluated += $commitment->amount;
             }
 
@@ -94,6 +96,7 @@ final class ComplianceTally
             fulfilled: $counts['fulfilled'],
             fulfilledOnTime: $counts['onTime'],
             broken: $counts['broken'],
+            partiallyPaid: $counts['partiallyPaid'],
             overduePending: $counts['overduePending'],
             upcoming: $counts['upcoming'],
             cancelled: $counts['cancelled'],

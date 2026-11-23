@@ -21,6 +21,8 @@ final readonly class Commitment
      * @param  UserRef  $createdBy  User who registered it.
      * @param  CarbonImmutable  $createdAt  Moment it was registered.
      * @param  CarbonImmutable|null  $fulfilledAt  Moment it was marked fulfilled; null otherwise.
+     * @param  float|null  $paidAmount  Amount paid when it was closed as partially paid, in pesos; null otherwise.
+     * @param  CarbonImmutable|null  $partiallyPaidAt  Moment it was closed as partially paid; null otherwise.
      */
     public function __construct(
         public int $id,
@@ -35,5 +37,21 @@ final readonly class Commitment
         public UserRef $createdBy,
         public CarbonImmutable $createdAt,
         public ?CarbonImmutable $fulfilledAt = null,
+        public ?float $paidAmount = null,
+        public ?CarbonImmutable $partiallyPaidAt = null,
     ) {}
+
+    /**
+     * What is still owed after a partial payment, in pesos rounded to
+     * cents; null unless it is PartiallyPaid with a paid amount. Derived,
+     * never stored.
+     */
+    public function remaining(): ?float
+    {
+        if ($this->status !== CommitmentStatus::PartiallyPaid || $this->paidAmount === null) {
+            return null;
+        }
+
+        return round($this->amount - $this->paidAmount, 2);
+    }
 }

@@ -176,7 +176,7 @@ describe('update', function () {
             ->toThrow(DomainException::class)
             ->and(CommitmentRecords::stored($this->commitment)->amount)->toBe('2500000.00')
             ->and(AuditLogRecord::query()->count())->toBe(0);
-    })->with([CommitmentStatus::Broken, CommitmentStatus::Fulfilled, CommitmentStatus::Cancelled]);
+    })->with([CommitmentStatus::Broken, CommitmentStatus::Fulfilled, CommitmentStatus::Cancelled, CommitmentStatus::PartiallyPaid]);
 });
 
 describe('markFulfilled', function () {
@@ -214,7 +214,7 @@ describe('markFulfilled', function () {
         expect(fn () => $this->service->markFulfilled($commitment->id))->toThrow(DomainException::class)
             ->and(CommitmentRecords::stored($commitment)->status)->toBe($status)
             ->and(ActivityRecord::query()->count())->toBe(0);
-    })->with([CommitmentStatus::Fulfilled, CommitmentStatus::Cancelled]);
+    })->with([CommitmentStatus::Fulfilled, CommitmentStatus::Cancelled, CommitmentStatus::PartiallyPaid]);
 });
 
 describe('cancel', function () {
@@ -263,5 +263,5 @@ describe('cancel', function () {
 
         expect(fn () => $this->service->cancel($commitment->id, 'Error'))->toThrow(DomainException::class)
             ->and(CommitmentRecords::stored($commitment)->status)->toBe($status);
-    })->with([CommitmentStatus::Fulfilled, CommitmentStatus::Cancelled]);
+    })->with([CommitmentStatus::Fulfilled, CommitmentStatus::Cancelled, CommitmentStatus::PartiallyPaid]);
 });

@@ -26,8 +26,10 @@ use InvalidArgumentException;
  *
  * Lifecycle: create() makes a Pending commitment; Core's daily task, or a
  * user through markBroken(), turns a Pending commitment into Broken.
- * Fulfilled and Cancelled are final. Every write is also recorded in the
- * client's activity log (ActivityType::Commitment) and in the audit log.
+ * Fulfilled, Cancelled and PartiallyPaid (abonado: part of the amount
+ * paid, paidAmount stored and the remaining balance derived) are final.
+ * Every write is also recorded in the client's activity log
+ * (ActivityType::Commitment) and in the audit log.
  * Amounts are Colombian pesos and must be greater than zero.
  */
 interface CompromisoService
@@ -59,7 +61,7 @@ interface CompromisoService
      *
      * @throws RecordNotFound When the commitment does not exist or is out of scope.
      * @throws AuthorizationException When the user may not change the status of commitments in its company.
-     * @throws DomainException When the commitment is already Fulfilled or Cancelled.
+     * @throws DomainException When the commitment is already Fulfilled, Cancelled or PartiallyPaid.
      */
     public function markFulfilled(int $commitmentId, ?string $note = null): Commitment;
 
@@ -85,7 +87,7 @@ interface CompromisoService
      * @throws RecordNotFound When the commitment does not exist or is out of scope.
      * @throws AuthorizationException When the user may not edit commitments in its company.
      * @throws InvalidArgumentException When the reason is blank.
-     * @throws DomainException When the commitment is already Fulfilled or Cancelled.
+     * @throws DomainException When the commitment is already Fulfilled, Cancelled or PartiallyPaid.
      */
     public function cancel(int $commitmentId, string $reason): Commitment;
 

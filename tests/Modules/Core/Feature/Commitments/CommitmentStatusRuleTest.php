@@ -107,7 +107,7 @@ it('marks broken only a pending commitment', function (CommitmentStatus $status)
     expect(fn () => CommitmentRecords::service()->markBroken($commitment->id))->toThrow(DomainException::class)
         ->and(CommitmentRecords::stored($commitment)->status)->toBe($status)
         ->and(TeamUsers::audits('core.commitment.broken'))->toBe([]);
-})->with([CommitmentStatus::Broken, CommitmentStatus::Fulfilled, CommitmentStatus::Cancelled]);
+})->with([CommitmentStatus::Broken, CommitmentStatus::Fulfilled, CommitmentStatus::Cancelled, CommitmentStatus::PartiallyPaid]);
 
 it('never lets the portfolio team create, edit or cancel an SGX commitment', function (string $who) {
     $commitment = CommitmentRecords::commitment($this->agro, $this->people['carlos'], '2026-10-20');
