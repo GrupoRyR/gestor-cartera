@@ -4,7 +4,7 @@ Inbox of payment receipts (soportes de pago). Clients send receipts by mail or W
 
 The app never marks an invoice as paid and does not change the weekly collection: an invoice only shows as paid once SAP has the payment and the robot brings the next snapshot. The module talks to the rest of the app only through Core's contracts (`docs/arquitectura.md` §6). The feature plan is `odd/tasks/soportes-pago.md`.
 
-This base ships the data and the status rules. The permissions, the upload, the inbox, the review actions and the menu entry ("Soportes de pago") come in the next pull requests.
+This base ships the data, the rules and the permissions. The upload, the inbox, the review actions and the menu entry ("Soportes de pago") come in the next pull requests.
 
 ## States
 
@@ -16,11 +16,30 @@ This base ships the data and the status rules. The permissions, the upload, the 
 
 Only `pendiente` moves, and only to `aplicado` or `rechazado` (`ReceiptStatus::canMoveTo()`; `moveTo()` throws `InvalidReceiptTransition` otherwise). Both are final: a correction is a new receipt. Payment methods (optional): transferencia, consignación, PSE, otro.
 
+## Permissions
+
+`SoportesPermissionSeeder`:
+
+| Permission | asesor | analista_cartera | gerente_cartera | superadmin |
+|---|---|---|---|---|
+| `soportes.view` | yes | yes | yes | yes |
+| `soportes.upload` | yes | yes | yes | excluded |
+| `soportes.review` | no | yes | yes | excluded |
+
+`admin`, `gerente_comercial` and `tesoreria` get none. The superadmin sees the inbox but neither uploads nor reviews (`superAdminExcludes()`): whoever collects uploads and whoever applies the payment in SAP reviews, as with Cartera's commitments.
+
+`ReceiptPolicy` (registered in `SoportesServiceProvider::bootModule()`):
+
+- `viewAny`: `soportes.view`. `create`: `soportes.upload`.
+- `view`, for a reviewer (`soportes.review`): the receipt's company is in `CurrentCompany::available()`.
+- `view`, for everyone else (the advisor): they uploaded the receipt, or its client is one of their own clients, i.e. `CarteraRepository::client($receipt->client_id)` finds it. The repository applies the advisor scope, so ownership is read live: a client reassigned to another advisor moves its receipts with it, and the advisor still sees the ones they uploaded.
+- `review`: `soportes.review`, the receipt's company is available and the receipt is still `pendiente`.
+
 ## Data
 
 Migrations `2026_10_09_*`:
 
-- `soportes`: the receipt. `company`, `client_id`, `client_code`, `client_name` and `advisor_code` are copies taken at upload, so the inbox lists receipts from its own rows and never depends on the current snapshot or on the company the user has open. `client_id` is Core's client id, without a foreign key (modules never constrain each other's tables); it is read live only to check that a client is still the advisor's. `uploaded_by` restricts deletes (users are soft-deleted, so who uploaded is never lost); `reviewed_by` is set to null if the user row is ever removed.
+- `soportes`: the receipt. `company`, `client_id`, `client_code`, `client_name` and `advisor_code` are copies taken at upload, so the inbox lists receipts from its own rows and never depends on the current snapshot or on the company the user has open. `client_id` is Core's client id, without a foreign key (modules never constrain each other's tables); it is read live only for the advisor's `view` rule. `uploaded_by` restricts deletes (users are soft-deleted, so who uploaded is never lost); `reviewed_by` is set to null if the user row is ever removed.
 - `soporte_facturas`: the overdue invoices the receipt covers, copied at upload (document number and type, due date, balance, days overdue). Core's invoice id changes with every snapshot, so it is never stored.
 - `soporte_archivos`: the files (PDF, JPG or PNG; 1 to 3 per receipt, 10 MB each), with the sniffed MIME type and size in bytes.
 
