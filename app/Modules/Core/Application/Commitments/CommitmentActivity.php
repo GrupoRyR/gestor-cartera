@@ -47,6 +47,25 @@ final class CommitmentActivity
     }
 
     /**
+     * «Compromiso abonado: $ 1.000.000 de $ 2.500.000; queda $ 1.500.000»,
+     * with the note as details and the metadata paid_amount and remaining
+     * (pesos) besides the usual ones.
+     */
+    public static function partiallyPaid(CommitmentRecord $commitment, float $remaining, ?string $note): NewActivity
+    {
+        $summary = self::text('core::compromisos.resumen.abonado', [
+            'pagado' => Money::format($commitment->paid_amount),
+            'valor' => Money::format($commitment->amount),
+            'saldo' => Money::format($remaining),
+        ]);
+
+        return self::entry($commitment, $summary, $note, [
+            'paid_amount' => (float) $commitment->paid_amount,
+            'remaining' => $remaining,
+        ]);
+    }
+
+    /**
      * «Compromiso anulado: <reason>», cut to the length of the summary.
      */
     public static function cancelled(CommitmentRecord $commitment, string $reason): NewActivity
@@ -79,7 +98,10 @@ final class CommitmentActivity
         );
     }
 
-    private static function entry(CommitmentRecord $commitment, string $summary, ?string $details = null): NewActivity
+    /**
+     * @param  array<string, float>  $metadata  Added after commitment_id, amount and due_date.
+     */
+    private static function entry(CommitmentRecord $commitment, string $summary, ?string $details = null, array $metadata = []): NewActivity
     {
         return new NewActivity(
             clientId: $commitment->client_id,
@@ -90,6 +112,7 @@ final class CommitmentActivity
                 'commitment_id' => $commitment->id,
                 'amount' => (float) $commitment->amount,
                 'due_date' => $commitment->due_date->toDateString(),
+                ...$metadata,
             ],
         );
     }

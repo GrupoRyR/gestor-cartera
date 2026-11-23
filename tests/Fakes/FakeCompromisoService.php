@@ -171,6 +171,25 @@ final class FakeCompromisoService implements CompromisoService
         ]);
     }
 
+    public function markPartiallyPaid(int $commitmentId, float $paidAmount, ?string $note = null): Commitment
+    {
+        $commitment = $this->findOrFail($commitmentId);
+        $this->authorize();
+        $paid = is_finite($paidAmount) ? round($paidAmount, 2) : 0.0;
+
+        if ($paid <= 0 || $paid >= round($commitment->amount, 2)) {
+            throw new InvalidArgumentException("A paid amount must be greater than zero and below the commitment amount, {$paidAmount} given.");
+        }
+
+        $this->guardNotFinal($commitment);
+
+        return $this->replace($commitment, [
+            'status' => CommitmentStatus::PartiallyPaid,
+            'paidAmount' => $paid,
+            'partiallyPaidAt' => CarbonImmutable::now(),
+        ]);
+    }
+
     public function markBroken(int $commitmentId, ?string $note = null): Commitment
     {
         $commitment = $this->findOrFail($commitmentId);
@@ -341,7 +360,7 @@ final class FakeCompromisoService implements CompromisoService
     /**
      * Stores a copy of the commitment with some fields changed.
      *
-     * @param  array{dueDate?: CarbonImmutable, amount?: float, notes?: string|null, status?: CommitmentStatus, fulfilledAt?: CarbonImmutable}  $changes
+     * @param  array{dueDate?: CarbonImmutable, amount?: float, notes?: string|null, status?: CommitmentStatus, fulfilledAt?: CarbonImmutable, paidAmount?: float, partiallyPaidAt?: CarbonImmutable}  $changes
      */
     private function replace(Commitment $commitment, array $changes): Commitment
     {
@@ -358,8 +377,8 @@ final class FakeCompromisoService implements CompromisoService
             createdBy: $commitment->createdBy,
             createdAt: $commitment->createdAt,
             fulfilledAt: $changes['fulfilledAt'] ?? $commitment->fulfilledAt,
-            paidAmount: $commitment->paidAmount,
-            partiallyPaidAt: $commitment->partiallyPaidAt,
+            paidAmount: $changes['paidAmount'] ?? $commitment->paidAmount,
+            partiallyPaidAt: $changes['partiallyPaidAt'] ?? $commitment->partiallyPaidAt,
         );
 
         $this->commitments[$replaced->id] = $replaced;

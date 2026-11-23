@@ -20,9 +20,9 @@ use Illuminate\Contracts\Auth\Authenticatable;
  *   to the SAP advisor (same company and code) the client has now;
  * - SDC: the portfolio analyst (analista_cartera).
  *
- * Changing the status (fulfil, break; authorizeStatus()): the writer, and in
- * both companies the portfolio analyst and manager, who follow up on every
- * commitment.
+ * Changing the status (fulfil, partially pay, break; authorizeStatus()):
+ * the writer, and in both companies the portfolio analyst and manager, who
+ * follow up on every commitment.
  *
  * Nobody else writes, not even an admin, a sales manager or the superadmin
  * (separation of duties). The caller checks first that the client is
@@ -76,14 +76,24 @@ final class CommitmentWriteRule
     {
         $roles = $user->getRoleNames()->all();
 
-        return match ($client->company) {
-            CompanyCode::SGX => in_array(Role::SalesAdvisor->value, $roles, true)
-                && $client->advisor_code !== null
-                && AdvisorRecord::linkedTo($user)
-                    ->where('company', CompanyCode::SGX)
-                    ->where('code', $client->advisor_code)
-                    ->exists(),
-            CompanyCode::SDC => in_array(Role::PortfolioAnalyst->value, $roles, true),
-        };
+        if (! self::advisorWrites($client->company)) {
+            return in_array(Role::PortfolioAnalyst->value, $roles, true);
+        }
+
+        return in_array(Role::SalesAdvisor->value, $roles, true)
+            && $client->advisor_code !== null
+            && AdvisorRecord::linkedTo($user)
+                ->where('company', $client->company)
+                ->where('code', $client->advisor_code)
+                ->exists();
+    }
+
+    /**
+     * Whether the client's advisor writes the commitments of $company (SGX);
+     * otherwise the portfolio analyst does (SDC).
+     */
+    public static function advisorWrites(CompanyCode $company): bool
+    {
+        return $company === CompanyCode::SGX;
     }
 }
