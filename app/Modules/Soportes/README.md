@@ -4,7 +4,7 @@ Inbox of payment receipts (soportes de pago). Clients send receipts by mail or W
 
 The app never marks an invoice as paid and does not change the weekly collection: an invoice only shows as paid once SAP has the payment and the robot brings the next snapshot. The module talks to the rest of the app only through Core's contracts (`docs/arquitectura.md` §6). The feature plan is `odd/tasks/soportes-pago.md`.
 
-The module ships the data, the rules, the permissions and the upload. The inbox, the review actions and the menu entry ("Soportes de pago") come in the next pull request; until then the upload is reached only by its URL.
+The module ships the data, the rules, the permissions, the upload and the inbox with its menu entry ("Soportes de pago"). The detail, the file downloads and the review actions come next.
 
 ## States
 
@@ -66,6 +66,19 @@ Routes in `routes/web.php` (`auth` and `can:create` on `Receipt`, i.e. `soportes
 | `POST /soportes` | `soportes.store` | `StoreReceiptRequest`, then `UploadReceipt`. Errors and refusals go back to step 2 with the input; success goes back to step 1 with «Soporte cargado. Queda pendiente de revisión.». |
 
 `StoreReceiptRequest` fields: `cliente`; `facturas[]` (document numbers, at least one, distinct); `valor` (pesos, digits with up to two decimals, above zero); `fecha_pago` (`Y-m-d`, not after today); `metodo` (optional, `PaymentMethod`); `nota` (optional, up to 1,000 characters); `archivos[]` (1 to `max_files`, each `file`, `extensions` and `mimetypes` from the config, which Laravel checks against the sniffed content type, up to `max_file_kilobytes`). Texts in `resources/lang/es/carga.php`.
+
+## Inbox
+
+`GET /soportes` (`soportes.index`, `can:viewAny` on `Receipt`, i.e. `soportes.view`), `InboxController`. Tabs Pendientes, Aplicados and Rechazados (`?estado=`, pending by default) with their counts; filters by client name or code (`?buscar=`, on the copies taken at upload) and by payment date (`?desde=` and `?hasta=`, inclusive), read by `Application\Inbox\InboxFilter`, which drops values it does not know. Pending receipts come oldest first, as a queue; applied and rejected ones, latest review first; 25 per page. The Rechazados tab shows the reason. «Cargar soporte» links to the upload for whoever has `soportes.upload`.
+
+`Application\Inbox\VisibleReceipts` decides which receipts the list holds, by the same rule as `ReceiptPolicy::view`:
+
+- reviewers (`soportes.review`): the receipts of the companies of `CurrentCompany::scope()`, so the inbox follows the company switcher; the group view adds the company column;
+- everyone else ("Mis soportes", the advisor; also the superadmin, who has `soportes.view` but not `soportes.review`): the receipts they uploaded, plus the ones of their own clients, whoever uploaded them. Ownership is read live: `CarteraRepository::allClients()` is walked once (it applies the advisor scope and the companies in view, like `client()` in the policy) and only the clients that have receipts are kept, so the query is `uploaded_by = user OR client_id IN (...)` with a short list, never one `client()` call per row.
+
+### Menu
+
+`SoportesServiceProvider::navigation()` adds «Soportes de pago» (`soportes.bandeja`, permission `soportes.view`) at the end of the Cartera group (order 45), so `/` still opens the dashboard of the portfolio roles. Its badge counts the pending receipts of the companies in view, only for reviewers (`VisibleReceipts::pendingCount()`); the advisor gets no badge, and nobody gets one when nothing is pending.
 
 ## Storage
 
