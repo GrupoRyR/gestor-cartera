@@ -4,7 +4,9 @@
     GET /soportes/{soporte} (soportes.show): one receipt. $receipt: Receipt
     with invoices (oldest due date first), files, uploader and reviewer.
     The invoices are the copies taken at upload; the files link to the
-    authorized download (soportes.files.download).
+    authorized download (soportes.files.download). A reviewer who may still
+    decide (ReceiptPolicy::review) gets the apply and reject forms
+    (soportes.apply, soportes.reject), which come back here.
 --}}
 @php
     $columns = [
@@ -87,6 +89,43 @@
                 @if (! $receipt->status->isFinal())
                     <p class="mt-4 text-sm text-fg-muted">{{ __('soportes::detalle.estado.pendiente') }}</p>
                 @endif
+
+                @can('review', $receipt)
+                    <div class="mt-6 flex flex-col gap-6 border-t border-line pt-6">
+                        <p class="text-sm text-fg-muted">{{ __('soportes::revision.descripcion') }}</p>
+
+                        <form method="POST" action="{{ route('soportes.apply', $receipt) }}" aria-label="{{ __('soportes::revision.aplicar.titulo') }}" class="flex flex-col gap-4">
+                            @csrf
+                            @method('PATCH')
+                            <x-ui.input
+                                name="recibo"
+                                :label="__('soportes::revision.aplicar.recibo')"
+                                :hint="__('soportes::revision.aplicar.recibo_ayuda')"
+                                maxlength="60"
+                                autocomplete="off"
+                            />
+                            <div>
+                                <x-ui.button type="submit" icon="check">{{ __('soportes::revision.aplicar.enviar') }}</x-ui.button>
+                            </div>
+                        </form>
+
+                        <form method="POST" action="{{ route('soportes.reject', $receipt) }}" aria-label="{{ __('soportes::revision.rechazar.titulo') }}" class="flex flex-col gap-4 border-t border-line pt-6">
+                            @csrf
+                            @method('PATCH')
+                            <x-ui.textarea
+                                name="motivo"
+                                :label="__('soportes::revision.rechazar.motivo')"
+                                :hint="__('soportes::revision.rechazar.motivo_ayuda')"
+                                :required="true"
+                                :rows="3"
+                                maxlength="500"
+                            />
+                            <div>
+                                <x-ui.button type="submit" variant="danger" icon="close">{{ __('soportes::revision.rechazar.enviar') }}</x-ui.button>
+                            </div>
+                        </form>
+                    </div>
+                @endcan
             </x-ui.card>
         </div>
 
