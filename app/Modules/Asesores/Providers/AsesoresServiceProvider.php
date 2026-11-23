@@ -2,8 +2,10 @@
 
 namespace App\Modules\Asesores\Providers;
 
+use App\Modules\Asesores\Application\Commitments\RemainingBalanceLink;
 use App\Modules\Asesores\Http\Policies\ClientPolicy;
 use App\Modules\Asesores\Http\Policies\CommitmentPolicy;
+use App\Modules\Core\Contracts\AvisoService;
 use App\Modules\Core\Contracts\CompromisoService;
 use App\Modules\Core\Contracts\Data\ClientDetail;
 use App\Modules\Core\Contracts\Data\Commitment;
@@ -47,6 +49,11 @@ final class AsesoresServiceProvider extends ModuleServiceProvider
 
             return Limit::perMinute(10)->by($user === null ? 'ip:'.$request->ip() : 'user:'.$user->getAuthIdentifier());
         });
+
+        // The notice Core sends when a commitment is partially paid opens the
+        // client file. The kind is Core's, written out here (docs/arquitectura.md
+        // §6.5) because modules do not import Core's internal classes.
+        $this->app->make(AvisoService::class)->linkUsing('commitment.remaining', (new RemainingBalanceLink)(...));
     }
 
     /**

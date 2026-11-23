@@ -26,6 +26,11 @@ return [
             'etiqueta' => 'Notas',
             'ayuda' => 'Con quién hablaste y qué te dijeron. Es opcional.',
         ],
+        'pagado' => [
+            'nombre' => 'valor pagado',
+            'etiqueta' => 'Valor pagado',
+            'ayuda' => 'El compromiso es por :valor. En pesos, por ejemplo 500.000.',
+        ],
         'nota' => [
             'nombre' => 'nota',
             'etiqueta' => 'Nota',
@@ -50,6 +55,7 @@ return [
         'estado' => 'Estado',
         'registrado' => 'Registrado por :nombre el :fecha',
         'cumplido' => 'Cumplido el :fecha',
+        'abonado' => 'Pagó :pagado · saldo :saldo',
         'solo_lectura' => 'Puedes ver este compromiso, pero solo el asesor del cliente lo modifica.',
         'cerrado' => 'Este compromiso ya está cerrado: no se puede modificar.',
         'editar' => [
@@ -62,6 +68,11 @@ return [
             'ayuda' => 'El cliente pagó. Un pago tardío también cuenta como cumplido.',
             'boton' => 'Marcar como cumplido',
         ],
+        'abonar' => [
+            'titulo' => 'Registrar abono',
+            'ayuda' => 'El cliente pagó solo una parte. El compromiso queda abonado y te avisamos para que crees uno nuevo por el saldo.',
+            'boton' => 'Registrar abono',
+        ],
         'anular' => [
             'titulo' => 'Anular el compromiso',
             'ayuda' => 'Úsalo si se registró por error o el acuerdo cambió. No se puede deshacer.',
@@ -73,12 +84,14 @@ return [
         'creado' => 'Guardamos el compromiso por :valor para el :fecha.',
         'actualizado' => 'Actualizamos el compromiso.',
         'cumplido' => 'Marcamos el compromiso como cumplido.',
+        'abonado' => 'Registraste el abono.',
         'anulado' => 'Anulamos el compromiso.',
     ],
 
     'errores' => [
         'cerrado' => 'Este compromiso ya no se puede cambiar: otra persona lo cerró o ya estaba cerrado. Recarga la página para ver cómo quedó.',
         'valor' => 'Escribe un valor en pesos mayor que cero, por ejemplo 5.000.000.',
+        'abono' => 'El abono debe ser mayor que cero y menor que el valor del compromiso. Si pagó todo, márcalo cumplido.',
         'motivo' => 'Escribe por qué anulas el compromiso.',
         'nota' => 'No pudimos guardar la nota. Revisa que no sea muy larga.',
     ],

@@ -3,6 +3,7 @@
 namespace App\Modules\Asesores\Http\Controllers;
 
 use App\Modules\Asesores\Application\Client\ClientFiles;
+use App\Modules\Asesores\Application\Commitments\SuggestedAmount;
 use App\Modules\Asesores\Application\Portfolio\DataFreshness;
 use App\Modules\Asesores\Application\Portfolio\PortfolioFilter;
 use App\Modules\Asesores\Application\Whatsapp\WhatsappStatement;
@@ -50,8 +51,11 @@ final readonly class ClientController
      * GET /asesores/clientes/{client}: the client file. A client outside the
      * user's scope does not exist for them: 404, the same answer as for an
      * id nobody has, so the URL reveals nothing.
+     *
+     * ?nuevo-compromiso=1 opens the new commitment form for who may write
+     * it, with ?valor= as its value: the link of the balance notice.
      */
-    public function show(int $client): View
+    public function show(Request $request, int $client): View
     {
         $detail = $this->cartera->client($client) ?? abort(404);
 
@@ -66,6 +70,8 @@ final readonly class ClientController
             'today' => $today,
             'canManage' => Gate::allows('manage', $detail),
             'canAnnotate' => Gate::allows('annotate', $detail),
+            'openNewCommitment' => $request->boolean('nuevo-compromiso'),
+            'suggestedAmount' => SuggestedAmount::forField($request->query('valor')),
         ]);
     }
 }

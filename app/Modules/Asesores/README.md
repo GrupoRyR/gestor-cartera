@@ -20,6 +20,7 @@ Todas piden sesión iniciada y el permiso `asesores.view` (asesor y gerente come
 | `POST /asesores/clientes/{client}/compromisos` | `compromisos.store` | Crea un compromiso. | Asesor (`asesores.manage`) |
 | `PUT /asesores/compromisos/{commitment}` | `compromisos.update` | Cambia fecha, valor o notas de un pendiente. | Asesor |
 | `POST /asesores/compromisos/{commitment}/cumplir` | `compromisos.fulfill` | Lo marca cumplido (un pago tardío también cumple). | Asesor |
+| `POST /asesores/compromisos/{commitment}/abonar` | `compromisos.abonar` | Registra un abono: el cliente pagó solo una parte. | Asesor |
 | `POST /asesores/compromisos/{commitment}/anular` | `compromisos.cancel` | Lo anula, con motivo. | Asesor |
 | `POST /asesores/clientes/{client}/notas` | `notas.store` | Agrega una nota a la bitácora del cliente. | Asesor |
 | `GET /asesores/clientes/exportar` | `clientes.exportar` | Excel de la lista (mismos filtros y orden) con sus facturas. | Asesor, gerente |
@@ -39,7 +40,7 @@ La regla de alcance (§6.2 de `docs/arquitectura.md`) la implementa Core, una so
 1. **Ruta.** Cada ruta pide `auth` y un permiso `asesores.*`; las que escriben piden `asesores.manage`. `RoutesTest` lo comprueba para todas las rutas del módulo.
 2. **Datos.** Toda lectura pasa por `CarteraRepository` (y toda escritura por `CompromisoService` y `GestionLogger`), que aplican el alcance del usuario autenticado. Un filtro de la URL (`?asesor=`, `?buscar=`) solo **reduce** lo que ya se ve: pedir el asesor de otro devuelve una lista vacía, nunca la suya.
 3. **Un cliente fuera del alcance no existe.** Un id ajeno responde 404, con el mismo cuerpo que un id que nadie tiene, así que la URL no revela si existe. Pasa en la ficha, los compromisos, las notas, los Excel y el PDF.
-4. **Policies.** `ClientPolicy` (ver, escribir compromisos solo el asesor del cliente y solo en SGX, anotar solo el asesor del cliente) y `CommitmentPolicy` (editar solo un pendiente, cumplir o anular un pendiente o incumplido) deciden qué ofrece cada pantalla; Core repite las reglas al escribir y tiene la última palabra.
+4. **Policies.** `ClientPolicy` (ver, escribir compromisos solo el asesor del cliente y solo en SGX, anotar solo el asesor del cliente) y `CommitmentPolicy` (editar solo un pendiente; cumplir, abonar o anular un pendiente o incumplido) deciden qué ofrece cada pantalla; Core repite las reglas al escribir y tiene la última palabra.
 5. **Exportaciones.** Los dos Excel y el PDF leen por el mismo contrato que las pantallas: un archivo contiene los clientes que el usuario puede ver y nada más, diga lo que diga la URL. Cada descarga queda en la auditoría (`asesores.portfolio.exported`, `asesores.client.exported`, `asesores.client.statement_downloaded`).
 6. **Arquitectura.** `tests/Modules/Asesores/Unit/ArchitectureTest.php` impide que el módulo use la base de datos, defina modelos, tenga migraciones o llame a `asSystem()` (la copia del repositorio sin alcance, solo para tareas programadas). Es lo que garantiza que ninguna pantalla ni exportación pueda saltarse el alcance de Core.
 
@@ -50,6 +51,10 @@ La regla de alcance (§6.2 de `docs/arquitectura.md`) la implementa Core, una so
 ## Compromisos de pago
 
 Los crea, edita y marca el asesor del cliente, **en SGX**; en SDC los escribe la analista (Módulo 2). Esa regla es de Core (`CommitmentWriteRule`); el módulo la refleja en `config('asesores.commitment_companies')` solo para decidir qué botones ofrecer. Cada escritura deja su gestión en la bitácora y su entrada de auditoría (Core) y mueve el estado del cliente. El valor se escribe como en Colombia (`5.000.000`, `$ 5.000.000,50`); la fecha debe ser hoy o futura. Un doble clic sobre un compromiso ya cerrado muestra un mensaje claro en vez de un error.
+
+**Abono.** En la página de un compromiso pendiente o incumplido, la tarjeta «Registrar abono» (junto a «Marcar como cumplido», con la misma regla: `CommitmentPolicy::partiallyPay()`) pide el «Valor pagado» en pesos como el valor de un compromiso y una nota opcional de hasta 255 caracteres. Sus campos van en `abono[valor]` y `abono[nota]` para que un error no llene ni marque los formularios de editar y cumplir de la misma página. Llama `CompromisoService::markPartiallyPaid()`: «Registraste el abono.» y vuelve a la ficha. Si Core rechaza el valor (cero, o el valor completo o más) la tarjeta muestra «El abono debe ser mayor que cero y menor que el valor del compromiso. Si pagó todo, márcalo cumplido.». Un compromiso abonado muestra «Pagó $ X · saldo $ Y» en su página y en la ficha.
+
+**Aviso de saldo.** Core avisa al asesor para que cree un compromiso por el saldo (`commitment.remaining`, `docs/arquitectura.md` §6.18). `Application/Commitments/RemainingBalanceLink`, registrado en `bootModule()`, lo lleva a la ficha del cliente si tiene `asesores.view` y el aviso es de una empresa de `commitment_companies`; si además tiene `asesores.manage`, con `?nuevo-compromiso=1&valor=<saldo>`, que abre «Nuevo compromiso» con el saldo en pesos enteros (`Application/Commitments/SuggestedAmount`). Cartera registra su propio enlace para el mismo aviso: cada uno pasa sin el permiso de ver de su módulo, así que el asesor recibe el de Asesores y el equipo de cartera el de Cartera.
 
 ## Exportaciones
 

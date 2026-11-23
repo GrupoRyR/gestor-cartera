@@ -6,6 +6,7 @@ use App\Modules\Asesores\Application\Commitments\CommitmentActions;
 use App\Modules\Asesores\Application\Commitments\CommitmentRefused;
 use App\Modules\Asesores\Http\Requests\CancelCommitmentRequest;
 use App\Modules\Asesores\Http\Requests\FulfillCommitmentRequest;
+use App\Modules\Asesores\Http\Requests\PartialPaymentRequest;
 use App\Modules\Asesores\Http\Requests\SaveCommitmentRequest;
 use App\Modules\Core\Contracts\CarteraRepository;
 use App\Modules\Core\Contracts\CompromisoService;
@@ -90,6 +91,21 @@ final readonly class CommitmentController
         return $this->perform(
             fn (): Commitment => $this->actions->fulfill($commitment, $request->note()),
             fn (): string => __('asesores::compromisos.mensajes.cumplido'),
+        );
+    }
+
+    /**
+     * POST /asesores/compromisos/{commitment}/abonar: the client paid only
+     * part of it. Core closes it as partially paid and tells the advisor to
+     * promise the balance (the commitment.remaining notice).
+     */
+    public function partiallyPay(PartialPaymentRequest $request, int $commitment): RedirectResponse
+    {
+        $this->authorized($commitment);
+
+        return $this->perform(
+            fn (): Commitment => $this->actions->partiallyPay($commitment, $request->amount(), $request->note()),
+            fn (): string => __('asesores::compromisos.mensajes.abonado'),
         );
     }
 

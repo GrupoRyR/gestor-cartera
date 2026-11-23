@@ -591,7 +591,7 @@ protected function bootModule(): void
 }
 ```
 
-El primer tipo de aviso es `commitment.remaining`, que Core envía al abonar un compromiso (§6.5) con sujeto `client`. Core no registra su enlace: lo registran los módulos que muestran la ficha del cliente. Cartera lo registra (`Application/Commitments/RemainingBalanceLink`): lleva a su ficha a quien tiene `cartera.view` y, si además escribe los compromisos de la empresa del cliente, abre «Nuevo compromiso» con el saldo como valor. Asesores todavía no registra el suyo.
+El primer tipo de aviso es `commitment.remaining`, que Core envía al abonar un compromiso (§6.5) con sujeto `client`. Core no registra su enlace: lo registran los módulos que muestran la ficha del cliente. Cartera lo registra (`Application/Commitments/RemainingBalanceLink`): lleva a su ficha a quien tiene `cartera.view` y, si además escribe los compromisos de la empresa del cliente, abre «Nuevo compromiso» con el saldo como valor. Asesores también (`Application/Commitments/RemainingBalanceLink`): lleva a su ficha a quien tiene `asesores.view`, solo en las empresas de `asesores.commitment_companies`, y abre «Nuevo compromiso» con el saldo a quien tiene `asesores.manage`. Cada uno devuelve `null` sin el permiso de ver de su módulo, así que el asesor recibe el enlace de Asesores y el equipo de cartera el de Cartera.
 
 La bandeja (listar, contar los no leídos, marcar como leído y resolver el enlace de un aviso) es interna de Core y no está en el contrato: `EloquentAvisoService::forUser()`, `latest()`, `unreadCount()` (no leídos y abiertos), `markRead()` (`null` si el aviso no es del usuario), `markAllRead()` y `link()`.
 

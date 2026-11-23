@@ -1,12 +1,14 @@
 @use('App\Modules\Core\Contracts\Enums\CommitmentStatus')
 @use('App\Support\Formatting\DateFormat')
+@use('App\Support\Formatting\Money')
 
 {{--
     GET /asesores/compromisos/{commitment} (asesores.compromisos.show): one
     commitment. The advisor who owns the client changes the date and amount
-    while it is pending, marks it fulfilled (also when it is late) or
-    cancels it with a reason; everybody else who can open it, such as a sales
-    manager, reads it. $client is null when the commitment belongs to a
+    while it is pending, marks it fulfilled (also when it is late), records
+    that the client paid only part of it (abono) or cancels it with a
+    reason; everybody else who can open it, such as a sales manager, reads
+    it. $client is null when the commitment belongs to a
     company other than the one the user is working in.
 --}}
 @php
@@ -49,6 +51,9 @@
                 <div>
                     <dt class="text-sm text-fg-muted">{{ __('asesores::compromisos.show.valor') }}</dt>
                     <dd class="font-semibold"><x-ui.money :value="$commitment->amount" /></dd>
+                    @if ($commitment->remaining() !== null)
+                        <dd class="text-sm text-fg-muted">{{ __('asesores::compromisos.show.abonado', ['pagado' => Money::format($commitment->paidAmount), 'saldo' => Money::format($commitment->remaining())]) }}</dd>
+                    @endif
                 </div>
                 <div>
                     <dt class="text-sm text-fg-muted">{{ __('asesores::compromisos.show.fecha') }}</dt>
@@ -101,6 +106,20 @@
                     <x-ui.input name="nota" :label="__('asesores::compromisos.campos.nota.etiqueta')" :hint="__('asesores::compromisos.campos.nota.ayuda')" />
 
                     <div><x-ui.button type="submit" icon="calendar-check" class="max-sm:w-full max-sm:justify-center">{{ __('asesores::compromisos.show.cumplir.boton') }}</x-ui.button></div>
+                </form>
+            </x-ui.card>
+        @endcan
+
+        @can('partiallyPay', $commitment)
+            {{-- Its fields sit under abono[...]: the edit and fulfil forms on this page also have valor and nota. --}}
+            <x-ui.card :title="__('asesores::compromisos.show.abonar.titulo')" :description="__('asesores::compromisos.show.abonar.ayuda')">
+                <form method="POST" action="{{ route('asesores.compromisos.abonar', $commitment->id) }}" class="grid max-w-xl gap-4">
+                    @csrf
+
+                    <x-ui.input name="abono[valor]" :label="__('asesores::compromisos.campos.pagado.etiqueta')" :hint="__('asesores::compromisos.campos.pagado.ayuda', ['valor' => Money::format($commitment->amount)])" prefix="$" inputmode="decimal" autocomplete="off" required />
+                    <x-ui.input name="abono[nota]" :label="__('asesores::compromisos.campos.nota.etiqueta')" :hint="__('asesores::compromisos.campos.nota.ayuda')" />
+
+                    <div><x-ui.button type="submit" icon="check" class="max-sm:w-full max-sm:justify-center">{{ __('asesores::compromisos.show.abonar.boton') }}</x-ui.button></div>
                 </form>
             </x-ui.card>
         @endcan

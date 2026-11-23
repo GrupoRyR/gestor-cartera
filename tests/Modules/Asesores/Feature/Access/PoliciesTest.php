@@ -93,6 +93,7 @@ it('lets an advisor close a pending or broken commitment, never a closed one', f
     $commitment = Make::commitment(status: $status);
 
     expect(Gate::forUser($user)->allows('fulfill', $commitment))->toBe($allowed)
+        ->and(Gate::forUser($user)->allows('partiallyPay', $commitment))->toBe($allowed)
         ->and(Gate::forUser($user)->allows('cancel', $commitment))->toBe($allowed);
 })->with([
     'pending' => [CommitmentStatus::Pending, true],
@@ -107,6 +108,7 @@ it('does not let anyone but an advisor change a commitment', function (Role $rol
 
     expect(Gate::forUser($user)->allows('update', $commitment))->toBeFalse()
         ->and(Gate::forUser($user)->allows('fulfill', $commitment))->toBeFalse()
+        ->and(Gate::forUser($user)->allows('partiallyPay', $commitment))->toBeFalse()
         ->and(Gate::forUser($user)->allows('cancel', $commitment))->toBeFalse();
 })->with([Role::SalesManager, Role::PortfolioManager, Role::PortfolioAnalyst, Role::Admin]);
 
