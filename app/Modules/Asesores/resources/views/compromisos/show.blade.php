@@ -15,11 +15,12 @@
         CommitmentStatus::Fulfilled => 'success',
         CommitmentStatus::Broken => 'danger',
         CommitmentStatus::Cancelled => 'neutral',
+        CommitmentStatus::PartiallyPaid => 'warning',
     };
 
     $backUrl = $client !== null ? route('asesores.clientes.show', $client->summary->id) : route('asesores.clientes.index');
     $writes = auth()->user()?->can('manage', $commitment) ?? false;
-    $closed = in_array($commitment->status, [CommitmentStatus::Fulfilled, CommitmentStatus::Cancelled], true);
+    $closed = in_array($commitment->status, [CommitmentStatus::Fulfilled, CommitmentStatus::Cancelled, CommitmentStatus::PartiallyPaid], true);
 
     // The amount as the form reads it: "2.500.000", with cents only when there are some.
     $amountText = number_format($commitment->amount, fmod($commitment->amount, 1.0) === 0.0 ? 0 : 2, ',', '.');

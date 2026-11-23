@@ -110,6 +110,20 @@ it('shows the contacts, the commitments and the log of the client', function () 
     expect($html->all('//a[starts-with(@href,"mailto:")]'))->toHaveCount(1);
 });
 
+it('shows a partially paid commitment among the closed ones', function () {
+    CommitmentRecords::commitment($this->agro, $this->world->ana, '2026-10-20', '1000000.00');
+    CommitmentRecords::commitment($this->agro, $this->world->ana, '2026-10-10', '800000.00', [
+        'status' => CommitmentStatus::PartiallyPaid, 'paid_amount' => '300000.00', 'partially_paid_at' => '2026-10-11 10:00:00',
+    ]);
+
+    $response = $this->actingAs($this->world->ana)->get(route('asesores.clientes.show', $this->agro->id))->assertOk();
+    $html = Page::html($response);
+
+    expect(array_map(fn ($item) => preg_match('/\$\s?[\d.]+/u', $item->textContent, $m) ? $m[0] : '', $html->all('//ul[@data-part="commitments"]/li')))
+        ->toBe([Money::format(1_000_000), Money::format(800_000)])
+        ->and($html->text('//ul[@data-part="commitments"]/li[2]//*[@data-tone="warning"]'))->toBe('Abonado');
+});
+
 it('says so when there is nothing to show yet', function () {
     $response = $this->actingAs($this->world->ana)
         ->get(route('asesores.clientes.show', $this->world->clients['ferreteria']->id))

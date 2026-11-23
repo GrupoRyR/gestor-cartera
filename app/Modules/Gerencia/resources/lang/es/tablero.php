@@ -108,6 +108,7 @@ return [
             'cumplidos' => 'Cumplidos',
             'a_tiempo' => 'A tiempo',
             'incumplidos' => 'Incumplidos',
+            'abonados' => 'Abonados',
             'vencidos' => 'Vencidos sin pago',
             'proximos' => 'Próximos',
             'valor' => 'Valor cumplido / evaluado',

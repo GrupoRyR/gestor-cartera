@@ -197,6 +197,8 @@ final class Make
         ?UserRef $createdBy = null,
         ?CarbonImmutable $createdAt = null,
         ?CarbonImmutable $fulfilledAt = null,
+        ?float $paidAmount = null,
+        ?CarbonImmutable $partiallyPaidAt = null,
     ): Commitment {
         return new Commitment(
             id: $id ?? self::nextId(),
@@ -211,6 +213,8 @@ final class Make
             createdBy: $createdBy ?? self::userRef(),
             createdAt: $createdAt ?? CarbonImmutable::now(),
             fulfilledAt: $fulfilledAt,
+            paidAmount: $paidAmount,
+            partiallyPaidAt: $partiallyPaidAt,
         );
     }
 

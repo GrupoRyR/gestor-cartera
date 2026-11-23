@@ -9,7 +9,7 @@ use App\Modules\Core\Contracts\Enums\Concerns\HasOptions;
  *
  * Every commitment starts Pending. Core's daily task turns a Pending
  * commitment whose due date has passed without payment into Broken.
- * Fulfilled and Cancelled are final (see CompromisoService).
+ * Fulfilled, Cancelled and PartiallyPaid are final (see CompromisoService).
  */
 enum CommitmentStatus: string
 {
@@ -27,6 +27,13 @@ enum CommitmentStatus: string
     /** Voided by a user, with a reason (final). */
     case Cancelled = 'anulado';
 
+    /**
+     * The client paid part of the amount and the rest stays open as
+     * ordinary overdue debt (final). The paid amount is stored; the
+     * remaining balance is derived (Commitment::remaining()).
+     */
+    case PartiallyPaid = 'abonado';
+
     public function label(): string
     {
         return match ($this) {
@@ -34,6 +41,7 @@ enum CommitmentStatus: string
             self::Fulfilled => 'Cumplido',
             self::Broken => 'Incumplido',
             self::Cancelled => 'Anulado',
+            self::PartiallyPaid => 'Abonado',
         };
     }
 }

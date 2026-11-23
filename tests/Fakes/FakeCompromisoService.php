@@ -333,7 +333,7 @@ final class FakeCompromisoService implements CompromisoService
 
     private function guardNotFinal(Commitment $commitment): void
     {
-        if (in_array($commitment->status, [CommitmentStatus::Fulfilled, CommitmentStatus::Cancelled], true)) {
+        if (in_array($commitment->status, [CommitmentStatus::Fulfilled, CommitmentStatus::Cancelled, CommitmentStatus::PartiallyPaid], true)) {
             throw new DomainException("Commitment {$commitment->id} is already {$commitment->status->value}.");
         }
     }
@@ -358,6 +358,8 @@ final class FakeCompromisoService implements CompromisoService
             createdBy: $commitment->createdBy,
             createdAt: $commitment->createdAt,
             fulfilledAt: $changes['fulfilledAt'] ?? $commitment->fulfilledAt,
+            paidAmount: $commitment->paidAmount,
+            partiallyPaidAt: $commitment->partiallyPaidAt,
         );
 
         $this->commitments[$replaced->id] = $replaced;

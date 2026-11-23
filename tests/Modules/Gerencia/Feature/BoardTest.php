@@ -301,6 +301,24 @@ it('lists the compliance of each advisor, the least compliant first', function (
         ->assertDontSeeText('Cifras parciales');
 });
 
+it('shows partially paid commitments in their own column, evaluated but not kept', function () {
+    $this->fakes->cartera->addAdvisor(Make::advisor(company: CompanyCode::SGX, code: 7, name: 'Carlos Pérez'));
+    $due = fn (int $day) => CarbonImmutable::parse("2026-10-{$day}");
+    $this->fakes->compromisos->add(
+        Make::commitment(advisorCode: 7, status: CommitmentStatus::Fulfilled, dueDate: $due(5), fulfilledAt: $due(4)),
+        Make::commitment(advisorCode: 7, status: CommitmentStatus::PartiallyPaid, dueDate: $due(6), paidAmount: 100_000),
+    );
+
+    $response = ($this->manager)()->get('/gerencia')->assertOk();
+    $html = Html::parse($response->getContent() ?: '');
+    $headers = array_map(fn ($cell) => trim($cell->textContent), $html->all('//table[.//th[normalize-space(.)="Abonados"]]//thead//th'));
+    $cells = array_map(fn ($cell) => trim($cell->textContent), $html->all('//table[.//th[normalize-space(.)="Abonados"]]//tbody/tr[1]/*'));
+
+    expect($cells[array_search('Abonados', $headers, true)])->toBe('1')
+        ->and($cells[array_search('Evaluados', $headers, true)])->toBe('2');
+    $response->assertSeeText('50,0 %')->assertSeeText('1 de 2 compromisos cumplidos');
+});
+
 it('warns that the compliance covers only part of the period when the commitments were cut off', function () {
     config(['gerencia.compliance_page_size' => 1, 'gerencia.compliance_max_pages' => 1]);
     $this->fakes->compromisos->add(

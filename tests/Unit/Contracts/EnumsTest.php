@@ -41,6 +41,7 @@ dataset('contract enums', [
         'cumplido' => 'Cumplido',
         'incumplido' => 'Incumplido',
         'anulado' => 'Anulado',
+        'abonado' => 'Abonado',
     ]],
     'ActivityType' => [ActivityType::class, [
         'llamada' => 'Llamada',

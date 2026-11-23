@@ -77,6 +77,7 @@
         ['key' => 'fulfilled', 'label' => __('gerencia::tablero.cumplimiento.columnas.cumplidos'), 'align' => 'end'],
         ['key' => 'on_time', 'label' => __('gerencia::tablero.cumplimiento.columnas.a_tiempo'), 'align' => 'end'],
         ['key' => 'broken', 'label' => __('gerencia::tablero.cumplimiento.columnas.incumplidos'), 'align' => 'end'],
+        ['key' => 'partially_paid', 'label' => __('gerencia::tablero.cumplimiento.columnas.abonados'), 'align' => 'end'],
         ['key' => 'overdue', 'label' => __('gerencia::tablero.cumplimiento.columnas.vencidos'), 'align' => 'end'],
         ['key' => 'upcoming', 'label' => __('gerencia::tablero.cumplimiento.columnas.proximos'), 'align' => 'end'],
         ['key' => 'amount', 'label' => __('gerencia::tablero.cumplimiento.columnas.valor'), 'align' => 'end'],
@@ -256,6 +257,7 @@
                                 <td data-align="end">{{ Figures::count($advisor->fulfilled) }}</td>
                                 <td data-align="end">{{ Figures::count($advisor->fulfilledOnTime) }}</td>
                                 <td data-align="end">{{ Figures::count($advisor->broken) }}</td>
+                                <td data-align="end">{{ Figures::count($advisor->partiallyPaid) }}</td>
                                 <td data-align="end">{{ Figures::count($advisor->overduePending) }}</td>
                                 <td data-align="end">{{ Figures::count($advisor->upcoming) }}</td>
                                 <td data-align="end"><x-ui.money :value="$advisor->amountFulfilled" /> / <x-ui.money :value="$advisor->amountEvaluated" /></td>

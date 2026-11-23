@@ -53,6 +53,18 @@ it('shows a closed commitment without forms', function () {
     $response->assertSeeText('Este compromiso ya está cerrado');
 });
 
+it('shows a partially paid commitment as closed, without forms', function () {
+    $partial = CommitmentRecords::commitment($this->agro, $this->world->ana, '2026-10-10', '800000.00', [
+        'status' => CommitmentStatus::PartiallyPaid, 'paid_amount' => '300000.00', 'partially_paid_at' => '2026-10-11 10:00:00',
+    ]);
+
+    $response = $this->actingAs($this->world->ana)->get(route('asesores.compromisos.show', $partial->id))->assertOk();
+
+    expect(Page::html($response)->count('//main//form'))->toBe(0)
+        ->and(Page::html($response)->text('//main//*[@data-tone="warning"]'))->toBe('Abonado');
+    $response->assertSeeText('Este compromiso ya está cerrado');
+});
+
 it('lets a sales manager read the commitment of a client of their team, without forms', function () {
     $teamClient = $this->world->clients['comercial'];
     $commitment = CommitmentRecords::commitment($teamClient, $this->world->gloria, '2026-10-30');

@@ -40,6 +40,8 @@ final class CommitmentMapper
             // Always set by the timestamps of the model.
             createdAt: $record->created_at ?? CarbonImmutable::now(),
             fulfilledAt: $record->fulfilled_at,
+            paidAmount: $record->paid_amount === null ? null : (float) $record->paid_amount,
+            partiallyPaidAt: $record->partially_paid_at,
         );
     }
 }

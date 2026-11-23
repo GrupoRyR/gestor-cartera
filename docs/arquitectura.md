@@ -324,7 +324,9 @@ La copia que devuelve `closingSnapshot()` es como `asSystem()` (`asSystem()` la 
 
 Compromisos de pago. Actúa como el usuario autenticado y sigue la regla de §6.2. **Escritura por empresa:** en SGX crea, edita y anula el asesor del cliente; en SDC, la analista de cartera. **Cambio de estado:** además de quien escribe, la analista y el gerente de cartera marcan cualquier compromiso «Cumplido» o «Incumplido» en las dos empresas, también los que creó un asesor; en SGX no cambian fecha, monto ni notas. Nadie más cambia el estado: ni el superadmin (separación de funciones), ni el gerente comercial, ni un asesor fuera de sus clientes. La gerente y la analista leen todos. Cada escritura queda también en la bitácora del cliente (`ActivityType::Commitment`) y en la auditoría, con quién la hizo. Montos en pesos y mayores que cero.
 
-Ciclo de vida: `create()` deja el compromiso `Pending`; la tarea diaria de Core, o un usuario con `markBroken()`, pasa a `Broken` un `Pending`; `Fulfilled` y `Cancelled` son finales. Un `Broken` todavía se puede cumplir.
+Ciclo de vida: `create()` deja el compromiso `Pending`; la tarea diaria de Core, o un usuario con `markBroken()`, pasa a `Broken` un `Pending`; `Fulfilled`, `Cancelled` y `PartiallyPaid` («Abonado») son finales. Un `Broken` todavía se puede cumplir.
+
+Abonado: el cliente pagó una parte y el resto queda como deuda vencida ordinaria. `Commitment::$paidAmount` guarda lo pagado (`paid_amount`, `decimal(18,2)`) y `$partiallyPaidAt` cuándo (`partially_paid_at`); los dos son `null` en los demás estados. El saldo pendiente no se guarda: `Commitment::remaining()` lo deriva (`amount − paidAmount`, redondeado a centavos) y es `null` salvo en un `PartiallyPaid` con monto pagado.
 
 | Método | Qué hace | Lanza |
 |---|---|---|
@@ -508,7 +510,7 @@ Todos son `string` y usan el trait `HasOptions`: `label()` da el texto en españ
 |---|---|
 | `CompanyCode` | `SGX` → `SGX` («Segurex Latam»), `SDC` → `SDC` («Soluciones y Derivados»). La vista de grupo no es un caso: los contratos la representan con `null`. |
 | `ClientStatus` (orden = columnas del Kanban) | `Current` → `al_dia` («Al día»), `DueSoon` → `por_vencer` («Por vencer»), `Overdue` → `vencida` («Vencida»), `Committed` → `compromiso` («Compromiso»), `Defaulted` → `incumplido` («Incumplido»), `PaymentReceived` → `pago_recibido` («Pago recibido»), `Legal` → `juridico` («Jurídico») |
-| `CommitmentStatus` | `Pending` → `pendiente` («Pendiente»), `Fulfilled` → `cumplido` («Cumplido»), `Broken` → `incumplido` («Incumplido»), `Cancelled` → `anulado` («Anulado») |
+| `CommitmentStatus` | `Pending` → `pendiente` («Pendiente»), `Fulfilled` → `cumplido` («Cumplido»), `Broken` → `incumplido` («Incumplido»), `Cancelled` → `anulado` («Anulado»), `PartiallyPaid` → `abonado` («Abonado») |
 | `ActivityType` | `Call` → `llamada` («Llamada»), `Note` → `nota` («Nota»), `Commitment` → `compromiso` («Compromiso de pago»), `DiscountOffered` → `descuento` («Descuento ofrecido»), `EmailSent` → `correo_enviado` («Correo enviado»), `EmailReceived` → `correo_recibido` («Correo recibido»), `StatusChange` → `cambio_estado` («Cambio de estado»), `System` → `sistema` («Sistema») |
 | `Dataset` (valor = segmento `{lote}`) | `Receivables` → `cartera` («Cartera»), `Advisors` → `asesores` («Asesores»), `Contacts` → `contactos` («Contactos»), `Sales` → `ventas` («Ventas»), `Collections` → `recaudos` («Recaudos»), `Offsets` → `cruces` («Cruces»), `CustomerMaster` → `maestro_clientes` («Maestro de clientes»), `SalesRepMaster` → `maestro_vendedores` («Maestro de vendedores») |
 | `LoadSource` | `Robot` → `robot` («Robot»), `Manual` → `manual` («Carga manual») |

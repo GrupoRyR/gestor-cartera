@@ -46,6 +46,7 @@
         CommitmentStatus::Fulfilled => 'success',
         CommitmentStatus::Broken => 'danger',
         CommitmentStatus::Cancelled => 'neutral',
+        CommitmentStatus::PartiallyPaid => 'warning',
     };
 
     $ageTone = fn (string $key): string => match ($key) {
