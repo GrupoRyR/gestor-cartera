@@ -41,6 +41,14 @@ final readonly class CommitmentPolicy
     }
 
     /**
+     * Record that the client paid only part of it: same states as fulfilling.
+     */
+    public function partiallyPay(User $user, Commitment $commitment): bool
+    {
+        return $this->fulfill($user, $commitment);
+    }
+
+    /**
      * Cancel with a reason: same states as fulfilling.
      */
     public function cancel(User $user, Commitment $commitment): bool

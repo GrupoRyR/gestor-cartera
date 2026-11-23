@@ -45,6 +45,7 @@ Route::middleware(['auth', 'can:asesores.view'])->group(function () {
         Route::post('clientes/{client}/compromisos', [CommitmentController::class, 'store'])->whereNumber('client')->name('compromisos.store');
         Route::put('compromisos/{commitment}', [CommitmentController::class, 'update'])->whereNumber('commitment')->name('compromisos.update');
         Route::post('compromisos/{commitment}/cumplir', [CommitmentController::class, 'fulfill'])->whereNumber('commitment')->name('compromisos.fulfill');
+        Route::post('compromisos/{commitment}/abonar', [CommitmentController::class, 'partiallyPay'])->whereNumber('commitment')->name('compromisos.abonar');
         Route::post('compromisos/{commitment}/anular', [CommitmentController::class, 'cancel'])->whereNumber('commitment')->name('compromisos.cancel');
 
         Route::post('clientes/{client}/notas', [NoteController::class, 'store'])->whereNumber('client')->name('notas.store');

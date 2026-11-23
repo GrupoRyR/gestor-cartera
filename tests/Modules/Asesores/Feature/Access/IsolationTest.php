@@ -188,6 +188,7 @@ it('answers 404, and writes nothing, for every URL that names a client of anothe
     $this->actingAs($viewer)->get(route('asesores.compromisos.show', $commitment))->assertNotFound();
     $this->actingAs($viewer)->put(route('asesores.compromisos.update', $commitment), ['fecha' => '2026-11-30', 'valor' => '1'])->assertNotFound();
     $this->actingAs($viewer)->post(route('asesores.compromisos.fulfill', $commitment))->assertNotFound();
+    $this->actingAs($viewer)->post(route('asesores.compromisos.abonar', $commitment), ['abono' => ['valor' => '1000']])->assertNotFound();
     $this->actingAs($viewer)->post(route('asesores.compromisos.cancel', $commitment), ['motivo' => 'Intruso'])->assertNotFound();
 
     expect([CommitmentRecord::query()->count(), ActivityRecord::query()->count()])->toBe($before)
@@ -287,7 +288,7 @@ it('has a check here for every route of the module: a new one must be added to t
         // Named by id, checked to answer 404 for what is not theirs.
         'asesores.clientes.show', 'asesores.clientes.exportar_cliente', 'asesores.clientes.estado_cuenta',
         'asesores.compromisos.store', 'asesores.notas.store',
-        'asesores.compromisos.show', 'asesores.compromisos.update', 'asesores.compromisos.fulfill', 'asesores.compromisos.cancel',
+        'asesores.compromisos.show', 'asesores.compromisos.update', 'asesores.compromisos.fulfill', 'asesores.compromisos.abonar', 'asesores.compromisos.cancel',
         // Sales managers only, by permission (see the team tests).
         'asesores.equipo.index',
     ];

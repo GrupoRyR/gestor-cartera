@@ -11,6 +11,9 @@
     detail, the position worked out from its open documents, the documents,
     the commitments and the log. $canManage says whether the user is the
     advisor who writes commitments and notes for the client.
+    $openNewCommitment (?nuevo-compromiso=1, the link of the balance notice)
+    opens the new commitment form for them, with $suggestedAmount as its
+    value until there is old input.
 --}}
 @php
     $detail = $file->detail;
@@ -195,6 +198,9 @@
                                     <x-ui.chip :tone="$commitmentTone($commitment->status)">{{ $commitment->status->label() }}</x-ui.chip>
                                 </span>
                                 <span class="text-sm text-fg-muted">{{ __('asesores::ficha.compromisos.fecha') }}: <x-ui.date :value="$commitment->dueDate" /></span>
+                                @if ($commitment->remaining() !== null)
+                                    <span class="text-sm text-fg-muted">{{ __('asesores::compromisos.show.abonado', ['pagado' => Money::format($commitment->paidAmount), 'saldo' => Money::format($commitment->remaining())]) }}</span>
+                                @endif
                                 @if (filled($commitment->notes))
                                     <span class="text-sm whitespace-pre-line [overflow-wrap:anywhere]">{{ $commitment->notes }}</span>
                                 @endif
@@ -265,7 +271,7 @@
     @if ($canManage)
         @php($newFormFailed = old('formulario') === 'nuevo-compromiso' && $errors->any())
 
-        <x-ui.modal id="nuevo-compromiso" :title="__('asesores::compromisos.nuevo.titulo')" :open="$newFormFailed">
+        <x-ui.modal id="nuevo-compromiso" :title="__('asesores::compromisos.nuevo.titulo')" :open="$newFormFailed || $openNewCommitment">
             <form id="form-nuevo-compromiso" method="POST" action="{{ route('asesores.compromisos.store', $summary->id) }}" class="grid gap-4">
                 @csrf
                 <input type="hidden" name="formulario" value="nuevo-compromiso">
@@ -273,6 +279,7 @@
                 <x-ui.input name="fecha" type="date" :label="__('asesores::compromisos.campos.fecha.etiqueta')" :hint="__('asesores::compromisos.campos.fecha.ayuda')" :min="$today->format('Y-m-d')" required />
                 <x-ui.input
                     name="valor"
+                    :value="$openNewCommitment ? $suggestedAmount : null"
                     :label="__('asesores::compromisos.campos.valor.etiqueta')"
                     :hint="$position->overdue > 0 ? __('asesores::compromisos.campos.valor.ayuda_vencido', ['vencido' => Money::format($position->overdue)]) : __('asesores::compromisos.campos.valor.ayuda')"
                     prefix="$"

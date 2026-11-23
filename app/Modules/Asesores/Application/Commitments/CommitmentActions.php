@@ -53,6 +53,18 @@ final readonly class CommitmentActions
     }
 
     /**
+     * Records that the client paid $paidAmount, only part of the commitment.
+     * Core rejects an amount that is not above zero and below the commitment
+     * value; that refusal is blamed on the abono form's value.
+     *
+     * @throws CommitmentRefused
+     */
+    public function partiallyPay(int $commitmentId, float $paidAmount, ?string $note): Commitment
+    {
+        return $this->run(fn (): Commitment => $this->commitments->markPartiallyPaid($commitmentId, $paidAmount, $note), 'abono.valor', 'abono');
+    }
+
+    /**
      * @throws CommitmentRefused
      */
     public function cancel(int $commitmentId, string $reason): Commitment
@@ -63,17 +75,18 @@ final readonly class CommitmentActions
     /**
      * @param  Closure(): Commitment  $action
      * @param  string  $field  The field to blame when Core rejects a value.
+     * @param  string|null  $reason  The message (errores.*) for it; the field's own when null.
      *
      * @throws CommitmentRefused
      */
-    private function run(Closure $action, string $field): Commitment
+    private function run(Closure $action, string $field, ?string $reason = null): Commitment
     {
         try {
             return $action();
         } catch (DomainException) {
             throw CommitmentRefused::closed();
         } catch (InvalidArgumentException) {
-            throw CommitmentRefused::invalid($field);
+            throw CommitmentRefused::invalid($field, $reason);
         }
     }
 }

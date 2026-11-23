@@ -26,10 +26,11 @@ final class CommitmentRefused extends RuntimeException
     }
 
     /**
-     * Core rejected a value of the form.
+     * Core rejected a value of the form. The message is errores.{$reason},
+     * or errores.{$field} when no reason is given.
      */
-    public static function invalid(string $field): self
+    public static function invalid(string $field, ?string $reason = null): self
     {
-        return new self(__('asesores::compromisos.errores.'.$field), $field);
+        return new self(__('asesores::compromisos.errores.'.($reason ?? $field)), $field);
     }
 }
