@@ -4,7 +4,7 @@ Inbox of payment receipts (soportes de pago). Clients send receipts by mail or W
 
 The app never marks an invoice as paid and does not change the weekly collection: an invoice only shows as paid once SAP has the payment and the robot brings the next snapshot. The module talks to the rest of the app only through Core's contracts (`docs/arquitectura.md` §6). The feature plan is `odd/tasks/soportes-pago.md`.
 
-The module ships the data, the rules, the permissions, the upload, the inbox with its menu entry ("Soportes de pago"), the detail and the file downloads. The review actions come next.
+The module ships the data, the rules, the permissions, the upload, the inbox with its menu entry ("Soportes de pago"), the detail, the file downloads and the review (apply or reject).
 
 ## States
 
@@ -88,6 +88,15 @@ Both routes sit behind `can:view,soporte` (`ReceiptPolicy::view`), so a user who
 |---|---|---|
 | `GET /soportes/{soporte}` | `soportes.show` | The payment data (client, company, amount, payment date, method, note, who uploaded it and when), the review (status, who reviewed it and when, the cash receipt number or the rejection reason), the invoices it covers (the copies taken at upload) and its files. The inbox rows link here. |
 | `GET /soportes/{soporte}/archivos/{archivo}` | `soportes.files.download` | The file, streamed from `config('soportes.disk')` as an attachment named as it was uploaded (path separators replaced), with its stored sniffed type and `X-Content-Type-Options: nosniff`. A file of another receipt answers 404; a file missing on the disk answers 404 and logs a warning. 60 downloads a minute. Never a public URL. |
+
+## Review
+
+`PATCH /soportes/{soporte}/aplicar` (`soportes.apply`) and `PATCH /soportes/{soporte}/rechazar` (`soportes.reject`), `ReviewController`, forms in the detail's "Revisión de cartera" card, shown only while `ReceiptPolicy::review` allows it. 30 decisions a minute.
+
+- Who: the route checks `ReceiptPolicy::view`; `ApplyReceiptRequest` and `RejectReceiptRequest` answer 403 to anyone without `soportes.review` (the advisor, treasury, the superadmin) before validating; the controller then checks `ReceiptPolicy::review` (company available, still pending). A receipt already applied or rejected goes back to the detail with «Este soporte ya fue revisado, así que no se cambió nada.» instead of 403, so a late reviewer knows what happened.
+- Fields: apply takes the optional cash receipt number (`recibo`, up to 60 characters); reject requires the reason (`motivo`, up to 500 characters), which the advisor sees in the Rechazados tab and on the detail. Errors go back to the detail.
+- `Application\Review\ReviewReceipt` moves the status with `ReceiptStatus::moveTo()`, then updates the row only `WHERE id = ? AND status = 'pendiente'`, setting `reviewed_by` and `reviewed_at`, in one transaction with the audit entry `soportes.receipt.applied` or `soportes.receipt.rejected` (subject `soporte`; changes: `status` and `receipt_number` or `rejection_reason`, old and new; context: company and client id). When two reviewers decide at once, the second update matches no row and throws `InvalidReceiptTransition`; the controller turns it into the same message, and only the first decision and its audit entry stay.
+- Nothing else changes: no invoice is marked paid, no e-mail is sent, the weekly collection is untouched. The menu badge drops as receipts leave pending.
 
 ## Storage
 

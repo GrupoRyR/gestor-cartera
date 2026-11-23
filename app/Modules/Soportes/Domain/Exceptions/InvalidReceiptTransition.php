@@ -16,4 +16,12 @@ final class InvalidReceiptTransition extends DomainException
     {
         return new self("A receipt cannot move {$from->value} -> {$to->value}.");
     }
+
+    /**
+     * Another reviewer decided on the receipt after it was read as pending.
+     */
+    public static function alreadyReviewed(int $receiptId, ReceiptStatus $to): self
+    {
+        return new self("Receipt {$receiptId} is no longer pending; it cannot move to {$to->value}.");
+    }
 }
