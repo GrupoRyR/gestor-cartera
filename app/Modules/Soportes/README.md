@@ -45,6 +45,16 @@ Migrations `2026_10_09_*`:
 
 Deleting a receipt deletes its invoice and file rows.
 
+## Upload
+
+`Application\Upload\UploadReceipt::handle(NewReceipt, User)` creates a `pendiente` receipt. It runs as the authenticated user, because the portfolio scope comes from them:
+
+- the client must be found by `CarteraRepository::client()` (an advisor finds only their own clients; the portfolio team, any client of the companies in scope); otherwise `ReceiptRefused` on `cliente`;
+- every document number must be one of the client's overdue invoices (`OverdueInvoices`: `openInvoices()` with `daysOverdue > 0` and `balance > 0`, so credit notes are left out); otherwise `ReceiptRefused` on `facturas`. Invoices are matched by document number, never by `Invoice::$id`, which changes with every snapshot; a document with split payment terms copies every overdue installment;
+- every file's sniffed content type must be PDF, JPEG or PNG; otherwise `ReceiptRefused` on `archivos`.
+
+The files are written first, then the receipt, its invoices and files are saved in one transaction with the audit entry `soportes.receipt.uploaded` (subject `soporte`; company, client id, amount, payment date, method and status; context: how many invoices and files). If anything fails, the files already written are deleted. No e-mail is sent.
+
 ## Storage
 
 Files live on the private `local` disk (`storage/app/private`), never under `public/`, at `soportes/{company}/{yyyy}/{mm}/{uuid}.{ext}` under a generated name; the uploaded name is only shown. They are served only by the authorized download action. Settings in `config/soportes.php`, read with `config('soportes.<key>')`:
