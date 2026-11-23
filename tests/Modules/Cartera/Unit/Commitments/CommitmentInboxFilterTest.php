@@ -24,6 +24,7 @@ it('maps each tab to the statuses it covers', function (string $tab, array $stat
     'pending' => ['pendientes', [CommitmentStatus::Pending]],
     'broken' => ['incumplidos', [CommitmentStatus::Broken]],
     'fulfilled' => ['cumplidos', [CommitmentStatus::Fulfilled]],
+    'partially paid' => ['abonados', [CommitmentStatus::PartiallyPaid]],
     'cancelled' => ['anulados', [CommitmentStatus::Cancelled]],
     'all' => ['todos', []],
 ]);

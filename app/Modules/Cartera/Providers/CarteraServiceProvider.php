@@ -2,6 +2,8 @@
 
 namespace App\Modules\Cartera\Providers;
 
+use App\Modules\Cartera\Application\Commitments\RemainingBalanceLink;
+use App\Modules\Core\Contracts\AvisoService;
 use App\Support\Modules\ModuleServiceProvider;
 use App\Support\Navigation\NavItem;
 use App\Support\Navigation\NavRegistry;
@@ -30,6 +32,11 @@ final class CarteraServiceProvider extends ModuleServiceProvider
 
             return Limit::perMinute(10)->by($user === null ? 'ip:'.$request->ip() : 'user:'.$user->getAuthIdentifier());
         });
+
+        // The notice Core sends when a commitment is partially paid opens the
+        // client file. The kind is Core's, written out here (docs/arquitectura.md
+        // §6.5) because modules do not import Core's internal classes.
+        $this->app->make(AvisoService::class)->linkUsing('commitment.remaining', (new RemainingBalanceLink)(...));
     }
 
     /**

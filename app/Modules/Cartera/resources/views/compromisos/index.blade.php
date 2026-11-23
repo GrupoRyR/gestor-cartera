@@ -1,4 +1,5 @@
 @use('App\Modules\Cartera\Application\Commitments\CommitmentTab')
+@use('App\Support\Formatting\Money')
 
 {{--
     GET /cartera/compromisos (cartera.compromisos.index): the commitments
@@ -9,8 +10,9 @@
 
     The analyst and the manager change the status of any commitment, in
     both companies (cartera.commitments.status): open rows get "Marcar
-    cumplido", pending ones also "Marcar incumplido". Editing and
-    cancelling happen in the client file, for SDC only.
+    cumplido" and "Registrar abono", pending ones also "Marcar
+    incumplido". A partially paid one shows what was paid and what is
+    left. Editing and cancelling happen in the client file, for SDC only.
 --}}
 @php
     $canChangeStatus = auth()->user()?->can('cartera.commitments.status') ?? false;
@@ -94,7 +96,12 @@
                     @endif
                     <td>{{ $advisorNames[$commitment->company->value.':'.$commitment->advisorCode] ?? __('cartera::compromisos.bandeja.sin_asesor') }}</td>
                     <td><x-ui.date :value="$commitment->dueDate" /></td>
-                    <td data-align="end"><x-ui.money :value="$commitment->amount" /></td>
+                    <td data-align="end">
+                        <x-ui.money :value="$commitment->amount" />
+                        @if ($commitment->remaining() !== null)
+                            <div class="text-sm text-fg-muted">{{ __('cartera::compromisos.pagado', ['pagado' => Money::format($commitment->paidAmount), 'saldo' => Money::format($commitment->remaining())]) }}</div>
+                        @endif
+                    </td>
                     <td><x-cartera::commitment-status :status="$commitment->status" /></td>
                     <td>{{ $commitment->createdBy->name }}</td>
                     <td><x-ui.date :value="$commitment->createdAt" /></td>

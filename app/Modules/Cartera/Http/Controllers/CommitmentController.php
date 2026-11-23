@@ -3,6 +3,7 @@
 namespace App\Modules\Cartera\Http\Controllers;
 
 use App\Modules\Cartera\Http\Requests\CancelCommitmentRequest;
+use App\Modules\Cartera\Http\Requests\PartialPaymentRequest;
 use App\Modules\Cartera\Http\Requests\StoreCommitmentRequest;
 use App\Modules\Cartera\Http\Requests\UpdateCommitmentRequest;
 use App\Modules\Core\Contracts\CompromisoService;
@@ -12,11 +13,13 @@ use App\Modules\Core\Contracts\Exceptions\RecordNotFound;
 use Carbon\CarbonImmutable;
 use DomainException;
 use Illuminate\Http\RedirectResponse;
+use Illuminate\Validation\ValidationException;
+use InvalidArgumentException;
 
 /**
  * Writes to payment commitments (cartera.compromisos.*): the analyst creates,
  * edits and cancels those of SDC clients; the analyst and the manager mark
- * any commitment fulfilled or broken, in both companies.
+ * any commitment fulfilled, partially paid or broken, in both companies.
  *
  * CompromisoService decides who may write, keeps the client's log and the
  * audit trail, and moves the client's status. A commitment or client out of
@@ -70,6 +73,27 @@ final class CommitmentController
     public function fulfil(int $commitment): RedirectResponse
     {
         return $this->change(fn () => $this->commitments->markFulfilled($commitment), 'cumplido');
+    }
+
+    /**
+     * POST /cartera/compromisos/{commitment}/abonar: the client paid only
+     * part of it. A paid amount Core refuses (not below the commitment
+     * value) goes back to the form as an error on its value.
+     */
+    public function partiallyPay(PartialPaymentRequest $request, int $commitment): RedirectResponse
+    {
+        $form = $request->form();
+        $data = $request->validated()[$form];
+
+        return $this->change(function () use ($commitment, $data, $form): void {
+            try {
+                $this->commitments->markPartiallyPaid($commitment, (float) $data['valor'], $this->text($data['nota'] ?? null));
+            } catch (InvalidArgumentException) {
+                throw ValidationException::withMessages([
+                    "{$form}.valor" => __('cartera::compromisos.abonar.invalido'),
+                ]);
+            }
+        }, 'abonado');
     }
 
     /**
