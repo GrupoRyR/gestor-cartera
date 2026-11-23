@@ -595,6 +595,8 @@ El primer tipo de aviso es `commitment.remaining`, que Core envía al abonar un 
 
 La bandeja (listar, contar los no leídos, marcar como leído y resolver el enlace de un aviso) es interna de Core y no está en el contrato: `EloquentAvisoService::forUser()`, `latest()`, `unreadCount()` (no leídos y abiertos), `markRead()` (`null` si el aviso no es del usuario), `markAllRead()` y `link()`.
 
+**La campana y la página.** El layout pinta `<x-core::notice-bell />` antes del menú de la cuenta, solo para un usuario guardado (no para invitados ni para el usuario de la galería). El número de la campana cuenta los avisos **no leídos y abiertos** (`unreadCount()`): uno resuelto nunca suma ni se ve como no leído; arriba de 9 muestra «9+». El panel lista los 10 más nuevos (`latest()`), con el botón «Marcar todo como leído» si hay alguno sin leer y el enlace «Ver todos» a `GET /avisos` (`core.avisos.index`): 20 por página, pestañas «Todos» y «No leídos» (`?filtro=no-leidos`) y la empresa del aviso. Cada aviso enlaza a `GET /avisos/{notice}` (`core.avisos.open`), que lo marca como leído y redirige a `link()` o, sin resolvedor que responda, a `/avisos`; el aviso de otro usuario da 404 sin tocarlo. `POST /avisos/leer-todos` (`core.avisos.read-all`) marca leídos todos los del usuario.
+
 ---
 
 ## 7. Fakes para pruebas

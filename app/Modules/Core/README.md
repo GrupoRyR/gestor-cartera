@@ -153,6 +153,14 @@ El comando `core:compromisos-incumplidos` (`Console\BreakOverdueCommitmentsComma
 | `markAllRead($userId)` | Marca leídos todos los no leídos del usuario y devuelve cuántos. |
 | `link($notice)` | La URL del primer resolvedor de su tipo que responde, o `null`. |
 
+**Campana y página** (`Http\Controllers\NoticeController`, solo con sesión iniciada; el invitado va a `/login`). El layout pinta `<x-core::notice-bell />` (`resources/views/components`): el número cuenta los no leídos y abiertos («9+» arriba de 9) y el panel muestra los 10 más nuevos con `<x-core::notice-item>`, el mismo renglón de la página.
+
+| Ruta | Nombre | Hace |
+|---|---|---|
+| `GET /avisos` | `core.avisos.index` | Los avisos del usuario, 20 por página, con las pestañas «Todos» y «No leídos» (`?filtro=no-leidos`). |
+| `GET /avisos/{notice}` | `core.avisos.open` | Lo marca leído y redirige a `link()`, o a `/avisos` si ningún resolvedor responde. 404 si es de otro usuario, sin marcarlo. |
+| `POST /avisos/leer-todos` | `core.avisos.read-all` | Marca leídos todos los del usuario y vuelve con «Marcaste todos los avisos como leídos.». |
+
 ## Empresas y parámetros
 
 La tabla `companies` (llave `code`: `SGX` o `SDC`) guarda el nombre y los parámetros de cada empresa: `grace_days` y `due_soon_days`. La migración `2026_10_01_000001` crea las dos filas con el nombre de `CompanyCode::label()` y los valores de `config('core.companies')`; desde ahí, los vigentes son los de la tabla.

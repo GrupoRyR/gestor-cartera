@@ -165,6 +165,7 @@
                 @endif
 
                 @if ($user !== null)
+                    <x-core::notice-bell />
                     <details
                         data-part="account"
                         class="shrink-0 sm:relative"

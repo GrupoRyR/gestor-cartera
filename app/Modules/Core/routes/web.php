@@ -12,6 +12,7 @@ use App\Modules\Core\Http\Controllers\Auth\MicrosoftRedirectController;
 use App\Modules\Core\Http\Controllers\Companies\CompanyParametersController;
 use App\Modules\Core\Http\Controllers\HomeController;
 use App\Modules\Core\Http\Controllers\NoAccessController;
+use App\Modules\Core\Http\Controllers\NoticeController;
 use App\Modules\Core\Http\Controllers\Portfolio\ActivityController;
 use App\Modules\Core\Http\Controllers\Portfolio\ClientController;
 use App\Modules\Core\Http\Controllers\SwitchCompanyController;
@@ -32,6 +33,18 @@ Route::middleware('auth')->group(function () {
     Route::post('empresa', SwitchCompanyController::class)->name('empresa.cambiar');
     Route::post('logout', LogoutController::class)->name('logout');
 });
+
+// Avisos: the notices of the signed-in user (the bell of the layout).
+// {notice} is an id; the controller 404s one that is not the user's.
+Route::middleware('auth')
+    ->prefix('avisos')
+    ->name('avisos.')
+    ->controller(NoticeController::class)
+    ->group(function () {
+        Route::get('/', 'index')->name('index');
+        Route::post('leer-todos', 'readAll')->name('read-all');
+        Route::get('{notice}', 'open')->whereNumber('notice')->name('open');
+    });
 
 // Equipo: admins only. {user} finds only users who are not deleted, except
 // on restore.

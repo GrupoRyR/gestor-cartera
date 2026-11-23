@@ -11,6 +11,8 @@ it('draws every icon the components and layouts ask for', function (string $name
     // alerts, select, pagination, external links and the layouts
     'info', 'success', 'warning', 'danger', 'chevron-down', 'chevron-left', 'chevron-right',
     'external', 'menu', 'wallet', 'logout',
+    // the notice bell of the layout header
+    'bell',
 ]);
 
 it('draws an inline SVG that assistive technology skips', function () {
