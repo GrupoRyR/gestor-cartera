@@ -166,6 +166,44 @@ it('keeps a partially paid commitment final', function () {
         ->and($service->find($commitment->id)?->paidAmount)->toBe(40.0);
 });
 
+it('records partial payments of pending and broken commitments', function (CommitmentStatus $status) {
+    $commitment = Make::commitment(clientId: 10, amount: 1_000_000, status: $status);
+    $this->service->add($commitment);
+
+    $paid = $this->service->markPartiallyPaid($commitment->id, 400_000.5, 'Abonó la mitad');
+
+    expect($paid->status)->toBe(CommitmentStatus::PartiallyPaid)
+        ->and($paid->paidAmount)->toBe(400_000.5)
+        ->and($paid->partiallyPaidAt?->toDateTimeString())->toBe('2026-10-15 09:30:00')
+        ->and($paid->remaining())->toBe(599_999.5)
+        ->and($this->service->find($commitment->id))->toEqual($paid)
+        ->and(fn () => $this->service->markPartiallyPaid($commitment->id, 100))->toThrow(DomainException::class);
+})->with([CommitmentStatus::Pending, CommitmentStatus::Broken]);
+
+it('refuses partial payments of final commitments', function (CommitmentStatus $status) {
+    $commitment = Make::commitment(clientId: 10, amount: 1_000_000, status: $status);
+    $this->service->add($commitment);
+
+    expect(fn () => $this->service->markPartiallyPaid($commitment->id, 100))->toThrow(DomainException::class)
+        ->and($this->service->find($commitment->id))->toEqual($commitment);
+})->with([CommitmentStatus::Fulfilled, CommitmentStatus::Cancelled, CommitmentStatus::PartiallyPaid]);
+
+it('takes only a paid amount above zero and below the commitment amount', function (float $paid) {
+    $commitment = Make::commitment(clientId: 10, amount: 1_000_000);
+    $this->service->add($commitment);
+
+    expect(fn () => $this->service->markPartiallyPaid($commitment->id, $paid))->toThrow(InvalidArgumentException::class)
+        ->and($this->service->find($commitment->id)?->status)->toBe(CommitmentStatus::Pending);
+})->with([0, -5, 0.004, 1_000_000, 999_999.996, 2_000_000, NAN]);
+
+it('denies partial payments while authorization is denied', function () {
+    $commitment = Make::commitment(clientId: 10, amount: 1_000_000);
+    $this->service->add($commitment)->denyAuthorization();
+
+    expect(fn () => $this->service->markPartiallyPaid($commitment->id, 100))->toThrow(AuthorizationException::class)
+        ->and($this->service->find($commitment->id)?->status)->toBe(CommitmentStatus::Pending);
+});
+
 it('reports unknown commitments', function (string $write) {
     $service = $this->service;
 
@@ -173,9 +211,10 @@ it('reports unknown commitments', function (string $write) {
         ->and(fn () => match ($write) {
             'update' => $service->update(404, new CommitmentChanges),
             'markFulfilled' => $service->markFulfilled(404),
+            'markPartiallyPaid' => $service->markPartiallyPaid(404, 100),
             'cancel' => $service->cancel(404, 'No existe'),
         })->toThrow(RecordNotFound::class, 'commitment');
-})->with(['update', 'markFulfilled', 'cancel']);
+})->with(['update', 'markFulfilled', 'markPartiallyPaid', 'cancel']);
 
 it('filters and sorts commitments', function () {
     $this->service->add(

@@ -5,7 +5,9 @@ namespace App\Modules\Core\Infrastructure\Commitments;
 use App\Modules\Core\Application\Commitments\CommitmentActivity;
 use App\Modules\Core\Application\Commitments\CommitmentClientStatus;
 use App\Modules\Core\Application\Commitments\CommitmentWriteRule;
+use App\Modules\Core\Application\Commitments\RemainingBalanceNotice;
 use App\Modules\Core\Contracts\AuditLogger;
+use App\Modules\Core\Contracts\AvisoService;
 use App\Modules\Core\Contracts\CompromisoService;
 use App\Modules\Core\Contracts\CurrentCompany;
 use App\Modules\Core\Contracts\Data\Commitment;
@@ -43,12 +45,14 @@ use InvalidArgumentException;
  *
  * Writes check, in this order: the reach (RecordNotFound), the write rule of
  * the client's company (CommitmentWriteRule, AuthorizationException; its
- * status rule for markFulfilled() and markBroken()), the input
- * (InvalidArgumentException) and the lifecycle (DomainException).
+ * status rule for markFulfilled(), markPartiallyPaid() and markBroken()),
+ * the input (InvalidArgumentException) and the lifecycle (DomainException).
  * Each one runs in a single transaction with the commitment and the client
  * locked: the change, an ActivityType::Commitment entry in the client's log
  * written by the user, an audit entry core.commitment.<verb> and the
- * client's status (CommitmentClientStatus).
+ * client's status (CommitmentClientStatus). In the same transaction,
+ * markPartiallyPaid() sends the RemainingBalanceNotice and create()
+ * resolves the open ones of the client.
  */
 final class EloquentCompromisoService implements CompromisoService
 {
@@ -67,6 +71,8 @@ final class EloquentCompromisoService implements CompromisoService
         private readonly GestionLogger $log,
         private readonly AuditLogger $audit,
         private readonly ConnectionInterface $database,
+        private readonly AvisoService $avisos,
+        private readonly RemainingBalanceNotice $remainingNotice,
     ) {}
 
     public function create(NewCommitment $commitment): Commitment
@@ -104,6 +110,9 @@ final class EloquentCompromisoService implements CompromisoService
             );
 
             $this->clientStatus->afterCreate($client, $record);
+
+            // Any new commitment answers the client's remaining balance notices.
+            $this->avisos->resolve(RemainingBalanceNotice::key($client->id));
 
             return $record;
         });
@@ -173,6 +182,48 @@ final class EloquentCompromisoService implements CompromisoService
             );
 
             $this->clientStatus->afterClose($client, $commitment);
+        });
+
+        return $this->load($commitmentId);
+    }
+
+    public function markPartiallyPaid(int $commitmentId, float $paidAmount, ?string $note = null): Commitment
+    {
+        $this->database->transaction(function () use ($commitmentId, $paidAmount, $note): void {
+            [$commitment, $client] = $this->lockForWrite($commitmentId, statusOnly: true);
+            $paid = self::paidAmount($paidAmount, $commitment->amount);
+            self::guardNotFinal($commitment);
+
+            $previous = $commitment->status;
+            $note = self::text($note);
+            $commitment->update([
+                'status' => CommitmentStatus::PartiallyPaid,
+                'paid_amount' => $paid,
+                'partially_paid_at' => now(),
+            ]);
+            $remaining = round((float) $commitment->amount - (float) $paid, 2);
+
+            $this->log->log(CommitmentActivity::partiallyPaid($commitment, $remaining, $note));
+
+            $this->audit->record(
+                'core.commitment.partially_paid',
+                'commitment',
+                $commitment->id,
+                [
+                    'status' => ['old' => $previous->value, 'new' => CommitmentStatus::PartiallyPaid->value],
+                    'paid_amount' => ['old' => null, 'new' => (float) $paid],
+                ],
+                $note === null ? ['client_id' => $client->id] : ['client_id' => $client->id, 'note' => $note],
+            );
+
+            $this->clientStatus->afterClose($client, $commitment);
+
+            // Written in this transaction: a rollback leaves no notice.
+            $notice = $this->remainingNotice->for($client, $commitment, $remaining);
+
+            if ($notice !== null) {
+                $this->avisos->send($notice);
+            }
         });
 
         return $this->load($commitmentId);
@@ -357,6 +408,25 @@ final class EloquentCompromisoService implements CompromisoService
 
         if ($cents <= 0 || $cents >= self::AMOUNT_LIMIT) {
             throw new InvalidArgumentException("A commitment amount must be greater than zero, {$amount} given.");
+        }
+
+        return number_format($cents, 2, '.', '');
+    }
+
+    /**
+     * The paid amount of a partial payment as the exact decimal string
+     * stored, in whole cents.
+     *
+     * @param  string  $amount  The commitment amount, as stored.
+     *
+     * @throws InvalidArgumentException When it is not above zero and below $amount (after rounding to cents).
+     */
+    private static function paidAmount(float $paid, string $amount): string
+    {
+        $cents = is_finite($paid) ? round($paid, 2) : 0.0;
+
+        if ($cents <= 0 || $cents >= (float) $amount) {
+            throw new InvalidArgumentException("A paid amount must be greater than zero and below the commitment amount ({$amount}), {$paid} given.");
         }
 
         return number_format($cents, 2, '.', '');

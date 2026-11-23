@@ -322,17 +322,25 @@ La copia que devuelve `closingSnapshot()` es como `asSystem()` (`asSystem()` la 
 
 ### 6.5 `CompromisoService`
 
-Compromisos de pago. Actúa como el usuario autenticado y sigue la regla de §6.2. **Escritura por empresa:** en SGX crea, edita y anula el asesor del cliente; en SDC, la analista de cartera. **Cambio de estado:** además de quien escribe, la analista y el gerente de cartera marcan cualquier compromiso «Cumplido» o «Incumplido» en las dos empresas, también los que creó un asesor; en SGX no cambian fecha, monto ni notas. Nadie más cambia el estado: ni el superadmin (separación de funciones), ni el gerente comercial, ni un asesor fuera de sus clientes. La gerente y la analista leen todos. Cada escritura queda también en la bitácora del cliente (`ActivityType::Commitment`) y en la auditoría, con quién la hizo. Montos en pesos y mayores que cero.
+Compromisos de pago. Actúa como el usuario autenticado y sigue la regla de §6.2. **Escritura por empresa:** en SGX crea, edita y anula el asesor del cliente; en SDC, la analista de cartera. **Cambio de estado:** además de quien escribe, la analista y el gerente de cartera marcan cualquier compromiso «Cumplido», «Abonado» o «Incumplido» en las dos empresas, también los que creó un asesor; en SGX no cambian fecha, monto ni notas. Nadie más cambia el estado: ni el superadmin (separación de funciones), ni el gerente comercial, ni un asesor fuera de sus clientes. La gerente y la analista leen todos. Cada escritura queda también en la bitácora del cliente (`ActivityType::Commitment`) y en la auditoría, con quién la hizo. Montos en pesos y mayores que cero.
 
-Ciclo de vida: `create()` deja el compromiso `Pending`; la tarea diaria de Core, o un usuario con `markBroken()`, pasa a `Broken` un `Pending`; `Fulfilled`, `Cancelled` y `PartiallyPaid` («Abonado») son finales. Un `Broken` todavía se puede cumplir.
+Ciclo de vida: `create()` deja el compromiso `Pending`; la tarea diaria de Core, o un usuario con `markBroken()`, pasa a `Broken` un `Pending`; `markPartiallyPaid()` pasa a `PartiallyPaid` («Abonado») un `Pending` o un `Broken`; `Fulfilled`, `Cancelled` y `PartiallyPaid` son finales. Un `Broken` todavía se puede cumplir o abonar.
 
 Abonado: el cliente pagó una parte y el resto queda como deuda vencida ordinaria. `Commitment::$paidAmount` guarda lo pagado (`paid_amount`, `decimal(18,2)`) y `$partiallyPaidAt` cuándo (`partially_paid_at`); los dos son `null` en los demás estados. El saldo pendiente no se guarda: `Commitment::remaining()` lo deriva (`amount − paidAmount`, redondeado a centavos) y es `null` salvo en un `PartiallyPaid` con monto pagado.
 
+Aviso de saldo: `markPartiallyPaid()` envía, en su misma transacción, un aviso `commitment.remaining` (§6.18) que pide crear un compromiso nuevo por el saldo: título «Agro Arango: abonó $ 1.000.000, queda $ 1.500.000», cuerpo «Crea un nuevo compromiso por el saldo.», empresa del cliente, sujeto `client` con el id del cliente, `key` `commitment.remaining:{clientId}` y `data` `commitment_id`, `paid_amount` y `remaining`. Los destinatarios salen de los datos de hoy del cliente, no del asesor que guardó el compromiso; nunca usuarios inactivos o eliminados, y quien abonó no se excluye:
+
+- **SGX** (escribe el asesor): el usuario vinculado al asesor actual del cliente, si la regla de escritura lo deja escribir; si no, el gestor del cliente (`manager_user_id`); si no, todos los `gerente_cartera` asignados a SGX.
+- **SDC** (escribe la analista): el gestor del cliente; si no, todas las `analista_cartera` asignadas a SDC.
+
+Sin destinatarios no se envía. `create()` resuelve, en su transacción, los avisos abiertos con la `key` del cliente: cualquier compromiso nuevo los da por hechos, para todos los destinatarios.
+
 | Método | Qué hace | Lanza |
 |---|---|---|
-| `create(NewCommitment $commitment): Commitment` | Registra un compromiso `Pending`. | `RecordNotFound`, `AuthorizationException`, `InvalidArgumentException` (monto) |
+| `create(NewCommitment $commitment): Commitment` | Registra un compromiso `Pending` y resuelve los avisos de saldo abiertos del cliente. | `RecordNotFound`, `AuthorizationException`, `InvalidArgumentException` (monto) |
 | `update(int $commitmentId, CommitmentChanges $changes): Commitment` | Cambia fecha, monto o notas de un `Pending`. | `RecordNotFound`, `AuthorizationException`, `InvalidArgumentException`, `DomainException` (no está `Pending`) |
 | `markFulfilled(int $commitmentId, ?string $note = null): Commitment` | Marca `Fulfilled` un `Pending` o `Broken` (un pago tardío también cumple) y fija `fulfilledAt`. Regla de cambio de estado. | `RecordNotFound`, `AuthorizationException`, `DomainException` (ya final) |
+| `markPartiallyPaid(int $commitmentId, float $paidAmount, ?string $note = null): Commitment` | Marca `PartiallyPaid` un `Pending` o `Broken`: guarda `paidAmount` (en centavos, mayor que cero y menor que el monto; si pagó todo, `markFulfilled()`) y `partiallyPaidAt`, y envía el aviso de saldo. Regla de cambio de estado. | `RecordNotFound`, `AuthorizationException`, `InvalidArgumentException` (monto pagado), `DomainException` (ya final) |
 | `markBroken(int $commitmentId, ?string $note = null): Commitment` | Marca `Broken` un `Pending` antes que la tarea diaria (p. ej. el cliente avisa que no pagará), con nota opcional; el cliente se mueve igual que con la tarea diaria. Regla de cambio de estado. | `RecordNotFound`, `AuthorizationException`, `DomainException` (no está `Pending`) |
 | `cancel(int $commitmentId, string $reason): Commitment` | Anula un `Pending` o `Broken` con motivo obligatorio. | `RecordNotFound`, `AuthorizationException`, `InvalidArgumentException` (motivo vacío), `DomainException` |
 | `find(int $commitmentId): ?Commitment` | El compromiso; `null` si no existe o está fuera del alcance. | — |
@@ -583,6 +591,8 @@ protected function bootModule(): void
 }
 ```
 
+El primer tipo de aviso es `commitment.remaining`, que Core envía al abonar un compromiso (§6.5) con sujeto `client`. Core no registra su enlace: lo registrarán, como en el ejemplo, los módulos que muestran la ficha del cliente (Cartera y Asesores); mientras tanto el aviso no tiene enlace.
+
 La bandeja (listar, contar los no leídos, marcar como leído y resolver el enlace de un aviso) es interna de Core y no está en el contrato: `EloquentAvisoService::forUser()`, `latest()`, `unreadCount()` (no leídos y abiertos), `markRead()` (`null` si el aviso no es del usuario), `markAllRead()` y `link()`.
 
 ---
@@ -642,7 +652,7 @@ Enlaza los once fakes como instancias del contenedor y devuelve un `ContractFake
 Diferencias con las implementaciones reales que conviene saber:
 
 - `FakeCarteraRepository` filtra `managerUserId` y `unassigned` con `ClientSummary::$manager`. Calcula `totals()` con las **facturas** agregadas, no con `balance` ni `overdue` del `ClientSummary`; `history()` ignora la consulta. Sin usuario autenticado no vacía resultados: se comporta como una analista que ve todo. `addClient()` lanza `InvalidArgumentException` si una factura es de otro cliente o empresa: créala con `clientId:` y `company:`. `closingSnapshot()` no aplica la regla de Core: devuelve el repositorio que registraste con `addClosingSnapshot()` para esa empresa y mes (otro fake con las facturas del cierre), o `null`.
-- `FakeCompromisoService` no escribe en `gestiones` ni en `audit`: afirma esas escrituras en tu propio código, no como efecto del servicio. Su usuario por defecto es `UserRef(1, 'Usuario de prueba', 'prueba@example.com')`. No conoce la regla por empresa ni la de cambio de estado: todo usuario escribe salvo con `denyAuthorization()`. `markBroken()` solo acepta un `Pending` (`DomainException` si no) y no mueve el estado del cliente.
+- `FakeCompromisoService` no escribe en `gestiones` ni en `audit`: afirma esas escrituras en tu propio código, no como efecto del servicio. Su usuario por defecto es `UserRef(1, 'Usuario de prueba', 'prueba@example.com')`. No conoce la regla por empresa ni la de cambio de estado: todo usuario escribe salvo con `denyAuthorization()`. `markBroken()` solo acepta un `Pending` (`DomainException` si no) y no mueve el estado del cliente. `markPartiallyPaid()` sigue las reglas del contrato (`Pending` o `Broken`; monto pagado mayor que cero y menor que el monto, en centavos) pero no envía ni resuelve avisos.
 - `FakeIngestaSink` despacha `BatchAccepted` con `event()`: los listeners registrados corren de verdad. Para solo afirmar el despacho, usa `Event::fake([BatchAccepted::class])`.
 - `FakeMailboxReader::forClient()` no emula el alcance por cliente.
 - `FakeMailSender` numera los envíos: el N-ésimo devuelve `<fake-N@gestor-cartera.test>` y `fake-conversation-N`.

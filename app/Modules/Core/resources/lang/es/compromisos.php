@@ -9,9 +9,17 @@ return [
         'creado' => 'Compromiso de pago por :valor para el :fecha',
         'actualizado' => 'Compromiso actualizado: :valor para el :fecha',
         'cumplido' => 'Compromiso cumplido: :valor para el :fecha',
+        'abonado' => 'Compromiso abonado: :pagado de :valor; queda :saldo',
         'anulado' => 'Compromiso anulado: :motivo',
         'incumplido' => 'Compromiso incumplido: vencía el :fecha',
         'estado' => 'Por el compromiso de pago: de «:anterior» a «:nuevo»',
+    ],
+
+    // Notice after a partial payment (RemainingBalanceNotice); stored as written.
+    // :cliente is the client's name; :pagado and :saldo, amounts like "$ 1.000.000".
+    'aviso_saldo' => [
+        'titulo' => ':cliente: abonó :pagado, queda :saldo',
+        'cuerpo' => 'Crea un nuevo compromiso por el saldo.',
     ],
 
     // Output of core:compromisos-incumplidos, the daily task.

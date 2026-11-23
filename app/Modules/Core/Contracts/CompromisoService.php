@@ -22,12 +22,14 @@ use InvalidArgumentException;
  * they did not exist. Writing is authorized per company: in SGX the advisor
  * of the client creates and edits commitments; in SDC the portfolio analyst
  * does. The portfolio manager and analyst read every commitment and, in
- * both companies, change its status (markFulfilled(), markBroken()).
+ * both companies, change its status (markFulfilled(), markPartiallyPaid(),
+ * markBroken()).
  *
  * Lifecycle: create() makes a Pending commitment; Core's daily task, or a
  * user through markBroken(), turns a Pending commitment into Broken.
- * Fulfilled, Cancelled and PartiallyPaid (abonado: part of the amount
- * paid, paidAmount stored and the remaining balance derived) are final.
+ * Fulfilled, Cancelled and PartiallyPaid (abonado, markPartiallyPaid(): part
+ * of the amount paid, paidAmount stored and the remaining balance derived)
+ * are final.
  * Every write is also recorded in the client's activity log
  * (ActivityType::Commitment) and in the audit log.
  * Amounts are Colombian pesos and must be greater than zero.
@@ -64,6 +66,26 @@ interface CompromisoService
      * @throws DomainException When the commitment is already Fulfilled, Cancelled or PartiallyPaid.
      */
     public function markFulfilled(int $commitmentId, ?string $note = null): Commitment;
+
+    /**
+     * Marks a Pending or Broken commitment as PartiallyPaid: the client paid
+     * $paidAmount and the rest stays owed. Sets Commitment::$paidAmount and
+     * Commitment::$partiallyPaidAt (now). When the client paid everything,
+     * use markFulfilled() instead.
+     *
+     * Core also sends a notice (kind commitment.remaining) asking whoever
+     * writes the client's commitments to create a new one for the balance;
+     * creating any commitment for the client resolves it.
+     *
+     * @param  float  $paidAmount  Pesos, rounded to cents; above zero and below the commitment amount.
+     * @param  string|null  $note  Optional remark for the activity and audit logs.
+     *
+     * @throws RecordNotFound When the commitment does not exist or is out of scope.
+     * @throws AuthorizationException When the user may not change the status of commitments in its company.
+     * @throws InvalidArgumentException When the paid amount is not above zero and below the commitment amount.
+     * @throws DomainException When the commitment is already Fulfilled, Cancelled or PartiallyPaid.
+     */
+    public function markPartiallyPaid(int $commitmentId, float $paidAmount, ?string $note = null): Commitment;
 
     /**
      * Marks a Pending commitment as Broken before the daily task does, e.g.
