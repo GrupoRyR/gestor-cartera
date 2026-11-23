@@ -28,16 +28,19 @@ final class GraphRequestFailed extends RuntimeException
     }
 
     /**
-     * Neither the credential of $company nor the default one is complete.
-     * The message names the variables to set, never their values.
+     * $company has no usable credential (GraphCredentials::for()). The
+     * message names the variables to set, never their values: the default
+     * ones only when $usesDefault (GraphCredentials::usesDefault()).
      */
-    public static function notConfigured(CompanyCode $company): self
+    public static function notConfigured(CompanyCode $company, bool $usesDefault = true): self
     {
         $code = $company->value;
+        $own = "GRAPH_{$code}_TENANT_ID, GRAPH_{$code}_CLIENT_ID and GRAPH_{$code}_CLIENT_SECRET";
 
         return new self(
-            "Microsoft Graph is not configured for {$code}: set GRAPH_TENANT_ID, GRAPH_CLIENT_ID and GRAPH_CLIENT_SECRET, "
-            ."or GRAPH_{$code}_TENANT_ID, GRAPH_{$code}_CLIENT_ID and GRAPH_{$code}_CLIENT_SECRET.",
+            $usesDefault
+                ? "Microsoft Graph is not configured for {$code}: set GRAPH_TENANT_ID, GRAPH_CLIENT_ID and GRAPH_CLIENT_SECRET, or {$own}."
+                : "Microsoft Graph is not configured for {$code}: set {$own}.",
             graphCode: self::NOT_CONFIGURED,
         );
     }

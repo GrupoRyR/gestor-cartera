@@ -157,6 +157,17 @@ it('throws MailNotSent naming the company whose credential is missing', function
         ->and($graph->bearers('users/derivados.info@derivadoscol.com/*'))->toBe([]);
 });
 
+it('holds back SDC mail without its own credential instead of sending it with the default one', function () {
+    $graph = cobroGraphAccepting();
+    config(['cobro.graph.default_companies' => ['SGX']]);
+
+    expect(fn () => app(GraphMailSender::class)->send(cobroOutgoing(['company' => CompanyCode::SDC])))
+        ->toThrow(MailNotSent::class, 'Microsoft Graph is not configured for SDC');
+
+    expect($graph->tokenRequests())->toBe(0)
+        ->and($graph->requests())->toBe([]);
+});
+
 it('adds copies, reply-to and base64 attachments to the draft', function () {
     $graph = cobroGraphAccepting();
 

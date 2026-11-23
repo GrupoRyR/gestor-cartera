@@ -57,7 +57,8 @@ final class GraphClient
     public function __construct(private readonly ?CompanyCode $company = null) {}
 
     /**
-     * Whether $company has a complete credential (its own or the default).
+     * Whether $company has a usable credential (its own, or the default when
+     * it is in cobro.graph.default_companies).
      */
     public static function configured(CompanyCode $company): bool
     {
@@ -147,7 +148,8 @@ final class GraphClient
         $company = $this->company ?? throw new LogicException('GraphClient is not bound to a company: call for($company) first.');
         $url = $this->url($method, $pathOrUrl);
         $operation = $this->operation($url);
-        $credentials = GraphCredentials::for($company) ?? throw GraphRequestFailed::notConfigured($company);
+        $credentials = GraphCredentials::for($company)
+            ?? throw GraphRequestFailed::notConfigured($company, GraphCredentials::usesDefault($company));
 
         $request = Http::withToken($this->token($credentials))
             ->acceptJson()

@@ -82,7 +82,9 @@ final class GraphFake
 
     /**
      * Sets the Graph credentials and fakes HTTP; the token endpoint answers
-     * with the recorded token unless $tokenFixture names another file.
+     * with the recorded token unless $tokenFixture names another file. Both
+     * companies may use the default credential here (a single tenant), so a
+     * test about one company's own tenant sets default_companies itself.
      */
     public static function install(string $tokenFixture = 'token.json', int $tokenStatus = 200): self
     {
@@ -93,6 +95,7 @@ final class GraphFake
             'cobro.graph.client_id' => self::CLIENT_ID,
             'cobro.graph.client_secret' => self::CLIENT_SECRET,
             'cobro.graph.companies' => ['SGX' => $blank, 'SDC' => $blank],
+            'cobro.graph.default_companies' => ['SGX', 'SDC'],
             'cobro.mailboxes.SGX' => 'segurex.info@segurex.com',
             'cobro.mailboxes.SDC' => 'derivados.info@derivadoscol.com',
         ]);

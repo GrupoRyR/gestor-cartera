@@ -179,6 +179,36 @@ it('refuses a company without a credential before any request, naming it and nev
         ->and($graph->requests())->toBe([]);
 });
 
+it('ships the default credential for SGX only', function () {
+    expect(config('cobro.graph.default_companies'))->toBe(['SGX']);
+});
+
+it('never lends the default credential to a company outside its tenant', function () {
+    $graph = cobroBothInboxes();
+    config(['cobro.graph.default_companies' => ['SGX']]);
+
+    expect(GraphClient::configured(CompanyCode::SGX))->toBeTrue()
+        ->and(GraphClient::configured(CompanyCode::SDC))->toBeFalse();
+
+    try {
+        cobroGraph(CompanyCode::SDC)->get(COBRO_SDC_INBOX);
+        $this->fail('GraphRequestFailed was not thrown.');
+    } catch (GraphRequestFailed $e) {
+        expect($e->graphCode)->toBe(GraphRequestFailed::NOT_CONFIGURED)
+            ->and($e->getMessage())->toContain('Microsoft Graph is not configured for SDC: set GRAPH_SDC_TENANT_ID, GRAPH_SDC_CLIENT_ID and GRAPH_SDC_CLIENT_SECRET.')
+            ->not->toContain('GRAPH_TENANT_ID');
+    }
+
+    expect($graph->tokenRequests())->toBe(0)
+        ->and($graph->requests())->toBe([]);
+
+    $graph->withCompanyCredential(CompanyCode::SDC, GraphFake::SDC_TENANT_ID, GraphFake::SDC_CLIENT_ID, GraphFake::SDC_CLIENT_SECRET, GraphFake::SDC_TOKEN);
+
+    cobroGraph(CompanyCode::SDC)->get(COBRO_SDC_INBOX);
+
+    expect($graph->bearers(COBRO_SDC_INBOX))->toBe([GraphFake::SDC_TOKEN]);
+});
+
 it('refuses every request of a client not bound to a company', function (Closure $call) {
     $graph = cobroBothInboxes();
 

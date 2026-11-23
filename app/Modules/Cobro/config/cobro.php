@@ -20,9 +20,15 @@ return [
         'client_secret' => env('GRAPH_CLIENT_SECRET'),
         // Seconds to wait for Graph on each request.
         'timeout' => 30,
+        // Companies whose mailbox lives in the tenant of the default
+        // credential above. Any other company (Derivados, in its own tenant)
+        // never uses it: without its own credential it does not send and its
+        // inbox is not read, instead of failing against Graph every time.
+        'default_companies' => ['SGX'],
         // A company whose mailbox lives in another tenant (Derivados) uses
         // its own app registration. It applies only when its three values
-        // are set; otherwise the company uses the default credential above.
+        // are set; otherwise a company in default_companies uses the default
+        // credential above.
         'companies' => [
             'SGX' => [
                 'tenant_id' => env('GRAPH_SGX_TENANT_ID'),
