@@ -39,8 +39,8 @@ final class RobotRequests
     }
 
     /**
-     * Server variables of a signed request; $signFor signs another lote
-     * than the one requested.
+     * Server variables of a signed batch request; $signFor signs another
+     * lote than the one requested.
      *
      * @return array<string, string>
      */
@@ -53,6 +53,23 @@ final class RobotRequests
         ?int $timestamp = null,
         ?string $signFor = null,
     ): array {
+        return self::signedHeaders(RequestSigner::batchPath($signFor ?? $lote), $rawBody, $gzip, $keyId, $secret, $timestamp);
+    }
+
+    /**
+     * Server variables of a request signed for any route path, like
+     * "/api/ingesta/reportes".
+     *
+     * @return array<string, string>
+     */
+    public static function signedHeaders(
+        string $path,
+        string $rawBody,
+        bool $gzip = false,
+        string $keyId = self::KEY_ID,
+        string $secret = self::SECRET,
+        ?int $timestamp = null,
+    ): array {
         $timestamp ??= now()->getTimestamp();
 
         return array_filter([
@@ -61,7 +78,7 @@ final class RobotRequests
             'HTTP_CONTENT_ENCODING' => $gzip ? 'gzip' : '',
             'HTTP_X_INGESTA_KEY' => $keyId,
             'HTTP_X_INGESTA_TIMESTAMP' => (string) $timestamp,
-            'HTTP_X_INGESTA_SIGNATURE' => RequestSigner::sign($secret, $timestamp, $signFor ?? $lote, $rawBody),
+            'HTTP_X_INGESTA_SIGNATURE' => RequestSigner::sign($secret, $timestamp, $path, $rawBody),
         ], fn (string $value): bool => $value !== '');
     }
 

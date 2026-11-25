@@ -7,6 +7,7 @@ use App\Modules\Ingesta\Infrastructure\Robot\HmacKeyring;
 use Closure;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Routing\Route;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
 use Symfony\Component\HttpFoundation\Response;
@@ -14,8 +15,10 @@ use Symfony\Component\HttpFoundation\Response;
 /**
  * Lets through only requests signed by the robot (RequestSigner): a known
  * X-Ingesta-Key, an X-Ingesta-Timestamp within config('ingesta.hmac_max_skew')
- * seconds of now and a matching X-Ingesta-Signature over the raw body. It
- * runs before the body is decompressed or parsed.
+ * seconds of now and a matching X-Ingesta-Signature over the path of the
+ * matched route and the raw body. The path comes from the route, so a
+ * signature made for one route (a batch, a failure report) is refused on
+ * any other. It runs before the body is decompressed or parsed.
  *
  * A valid signature is good once: it stays in the cache for twice the
  * allowed skew, so the exact same request sent again is refused as
@@ -100,9 +103,9 @@ final class VerifyRobotSignature
             return 'timestamp_out_of_skew';
         }
 
-        $lote = (string) $request->route('lote');
+        $path = $this->routePath($request);
 
-        if (! RequestSigner::verify($secret, (int) $timestamp, $lote, $request->getContent(), $signature)) {
+        if ($path === null || ! RequestSigner::verify($secret, (int) $timestamp, $path, $request->getContent(), $signature)) {
             return 'signature_mismatch';
         }
 
@@ -112,6 +115,29 @@ final class VerifyRobotSignature
         }
 
         return null;
+    }
+
+    /**
+     * The signed path: the URI template of the matched route with each
+     * parameter filled in as received, like "/api/ingesta/cartera". It never
+     * comes from the request URI, so a subfolder, a proxy or a query string
+     * does not change it. Null when the request matched no route.
+     */
+    private function routePath(Request $request): ?string
+    {
+        $route = $request->route();
+
+        if (! $route instanceof Route) {
+            return null;
+        }
+
+        $path = '/'.ltrim($route->uri(), '/');
+
+        foreach ($route->originalParameters() as $name => $value) {
+            $path = str_replace(['{'.$name.'}', '{'.$name.'?}'], is_scalar($value) ? (string) $value : '', $path);
+        }
+
+        return $path;
     }
 
     /**

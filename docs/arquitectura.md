@@ -395,12 +395,16 @@ Recibe los lotes del robot (y las cargas manuales) y guarda el historial. No fil
 
 **Valores:** columnas enteras como `int`; numéricas como cadena decimal con punto y sin separador de miles (`"1234567.89"`), para que los consumidores conserven montos exactos; fechas como `"Y-m-d"`; texto como `string`; un valor ausente es `null`.
 
+**Firma del robot.** Cada petición del robot lleva un HMAC-SHA256 (`RequestSigner`) sobre el timestamp, `POST`, la ruta y el SHA-256 del cuerpo. La ruta es la de la ruta de Laravel que la atiende, con sus parámetros puestos (`/api/ingesta/cartera`, `/api/ingesta/reportes`): `VerifyRobotSignature` la arma desde la plantilla de la ruta, nunca desde la URL de la petición, así que un subdirectorio o un proxy no la rompen y una firma hecha para una ruta se rechaza en otra. Para los lotes la cadena es la misma de siempre (`/api/ingesta/{lote}`), la que firma `etl/sinks/http_sink.py`.
+
+**Reportes de falla.** `POST /api/ingesta/reportes` (`ingesta.api.reportes.store`, mismo límite y misma firma) recibe un objeto JSON de hasta 8 KB cuando el robot no pudo cargar un lote: `report_id` y `run_id` (UUID), `company`, `dataset`, `slot` y `occurred_at` (ISO 8601 con desfase), `stage` (`FailureStage`, las etapas de `etl/run_etl.py`), `cause` (`FailureCause`), `transient`, `attempt`, `max_attempts` (hasta 10), `final` y `message`. El servidor pone el origen `robot`. `RecordLoadFailure` limpia el mensaje, lo corta a 300 caracteres y lo guarda en `ingesta_load_failures` una vez por `report_id`: 201 si es nuevo, 200 con `duplicate: true` si se repite. Es interno de Ingesta, no un contrato; el formato completo está en el README del módulo.
+
 ### 6.9 Flujo de `BatchAccepted`
 
 Los consumidores nunca llaman `receive()`: escuchan el evento y leen las filas.
 
 ```
-Robot ──POST /api/ingesta/{lote} (HMAC)──▶ Ingesta arma IncomingBatch
+Robot ──POST /api/ingesta/{lote} (HMAC sobre la ruta)──▶ Ingesta arma IncomingBatch
         └─ IngestaSink::receive() valida, guarda y registra LoadRecord (Accepted)
             └─ event(new BatchAccepted($load))          ← una vez por lote aceptado
                 ├─ Core: cartera, asesores, contactos
