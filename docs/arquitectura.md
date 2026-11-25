@@ -397,7 +397,7 @@ Recibe los lotes del robot (y las cargas manuales) y guarda el historial. No fil
 
 **Firma del robot.** Cada petición del robot lleva un HMAC-SHA256 (`RequestSigner`) sobre el timestamp, `POST`, la ruta y el SHA-256 del cuerpo. La ruta es la de la ruta de Laravel que la atiende, con sus parámetros puestos (`/api/ingesta/cartera`, `/api/ingesta/reportes`): `VerifyRobotSignature` la arma desde la plantilla de la ruta, nunca desde la URL de la petición, así que un subdirectorio o un proxy no la rompen y una firma hecha para una ruta se rechaza en otra. Para los lotes la cadena es la misma de siempre (`/api/ingesta/{lote}`), la que firma `etl/sinks/http_sink.py`.
 
-**Reportes de falla.** `POST /api/ingesta/reportes` (`ingesta.api.reportes.store`, mismo límite y misma firma) recibe un objeto JSON de hasta 8 KB cuando el robot no pudo cargar un lote: `report_id` y `run_id` (UUID), `company`, `dataset`, `slot` y `occurred_at` (ISO 8601 con desfase), `stage` (`FailureStage`, las etapas de `etl/run_etl.py`), `cause` (`FailureCause`), `transient`, `attempt`, `max_attempts` (hasta 10), `final` y `message`. El servidor pone el origen `robot`. `RecordLoadFailure` limpia el mensaje, lo corta a 300 caracteres y lo guarda en `ingesta_load_failures` una vez por `report_id`: 201 si es nuevo, 200 con `duplicate: true` si se repite. Un reporte nuevo con `final: true` pone en la cola `SendLoadFailureAlert`, que avisa por correo a `ingesta.alert_recipients` una sola vez por empresa, lote y hora programada (`ingesta_load_alerts`). Es interno de Ingesta, no un contrato; el formato completo está en el README del módulo.
+**Reportes de falla.** `POST /api/ingesta/reportes` (`ingesta.api.reportes.store`, mismo límite y misma firma) recibe un objeto JSON de hasta 8 KB cuando el robot no pudo cargar un lote: `report_id` y `run_id` (UUID), `company`, `dataset`, `slot` y `occurred_at` (ISO 8601 con desfase), `stage` (`FailureStage`, las etapas de `etl/run_etl.py`), `cause` (`FailureCause`), `transient`, `attempt`, `max_attempts` (hasta 10), `final` y `message`. El servidor pone el origen `robot`. `RecordLoadFailure` limpia el mensaje, lo corta a 300 caracteres y lo guarda en `ingesta_load_failures` una vez por `report_id`: 201 si es nuevo, 200 con `duplicate: true` si se repite. Un reporte nuevo con `final: true` pone en la cola `SendLoadFailureAlert`, que avisa por correo a `ingesta.alert_recipients` una sola vez por empresa, lote y hora programada (`ingesta_load_alerts`), y antes deja un aviso `ingesta.carga` en la campana (§6.18) de esos destinatarios y de los administradores, con su propio reclamo, que lleva al historial de cargas. Es interno de Ingesta, no un contrato; el formato completo está en el README del módulo.
 
 ### 6.9 Flujo de `BatchAccepted`
 
@@ -433,6 +433,8 @@ final class ImportReceivablesSnapshot implements ShouldQueue
 ```
 
 `BatchAccepted` tiene una sola propiedad: `public readonly LoadRecord $load`. No se despacha para un `batchId` repetido ni para un lote rechazado.
+
+Ingesta también lo escucha (`LoadNotices`): cada carga aceptada, del robot o manual, resuelve los avisos `ingesta.carga:{empresa}:{lote}` de su empresa y lote.
 
 ### 6.10 `MailSender`
 

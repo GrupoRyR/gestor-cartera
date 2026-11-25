@@ -2,8 +2,13 @@
 
 // Missing robot load alert (ingesta:verificar-carga): the e-mail and the
 // console lines, read with __('ingesta::alerta.<key>'). Under "falla", the
-// e-mail of a load that failed for good (SendLoadFailureAlert).
+// e-mail of a load that failed for good (SendLoadFailureAlert); under
+// "campana", its bell notice (LoadNotices), whose body is the cause text.
 return [
+
+    'campana' => [
+        'titulo' => 'Falló la carga de :lote de :empresa de las :hora',
+    ],
 
     'falla' => [
         'asunto' => 'Alerta: falló la carga de :lote de :empresa de las :hora del :fecha',

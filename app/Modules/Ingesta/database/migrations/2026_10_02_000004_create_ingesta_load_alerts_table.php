@@ -20,7 +20,7 @@ return new class extends Migration
             $table->string('dataset', 30);
             // The scheduled time of that load.
             $table->dateTime('slot_at');
-            // LoadAlertKind value: falla or no_llego.
+            // LoadAlertKind value: falla, campana or no_llego.
             $table->string('kind', 10);
             // The final failure report behind a "falla" alert.
             $table->foreignId('load_failure_id')->nullable()->constrained('ingesta_load_failures')->nullOnDelete();

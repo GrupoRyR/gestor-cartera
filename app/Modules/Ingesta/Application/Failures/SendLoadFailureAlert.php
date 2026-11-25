@@ -2,6 +2,7 @@
 
 namespace App\Modules\Ingesta\Application\Failures;
 
+use App\Modules\Core\Contracts\AvisoService;
 use App\Modules\Core\Contracts\Data\OutgoingMail;
 use App\Modules\Core\Contracts\Enums\CompanyCode;
 use App\Modules\Core\Contracts\Exceptions\MailNotSent;
@@ -40,12 +41,21 @@ use Throwable;
  * Without recipients it only logs a warning, and without a MailSender
  * implementation (Cobro provides it) it logs an error; neither claims the
  * slot, so a later final report for it can still alert.
+ *
+ * Before the mail it puts the failure in the bell (LoadNotices), as a step
+ * of its own: its own claim (kind "campana") and AvisoService::send() in
+ * their own transaction, committed before the mail is tried. So the bell
+ * does not wait for Graph or for the mail recipients, a refused mail rolls
+ * back only the mail claim, and the retry finds the bell claimed and does
+ * not ring it again. A bell that fails is logged and rolled back, and the
+ * mail still goes; a retry of the job would try the bell again. With no
+ * user to notify, or no AvisoService, it only logs and claims nothing.
  */
 final class SendLoadFailureAlert implements ShouldQueue
 {
     use Queueable;
 
-    private const string TIMEZONE = 'America/Bogota';
+    public const string TIMEZONE = 'America/Bogota';
 
     public int $tries = 3;
 
@@ -60,6 +70,8 @@ final class SendLoadFailureAlert implements ShouldQueue
     {
         $failure = LoadFailureRecord::query()->findOrFail($this->failureId);
         $context = ['failure_id' => $failure->id, 'company' => $failure->company->value, 'dataset' => $failure->dataset->value];
+
+        $this->ringBell($failure, $context);
 
         /** @var list<string> $recipients */
         $recipients = (array) config('ingesta.alert_recipients', []);
@@ -79,7 +91,7 @@ final class SendLoadFailureAlert implements ShouldQueue
         $mail = $this->mail($failure, $recipients);
 
         DB::transaction(function () use ($failure, $mail, $context): void {
-            if (! $this->claim($failure)) {
+            if (! $this->claim($failure, LoadAlertKind::Falla)) {
                 Log::info('Ingesta: the load failure alert of this slot was already sent.', $context);
 
                 return;
@@ -104,9 +116,47 @@ final class SendLoadFailureAlert implements ShouldQueue
     }
 
     /**
-     * Writes the slot's "falla" alert row; false when it already exists.
+     * Sends the bell notice once per slot, apart from the mail (see the
+     * class comment).
+     *
+     * @param  array<string, mixed>  $context
      */
-    private function claim(LoadFailureRecord $failure): bool
+    private function ringBell(LoadFailureRecord $failure, array $context): void
+    {
+        if (! app()->bound(AvisoService::class)) {
+            Log::error('Ingesta: the load failure notice could not be sent: AvisoService has no implementation.', $context);
+
+            return;
+        }
+
+        $notices = app(LoadNotices::class);
+        $recipients = $notices->recipients();
+
+        if ($recipients === []) {
+            Log::info('Ingesta: a load failed for good and there is nobody to notify in the bell.', $context);
+
+            return;
+        }
+
+        try {
+            DB::transaction(function () use ($failure, $notices, $recipients, $context): void {
+                if (! $this->claim($failure, LoadAlertKind::Campana)) {
+                    Log::info('Ingesta: the load failure notice of this slot is already in the bell.', $context);
+
+                    return;
+                }
+
+                app(AvisoService::class)->send($notices->forFailure($failure, $this->explanation($failure), $recipients));
+            });
+        } catch (Throwable $e) {
+            Log::error('Ingesta: the load failure notice could not be sent to the bell.', [...$context, 'exception' => $e]);
+        }
+    }
+
+    /**
+     * Writes the slot's alert row of $kind; false when it already exists.
+     */
+    private function claim(LoadFailureRecord $failure, LoadAlertKind $kind): bool
     {
         $timezone = (string) config('app.timezone');
 
@@ -114,7 +164,7 @@ final class SendLoadFailureAlert implements ShouldQueue
             'company' => $failure->company->value,
             'dataset' => $failure->dataset->value,
             'slot_at' => $failure->slot_at->setTimezone($timezone)->format('Y-m-d H:i:s'),
-            'kind' => LoadAlertKind::Falla->value,
+            'kind' => $kind->value,
             'load_failure_id' => $failure->id,
             'created_at' => CarbonImmutable::now($timezone)->format('Y-m-d H:i:s'),
         ]) === 1;
@@ -133,14 +183,7 @@ final class SendLoadFailureAlert implements ShouldQueue
             'hora' => $slot->format('H:i'),
             'fecha' => DateFormat::date($slot),
         ];
-
-        $explanation = match ($failure->cause) {
-            FailureCause::Vpn, FailureCause::HanaRoute => __('ingesta::alerta.falla.causas.conexion', ['attempts' => $failure->attempt]),
-            FailureCause::Network => __('ingesta::alerta.falla.causas.red'),
-            FailureCause::Credentials => __('ingesta::alerta.falla.causas.credenciales'),
-            FailureCause::Data => __('ingesta::alerta.falla.causas.datos'),
-            default => __('ingesta::alerta.falla.causas.otra', ['etapa' => $stage]),
-        };
+        $explanation = $this->explanation($failure);
 
         return new OutgoingMail(
             company: CompanyCode::SGX,
@@ -155,5 +198,22 @@ final class SendLoadFailureAlert implements ShouldQueue
             ])->render(),
             category: 'alerta',
         );
+    }
+
+    /**
+     * What happened and what to do, in plain words, for the failure's cause:
+     * the mail's explanation and the bell's body.
+     */
+    private function explanation(LoadFailureRecord $failure): string
+    {
+        $text = match ($failure->cause) {
+            FailureCause::Vpn, FailureCause::HanaRoute => __('ingesta::alerta.falla.causas.conexion', ['attempts' => $failure->attempt]),
+            FailureCause::Network => __('ingesta::alerta.falla.causas.red'),
+            FailureCause::Credentials => __('ingesta::alerta.falla.causas.credenciales'),
+            FailureCause::Data => __('ingesta::alerta.falla.causas.datos'),
+            default => __('ingesta::alerta.falla.causas.otra', ['etapa' => __('ingesta::alerta.falla.etapas.'.$failure->stage->value)]),
+        };
+
+        return is_string($text) ? $text : '';
     }
 }
