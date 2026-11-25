@@ -4,11 +4,13 @@ use App\Modules\Core\Contracts\Enums\CompanyCode;
 use App\Modules\Core\Contracts\Enums\Dataset;
 use App\Modules\Ingesta\Application\Failures\LoadFailure;
 use App\Modules\Ingesta\Application\Failures\RecordLoadFailure;
+use App\Modules\Ingesta\Application\Failures\SendLoadFailureAlert;
 use App\Modules\Ingesta\Domain\Failures\FailureCause;
 use App\Modules\Ingesta\Domain\Failures\FailureSource;
 use App\Modules\Ingesta\Domain\Failures\FailureStage;
 use App\Modules\Ingesta\Infrastructure\Persistence\LoadFailureRecord;
 use Carbon\CarbonImmutable;
+use Illuminate\Support\Facades\Queue;
 
 beforeEach(function () {
     $this->travelTo(CarbonImmutable::parse('2026-11-23 05:30:00', 'America/Bogota'));
@@ -89,4 +91,20 @@ it('trims the whitespace left at the end of the cut', function () {
     app(RecordLoadFailure::class)->record(loadFailure(str_repeat('a', 299).' b'));
 
     expect(LoadFailureRecord::query()->sole()->message)->toBe(str_repeat('a', 299));
+});
+
+it('queues the alert for a new final report only', function () {
+    Queue::fake();
+    $record = app(RecordLoadFailure::class);
+
+    $record->record(loadFailure());
+    Queue::assertNothingPushed();
+
+    $final = new LoadFailure(...[...get_object_vars(loadFailure(reportId: '11111111-2222-4333-8444-555555555555')), 'final' => true]);
+    $record->record($final);
+    $record->record($final);
+
+    $id = LoadFailureRecord::query()->where('report_id', '11111111-2222-4333-8444-555555555555')->sole()->id;
+    Queue::assertPushed(SendLoadFailureAlert::class, 1);
+    Queue::assertPushed(SendLoadFailureAlert::class, fn (SendLoadFailureAlert $job): bool => $job->failureId === $id);
 });

@@ -1,8 +1,41 @@
 <?php
 
 // Missing robot load alert (ingesta:verificar-carga): the e-mail and the
-// console lines, read with __('ingesta::alerta.<key>').
+// console lines, read with __('ingesta::alerta.<key>'). Under "falla", the
+// e-mail of a load that failed for good (SendLoadFailureAlert).
 return [
+
+    'falla' => [
+        'asunto' => 'Alerta: falló la carga de :lote de :empresa de las :hora del :fecha',
+        'titulo' => 'Falló la carga de :lote de :empresa',
+        'intro' => 'La carga de :lote de :empresa de las :hora del :fecha (hora de Bogotá) falló y no se va a volver a intentar.',
+        'que_paso' => 'Qué pasó',
+        'causas' => [
+            'conexion' => 'La carga de cartera no se pudo sacar de SAP: falló la conexión, ni después de :attempts intentos. Revisa en el PC de TI que la VPN Sophos conecte y vuelve a correr la tarea CarteraWeb-ETL.',
+            'red' => 'La carga salió de SAP pero no llegó a la plataforma. Revisa el internet del PC de TI.',
+            'credenciales' => 'SAP o la VPN rechazaron el usuario o la clave; actualízalos en el PC de TI.',
+            'datos' => 'SAP devolvió datos con un formato inesperado; no se publicó nada para no dañar la cartera. Avisa a TI.',
+            'otra' => 'La carga falló en la etapa de :etapa. Revisa el mensaje de abajo y, si no sabes qué hacer, avisa a TI.',
+        ],
+        'detalle' => 'Detalle',
+        'etapa' => 'Etapa: :etapa',
+        'intento' => 'Intento: :intento de :maximo',
+        'cuando' => 'Cuándo: :cuando',
+        'mensaje' => 'Mensaje: :mensaje',
+        'etapas' => [
+            'CONFIGURACION' => 'lectura de la configuración',
+            'INICIO' => 'inicio de la corrida',
+            'VPN' => 'conexión a la VPN',
+            'HANA' => 'consulta a SAP',
+            'VALIDACION' => 'revisión de los datos',
+            'RESPALDO' => 'copia de respaldo',
+            'CONTRATO' => 'revisión contra el esquema',
+            'LARAVEL' => 'envío a la plataforma',
+            'SUPABASE' => 'publicación en Supabase',
+        ],
+        'enlace' => 'Ver el historial de cargas',
+        'pie' => 'Este aviso lo envía el gestor de cartera una sola vez por carga, cuando ya no quedan intentos.',
+    ],
 
     'asunto' => 'Alerta: el robot no publicó la cartera de :empresa del :fecha',
 
