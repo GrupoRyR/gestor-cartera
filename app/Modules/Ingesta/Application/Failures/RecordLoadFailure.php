@@ -15,8 +15,10 @@ use Carbon\CarbonImmutable;
  * time collide on the unique report_id, so only one is stored. The times
  * are stored in the app timezone.
  *
- * It only records: the alert for a final report hooks in here in the next
- * pull request.
+ * A new final report (the load will not be retried) queues
+ * SendLoadFailureAlert, after the commit when a transaction is open, which
+ * mails the alert once per company, dataset and slot. A report that is not
+ * final, or a repeated report id, queues nothing.
  */
 final class RecordLoadFailure
 {
@@ -48,6 +50,10 @@ final class RecordLoadFailure
             'occurred_at' => $failure->occurredAt->setTimezone($timezone),
             'received_at' => CarbonImmutable::now($timezone),
         ]);
+
+        if ($record->wasRecentlyCreated && $failure->final) {
+            SendLoadFailureAlert::dispatch($record->id)->afterCommit();
+        }
 
         return $record->wasRecentlyCreated;
     }

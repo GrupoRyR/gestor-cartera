@@ -78,7 +78,7 @@ Los topes salen de los lotes reales: el más grande trae 1458 filas (ventas de S
 
 ## Reporte de fallas de carga
 
-`POST /api/ingesta/reportes` (ruta `ingesta.api.reportes.store`): el robot avisa que no pudo cargar un lote. Usa el mismo límite (`throttle:ingesta-robot`) y la misma firma que los lotes (encabezados, llaves, margen del timestamp y firma de un solo uso), firmada para la ruta `/api/ingesta/reportes`; una firma de lote no sirve aquí ni al revés. Por ahora solo se guarda el reporte; la alerta de un reporte final llega en el siguiente PR.
+`POST /api/ingesta/reportes` (ruta `ingesta.api.reportes.store`): el robot avisa que no pudo cargar un lote. Usa el mismo límite (`throttle:ingesta-robot`) y la misma firma que los lotes (encabezados, llaves, margen del timestamp y firma de un solo uso), firmada para la ruta `/api/ingesta/reportes`; una firma de lote no sirve aquí ni al revés. Un reporte final (`final: true`) además envía la alerta por correo (ver «Alerta de carga fallida»).
 
 Cuerpo: un objeto JSON sin comprimir (`Content-Encoding` vacío o `identity`) de hasta 8 KB (`ReceiveLoadFailureController::MAX_BYTES`):
 
@@ -122,6 +122,16 @@ Cada reporte recibido deja en el log «Ingesta: received a robot failure report.
 
 Se guardan en `ingesta_load_failures`, uno por `report_id` (índice único, así que dos copias simultáneas guardan uno solo), con índice por empresa, lote y hora programada. `RecordLoadFailure` es la única entrada: hoy la usa el endpoint y después la usará el lector de Bases SAP, con el origen `bases_sap`.
 
+### Alerta de carga fallida
+
+Cuando `RecordLoadFailure` guarda un reporte nuevo con `final: true` (ya no habrá otro intento), pone en la cola `SendLoadFailureAlert` (después del commit si hay una transacción abierta). Un reporte que no es final, o un `report_id` repetido, no pone nada. El trabajo:
+
+- sin destinatarios (`INGESTA_ALERT_RECIPIENTS` vacío) solo deja una advertencia en el log; sin implementación de `MailSender`, un error. En ninguno de los dos casos marca la hora programada, así que un reporte final posterior sí puede avisar;
+- si no, reclama la alerta con un insert-or-ignore en `ingesta_load_alerts` (empresa, lote, hora programada y tipo `falla`, únicos juntos). Si la fila ya existía, otro reporte final de la misma hora ya avisó y no envía nada: **un correo por hora programada**, sin importar cuántos reportes finales lleguen;
+- envía desde el buzón de Segurex un correo de categoría `alerta` a `ingesta.alert_recipients`, con el asunto «Alerta: falló la carga de {lote} de {empresa} de las {HH:MM} del {DD/MM/AAAA}» (hora de Bogotá): qué hacer según la causa (`vpn` y `ruta_hana`, `red`, `credenciales`, `datos`; otra causa nombra la etapa), y el detalle: etapa, intento, cuándo pasó y el mensaje guardado. Los textos están en `resources/lang/es/alerta.php` (`falla`).
+
+El reclamo y el envío van en una sola transacción: si Graph no acepta el correo (`MailNotSent`) o el worker se cae a mitad, el reclamo se deshace y el reintento todavía puede enviar. El trabajo se intenta hasta 3 veces, a 1 y 5 minutos; si los tres fallan, lo deja en el log como error.
+
 ## Rotación de llaves
 
 `INGESTA_HMAC_KEYS` admite varias parejas `id:secreto` separadas por comas (el secreto puede tener `:`; se parte en el primero). Cada secreto debe tener al menos 32 bytes; genera uno con `php -r "echo bin2hex(random_bytes(32));"`. Para rotar: agrega la llave nueva junto a la vieja, cambia el robot a la nueva y, cuando ya firme con ella, quita la vieja. Una pareja mal formada o con un secreto de menos de 32 bytes se ignora con una advertencia en el log, que da su posición (y el id de la llave, si el secreto es corto), nunca el secreto. Sin ninguna llave válida, el endpoint responde 401 a todo y lo registra como error.
@@ -130,6 +140,7 @@ Se guardan en `ingesta_load_failures`, uno por `report_id` (índice único, así
 
 - `ingesta_loads`: el historial, aceptadas y rechazadas, con el corte, el origen, el usuario de una carga manual, los totales de cartera (`decimal(18,2)`, sumas exactas en centavos), el orden de columnas guardado y, en las rechazadas, el resumen y los errores por campo. `accepted_batch_id` es único y solo se llena en las aceptadas: así un rechazo se puede reenviar y dos copias simultáneas del mismo lote no crean dos cargas.
 - `ingesta_load_failures`: los reportes de falla de carga, uno por `report_id` (ver «Reporte de fallas de carga»).
+- `ingesta_load_alerts`: las alertas enviadas, una por empresa, lote, hora programada y tipo (`falla`; `no_llego` queda para la alerta de carga que no llegó), con el reporte final que la causó (ver «Alerta de carga fallida»).
 - `ingesta_load_chunks`: las filas de cada carga aceptada en bloques de 500 (`ChunkCodec`: JSON de listas de valores, gzip y base64). Las instantáneas nunca se sobrescriben.
 
 ## Cómo leen los consumidores

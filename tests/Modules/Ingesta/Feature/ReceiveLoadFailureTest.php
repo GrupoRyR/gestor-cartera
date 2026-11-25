@@ -1,5 +1,6 @@
 <?php
 
+use App\Modules\Core\Contracts\Data\OutgoingMail;
 use App\Modules\Core\Contracts\Enums\CompanyCode;
 use App\Modules\Core\Contracts\Enums\Dataset;
 use App\Modules\Ingesta\Domain\Failures\FailureCause;
@@ -7,11 +8,13 @@ use App\Modules\Ingesta\Domain\Failures\FailureSource;
 use App\Modules\Ingesta\Domain\Failures\FailureStage;
 use App\Modules\Ingesta\Http\Middleware\VerifyRobotSignature;
 use App\Modules\Ingesta\Infrastructure\Persistence\IngestaLoad;
+use App\Modules\Ingesta\Infrastructure\Persistence\LoadAlertRecord;
 use App\Modules\Ingesta\Infrastructure\Persistence\LoadFailureRecord;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Testing\TestResponse;
+use Tests\Fakes\ContractFakes;
 use Tests\Modules\Ingesta\Support\IngestaRows;
 use Tests\Modules\Ingesta\Support\RobotRequests;
 
@@ -217,4 +220,18 @@ it('signs the route path, not the query string of the request', function () {
     $raw = json_encode(failureReport(), JSON_THROW_ON_ERROR);
 
     $this->call('POST', FAILURE_REPORT_PATH.'?intento=3', [], [], [], RobotRequests::signedHeaders(FAILURE_REPORT_PATH, $raw), $raw)->assertCreated();
+});
+
+it('mails the alert once for a final report, not for a repeated one nor for one that is not final', function () {
+    config(['ingesta.alert_recipients' => ['ti@segurex.com']]);
+    $mail = ContractFakes::install($this->app)->mail;
+
+    postFailureReport(failureReport(['final' => false, 'report_id' => '11111111-2222-4333-8444-555555555555', 'attempt' => 2]))->assertCreated();
+    $mail->assertNothingSent();
+
+    postFailureReport(failureReport())->assertCreated();
+    postFailureReport(failureReport(['message' => 'Reenviado']))->assertOk();
+
+    $mail->assertSent(fn (OutgoingMail $sent): bool => $sent->to === ['ti@segurex.com'] && $sent->category === 'alerta', times: 1);
+    expect(LoadAlertRecord::query()->count())->toBe(1);
 });
