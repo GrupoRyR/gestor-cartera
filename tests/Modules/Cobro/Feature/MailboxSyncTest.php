@@ -174,18 +174,18 @@ function cobroMail(string $from, string $conversationId): array
     ]);
 }
 
-it('stores every new reply and bounce of the inbox once', function () {
+it('stores every new reply and bounce of the inbox linked to a send once', function () {
     cobroInboxGraph();
 
     $this->artisan('cobro:sincronizar-buzones')
-        ->expectsOutputToContain('Segurex Latam: 5 mensajes nuevos.')
+        ->expectsOutputToContain('Segurex Latam: 4 mensajes nuevos.')
         ->assertSuccessful();
 
-    expect(InboundMessage::query()->count())->toBe(5);
+    expect(InboundMessage::query()->count())->toBe(4);
 
     $this->artisan('cobro:sincronizar-buzones')->assertSuccessful();
 
-    expect(InboundMessage::query()->count())->toBe(5);
+    expect(InboundMessage::query()->count())->toBe(4);
 });
 
 it('starts with the recent created messages and their message class, and follows the next link', function () {
@@ -294,7 +294,8 @@ it('keeps a client reply titled as a report a reply, even when it quotes the sen
 
 it('keeps a report with our Exchange sender a reply when it came from outside', function () {
     Event::fake([BounceLinked::class]);
-    cobroOneMessageGraph(cobroReport(), GraphFake::fixture('message-headers-forged.json'));
+    // The conversation of the send, so the reply is linked and stored.
+    cobroOneMessageGraph(cobroReport(['conversationId' => 'AAQkAGconversacion-original-andinas=']), GraphFake::fixture('message-headers-forged.json'));
 
     $this->artisan('cobro:sincronizar-buzones')->assertSuccessful();
 
@@ -302,7 +303,8 @@ it('keeps a report with our Exchange sender a reply when it came from outside', 
 
     expect($forged->is_bounce)->toBeFalse()
         ->and($forged->bounce_reason)->toBeNull()
-        ->and($forged->sent_message_id)->toBeNull();
+        ->and($forged->bounced_recipient)->toBeNull()
+        ->and($forged->sent_message_id)->toBe($this->bounced->id);
 
     Event::assertNotDispatched(BounceLinked::class);
 });
@@ -310,7 +312,10 @@ it('keeps a report with our Exchange sender a reply when it came from outside', 
 it('keeps an Exchange report from another domain a reply', function () {
     Event::fake([BounceLinked::class]);
     cobroOneMessageGraph(
-        cobroReport(['from' => ['emailAddress' => ['name' => 'Microsoft Outlook', 'address' => 'MicrosoftExchange329e71ec88ae4615bbc36ab6ce41109e@attacker.example']]]),
+        cobroReport([
+            'from' => ['emailAddress' => ['name' => 'Microsoft Outlook', 'address' => 'MicrosoftExchange329e71ec88ae4615bbc36ab6ce41109e@attacker.example']],
+            'conversationId' => 'AAQkAGconversacion-original-andinas=',
+        ]),
         GraphFake::fixture('message-headers-ndr.json'),
     );
 
@@ -366,7 +371,7 @@ it('keeps another server\'s report a reply when it quotes no Message-ID of a sen
 it('treats the sender as unauthenticated when the headers cannot be read', function () {
     Event::fake([BounceLinked::class]);
     Log::spy();
-    $report = cobroReport();
+    $report = cobroReport(['conversationId' => 'AAQkAGconversacion-original-andinas=']);
     cobroOneMessageGraph($report, GraphFake::fixture('error-access-denied.json'), 403);
 
     $this->artisan('cobro:sincronizar-buzones')->assertSuccessful();
@@ -395,7 +400,7 @@ it('still links another server\'s report when its headers cannot be read', funct
 it('keeps a message without a message class a reply and warns once', function () {
     Event::fake([BounceLinked::class]);
     Log::spy();
-    $report = cobroReport();
+    $report = cobroReport(['conversationId' => 'AAQkAGconversacion-original-andinas=']);
     unset($report['singleValueExtendedProperties']);
     $graph = cobroOneMessageGraph($report);
 
@@ -442,7 +447,7 @@ it('reads the first page once more without the message class when Graph refuses 
     config(['cobro.mailboxes.SDC' => '']);
 
     $this->artisan('cobro:sincronizar-buzones')
-        ->expectsOutputToContain('Segurex Latam: 4 mensajes nuevos.')
+        ->expectsOutputToContain('Segurex Latam: 2 mensajes nuevos.')
         ->assertSuccessful();
 
     [$first, $second] = $graph->requestsTo('GET', COBRO_DELTA);
@@ -450,10 +455,12 @@ it('reads the first page once more without the message class when Graph refuses 
     unset($query['$expand']);
     $cursor = MailboxCursor::query()->sole();
 
+    // Without the class the Exchange report is a reply linked to no send,
+    // so only the two replies in the conversation of the send are stored.
     expect($graph->requestsTo('GET', COBRO_DELTA))->toHaveCount(2)
         ->and(cobroQuery($first))->toHaveKey('$expand', "singleValueExtendedProperties(\$filter=id eq 'String 0x001A')")
         ->and(cobroQuery($second))->toBe($query)
-        ->and(InboundMessage::query()->count())->toBe(4)
+        ->and(InboundMessage::query()->count())->toBe(2)
         ->and(InboundMessage::query()->where('is_bounce', true)->count())->toBe(0)
         ->and($graph->requestsTo('GET', COBRO_MESSAGES))->toBe([])
         ->and($cursor->delta_link)->toBe(cobroPageWithoutClass()['@odata.deltaLink'])
@@ -574,17 +581,16 @@ it('links a new mail from a contact the client was mailed at', function () {
         ->and($consult->client_id)->toBe($this->tornillo->summary->id);
 });
 
-it('never links mail from an internal sender who was on copy, outside the conversation', function (array $settings, string $internal, string $sender) {
+it('neither links nor stores mail from an internal sender who was on copy, outside the conversation', function (array $settings, string $internal, string $sender) {
     cobroSendWithInternalCopy($internal);
     cobroOneMessageGraph(cobroMail($sender, 'AAQkAGotra-conversacion-interna='));
     config($settings);
 
-    $this->artisan('cobro:sincronizar-buzones')->assertSuccessful();
+    $this->artisan('cobro:sincronizar-buzones')
+        ->expectsOutputToContain('Segurex Latam: 0 mensajes nuevos.')
+        ->assertSuccessful();
 
-    $mail = InboundMessage::query()->sole();
-
-    expect($mail->sent_message_id)->toBeNull()
-        ->and($mail->client_id)->toBeNull()
+    expect(InboundMessage::query()->count())->toBe(0)
         ->and($this->fakes->gestiones->logged())->toBe([]);
 })->with([
     'a company mailbox domain' => [[], 'jefe.cartera@segurex.com', 'Jefe.Cartera@Segurex.com'],
@@ -616,16 +622,50 @@ it('still links a client sender who was a recipient, outside the conversation', 
         ->and($mail->client_id)->toBe($this->tornillo->summary->id);
 });
 
-it('keeps unrelated mail unlinked', function () {
+it('never stores a reply linked to no send', function () {
     cobroInboxGraph();
 
     $this->artisan('cobro:sincronizar-buzones')->assertSuccessful();
 
-    $newsletter = cobroInbound('Boletín de novedades de octubre');
+    expect(InboundMessage::query()->where('subject', 'Boletín de novedades de octubre')->exists())->toBeFalse()
+        ->and(InboundMessage::query()->whereNull('sent_message_id')->exists())->toBeFalse();
+});
 
-    expect($newsletter->sent_message_id)->toBeNull()
-        ->and($newsletter->client_id)->toBeNull()
-        ->and($newsletter->is_bounce)->toBeFalse();
+it('never stores our Exchange\'s report when it is linked to no send', function () {
+    Event::fake([BounceLinked::class]);
+    cobroOneMessageGraph(
+        cobroReport(['body' => ['contentType' => 'text', 'content' => "Your message to alguien@otro.example couldn't be delivered.\r\n550 5.1.10 RESOLVER.ADR.RecipientNotFound\r\nMessage-ID: <otro-envio@SA1PR11MB8471.namprd11.prod.outlook.com>"]]),
+        GraphFake::fixture('message-headers-ndr.json'),
+    );
+
+    $this->artisan('cobro:sincronizar-buzones')
+        ->expectsOutputToContain('Segurex Latam: 0 mensajes nuevos.')
+        ->assertSuccessful();
+
+    expect(InboundMessage::query()->count())->toBe(0)
+        ->and($this->fakes->gestiones->logged())->toBe([]);
+
+    Event::assertNotDispatched(BounceLinked::class);
+});
+
+it('never stores another server\'s report linked to no send', function () {
+    Event::fake([BounceLinked::class]);
+    cobroOneMessageGraph(
+        cobroReport([
+            'from' => ['emailAddress' => ['name' => 'Mail Delivery Subsystem', 'address' => 'mailer-daemon@googlemail.com']],
+            'body' => ['contentType' => 'text', 'content' => "Your message to alguien@otro.example couldn't be delivered.\r\n550 5.1.1 User unknown\r\nMessage-ID: <otro-envio@mail.gmail.com>"],
+        ]),
+        GraphFake::fixture('message-headers-forged.json'),
+    );
+
+    $this->artisan('cobro:sincronizar-buzones')
+        ->expectsOutputToContain('Segurex Latam: 0 mensajes nuevos.')
+        ->assertSuccessful();
+
+    expect(InboundMessage::query()->count())->toBe(0)
+        ->and($this->fakes->gestiones->logged())->toBe([]);
+
+    Event::assertNotDispatched(BounceLinked::class);
 });
 
 it('logs linked replies and bounces in the client activity', function () {
@@ -653,13 +693,13 @@ it('continues an unfinished round in the next run', function () {
 
     $cursor = MailboxCursor::query()->sole();
 
-    expect(InboundMessage::query()->count())->toBe(4)
+    expect(InboundMessage::query()->count())->toBe(3)
         ->and($cursor->next_link)->toBe(GraphFake::fixture('inbox-delta-page-1.json')['@odata.nextLink'])
         ->and($cursor->delta_link)->toBeNull();
 
     $this->artisan('cobro:sincronizar-buzones')->assertSuccessful();
 
-    expect(InboundMessage::query()->count())->toBe(5)
+    expect(InboundMessage::query()->count())->toBe(4)
         ->and($graph->requestsTo('GET', COBRO_DELTA)[1]->url())->toBe(GraphFake::fixture('inbox-delta-page-1.json')['@odata.nextLink'])
         ->and(MailboxCursor::query()->sole()->next_link)->toBeNull();
 });

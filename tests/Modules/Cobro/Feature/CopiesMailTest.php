@@ -277,9 +277,10 @@ it('keeps the item sent when a report with our Exchange sender came from outside
 
     cobroSyncReport('MicrosoftExchange329e71ec88ae4615bbc36ab6ce41109e@segurex.com', 'message-headers-forged.json');
 
+    // A reply in another conversation, linked to no send: it is not stored.
     expect($item->refresh()->status)->toBe(ItemStatus::Sent)
         ->and($item->bounced_recipient)->toBeNull()
-        ->and(InboundMessage::query()->sole()->is_bounce)->toBeFalse();
+        ->and(InboundMessage::query()->count())->toBe(0);
 });
 
 it('marks the item bounced when one of its To addresses bounced', function () {

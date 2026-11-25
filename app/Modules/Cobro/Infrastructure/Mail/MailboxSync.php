@@ -20,8 +20,10 @@ use Illuminate\Support\Facades\Log;
 /**
  * Reads the new messages of a company inbox with a Graph delta query
  * (/mailFolders/inbox/messages/delta, only created messages) and stores
- * each one once: replies and bounces, linked to the send they answer and
- * its client when InboundLinker finds it.
+ * once each reply or bounce that InboundLinker links to a send, with that
+ * send and its client. The mailbox is also the department's work mailbox,
+ * so every other message (unrelated mail, and reports that answer no send)
+ * is not stored and stays only in Outlook.
  *
  * - The first round reads the messages received in the last
  *   cobro.sync.initial_days; later rounds start from the saved deltaLink.
@@ -33,7 +35,7 @@ use Illuminate\Support\Facades\Log;
  *   with both whether it is a bounce (audit S-24).
  * - When Graph refuses the first page of a round (HTTP 400 or 501), most
  *   likely for that $expand, it is asked once more without it: the round
- *   goes on without message classes, so every message is kept as a reply.
+ *   goes on without message classes, so every message is read as a reply.
  * - A message linked to a client is logged in the client's activity as
  *   EmailReceived; a linked bounce also raises BounceLinked.
  * - Graph answering 410 (the sync state expired), or a saved link that
@@ -77,7 +79,7 @@ final class MailboxSync
 
     /**
      * Synchronizes the inbox of $company; returns how many new messages
-     * were stored.
+     * were stored (only those linked to a send).
      *
      * @throws GraphRequestFailed When Graph fails; the cursor keeps the error.
      */
@@ -285,8 +287,10 @@ final class MailboxSync
     }
 
     /**
-     * Stores one Graph message unless it is already stored or was sent by
-     * the mailbox itself.
+     * Stores one Graph message when InboundLinker links it to a send of the
+     * mailbox; returns whether it stored it. A message already stored, sent
+     * by the mailbox itself or linked to no send is left out: no row, no
+     * activity and no BounceLinked.
      *
      * @param  array<array-key, mixed>  $message
      * @param  bool  $withoutClass  Whether the page was read without CLASS_EXPAND.
@@ -321,9 +325,15 @@ final class MailboxSync
             $sent = $this->linker->find($mailbox, $conversationId, $kind === BounceDetector::OWN_REPORT, $body, $from, $this->ownDomains($company));
         }
 
+        // The mailbox is also the department's work mailbox: what answers
+        // no send is left in Outlook, not stored.
+        if ($sent === null) {
+            return false;
+        }
+
         $isBounce = $kind !== BounceDetector::REPLY;
-        $bounce = $isBounce ? $this->bounces->read($body, $preview, $sent === null ? [] : $sent->recipients, [$mailbox]) : null;
-        $clientId = $sent?->client_id;
+        $bounce = $isBounce ? $this->bounces->read($body, $preview, $sent->recipients, [$mailbox]) : null;
+        $clientId = $sent->client_id;
 
         $inbound = InboundMessage::query()->create([
             'company' => $company,
@@ -340,7 +350,7 @@ final class MailboxSync
             'is_bounce' => $isBounce,
             'bounce_reason' => $bounce?->reason,
             'bounced_recipient' => $bounce?->recipient,
-            'sent_message_id' => $sent?->id,
+            'sent_message_id' => $sent->id,
             'client_id' => $clientId,
             'client_name' => $clientId === null ? null : $this->cartera->asSystem()->client($clientId)?->summary->name,
         ]);
@@ -349,7 +359,7 @@ final class MailboxSync
             $this->logActivity($inbound, $clientId);
         }
 
-        if ($isBounce && $sent !== null) {
+        if ($isBounce) {
             event(new BounceLinked($inbound));
         }
 
