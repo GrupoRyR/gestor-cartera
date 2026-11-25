@@ -28,9 +28,9 @@ interface MailboxReader
     public function forClient(int $clientId, int $limit = 20): array;
 
     /**
-     * Messages not yet marked as read (replies and bounces, linked to a
-     * client or not) of one company, or of every company in
-     * CurrentCompany::scope() when null.
+     * Messages not yet marked as read (replies and bounces linked to a
+     * send, with a client or not; nothing else is stored) of one company,
+     * or of every company in CurrentCompany::scope() when null.
      */
     public function unreadCount(?CompanyCode $company = null): int;
 }

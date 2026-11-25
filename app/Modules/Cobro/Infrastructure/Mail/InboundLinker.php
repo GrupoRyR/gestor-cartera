@@ -15,7 +15,10 @@ use Illuminate\Database\Eloquent\Builder;
  *    headers that delivery reports include);
  * 3. for a reply, the latest send to its sender address with a client,
  *    within LOOKBACK_DAYS (a client who writes a new mail instead of
- *    answering).
+ *    answering). A sender at one of our own domains never matches here:
+ *    the recipients of a send include its Cc, where internal staff are
+ *    copied, so their unrelated mail would join the latest client send.
+ *    An internal reply inside the conversation still links by step 1.
  *
  * Only sends from the same mailbox count. The latest matching send wins.
  */
@@ -23,7 +26,10 @@ final class InboundLinker
 {
     public const int LOOKBACK_DAYS = 90;
 
-    public function find(string $mailbox, ?string $conversationId, bool $isBounce, string $body, ?string $from): ?SentMessage
+    /**
+     * @param  list<string>  $ownDomains  Our domains (any case); a sender at one of them skips step 3.
+     */
+    public function find(string $mailbox, ?string $conversationId, bool $isBounce, string $body, ?string $from, array $ownDomains = []): ?SentMessage
     {
         if ($conversationId !== null && $conversationId !== '') {
             $sent = $this->latest($mailbox)->where('conversation_id', $conversationId)->first();
@@ -41,7 +47,7 @@ final class InboundLinker
 
         $from = mb_strtolower(trim((string) $from));
 
-        if ($from === '') {
+        if ($from === '' || self::fromOwnDomain($from, $ownDomains)) {
             return null;
         }
 
@@ -54,6 +60,30 @@ final class InboundLinker
             ->limit(50)
             ->get()
             ->first(fn (SentMessage $sent): bool => in_array($from, $sent->recipients, true));
+    }
+
+    /**
+     * Whether the domain of $from (in lower case) is exactly one of
+     * $ownDomains, in any case; a subdomain does not count.
+     *
+     * @param  list<string>  $ownDomains
+     */
+    private static function fromOwnDomain(string $from, array $ownDomains): bool
+    {
+        $at = mb_strrpos($from, '@');
+        $domain = $at === false ? '' : mb_substr($from, $at + 1);
+
+        if ($domain === '') {
+            return false;
+        }
+
+        foreach ($ownDomains as $own) {
+            if (mb_strtolower(trim($own)) === $domain) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /**

@@ -76,7 +76,7 @@ it('rejects a limit below one', function () {
     $this->reader->forClient(1, 0);
 })->throws(InvalidArgumentException::class);
 
-it('counts the unread messages of the active company, linked or not', function () {
+it('counts the unread messages of the active company, with a client or not', function () {
     cobroStoredInbound();
     cobroStoredInbound(['client_id' => 5]);
     cobroStoredInbound(['read_at' => CarbonImmutable::now()]);

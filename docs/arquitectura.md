@@ -445,7 +445,7 @@ Respuestas y rebotes de los buzones, unidos al cliente por conversación, Messag
 | Método | Qué hace | Lanza |
 |---|---|---|
 | `forClient(int $clientId, int $limit = 20): array` | `list<InboundMail>` del cliente, más reciente primero; vacía si no existe o está fuera del alcance. | `InvalidArgumentException` |
-| `unreadCount(?CompanyCode $company = null): int` | Mensajes sin leer (respuestas y rebotes, unidos o no) de una empresa, o de las de `CurrentCompany::scope()` con `null`. | — |
+| `unreadCount(?CompanyCode $company = null): int` | Mensajes sin leer (respuestas y rebotes unidos a un envío, con cliente o sin él; los demás no se guardan) de una empresa, o de las de `CurrentCompany::scope()` con `null`. | — |
 
 ### 6.12 `RecaudoProvider`
 

@@ -13,8 +13,9 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 /**
  * A row of "cobro_inbound_messages": a reply or bounce read from a company
- * inbox. Written by MailboxSync; the replies screen only marks it read or
- * pending.
+ * inbox and linked to a send (sent_message_id); MailboxSync stores no
+ * other message. Written by MailboxSync; the replies screen only marks it
+ * read or pending.
  *
  * @property int $id
  * @property CompanyCode $company
