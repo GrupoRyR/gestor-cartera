@@ -2,6 +2,7 @@
 
 use App\Modules\Core\Contracts\Enums\Dataset;
 use App\Modules\Ingesta\Http\Controllers\ReceiveBatchController;
+use App\Modules\Ingesta\Http\Controllers\ReceiveLoadFailureController;
 use App\Modules\Ingesta\Http\Middleware\VerifyRobotSignature;
 use Illuminate\Support\Facades\Route;
 
@@ -9,6 +10,12 @@ use Illuminate\Support\Facades\Route;
 // the /api/ingesta URL prefix and the "ingesta.api." route-name prefix:
 // Route::get('estado', ...)->name('estado')
 // becomes GET /api/ingesta/estado named ingesta.api.estado.
+
+// The ETL robot reports a failed load here (wire protocol in the module
+// README). "reportes" is not a Dataset value, so it never matches {lote}.
+Route::post('reportes', ReceiveLoadFailureController::class)
+    ->middleware(['throttle:ingesta-robot', VerifyRobotSignature::class])
+    ->name('reportes.store');
 
 // The ETL robot publishes each batch here (wire protocol in the module README).
 Route::post('{lote}', ReceiveBatchController::class)

@@ -27,11 +27,11 @@ POST
 {sha256 en hexadecimal del cuerpo tal como viaja (los bytes gzip si va comprimido)}
 ```
 
-`firma = hex(hmac_sha256(secreto, cadena))`. La ruta se arma con `{lote}` en ambos lados, nunca con la URL de la petición, así que un subdirectorio o un proxy no la rompen. `VerifyRobotSignature` revisa, antes de descomprimir o leer el JSON, que la llave exista, que el timestamp esté a menos de `INGESTA_HMAC_MAX_SKEW` segundos (300 por defecto) de la hora del servidor y que la firma coincida (`hash_equals`). Cualquier falla responde 401 `{"message": "Firma inválida."}`, el mismo texto para todas, y queda en el log con el motivo, el id de la llave y la IP, nunca con el secreto.
+`firma = hex(hmac_sha256(secreto, cadena))`. La ruta firmada es la de la ruta de Laravel que atiende la petición, con sus parámetros puestos: `/api/ingesta/{lote}` para un lote (el robot la arma con `{lote}`) y `/api/ingesta/reportes` para un reporte de falla. El servidor la saca de la plantilla de la ruta, nunca de la URL de la petición, así que un subdirectorio, un proxy o una cadena de consulta no la rompen, y una firma hecha para una ruta no sirve en otra. `VerifyRobotSignature` revisa, antes de descomprimir o leer el JSON, que la llave exista, que el timestamp esté a menos de `INGESTA_HMAC_MAX_SKEW` segundos (300 por defecto) de la hora del servidor y que la firma coincida (`hash_equals`). Cualquier falla responde 401 `{"message": "Firma inválida."}`, el mismo texto para todas, y queda en el log con el motivo, el id de la llave y la IP, nunca con el secreto.
 
 Cada firma sirve una sola vez. Ya verificada, queda en la caché (`ingesta:sig:{firma}`) por el doble de `INGESTA_HMAC_MAX_SKEW`, así que la misma petición exacta enviada otra vez responde 401 y queda en el log con el motivo `replayed`. Solo se guardan firmas válidas, para que nadie sin la llave pueda llenar la caché. Un lote repetido debe firmarse de nuevo, como hace el robot en cada intento; firmado otra vez, responde 200 con `duplicate: true`.
 
-Vector de prueba compartido con el robot (`tests/Modules/Ingesta/Unit/RequestSignerTest.php`): secreto `k2026a-secreto-de-prueba`, timestamp `1792152000`, lote `cartera` y cuerpo `{"rows":[]}` dan `sha256=ba04577457e09c8e9a6bec8983b85a09559f01b466e48a8f8fb2090e3a5b0fc9`. Ese secreto solo prueba la firma: tiene menos de 32 bytes, así que en `INGESTA_HMAC_KEYS` se ignoraría.
+Vector de prueba compartido con el robot (`tests/Modules/Ingesta/Unit/RequestSignerTest.php`): secreto `k2026a-secreto-de-prueba`, timestamp `1792152000`, ruta `/api/ingesta/cartera` y cuerpo `{"rows":[]}` dan `sha256=ba04577457e09c8e9a6bec8983b85a09559f01b466e48a8f8fb2090e3a5b0fc9`. Ese secreto solo prueba la firma: tiene menos de 32 bytes, así que en `INGESTA_HMAC_KEYS` se ignoraría.
 
 ### Cuerpo
 
@@ -76,6 +76,52 @@ Cada 422 deja en el log una advertencia «Ingesta: rejected a robot batch.» con
 
 Los topes salen de los lotes reales: el más grande trae 1458 filas (ventas de SGX) y los maestros, hasta 6178. 20 000 filas de cartera, el lote más ancho (38 columnas), ocupan unos 15,8 MB de JSON y 1,8 MB en gzip, y decodificarlas usa unos 86 MB de memoria. Sin gzip, los 4 MB alcanzan para unas 5000 filas de cartera. El gzip descomprimido no puede pasar de `ingesta.max_payload_bytes` (16 MB). `ingesta.max_rows` también limita el Excel de la carga manual. El `post_max_size` de PHP en el servidor debe ser al menos `ingesta.max_request_bytes`.
 
+## Reporte de fallas de carga
+
+`POST /api/ingesta/reportes` (ruta `ingesta.api.reportes.store`): el robot avisa que no pudo cargar un lote. Usa el mismo límite (`throttle:ingesta-robot`) y la misma firma que los lotes (encabezados, llaves, margen del timestamp y firma de un solo uso), firmada para la ruta `/api/ingesta/reportes`; una firma de lote no sirve aquí ni al revés. Por ahora solo se guarda el reporte; la alerta de un reporte final llega en el siguiente PR.
+
+Cuerpo: un objeto JSON sin comprimir (`Content-Encoding` vacío o `identity`) de hasta 8 KB (`ReceiveLoadFailureController::MAX_BYTES`):
+
+```json
+{
+  "report_id": "6f1c2b0e-4d3a-4f5e-9a7b-1c2d3e4f5a6b",
+  "run_id": "0a9b8c7d-6e5f-4a3b-8c2d-1e0f9a8b7c6d",
+  "company": "SGX",
+  "dataset": "cartera",
+  "slot": "2026-11-23T05:00:00-05:00",
+  "stage": "HANA",
+  "cause": "ruta_hana",
+  "transient": true,
+  "attempt": 3,
+  "max_attempts": 3,
+  "final": true,
+  "message": "No hay ruta a HANA tras 60 s",
+  "occurred_at": "2026-11-23T05:21:10-05:00"
+}
+```
+
+- `report_id`: UUID, la llave de idempotencia del reporte. `run_id`: UUID de la corrida, el mismo en todos sus intentos.
+- `company`: `SGX` o `SDC`. `dataset`: un valor de `Dataset`.
+- `slot` (la hora programada de la carga) y `occurred_at`: ISO 8601 con desfase (`2026-11-23T05:00:00-05:00`, con o sin microsegundos). Se guardan en la zona de la app.
+- `stage`: la etapa de `etl/run_etl.py` (`FailureStage`): `CONFIGURACION`, `INICIO`, `VPN`, `HANA`, `VALIDACION`, `RESPALDO`, `CONTRATO`, `LARAVEL` o `SUPABASE`.
+- `cause` (`FailureCause`): `vpn`, `ruta_hana`, `red`, `credenciales`, `datos`, `configuracion` o `inesperado`.
+- `transient` (un reintento puede funcionar) y `final` (último intento, no habrá otro): booleanos.
+- `attempt`: entero desde 1. `max_attempts`: entero, al menos `attempt` y máximo 10.
+- `message`: texto obligatorio de hasta 2000 caracteres. `RecordLoadFailure` le quita los caracteres de control e invisibles, junta los espacios y lo corta a 300 caracteres.
+- El origen (`source`) lo pone el servidor: `robot`. Si el cuerpo trae `source`, se ignora.
+
+| Estado | Cuándo | Cuerpo |
+|---|---|---|
+| 201 | Reporte nuevo guardado | `{"report_id": "...", "status": "recorded", "duplicate": false}` |
+| 200 | `report_id` ya guardado; no se guarda otra vez | `{"report_id": "...", "status": "recorded", "duplicate": true}` |
+| 401 | Firma inválida, ya usada o hecha para otra ruta | `{"message": "Firma inválida."}` |
+| 413 | Cuerpo de más de 8 KB | `{"message": ...}` |
+| 422 | Cuerpo comprimido o que no es un objeto JSON (`body`), o un campo inválido | `{"message": ..., "errors": {...}}` |
+
+Cada reporte recibido deja en el log «Ingesta: received a robot failure report.» con el `report_id`, la empresa, el lote, la etapa, la causa, `final` y `duplicate`, sin el mensaje. Cada 422 deja «Ingesta: rejected a robot failure report.» con los campos que fallaron y el id de la llave, nunca un valor.
+
+Se guardan en `ingesta_load_failures`, uno por `report_id` (índice único, así que dos copias simultáneas guardan uno solo), con índice por empresa, lote y hora programada. `RecordLoadFailure` es la única entrada: hoy la usa el endpoint y después la usará el lector de Bases SAP, con el origen `bases_sap`.
+
 ## Rotación de llaves
 
 `INGESTA_HMAC_KEYS` admite varias parejas `id:secreto` separadas por comas (el secreto puede tener `:`; se parte en el primero). Cada secreto debe tener al menos 32 bytes; genera uno con `php -r "echo bin2hex(random_bytes(32));"`. Para rotar: agrega la llave nueva junto a la vieja, cambia el robot a la nueva y, cuando ya firme con ella, quita la vieja. Una pareja mal formada o con un secreto de menos de 32 bytes se ignora con una advertencia en el log, que da su posición (y el id de la llave, si el secreto es corto), nunca el secreto. Sin ninguna llave válida, el endpoint responde 401 a todo y lo registra como error.
@@ -83,6 +129,7 @@ Los topes salen de los lotes reales: el más grande trae 1458 filas (ventas de S
 ## Almacenamiento
 
 - `ingesta_loads`: el historial, aceptadas y rechazadas, con el corte, el origen, el usuario de una carga manual, los totales de cartera (`decimal(18,2)`, sumas exactas en centavos), el orden de columnas guardado y, en las rechazadas, el resumen y los errores por campo. `accepted_batch_id` es único y solo se llena en las aceptadas: así un rechazo se puede reenviar y dos copias simultáneas del mismo lote no crean dos cargas.
+- `ingesta_load_failures`: los reportes de falla de carga, uno por `report_id` (ver «Reporte de fallas de carga»).
 - `ingesta_load_chunks`: las filas de cada carga aceptada en bloques de 500 (`ChunkCodec`: JSON de listas de valores, gzip y base64). Las instantáneas nunca se sobrescriben.
 
 ## Cómo leen los consumidores

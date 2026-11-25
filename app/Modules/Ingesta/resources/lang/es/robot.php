@@ -1,7 +1,8 @@
 <?php
 
-// Answers of the robot endpoint (POST /api/ingesta/{lote}), read with
-// __('ingesta::robot.<key>'). The robot logs them when a stage fails.
+// Answers of the robot endpoints (POST /api/ingesta/{lote} and
+// POST /api/ingesta/reportes), read with __('ingesta::robot.<key>'). The
+// robot logs them when a stage fails.
 return [
 
     // The same text for every signature failure, so it gives no hint.
@@ -21,5 +22,10 @@ return [
     'filas_lista' => 'El campo rows debe ser una lista de filas.',
     'fila_lista' => 'La fila debe ser una lista con :count valores, uno por columna.',
     'fila_valores' => 'Los valores de la fila deben ser texto, números o null, no listas ni objetos.',
+
+    // The failure report endpoint (POST /api/ingesta/reportes).
+    'reporte_demasiado_grande' => 'El reporte pesa más de :max bytes, el máximo que se acepta.',
+    'reporte_codificacion' => 'Envía el reporte como JSON sin comprimir.',
+    'reporte_objeto' => 'El cuerpo debe ser un objeto JSON con el reporte de la falla.',
 
 ];
