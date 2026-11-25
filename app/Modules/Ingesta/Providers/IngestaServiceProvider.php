@@ -2,7 +2,10 @@
 
 namespace App\Modules\Ingesta\Providers;
 
+use App\Modules\Core\Contracts\AvisoService;
+use App\Modules\Core\Contracts\Events\BatchAccepted;
 use App\Modules\Core\Contracts\IngestaSink;
+use App\Modules\Ingesta\Application\Failures\LoadNotices;
 use App\Modules\Ingesta\Console\CheckDailyLoadCommand;
 use App\Modules\Ingesta\Console\PruneManualUploadsCommand;
 use App\Modules\Ingesta\Infrastructure\DailyCarteraCheck;
@@ -13,6 +16,7 @@ use App\Support\Navigation\NavRegistry;
 use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Console\Scheduling\Schedule;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\RateLimiter;
 
 /**
@@ -46,6 +50,12 @@ final class IngestaServiceProvider extends ModuleServiceProvider
         ]);
 
         $this->commands([CheckDailyLoadCommand::class, PruneManualUploadsCommand::class]);
+
+        // The bell notice of a load that failed for good: any accepted load
+        // of its company and dataset (robot, manual upload) resolves it, and
+        // it opens the load history.
+        Event::listen(BatchAccepted::class, LoadNotices::class);
+        $this->app->make(AvisoService::class)->linkUsing(LoadNotices::KIND, (new LoadNotices)->link(...));
     }
 
     /**
