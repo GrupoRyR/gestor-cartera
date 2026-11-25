@@ -254,12 +254,23 @@ final class MailboxSync
 
     /**
      * What the bounce rule reads from a message of $company's mailbox, with
-     * the domains of every company mailbox, of the shared tenant
-     * (cobro.tenant_domains) and of $company's own tenant
-     * (cobro.company_tenant_domains) as ours. The other company's tenant
-     * domains never count.
+     * ownDomains() as ours.
      */
     public function envelope(string $from, ?string $messageClass, ?string $authAs, CompanyCode $company): InboundEnvelope
+    {
+        return new InboundEnvelope($from, $messageClass, $authAs, $this->ownDomains($company));
+    }
+
+    /**
+     * Our domains for a message of $company's mailbox: those of every
+     * company mailbox, of the shared tenant (cobro.tenant_domains) and of
+     * $company's own tenant (cobro.company_tenant_domains). The other
+     * company's tenant domains never count. The bounce rule (envelope())
+     * and the linker's sender step (InboundLinker) both read them.
+     *
+     * @return list<string>
+     */
+    private function ownDomains(CompanyCode $company): array
     {
         $domains = array_map(
             fn (string $address): string => (string) substr($address, (int) strrpos($address, '@') + 1),
@@ -270,7 +281,7 @@ final class MailboxSync
             ...(array) config("cobro.company_tenant_domains.{$company->value}", []),
         ], is_string(...));
 
-        return new InboundEnvelope($from, $messageClass, $authAs, array_values([...$domains, ...$tenant]));
+        return array_values([...$domains, ...$tenant]);
     }
 
     /**
@@ -307,7 +318,7 @@ final class MailboxSync
 
         if ($sent === null) {
             $kind = $kind === BounceDetector::EXTERNAL_REPORT ? BounceDetector::REPLY : $kind;
-            $sent = $this->linker->find($mailbox, $conversationId, $kind === BounceDetector::OWN_REPORT, $body, $from);
+            $sent = $this->linker->find($mailbox, $conversationId, $kind === BounceDetector::OWN_REPORT, $body, $from, $this->ownDomains($company));
         }
 
         $isBounce = $kind !== BounceDetector::REPLY;

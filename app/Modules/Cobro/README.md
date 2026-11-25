@@ -44,7 +44,7 @@ Cada trabajo reclama su cliente antes de enviar (pendiente → enviando), así q
 
 1. por la misma conversación de Graph;
 2. si es un rebote, por el `Message-ID` del envío que cita en su texto;
-3. si es una respuesta, por el remitente, al último envío a esa dirección en los últimos 90 días.
+3. si es una respuesta, por el remitente, al último envío a esa dirección en los últimos 90 días. Un remitente de nuestros dominios (los de los buzones de `cobro.mailboxes`, `COBRO_TENANT_DOMAINS` y los del inquilino de la empresa del buzón, los mismos de «Qué cuenta como rebote») nunca se une por este paso: los destinatarios de un envío incluyen sus copias (CC), donde va el equipo interno, y cualquier correo suyo se uniría al último envío del cliente. Una respuesta interna dentro de la conversación de un envío sí se une por el paso 1.
 
 Un rebote unido marca su cliente como «Rebotado» en el informe, con el código SMTP y la dirección que falló. Si el informe nombra varias direcciones del envío, cuenta primero la del cliente (Para) y después las copias. Si la dirección que falló es una copia (CC), el cliente sí recibió el correo: queda «Enviado» y la dirección queda en el registro.
 

@@ -138,6 +138,42 @@ function cobroInbound(string $subject): InboundMessage
     return InboundMessage::query()->where('subject', $subject)->sole();
 }
 
+/**
+ * A weekly send to Ferretería El Tornillo SAS, in its own conversation,
+ * with $internal on copy (GraphMailSender keeps To and Cc as recipients).
+ */
+function cobroSendWithInternalCopy(string $internal): SentMessage
+{
+    return SentMessage::query()->create([
+        'company' => CompanyCode::SGX,
+        'mailbox' => 'segurex.info@segurex.com',
+        'client_id' => test()->tornillo->summary->id,
+        'category' => 'cobro_semanal',
+        'subject' => 'Facturas vencidas de Ferretería El Tornillo SAS',
+        'recipients' => ['tesoreria@cliente.example', $internal],
+        'internet_message_id' => '<SA1PR11MB8471COPIA0003@SA1PR11MB8471.namprd11.prod.outlook.com>',
+        'conversation_id' => 'AAQkAGconversacion-con-copia=',
+        'sent_at' => CarbonImmutable::parse('2026-10-22 17:00:00', 'America/Bogota'),
+    ]);
+}
+
+/**
+ * The recorded newsletter of inbox-delta-page-1.json (a plain IPM.Note)
+ * from $from, in $conversationId.
+ *
+ * @return array<string, mixed>
+ */
+function cobroMail(string $from, string $conversationId): array
+{
+    $mail = (array) ((array) GraphFake::fixture('inbox-delta-page-1.json')['value'])[2];
+
+    return array_replace($mail, [
+        'from' => ['emailAddress' => ['name' => 'Equipo de cartera', 'address' => $from]],
+        'conversationId' => $conversationId,
+        'subject' => 'Reunión de cartera del jueves',
+    ]);
+}
+
 it('stores every new reply and bounce of the inbox once', function () {
     cobroInboxGraph();
 
@@ -536,6 +572,48 @@ it('links a new mail from a contact the client was mailed at', function () {
 
     expect($consult->sent_message_id)->toBe($this->weekly->id)
         ->and($consult->client_id)->toBe($this->tornillo->summary->id);
+});
+
+it('never links mail from an internal sender who was on copy, outside the conversation', function (array $settings, string $internal, string $sender) {
+    cobroSendWithInternalCopy($internal);
+    cobroOneMessageGraph(cobroMail($sender, 'AAQkAGotra-conversacion-interna='));
+    config($settings);
+
+    $this->artisan('cobro:sincronizar-buzones')->assertSuccessful();
+
+    $mail = InboundMessage::query()->sole();
+
+    expect($mail->sent_message_id)->toBeNull()
+        ->and($mail->client_id)->toBeNull()
+        ->and($this->fakes->gestiones->logged())->toBe([]);
+})->with([
+    'a company mailbox domain' => [[], 'jefe.cartera@segurex.com', 'Jefe.Cartera@Segurex.com'],
+    'the shared tenant domain' => [['cobro.tenant_domains' => ['GrupoRyR.onmicrosoft.com']], 'cartera@gruporyr.onmicrosoft.com', 'cartera@gruporyr.onmicrosoft.com'],
+    'the company tenant domain' => [['cobro.company_tenant_domains' => ['SGX' => ['segurex.onmicrosoft.com'], 'SDC' => []]], 'cartera@segurex.onmicrosoft.com', 'cartera@segurex.onmicrosoft.com'],
+]);
+
+it('links an internal reply inside the conversation of a cobro send', function () {
+    $send = cobroSendWithInternalCopy('jefe.cartera@segurex.com');
+    cobroOneMessageGraph(cobroMail('jefe.cartera@segurex.com', 'AAQkAGconversacion-con-copia='));
+
+    $this->artisan('cobro:sincronizar-buzones')->assertSuccessful();
+
+    $reply = InboundMessage::query()->sole();
+
+    expect($reply->sent_message_id)->toBe($send->id)
+        ->and($reply->client_id)->toBe($this->tornillo->summary->id);
+});
+
+it('still links a client sender who was a recipient, outside the conversation', function () {
+    $send = cobroSendWithInternalCopy('jefe.cartera@segurex.com');
+    cobroOneMessageGraph(cobroMail('tesoreria@cliente.example', 'AAQkAGotra-conversacion-cliente='));
+
+    $this->artisan('cobro:sincronizar-buzones')->assertSuccessful();
+
+    $mail = InboundMessage::query()->sole();
+
+    expect($mail->sent_message_id)->toBe($send->id)
+        ->and($mail->client_id)->toBe($this->tornillo->summary->id);
 });
 
 it('keeps unrelated mail unlinked', function () {
