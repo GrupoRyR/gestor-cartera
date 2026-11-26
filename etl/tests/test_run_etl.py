@@ -8,8 +8,9 @@ from __future__ import annotations
 import logging
 import sys
 import unittest
+import uuid
 from contextlib import ExitStack, contextmanager
-from datetime import date
+from datetime import date, datetime, timedelta
 from decimal import Decimal
 from pathlib import Path
 from unittest import mock
@@ -18,6 +19,7 @@ import esquema
 import hana
 import notificar
 import registro
+import reporte
 import run_etl
 from config import AlertaConfig, Config, EmpresaConfig, HanaConfig, IngestaConfig, VpnConfig
 from esquema import ENTERO, FECHA, NUMERO, TASA, Columna, Lote
@@ -48,8 +50,11 @@ def _resultado(nombre: str, filas: int = 2):
 class Escenario:
     def __init__(self, resultados, lotes, *, laravel=True, supabase=False,
                  fallos_laravel=(), argv=(), empresa="SGX", empresas=None,
-                 vpn_falla=False, conexion_falla=()):
+                 vpn_falla=False, conexion_falla=(), reporte_falla=False):
         self.vpn_falla = vpn_falla
+        # Reportes de falla enviados a la app (reporte.enviar).
+        self.reportes: list[dict] = []
+        self.reporte_falla = reporte_falla
         # Esquemas cuya conexion HANA rechaza (por ejemplo, contrasena vencida).
         self.conexion_falla = set(conexion_falla)
         self.credenciales: list[tuple[str, str, str]] = []
@@ -129,6 +134,13 @@ class Escenario:
         assert (self.multi or empresa == self.empresa) and corte == date(2026, 10, 16)
         return {"duplicate": False}
 
+    def _reportar(self, cfg_http, datos):
+        assert cfg_http.url == "https://cartera.example.com"
+        self.reportes.append(datos)
+        if self.reporte_falla:
+            raise RuntimeError("la app no respondio")
+        return True
+
     @contextmanager
     def _pg_conectar(self, _url):
         yield "pg"
@@ -151,6 +163,7 @@ class Escenario:
             parche(csv_sink, "guardar",
                    lambda nombre, *_: self.eventos.append(f"csv:{nombre}"))
             parche(http_sink, "publicar", self._publicar)
+            parche(reporte, "enviar", self._reportar)
             parche(notificar, "avisar_fallo",
                    lambda _cfg, etapa, error, detalle="": self.avisos.append((etapa, error)))
             parche(postgres_sink, "conectar", self._pg_conectar)
@@ -526,6 +539,93 @@ class DosEmpresasTest(unittest.TestCase):
         self.assertEqual(escenario.eventos[1], "hana:cartera")
         self.assertIn("csv:cartera", escenario.eventos)
         self.assertEqual(escenario.esquemas_conectados, ["HBT_SDERIVADOS"])
+
+
+class ReporteDeFallasTest(unittest.TestCase):
+    BASE = {"cartera": _resultado("cartera"), "asesores": _resultado("asesores")}
+
+    def _uno(self, escenario):
+        (datos,) = escenario.reportes
+        return datos
+
+    def test_una_corrida_correcta_no_reporta(self):
+        escenario = Escenario(self.BASE, ["cartera", "asesores"])
+        self.assertEqual(escenario.ejecutar(), 0)
+        self.assertEqual(escenario.reportes, [])
+
+    def test_si_cae_la_vpn_reporta_una_falla_final(self):
+        escenario = Escenario(self.BASE, ["cartera", "asesores"], vpn_falla=True)
+        self.assertEqual(escenario.ejecutar(), 1)
+        datos = self._uno(escenario)
+        self.assertEqual(uuid.UUID(datos["report_id"]).version, 4)
+        self.assertEqual(uuid.UUID(datos["run_id"]).version, 4)
+        self.assertEqual(
+            {k: datos[k] for k in ("company", "dataset", "stage", "cause", "transient",
+                                   "attempt", "max_attempts", "final", "message")},
+            {"company": "SGX", "dataset": "cartera", "stage": "VPN", "cause": "vpn",
+             "transient": True, "attempt": 1, "max_attempts": 1, "final": True,
+             "message": "Sophos no conecto"},
+        )
+        franja = datetime.fromisoformat(datos["slot"])
+        self.assertEqual(franja.utcoffset(), timedelta(hours=-5))
+        self.assertEqual((franja.second, franja.microsecond), (0, 0))
+        self.assertEqual(datetime.fromisoformat(datos["occurred_at"]).utcoffset(),
+                         timedelta(hours=-5))
+        self.assertEqual(len(escenario.avisos), 1)  # el correo de siempre sigue
+
+    def test_si_laravel_rechaza_la_cartera_reporta_la_cartera(self):
+        escenario = Escenario(
+            {**self.BASE, "prueba": (["Valor"], [(1,)])},
+            ["cartera", "asesores", "prueba"], fallos_laravel={"cartera", "prueba"},
+        )
+        self.assertEqual(escenario.ejecutar(), 1)
+        datos = self._uno(escenario)
+        self.assertEqual(
+            (datos["stage"], datos["cause"], datos["transient"]), ("LARAVEL", "datos", False)
+        )
+
+    def test_un_lote_no_base_que_falla_no_se_reporta(self):
+        escenario = Escenario(
+            {**self.BASE, "prueba": hana.HanaError("tabla inexistente")},
+            ["cartera", "asesores", "prueba"],
+        )
+        self.assertEqual(escenario.ejecutar(), 1)
+        self.assertEqual(escenario.reportes, [])
+
+    def test_con_dos_empresas_reporta_solo_la_que_fallo(self):
+        escenario = Escenario(
+            _base("SGX", "SDC"), ["cartera", "asesores"], empresas=DOS_EMPRESAS,
+            conexion_falla={"HBT_SDERIVADOS"},
+        )
+        self.assertEqual(escenario.ejecutar(), 1)
+        datos = self._uno(escenario)
+        self.assertEqual((datos["company"], datos["stage"]), ("SDC", "HANA"))
+
+    def test_un_error_de_configuracion_se_reporta(self):
+        escenario = Escenario({}, ["cartera"], argv=["--lotes", "ventitas"])
+        self.assertEqual(escenario.ejecutar(), 2)
+        datos = self._uno(escenario)
+        self.assertEqual((datos["stage"], datos["cause"]), ("CONFIGURACION", "configuracion"))
+
+    def test_un_reporte_que_falla_no_cambia_el_resultado(self):
+        escenario = Escenario(self.BASE, ["cartera", "asesores"], vpn_falla=True,
+                              reporte_falla=True)
+        self.assertEqual(escenario.ejecutar(), 1)
+        self.assertEqual(len(escenario.reportes), 1)
+        self.assertEqual(escenario.estados[-1]["etapa"], "VPN")
+        self.assertEqual(len(escenario.avisos), 1)
+
+    def test_sin_laravel_no_reporta(self):
+        escenario = Escenario(self.BASE, ["cartera", "asesores"], vpn_falla=True,
+                              laravel=False, supabase=True)
+        self.assertEqual(escenario.ejecutar(), 1)
+        self.assertEqual(escenario.reportes, [])
+
+    def test_el_diagnostico_no_reporta(self):
+        escenario = Escenario(self.BASE, ["cartera", "asesores"], vpn_falla=True,
+                              argv=["--diagnostico"])
+        self.assertEqual(escenario.ejecutar(), 1)
+        self.assertEqual(escenario.reportes, [])
 
 
 class FechaDeCorteTest(unittest.TestCase):
