@@ -18,8 +18,9 @@ use Illuminate\Validation\Rule;
  * GET /cobro/informe: the report filters. The company must be one of the
  * user's scope and the advisor one CarteraRepository::advisors() shows the
  * user, as "<company>:<code>". Without dates the report covers the last
- * DEFAULT_DAYS days ending today (Bogotá). The route already checked
- * cobro.view.
+ * DEFAULT_DAYS days ending today (Bogotá); with only «desde», it ends today,
+ * or on that same day when «desde» is later. The route already checked
+ * cobro.view (and cobro.export for the download).
  */
 final class MailReportRequest extends FormRequest
 {
@@ -57,14 +58,16 @@ final class MailReportRequest extends FormRequest
 
     public function filter(): MailReportFilter
     {
-        $to = $this->day('hasta') ?? CarbonImmutable::today(CobroServiceProvider::TIMEZONE);
+        $from = $this->day('desde');
+        $today = CarbonImmutable::today(CobroServiceProvider::TIMEZONE);
+        $to = $this->day('hasta') ?? ($from !== null && $from->greaterThan($today) ? $from : $today);
         $company = CompanyCode::tryFrom($this->string('empresa')->toString());
         $client = trim($this->string('cliente')->toString());
         $replied = $this->string('respondio')->toString();
         [$advisorCompany, $advisorCode] = $this->advisor();
 
         return new MailReportFilter(
-            from: $this->day('desde') ?? $to->subDays(self::DEFAULT_DAYS - 1),
+            from: $from ?? $to->subDays(self::DEFAULT_DAYS - 1),
             to: $to,
             companies: $company === null ? $this->scope() : [$company],
             client: $client === '' ? null : $client,

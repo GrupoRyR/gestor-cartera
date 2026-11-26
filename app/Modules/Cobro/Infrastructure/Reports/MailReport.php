@@ -22,12 +22,20 @@ use Illuminate\Database\Eloquent\Builder;
  * collection and circularization runs scheduled in the filter's days, and
  * their figures. Cobro does not keep the client's advisor, so it asks
  * Core's CarteraRepository: for the advisor filter, the advisor's clients
- * of that company; for the advisor column, each client of the page.
+ * of that company, once per instance (one request) however many queries
+ * use them; for the advisor column, each client of the page.
  */
 final class MailReport
 {
     /** Escape character of the client search, named in the SQL: SQLite has none by default. */
     private const string LIKE_ESCAPE = '!';
+
+    /**
+     * Client ids of each advisor already read, by MailReportFilter::advisorKey().
+     *
+     * @var array<string, list<int>>
+     */
+    private array $advisorClients = [];
 
     public function __construct(
         private readonly CarteraRepository $cartera,
@@ -152,7 +160,8 @@ final class MailReport
     }
 
     /**
-     * Ids of the clients of the advisor $code of $company.
+     * Ids of the clients of the advisor $code of $company, read from Core
+     * the first time only.
      *
      * @return list<int>
      */
@@ -162,13 +171,19 @@ final class MailReport
             return [];
         }
 
-        $ids = [];
+        $key = MailReportFilter::advisorKey($company, $code);
 
-        foreach ($this->cartera->allClients(new ClientQuery(advisorCode: $code, companies: [$company])) as $client) {
-            $ids[] = $client->id;
+        if (! array_key_exists($key, $this->advisorClients)) {
+            $ids = [];
+
+            foreach ($this->cartera->allClients(new ClientQuery(advisorCode: $code, companies: [$company])) as $client) {
+                $ids[] = $client->id;
+            }
+
+            $this->advisorClients[$key] = $ids;
         }
 
-        return $ids;
+        return $this->advisorClients[$key];
     }
 
     /**

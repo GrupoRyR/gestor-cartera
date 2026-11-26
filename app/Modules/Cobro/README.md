@@ -25,11 +25,11 @@ Permisos (`CobroPermissionSeeder`): `cobro.view` para administrador, gerente y a
 
 ## Informe de cobro
 
-`/cobro/informe` lista, del más reciente al más antiguo, cada cliente de los envíos del cobro semanal y de la circularización de las empresas de la vista, 25 por página. Las fechas son las del día programado del envío en Bogotá; sin fechas cubre los últimos 30 días hasta hoy. Filtros (en la URL, validados por `MailReportRequest`): `desde`, `hasta`, `empresa`, `cliente` (código, nombre o NIT), `asesor` (`SGX:12`: el código de SAP es por empresa), `tipo`, `estado` y `respondio` (`si` o `no`, entre los correos que llegaron al buzón).
+`/cobro/informe` lista, del más reciente al más antiguo, cada cliente de los envíos del cobro semanal y de la circularización de las empresas de la vista, 25 por página. Las fechas son las del día programado del envío en Bogotá; sin fechas cubre los últimos 30 días hasta hoy, y con solo `desde`, hasta hoy (o solo ese día si `desde` es posterior a hoy). Filtros (en la URL, validados por `MailReportRequest`): `desde`, `hasta`, `empresa`, `cliente` (código, nombre o NIT), `asesor` (`SGX:12`: el código de SAP es por empresa), `tipo`, `estado` y `respondio` (`si` o `no`, entre los correos que llegaron al buzón).
 
 - **Cifras**, sobre todo lo filtrado y no solo la página: correos enviados (`enviado` + `rebotado`, como en Gerencia), fallidos, rebotados, clientes alcanzados (distintos entre los enviados), respuestas (clientes enviados con al menos un mensaje que no es rebote unido a su envío, por su id o por su `Message-ID`: `Infrastructure/Reports/ItemReplies`, la misma regla de `DatabaseMailRunResults`), tasa de respuesta y la mediana entre el envío y la primera respuesta (en horas por debajo de 48 h, si no en días).
 - **Respuestas que envió el equipo:** los correos de categoría `respuesta` (`ReplySender`) enviados en esas fechas y empresas; los demás filtros no aplican.
-- **Asesor:** Cobro no lo guarda. El filtro pide a `CarteraRepository::allClients()` los clientes de ese asesor y esa empresa, y la columna muestra el asesor actual de cada cliente de la página (`client()`), o «—» si Core no lo conoce.
+- **Asesor:** Cobro no lo guarda. El filtro pide a `CarteraRepository::allClients()` los clientes de ese asesor y esa empresa una sola vez por consulta, y la columna muestra el asesor actual de cada cliente de la página (`client()`), o «—» si Core no lo conoce.
 
 ## Tareas programadas y colas
 
