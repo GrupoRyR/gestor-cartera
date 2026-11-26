@@ -31,6 +31,26 @@ class HanaError(RuntimeError):
     """No se pudo conectar a HANA o ejecutar la consulta."""
 
 
+class HanaSinRuta(HanaError):
+    """El puerto de HANA no respondio en la espera: la VPN no enruta (aun)."""
+
+
+class HanaCredenciales(HanaError):
+    """HANA rechazo el usuario o la contrasena."""
+
+
+class HanaConexion(HanaError):
+    """El puerto respondio pero la conexion fallo en todos los intentos.
+
+    tls es True cuando fallo el cifrado (certificado): eso no se arregla
+    reintentando, hay que corregir la configuracion.
+    """
+
+    def __init__(self, mensaje: str, tls: bool = False) -> None:
+        super().__init__(mensaje)
+        self.tls = tls
+
+
 def describir_cifrado(cfg: HanaConfig) -> str:
     """Modo TLS de la conexion, para el log y el resumen del diagnostico."""
     validacion = cfg.encrypt and cfg.validar_certificado
@@ -104,7 +124,7 @@ def conectar(cfg: HanaConfig, intentos: int = 3) -> Iterator[Any]:
     registrar_secreto(cfg.password)
 
     if not _esperar_puerto(cfg.host, cfg.port):
-        raise HanaError(
+        raise HanaSinRuta(
             f"No hay ruta hasta {cfg.host}:{cfg.port} tras 60s de espera.\n"
             "Causas habituales:\n"
             "  - La VPN no esta realmente conectada o no enruta esa subred.\n"
@@ -138,7 +158,7 @@ def conectar(cfg: HanaConfig, intentos: int = 3) -> Iterator[Any]:
             ultimo = exc
             texto = str(exc).lower()
             if "authentication failed" in texto or "invalid username" in texto:
-                raise HanaError(
+                raise HanaCredenciales(
                     f"HANA rechazo el usuario {cfg.usuario} o su contrasena. Revisa "
                     "HANA_USER_<EMPRESA> / HANA_PASSWORD_<EMPRESA> (o HANA_USER / "
                     "HANA_PASSWORD) en el archivo .env. "
@@ -150,9 +170,10 @@ def conectar(cfg: HanaConfig, intentos: int = 3) -> Iterator[Any]:
 
     if conn is None:
         mensaje = f"No se pudo conectar a HANA tras {intentos} intentos: {ultimo}"
-        if cfg.encrypt and ultimo is not None and _es_error_tls(ultimo):
+        tls = cfg.encrypt and ultimo is not None and _es_error_tls(ultimo)
+        if tls:
             mensaje = f"{mensaje}\n{AYUDA_TLS}"
-        raise HanaError(mensaje) from ultimo
+        raise HanaConexion(mensaje, tls=tls) from ultimo
 
     try:
         yield conn
