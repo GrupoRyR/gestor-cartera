@@ -11,6 +11,7 @@ use OpenSpout\Common\Entity\Row;
 use OpenSpout\Writer\XLSX\Writer;
 use Tests\Fakes\AuditEntry;
 use Tests\Fakes\ContractFakes;
+use Tests\Feature\Design\Support\Html;
 use Tests\Modules\Comisiones\Feature\Concerns\ClosedPeriods;
 use Tests\Modules\Comisiones\Feature\Concerns\ComisionesUsers;
 use Tests\Modules\Comisiones\Feature\Concerns\SapBatches;
@@ -149,8 +150,26 @@ it('edits the budget of a code on screen, creating and then updating it, and aud
     $this->fakes->audit->assertRecorded('comisiones.budget.updated', fn (AuditEntry $entry) => $entry->context['codigo'] === 14);
 
     $this->actingAs($other)->get('/comisiones/presupuesto?periodo=2026-07')->assertOk()
-        ->assertSee('value="80.000.000,50"', false)
+        ->assertSee('value="80000000.5"', false)
         ->assertSeeText('04/08/2026 10:30 por Óscar Peña');
+});
+
+it('takes the budget in a money input with cents, prefilled clean', function () {
+    $this->actingAs($this->analyst)->put('/comisiones/presupuesto/2026-07/14', ['filas' => [14 => ['valor' => '77241857', 'canal' => '']]])->assertSessionHas('status');
+
+    $field = Html::parse($this->actingAs($this->analyst)->get('/comisiones/presupuesto?periodo=2026-07')->assertOk()->getContent() ?: '')->one('//input[@name="filas[14][valor]"]');
+
+    expect($field->getAttribute('type'))->toBe('text')
+        ->and($field->hasAttribute('data-money-input'))->toBeTrue()
+        ->and($field->getAttribute('data-decimals'))->toBe('2')
+        ->and($field->getAttribute('inputmode'))->toBe('decimal')
+        ->and($field->getAttribute('value'))->toBe('77241857');
+});
+
+it('takes the clean amount the money input sends', function () {
+    $this->actingAs($this->analyst)->put('/comisiones/presupuesto/2026-07/14', ['filas' => [14 => ['valor' => '77241857.5', 'canal' => '']]])->assertSessionHas('status');
+
+    expect(BudgetRecord::query()->sole()->valor)->toBe('77241857.50');
 });
 
 it('refuses a budget that is not an amount, or not above zero, under its row', function () {
