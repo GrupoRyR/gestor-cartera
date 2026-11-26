@@ -33,6 +33,18 @@ Necesitas al menos un destino: Laravel completo (`INGESTA_URL`, `INGESTA_KEY_ID`
 - El resto de 4xx (firma, lote desconocido, cuerpo inválido) no se reintenta: el lote queda fallido con el mensaje de Laravel.
 - La fecha de corte es el día en Colombia (UTC−5) en que empieza la extracción de HANA: si la corrida extrae antes de medianoche y publica después, el lote conserva el día de la extracción.
 
+### Cómo reporta una falla a la app
+
+Cuando una empresa se queda sin cartera, el robot se lo cuenta a la app con `POST {INGESTA_URL}/api/ingesta/reportes` (`etl/reporte.py`), con la misma llave HMAC de los lotes y JSON sin comprimir. La app guarda el reporte, envía la alerta por correo y deja el aviso en la campana.
+
+- **Cuándo:** si la corrida falla por la configuración, la VPN, HANA o un lote base, o si la cartera de una empresa falla al validarse, respaldarse o publicarse en Laravel. Se envía un reporte por empresa que falló. Un fallo de Supabase no se reporta: la cartera ya llegó a la app.
+- **Qué lleva:** la empresa, el lote (`cartera`), la etapa que falló, la causa (`vpn`, `ruta_hana`, `red`, `credenciales`, `datos`, `configuracion` o `inesperado`), si un reintento podría servir y el mensaje del error sin contraseñas, rutas, cadenas de conexión ni IPs, cortado a 300 caracteres.
+- **La hora programada** (`slot`) es la franja de `etl/horarios.json` más reciente a la hora en que empezó la corrida, en hora de Bogotá y respetando los días (la de las 16:00 solo cuenta los miércoles). Si ninguna franja aplica, es la hora de inicio truncada al minuto.
+- Por ahora cada reporte es el intento 1 de 1 y es final: el robot todavía no reintenta la corrida.
+- Los fallos de otros lotes que no frenan la cartera (un lote de mejor esfuerzo, o asesores al publicarse en Laravel) no se reportan todavía; siguen en el correo y en `ultima_ejecucion.json`.
+- No se reporta en `--diagnostico` ni sin Laravel configurado (`INGESTA_URL`, `INGESTA_KEY_ID` e `INGESTA_SECRET`).
+- Un reporte que no se puede enviar (sin red, firma rechazada, 4xx o 5xx) solo queda en el log: no se reintenta ni se guarda para después, y nunca cambia el resultado de la corrida. Si la carga no llega, el vigilante de la app avisa igual.
+
 ## Configuración
 
 Copia `etl/.env.example` como `etl/.env` y complétalo. El `.env` nunca se sube a Git; los secretos se ocultan en los logs.

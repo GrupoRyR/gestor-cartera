@@ -13,7 +13,7 @@ use Illuminate\Support\Facades\Gate;
 
 /**
  * Soportes: the inbox of payment receipts. The advisor or the portfolio team
- * uploads a client's receipt against its overdue invoices; the analyst
+ * uploads a client's receipt against its open invoices; the analyst
  * applies the payment in SAP and marks the receipt applied or rejected.
  *
  * Web routes: /soportes/*, named soportes.* (routes/web.php).

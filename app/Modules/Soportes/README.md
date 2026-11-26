@@ -1,6 +1,6 @@
 # Soportes
 
-Inbox of payment receipts (soportes de pago). Clients send receipts by mail or WhatsApp; the advisor or the portfolio team uploads each one against a client and one or more of its overdue invoices; the portfolio analyst applies the payment in SAP and records in the app that it was done, or rejects the receipt with a reason the advisor sees.
+Inbox of payment receipts (soportes de pago). Clients send receipts by mail or WhatsApp; the advisor or the portfolio team uploads each one against a client and one or more of its open invoices, overdue or not; the portfolio analyst applies the payment in SAP and records in the app that it was done, or rejects the receipt with a reason the advisor sees.
 
 The app never marks an invoice as paid and does not change the weekly collection: an invoice only shows as paid once SAP has the payment and the robot brings the next snapshot. The module talks to the rest of the app only through Core's contracts (`docs/arquitectura.md` §6). The feature plan is `odd/tasks/soportes-pago.md`.
 
@@ -40,7 +40,7 @@ Only `pendiente` moves, and only to `aplicado` or `rechazado` (`ReceiptStatus::c
 Migrations `2026_10_09_*`:
 
 - `soportes`: the receipt. `company`, `client_id`, `client_code`, `client_name` and `advisor_code` are copies taken at upload, so the inbox lists receipts from its own rows and never depends on the current snapshot or on the company the user has open. `client_id` is Core's client id, without a foreign key (modules never constrain each other's tables); it is read live only for the advisor's `view` rule. `uploaded_by` restricts deletes (users are soft-deleted, so who uploaded is never lost); `reviewed_by` is set to null if the user row is ever removed.
-- `soporte_facturas`: the overdue invoices the receipt covers, copied at upload (document number and type, due date, balance, days overdue). Core's invoice id changes with every snapshot, so it is never stored.
+- `soporte_facturas`: the open invoices the receipt covers, copied at upload (document number and type, due date, balance, days overdue). Core's invoice id changes with every snapshot, so it is never stored.
 - `soporte_archivos`: the files (PDF, JPG or PNG; 1 to 3 per receipt, 10 MB each), with the sniffed MIME type and size in bytes.
 
 Deleting a receipt deletes its invoice and file rows.
@@ -50,7 +50,7 @@ Deleting a receipt deletes its invoice and file rows.
 `Application\Upload\UploadReceipt::handle(NewReceipt, User)` creates a `pendiente` receipt. It runs as the authenticated user, because the portfolio scope comes from them:
 
 - the client must be found by `CarteraRepository::client()` (an advisor finds only their own clients; the portfolio team, any client of the companies in scope); otherwise `ReceiptRefused` on `cliente`;
-- every document number must be one of the client's overdue invoices (`OverdueInvoices`: `openInvoices()` with `daysOverdue > 0` and `balance > 0`, so credit notes are left out); otherwise `ReceiptRefused` on `facturas`. Invoices are matched by document number, never by `Invoice::$id`, which changes with every snapshot; a document with split payment terms copies every overdue installment;
+- every document number must be one of the client's open invoices (`OpenInvoices`: `openInvoices()` with `balance > 0`, so credit notes are left out; overdue or not, user decision 2026-11-26); otherwise `ReceiptRefused` on `facturas`. Invoices are matched by document number, never by `Invoice::$id`, which changes with every snapshot; a document with split payment terms copies every open installment;
 - every file's sniffed content type must be PDF, JPEG or PNG; otherwise `ReceiptRefused` on `archivos`.
 
 The files are written first, then the receipt, its invoices and files are saved in one transaction with the audit entry `soportes.receipt.uploaded` (subject `soporte`; company, client id, amount, payment date, method and status; context: how many invoices and files). If anything fails, the files already written are deleted. No e-mail is sent.
@@ -61,8 +61,8 @@ Routes in `routes/web.php` (`auth` and `can:create` on `Receipt`, i.e. `soportes
 
 | Route | Name | What |
 |---|---|---|
-| `GET /soportes/nuevo` | `soportes.create` | Step 1: search the overdue clients the user may upload for (`paginateClients` with `onlyOverdue`, by name or NIT). |
-| `GET /soportes/nuevo?cliente={id}` | `soportes.create` | Step 2: the form for that client (404 when `client()` does not find it): its overdue invoices as checkboxes, amount, payment date, method, note and files. Other screens can link here. |
+| `GET /soportes/nuevo` | `soportes.create` | Step 1: search the clients the user may upload for (`paginateClients`, by name or NIT), with their balance and days overdue («Al día» when none). |
+| `GET /soportes/nuevo?cliente={id}` | `soportes.create` | Step 2: the form for that client (404 when `client()` does not find it): its open invoices as checkboxes, overdue or not («Al día» in the days column), amount, payment date, method, note and files. Other screens can link here. |
 | `POST /soportes` | `soportes.store` | `StoreReceiptRequest`, then `UploadReceipt`. Errors and refusals go back to step 2 with the input; success opens the new receipt (`soportes.show`) with «Soporte cargado. Queda pendiente de revisión.». |
 
 `StoreReceiptRequest` fields: `cliente`; `facturas[]` (document numbers, at least one, distinct); `valor` (pesos, digits with up to two decimals, above zero); `fecha_pago` (`Y-m-d`, not after today); `metodo` (optional, `PaymentMethod`); `nota` (optional, up to 1,000 characters); `archivos[]` (1 to `max_files`, each `file`, `extensions` and `mimetypes` from the config, which Laravel checks against the sniffed content type, up to `max_file_kilobytes`). Texts in `resources/lang/es/carga.php`.

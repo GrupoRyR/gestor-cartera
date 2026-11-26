@@ -33,7 +33,7 @@ Route::middleware(['auth', 'can:viewAny,'.Receipt::class])->group(function () {
 });
 
 // Upload of a payment receipt (ReceiptPolicy::create: soportes.upload).
-// Step 1 picks an overdue client; step 2 (?cliente={id}) is the form.
+// Step 1 picks a client; step 2 (?cliente={id}) is the form.
 Route::middleware(['auth', 'can:create,'.Receipt::class])->group(function () {
     Route::get('nuevo', [UploadController::class, 'create'])->name('create');
     Route::post('/', [UploadController::class, 'store'])->middleware('throttle:20,1')->name('store');

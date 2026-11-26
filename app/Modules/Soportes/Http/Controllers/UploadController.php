@@ -6,7 +6,7 @@ use App\Models\User;
 use App\Modules\Core\Contracts\CarteraRepository;
 use App\Modules\Core\Contracts\CurrentCompany;
 use App\Modules\Core\Contracts\Data\ClientQuery;
-use App\Modules\Soportes\Application\Upload\OverdueInvoices;
+use App\Modules\Soportes\Application\Upload\OpenInvoices;
 use App\Modules\Soportes\Application\Upload\UploadReceipt;
 use App\Modules\Soportes\Domain\Exceptions\ReceiptRefused;
 use App\Modules\Soportes\Domain\PaymentMethod;
@@ -18,8 +18,8 @@ use Illuminate\Http\Request;
 
 /**
  * Upload of a payment receipt, in two steps on the same URL: without
- * ?cliente= the user searches their overdue clients; with ?cliente={id} the
- * form shows that client's overdue invoices. The ?cliente= link also lets
+ * ?cliente= the user searches their clients; with ?cliente={id} the
+ * form shows that client's open invoices. The ?cliente= link also lets
  * other screens send the user straight to the form.
  */
 final readonly class UploadController
@@ -28,7 +28,7 @@ final readonly class UploadController
 
     public function __construct(
         private CarteraRepository $cartera,
-        private OverdueInvoices $overdue,
+        private OpenInvoices $open,
         private UploadReceipt $upload,
     ) {}
 
@@ -41,7 +41,7 @@ final readonly class UploadController
         $search = $request->string('buscar')->trim()->toString();
 
         return view('soportes::carga.clientes', [
-            'clients' => $this->cartera->paginateClients(new ClientQuery(search: $search === '' ? null : $search, onlyOverdue: true), self::PER_PAGE),
+            'clients' => $this->cartera->paginateClients(new ClientQuery(search: $search === '' ? null : $search), self::PER_PAGE),
             'search' => $search,
             'isGroup' => $current->isGroup(),
         ]);
@@ -74,7 +74,7 @@ final readonly class UploadController
 
         return view('soportes::carga.formulario', [
             'client' => $client->summary,
-            'documents' => $this->overdue->byDocument($clientId),
+            'documents' => $this->open->byDocument($clientId),
             'methods' => PaymentMethod::options(),
             'today' => CarbonImmutable::now()->format('Y-m-d'),
         ]);

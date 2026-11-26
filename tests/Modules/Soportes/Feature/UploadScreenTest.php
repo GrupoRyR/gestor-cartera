@@ -76,7 +76,7 @@ describe('access', function () {
 });
 
 describe('step 1: picking the client', function () {
-    it('lists the advisor\'s own overdue clients, linking to the form', function () {
+    it('lists every client of the advisor, overdue or not, linking to the form', function () {
         $this->fakes->cartera->restrictToAdvisor(10);
         OverdueClient::add($this->fakes->cartera, advisorCode: 20, name: 'Cliente De Otra Asesora SAS');
         $this->fakes->cartera->addClient(Make::clientDetail(Make::client(name: 'Cliente Al Día SAS', advisor: Make::advisor(code: 10))));
@@ -85,11 +85,13 @@ describe('step 1: picking the client', function () {
             ->assertOk()
             ->assertSee('Ferretería El Tornillo SAS')
             ->assertSee('/soportes/nuevo?cliente='.$this->client->id, false)
+            ->assertSee('Cliente Al Día SAS')
             ->assertDontSee('Cliente De Otra Asesora SAS')
-            ->assertDontSee('Cliente Al Día SAS');
+            ->assertSee('Saldo')
+            ->assertDontSee('Saldo vencido');
     });
 
-    it('searches the overdue clients by name', function () {
+    it('searches the clients by name', function () {
         OverdueClient::add($this->fakes->cartera, name: 'Distribuciones La Rueda SAS');
 
         $this->actingAs(SoportesUsers::analyst())->get('/soportes/nuevo?buscar=rueda')
@@ -100,7 +102,17 @@ describe('step 1: picking the client', function () {
 });
 
 describe('step 2: the form', function () {
-    it('shows the advisor\'s own client with only its overdue invoices to pick', function () {
+    it('tells when the client has no open invoice', function () {
+        $client = Make::client(name: 'Cliente Sin Saldo SAS', balance: 0.0, advisor: Make::advisor(code: 10));
+        $this->fakes->cartera->addClient(Make::clientDetail($client));
+
+        $this->actingAs(SoportesUsers::analyst())->get('/soportes/nuevo?cliente='.$client->id)
+            ->assertOk()
+            ->assertSee('Este cliente no tiene facturas abiertas')
+            ->assertDontSee('name="archivos[]"', false);
+    });
+
+    it('shows the advisor\'s own client with its open invoices to pick, due or not', function () {
         $this->fakes->cartera->restrictToAdvisor(10);
 
         $this->actingAs(SoportesUsers::advisor())->get('/soportes/nuevo?cliente='.$this->client->id)
@@ -108,7 +120,8 @@ describe('step 2: the form', function () {
             ->assertSee('Ferretería El Tornillo SAS')
             ->assertSee('value="FV-1001"', false)
             ->assertSee('value="FV-1002"', false)
-            ->assertDontSee('FV-1003')
+            ->assertSee('value="FV-1003"', false)
+            ->assertSee('Al día')
             ->assertDontSee('NC-1001')
             ->assertSee('enctype="multipart/form-data"', false)
             ->assertSee('name="archivos[]"', false);
@@ -196,7 +209,7 @@ describe('uploading', function () {
         ])
             ->assertOk()
             ->assertSee('Ferretería El Tornillo SAS')
-            ->assertSee('Marca al menos una factura vencida.')
+            ->assertSee('Marca al menos una factura.')
             ->assertSee('Escribe el valor en pesos, sin puntos de miles y con máximo dos decimales.')
             ->assertSee('Cada comprobante debe ser un PDF, JPG o PNG.')
             ->assertSee('value="1500.555"', false);
@@ -212,7 +225,7 @@ describe('uploading', function () {
             ->and(Storage::disk('local')->allFiles())->toBe([]);
     })->with([
         'no invoices' => [fn () => ['facturas' => []], 'facturas'],
-        'an invoice not overdue' => [fn () => ['facturas' => ['FV-1001', 'FV-1003']], 'facturas'],
+        'a credit note' => [fn () => ['facturas' => ['FV-1001', 'NC-1001']], 'facturas'],
         'the same invoice twice' => [fn () => ['facturas' => ['FV-1001', 'FV-1001']], 'facturas.0'],
         'a payment date in the future' => [fn () => ['fecha_pago' => '2026-11-21'], 'fecha_pago'],
         'an amount of zero' => [fn () => ['valor' => '0'], 'valor'],

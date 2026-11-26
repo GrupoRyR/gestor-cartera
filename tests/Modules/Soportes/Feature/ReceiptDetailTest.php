@@ -105,6 +105,19 @@ describe('the detail', function () {
             ->assertSee(soportesDownloadUrl($receipt, $receipt->files[0]));
     });
 
+    it('says «Al día» for an invoice that was not overdue when the receipt was uploaded', function () {
+        $receipt = soportesDetailReceipt($this->client);
+        $receipt->invoices()->create([
+            'document_number' => 'FV-1003', 'document_type' => 'Factura', 'due_at' => '2026-11-25', 'balance' => '500000.00', 'days_overdue' => -5,
+        ]);
+
+        $this->actingAs(SoportesUsers::analyst())->get('/soportes/'.$receipt->id)
+            ->assertOk()
+            ->assertSee('FV-1003')
+            ->assertSee('Al día')
+            ->assertDontSee('>-5<', false);
+    });
+
     it('shows who applied it and the cash receipt number', function () {
         $reviewer = SoportesUsers::create(Role::PortfolioManager, 'Gloria Inés Mora');
         $receipt = soportesDetailReceipt($this->client, attributes: [

@@ -139,7 +139,7 @@
                         <td class="font-semibold">{{ $invoice->document_number }}</td>
                         <td>{{ $invoice->document_type }}</td>
                         <td><x-ui.date :value="$invoice->due_at" /></td>
-                        <td data-align="end">{{ number_format($invoice->days_overdue, 0, ',', '.') }}</td>
+                        <td data-align="end">{{ $invoice->days_overdue > 0 ? number_format($invoice->days_overdue, 0, ',', '.') : __('soportes::carga.al_dia') }}</td>
                         <td data-align="end"><x-ui.money :value="$invoice->balance" /></td>
                     </tr>
                 @endforeach
