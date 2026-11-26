@@ -277,15 +277,13 @@
                 <input type="hidden" name="formulario" value="nuevo-compromiso">
 
                 <x-ui.input name="fecha" type="date" :label="__('asesores::compromisos.campos.fecha.etiqueta')" :hint="__('asesores::compromisos.campos.fecha.ayuda')" :min="$today->format('Y-m-d')" required />
-                <x-ui.input
+                <x-ui.money-input
                     name="valor"
+                    :decimals="2"
                     :value="$openNewCommitment ? $suggestedAmount : null"
                     :label="__('asesores::compromisos.campos.valor.etiqueta')"
                     :hint="$position->overdue > 0 ? __('asesores::compromisos.campos.valor.ayuda_vencido', ['vencido' => Money::format($position->overdue)]) : __('asesores::compromisos.campos.valor.ayuda')"
-                    prefix="$"
-                    inputmode="decimal"
-                    autocomplete="off"
-                    required
+                    :required="true"
                 />
                 <x-ui.textarea name="notas" :label="__('asesores::compromisos.campos.notas.etiqueta')" :hint="__('asesores::compromisos.campos.notas.ayuda')" :rows="3" />
             </form>

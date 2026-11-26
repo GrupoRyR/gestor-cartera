@@ -7,7 +7,7 @@ use App\Modules\Asesores\Domain\Format\PesosInput;
 /**
  * An amount offered to the "Nuevo compromiso" form of the client file, e.g.
  * the balance a partial payment left: carried by the link of the notice as
- * ?valor= and shown in the field the way the advisor types it.
+ * ?valor= and printed clean in the money input, which formats it.
  */
 final class SuggestedAmount
 {
@@ -35,9 +35,9 @@ final class SuggestedAmount
     }
 
     /**
-     * The ?valor= of the client file as the value of the field: whole pesos
-     * written as in Colombia ("1.500.000"). Null when it is not an amount
-     * above zero.
+     * The ?valor= of the client file as the value of the money input: clean
+     * whole pesos ("1500000"), which the field shows as 1.500.000. Null when
+     * it is not an amount above zero.
      */
     public static function forField(mixed $query): ?string
     {
@@ -49,7 +49,7 @@ final class SuggestedAmount
 
         $amount = round($amount);
 
-        return self::fits($amount) ? number_format($amount, 0, ',', '.') : null;
+        return self::fits($amount) ? number_format($amount, 0, '.', '') : null;
     }
 
     private static function fits(float $amount): bool

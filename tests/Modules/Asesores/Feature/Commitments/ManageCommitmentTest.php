@@ -38,6 +38,33 @@ it('lets the advisor see a pending commitment with the three ways to act on it',
         ->and($html->count('//form[contains(@action,"/anular")]'))->toBe(1);
 });
 
+it('takes the amounts in money inputs with cents, the edited one prefilled clean', function () {
+    $commitment = CommitmentRecords::commitment($this->agro, $this->world->ana, '2026-10-30', '2500000.50');
+    $html = Page::html($this->actingAs($this->world->ana)->get(route('asesores.compromisos.show', $commitment->id))->assertOk());
+
+    foreach (['//form[input[@name="_method"][@value="PUT"]]//input[@name="valor"]', '//input[@name="abono[valor]"]'] as $xpath) {
+        $field = $html->one($xpath);
+
+        expect($field->getAttribute('type'))->toBe('text')
+            ->and($field->hasAttribute('data-money-input'))->toBeTrue()
+            ->and($field->getAttribute('data-decimals'))->toBe('2')
+            ->and($field->getAttribute('inputmode'))->toBe('decimal')
+            ->and($field->hasAttribute('required'))->toBeTrue();
+    }
+
+    expect($html->one('//form[input[@name="_method"][@value="PUT"]]//input[@name="valor"]')->getAttribute('value'))->toBe('2500000.50');
+});
+
+it('takes the amount of a new commitment in a money input with cents', function () {
+    $field = Page::html($this->actingAs($this->world->ana)->get($this->fileUrl)->assertOk())->one('//dialog[@id="nuevo-compromiso"]//input[@name="valor"]');
+
+    expect($field->getAttribute('type'))->toBe('text')
+        ->and($field->hasAttribute('data-money-input'))->toBeTrue()
+        ->and($field->getAttribute('data-decimals'))->toBe('2')
+        ->and($field->getAttribute('inputmode'))->toBe('decimal')
+        ->and($field->hasAttribute('required'))->toBeTrue();
+});
+
 it('lets the advisor close a broken commitment but not change it', function () {
     $html = Page::html($this->actingAs($this->world->ana)->get(route('asesores.compromisos.show', $this->broken->id))->assertOk());
 
