@@ -56,16 +56,11 @@
         <form id="gestion-descuento-form" method="POST" action="{{ route('cartera.gestiones.store', $client->id) }}" class="grid gap-4">
             @csrf
             <input type="hidden" name="tipo" value="descuento">
-            <x-ui.input
+            <x-ui.money-input
                 name="descuento[valor]"
-                type="number"
-                prefix="$"
                 :label="__('cartera::gestion.descuento.valor')"
                 :hint="__('cartera::gestion.descuento.valor_ayuda')"
                 :required="true"
-                min="1"
-                step="1"
-                inputmode="numeric"
             />
             <x-ui.textarea name="descuento[detalle]" :label="__('cartera::gestion.descuento.detalle')" :hint="__('cartera::gestion.descuento.detalle_ayuda')" :rows="3" />
         </form>

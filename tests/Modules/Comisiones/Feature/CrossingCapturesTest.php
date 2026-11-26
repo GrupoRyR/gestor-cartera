@@ -10,6 +10,7 @@ use Carbon\CarbonImmutable;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Storage;
 use Tests\Fakes\ContractFakes;
+use Tests\Feature\Design\Support\Html;
 use Tests\Modules\Comisiones\Feature\Concerns\ClosedPeriods;
 use Tests\Modules\Comisiones\Feature\Concerns\ComisionesUsers;
 use Tests\Modules\Comisiones\Feature\Concerns\SapBatches;
@@ -118,6 +119,19 @@ it('registers a manual crossing pending, keyed manual-{uuid} and dated by its cr
         ->assertSeeText('FV-8123')
         ->assertSeeText('Distribuciones La 80 SAS')
         ->assertSeeText('25/07/2026');
+});
+
+it('takes the four amounts of a manual crossing in money inputs with cents', function () {
+    $page = Html::parse($this->actingAs($this->analyst)->get('/comisiones/ajustes/cruces?periodo=2026-07')->assertOk()->getContent() ?: '');
+
+    foreach (['importe_original', 'valor_cruzado', 'iva_factura', 'valor_sin_iva'] as $name) {
+        $field = $page->one('//input[@name="'.$name.'"]');
+
+        expect($field->getAttribute('type'))->toBe('text')
+            ->and($field->hasAttribute('data-money-input'))->toBeTrue()
+            ->and($field->getAttribute('data-decimals'))->toBe('2')
+            ->and($field->getAttribute('inputmode'))->toBe('decimal');
+    }
 });
 
 it('files a manual crossing under the month of its crossing date', function () {

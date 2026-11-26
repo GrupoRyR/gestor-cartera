@@ -5,6 +5,7 @@ use App\Modules\Core\Contracts\Enums\ActivityType;
 use App\Modules\Core\Contracts\Enums\Role;
 use App\Support\Formatting\Money;
 use Tests\Fakes\ContractFakes;
+use Tests\Feature\Design\Support\Html;
 use Tests\Modules\Cartera\Support\CarteraUsers;
 use Tests\Modules\Cartera\Support\CarteraWorld;
 
@@ -183,6 +184,19 @@ describe('the buttons in the client file', function () {
 
         expect($html)->toContain('action="'.route('cartera.gestiones.store', $this->client->id).'"')
             ->and($html)->toContain('Contactado — promete pago');
+    });
+
+    it('take the discount in a whole-peso money input', function () {
+        $html = $this->actingAs(CarteraUsers::analyst())->get($this->file)->assertOk()->getContent() ?: '';
+
+        $field = Html::parse($html)->one('//input[@name="descuento[valor]"]');
+
+        expect($field->getAttribute('type'))->toBe('text')
+            ->and($field->hasAttribute('data-money-input'))->toBeTrue()
+            ->and($field->getAttribute('data-decimals'))->toBe('0')
+            ->and($field->getAttribute('inputmode'))->toBe('numeric')
+            ->and($field->hasAttribute('required'))->toBeTrue()
+            ->and($html)->not->toContain('sin puntos ni comas');
     });
 
     it('are not there for those who may only look', function () {

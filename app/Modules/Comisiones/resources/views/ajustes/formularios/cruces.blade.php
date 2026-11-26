@@ -11,8 +11,8 @@
         <x-ui.input name="razon_social" :label="__('comisiones::ajustes.cruces.razon_social')" maxlength="255" :required="true" />
     </div>
     <x-ui.input name="tercero" :label="__('comisiones::ajustes.cruces.tercero')" :hint="__('comisiones::ajustes.cruces.tercero_ayuda')" maxlength="50" />
-    <x-ui.input name="importe_original" :label="__('comisiones::ajustes.cruces.importe_original')" prefix="$" inputmode="decimal" autocomplete="off" :required="true" />
-    <x-ui.input name="valor_cruzado" :label="__('comisiones::ajustes.cruces.valor_cruzado')" prefix="$" inputmode="decimal" autocomplete="off" :required="true" />
-    <x-ui.input name="iva_factura" :label="__('comisiones::ajustes.cruces.iva_factura')" :hint="__('comisiones::ajustes.cruces.iva_factura_ayuda')" prefix="$" inputmode="decimal" autocomplete="off" />
-    <x-ui.input name="valor_sin_iva" :label="__('comisiones::ajustes.cruces.valor_sin_iva')" :hint="__('comisiones::ajustes.cruces.valor_sin_iva_ayuda')" prefix="$" inputmode="decimal" autocomplete="off" />
+    <x-ui.money-input name="importe_original" :decimals="2" :label="__('comisiones::ajustes.cruces.importe_original')" :required="true" />
+    <x-ui.money-input name="valor_cruzado" :decimals="2" :label="__('comisiones::ajustes.cruces.valor_cruzado')" :required="true" />
+    <x-ui.money-input name="iva_factura" :decimals="2" :label="__('comisiones::ajustes.cruces.iva_factura')" :hint="__('comisiones::ajustes.cruces.iva_factura_ayuda')" />
+    <x-ui.money-input name="valor_sin_iva" :decimals="2" :label="__('comisiones::ajustes.cruces.valor_sin_iva')" :hint="__('comisiones::ajustes.cruces.valor_sin_iva_ayuda')" />
 </div>

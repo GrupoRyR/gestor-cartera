@@ -95,6 +95,20 @@ final class Amount
     }
 
     /**
+     * The stored amount as the value of <x-ui.money-input>: the clean
+     * number, decimals only when there are cents ("77241857", "1234.5"),
+     * which the field shows the Colombian way.
+     */
+    public static function forMoneyInput(?string $amount): string
+    {
+        if ($amount === null || $amount === '') {
+            return '';
+        }
+
+        return BigDecimal::of($amount)->toScale(2, RoundingMode::HalfUp)->strippedOfTrailingZeros()->toString();
+    }
+
+    /**
      * "77.241.857" → "77241857"; "1.234,5" → "1234.5"; "1234.5" → "1234.5".
      */
     private static function normalize(string $text): ?string
