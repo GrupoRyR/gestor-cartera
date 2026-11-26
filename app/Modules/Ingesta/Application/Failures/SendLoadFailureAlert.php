@@ -2,17 +2,15 @@
 
 namespace App\Modules\Ingesta\Application\Failures;
 
-use App\Modules\Core\Contracts\AvisoService;
+use App\Modules\Core\Contracts\Data\Aviso;
 use App\Modules\Core\Contracts\Data\OutgoingMail;
 use App\Modules\Core\Contracts\Enums\CompanyCode;
 use App\Modules\Core\Contracts\Exceptions\MailNotSent;
 use App\Modules\Core\Contracts\MailSender;
 use App\Modules\Ingesta\Domain\Failures\FailureCause;
 use App\Modules\Ingesta\Domain\Failures\LoadAlertKind;
-use App\Modules\Ingesta\Infrastructure\Persistence\LoadAlertRecord;
 use App\Modules\Ingesta\Infrastructure\Persistence\LoadFailureRecord;
 use App\Support\Formatting\DateFormat;
-use Carbon\CarbonImmutable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Queue\Queueable;
 use Illuminate\Support\Facades\DB;
@@ -42,9 +40,10 @@ use Throwable;
  * implementation (Cobro provides it) it logs an error; neither claims the
  * slot, so a later final report for it can still alert.
  *
- * Before the mail it puts the failure in the bell (LoadNotices), as a step
- * of its own: its own claim (kind "campana") and AvisoService::send() in
- * their own transaction, committed before the mail is tried. So the bell
+ * Before the mail it puts the failure in the bell (LoadNotices, through
+ * SlotAlerts), as a step of its own: its own claim (kind "campana") and
+ * AvisoService::send() in their own transaction, committed before the mail
+ * is tried. So the bell
  * does not wait for Graph or for the mail recipients, a refused mail rolls
  * back only the mail claim, and the retry finds the bell claimed and does
  * not ring it again. A bell that fails is logged and rolled back, and the
@@ -71,7 +70,15 @@ final class SendLoadFailureAlert implements ShouldQueue
         $failure = LoadFailureRecord::query()->findOrFail($this->failureId);
         $context = ['failure_id' => $failure->id, 'company' => $failure->company->value, 'dataset' => $failure->dataset->value];
 
-        $this->ringBell($failure, $context);
+        $alerts = app(SlotAlerts::class);
+        $alerts->ringBell(
+            $failure->company,
+            $failure->dataset,
+            $failure->slot_at,
+            $failure->id,
+            fn (array $recipients): Aviso => app(LoadNotices::class)->forFailure($failure, $this->explanation($failure), $recipients),
+            $context,
+        );
 
         /** @var list<string> $recipients */
         $recipients = (array) config('ingesta.alert_recipients', []);
@@ -90,8 +97,8 @@ final class SendLoadFailureAlert implements ShouldQueue
 
         $mail = $this->mail($failure, $recipients);
 
-        DB::transaction(function () use ($failure, $mail, $context): void {
-            if (! $this->claim($failure, LoadAlertKind::Falla)) {
+        DB::transaction(function () use ($alerts, $failure, $mail, $context): void {
+            if (! $alerts->claim($failure->company, $failure->dataset, $failure->slot_at, LoadAlertKind::Falla, $failure->id)) {
                 Log::info('Ingesta: the load failure alert of this slot was already sent.', $context);
 
                 return;
@@ -113,61 +120,6 @@ final class SendLoadFailureAlert implements ShouldQueue
     public function failed(?Throwable $exception): void
     {
         Log::error('Ingesta: the load failure alert was not sent after its retries.', ['failure_id' => $this->failureId, 'exception' => $exception]);
-    }
-
-    /**
-     * Sends the bell notice once per slot, apart from the mail (see the
-     * class comment).
-     *
-     * @param  array<string, mixed>  $context
-     */
-    private function ringBell(LoadFailureRecord $failure, array $context): void
-    {
-        if (! app()->bound(AvisoService::class)) {
-            Log::error('Ingesta: the load failure notice could not be sent: AvisoService has no implementation.', $context);
-
-            return;
-        }
-
-        $notices = app(LoadNotices::class);
-        $recipients = $notices->recipients();
-
-        if ($recipients === []) {
-            Log::info('Ingesta: a load failed for good and there is nobody to notify in the bell.', $context);
-
-            return;
-        }
-
-        try {
-            DB::transaction(function () use ($failure, $notices, $recipients, $context): void {
-                if (! $this->claim($failure, LoadAlertKind::Campana)) {
-                    Log::info('Ingesta: the load failure notice of this slot is already in the bell.', $context);
-
-                    return;
-                }
-
-                app(AvisoService::class)->send($notices->forFailure($failure, $this->explanation($failure), $recipients));
-            });
-        } catch (Throwable $e) {
-            Log::error('Ingesta: the load failure notice could not be sent to the bell.', [...$context, 'exception' => $e]);
-        }
-    }
-
-    /**
-     * Writes the slot's alert row of $kind; false when it already exists.
-     */
-    private function claim(LoadFailureRecord $failure, LoadAlertKind $kind): bool
-    {
-        $timezone = (string) config('app.timezone');
-
-        return LoadAlertRecord::query()->insertOrIgnore([
-            'company' => $failure->company->value,
-            'dataset' => $failure->dataset->value,
-            'slot_at' => $failure->slot_at->setTimezone($timezone)->format('Y-m-d H:i:s'),
-            'kind' => $kind->value,
-            'load_failure_id' => $failure->id,
-            'created_at' => CarbonImmutable::now($timezone)->format('Y-m-d H:i:s'),
-        ]) === 1;
     }
 
     /**
