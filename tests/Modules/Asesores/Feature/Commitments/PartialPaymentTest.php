@@ -143,7 +143,7 @@ it('shows the error and what was typed in the abono card only', function () {
         ->and($html->one('//form[contains(@action,"/abonar")]//input[@name="abono[valor]"]')->getAttribute('value'))->toBe('3.000.000')
         ->and($html->one('//form[contains(@action,"/abonar")]//input[@name="abono[nota]"]')->getAttribute('value'))->toBe('Nota que se conserva')
         ->and($html->count('//form[not(contains(@action,"/abonar"))]//*[@data-part="error"]'))->toBe(0)
-        ->and($html->one('//form[input[@name="_method"][@value="PUT"]]//input[@name="valor"]')->getAttribute('value'))->toBe('2.000.000')
+        ->and($html->one('//form[input[@name="_method"][@value="PUT"]]//input[@name="valor"]')->getAttribute('value'))->toBe('2000000')
         ->and($html->one('//form[contains(@action,"/cumplir")]//input[@name="nota"]')->getAttribute('value'))->toBe('');
 });
 
@@ -195,8 +195,10 @@ it('opens the new commitment with the balance from the link of the notice', func
     expect($html->count('//dialog[@id="nuevo-compromiso"][@data-modal-autoopen]'))->toBe(1)
         ->and($html->one('//dialog[@id="nuevo-compromiso"]//input[@name="valor"]')->getAttribute('value'))->toBe($value ?? '');
 })->with([
-    'whole pesos' => ['?nuevo-compromiso=1&valor=1500000', '1.500.000'],
-    'with cents' => ['?nuevo-compromiso=1&valor=1500000.5', '1.500.001'],
+    'whole pesos' => ['?nuevo-compromiso=1&valor=1500000', '1500000'],
+    'with cents' => ['?nuevo-compromiso=1&valor=1500000.5', '1500000.5'],
+    'cents written as in Colombia' => ['?nuevo-compromiso=1&valor=1.500.000,50', '1500000.5'],
+    'written as in Colombia' => ['?nuevo-compromiso=1&valor=1.500.000', '1500000'],
     'not an amount' => ['?nuevo-compromiso=1&valor=mucho', null],
     'no amount' => ['?nuevo-compromiso=1', null],
 ]);

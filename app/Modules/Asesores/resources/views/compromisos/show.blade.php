@@ -24,8 +24,8 @@
     $writes = auth()->user()?->can('manage', $commitment) ?? false;
     $closed = in_array($commitment->status, [CommitmentStatus::Fulfilled, CommitmentStatus::Cancelled, CommitmentStatus::PartiallyPaid], true);
 
-    // The amount as the form reads it: "2.500.000", with cents only when there are some.
-    $amountText = number_format($commitment->amount, fmod($commitment->amount, 1.0) === 0.0 ? 0 : 2, ',', '.');
+    // The clean amount for the money input: "2500000", with cents only when there are some ("2500000.50").
+    $amountText = number_format($commitment->amount, fmod($commitment->amount, 1.0) === 0.0 ? 0 : 2, '.', '');
 @endphp
 
 <x-layouts.app :title="__('asesores::compromisos.show.titulo')">
@@ -90,7 +90,7 @@
                     @method('PUT')
 
                     <x-ui.input name="fecha" type="date" :label="__('asesores::compromisos.campos.fecha.etiqueta')" :hint="__('asesores::compromisos.campos.fecha.ayuda')" :value="$commitment->dueDate->format('Y-m-d')" :min="$today->format('Y-m-d')" required />
-                    <x-ui.input name="valor" :label="__('asesores::compromisos.campos.valor.etiqueta')" :hint="__('asesores::compromisos.campos.valor.ayuda')" :value="$amountText" prefix="$" inputmode="decimal" autocomplete="off" required />
+                    <x-ui.money-input name="valor" :decimals="2" :label="__('asesores::compromisos.campos.valor.etiqueta')" :hint="__('asesores::compromisos.campos.valor.ayuda')" :value="$amountText" :required="true" />
                     <x-ui.textarea name="notas" :label="__('asesores::compromisos.campos.notas.etiqueta')" :hint="__('asesores::compromisos.campos.notas.ayuda')" :value="$commitment->notes" :rows="3" />
 
                     <div><x-ui.button type="submit" icon="check" class="max-sm:w-full max-sm:justify-center">{{ __('asesores::compromisos.show.editar.guardar') }}</x-ui.button></div>
@@ -116,7 +116,7 @@
                 <form method="POST" action="{{ route('asesores.compromisos.abonar', $commitment->id) }}" class="grid max-w-xl gap-4">
                     @csrf
 
-                    <x-ui.input name="abono[valor]" :label="__('asesores::compromisos.campos.pagado.etiqueta')" :hint="__('asesores::compromisos.campos.pagado.ayuda', ['valor' => Money::format($commitment->amount)])" prefix="$" inputmode="decimal" autocomplete="off" required />
+                    <x-ui.money-input name="abono[valor]" :decimals="2" :label="__('asesores::compromisos.campos.pagado.etiqueta')" :hint="__('asesores::compromisos.campos.pagado.ayuda', ['valor' => Money::format($commitment->amount)])" :required="true" />
                     <x-ui.input name="abono[nota]" :label="__('asesores::compromisos.campos.nota.etiqueta')" :hint="__('asesores::compromisos.campos.nota.ayuda')" />
 
                     <div><x-ui.button type="submit" icon="check" class="max-sm:w-full max-sm:justify-center">{{ __('asesores::compromisos.show.abonar.boton') }}</x-ui.button></div>
