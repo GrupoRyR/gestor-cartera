@@ -10,7 +10,9 @@ use App\Modules\Core\Contracts\Enums\CompanyCode;
 use App\Modules\Core\Contracts\Enums\Dataset;
 use App\Modules\Core\Contracts\Enums\Role;
 use App\Modules\Core\Contracts\Events\BatchAccepted;
+use App\Modules\Ingesta\Domain\Failures\LoadAlertKind;
 use App\Modules\Ingesta\Infrastructure\Persistence\LoadFailureRecord;
+use Carbon\CarbonImmutable;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Log;
@@ -19,13 +21,17 @@ use Throwable;
 /**
  * The bell notice of a load that failed for good (kind "ingesta.carga"):
  * «Falló la carga de cartera de SGX de las 05:00», with the cause in plain
- * words as its body. SendLoadFailureAlert sends it; IngestaServiceProvider
+ * words as its body; or of a load that did not arrive at all («No llegó
+ * la carga…», forMissing). SendLoadFailureAlert and WatchLoadSlot send
+ * them, through SlotAlerts; IngestaServiceProvider
  * registers this class as a BatchAccepted listener and as the link resolver
  * of the kind.
  *
  * Its key groups the notices of one company and dataset, whatever the slot,
  * so any accepted load of them (robot batch, manual upload, later the Bases
- * SAP reader) resolves every open one: the data is current again.
+ * SAP reader) resolves every open one: the data is current again. A
+ * duplicate of an accepted batch resolves them too (EloquentIngestaSink
+ * calls resolve() without BatchAccepted).
  *
  * It goes to the active users whose e-mail is in ingesta.alert_recipients
  * (compared normalized, like User::normalizeEmail()) and to the active
@@ -96,6 +102,38 @@ final class LoadNotices
                 'slot' => $slot->toIso8601String(),
                 'cause' => $failure->cause->value,
                 'stage' => $failure->stage->value,
+            ],
+        );
+    }
+
+    /**
+     * The notice of a slot for which neither a load nor a final report
+     * arrived (WatchLoadSlot): «No llegó la carga de cartera de SGX de las
+     * 05:00», with $explanation (who did not run) as its body.
+     *
+     * @param  list<int>  $recipients
+     */
+    public function forMissing(CompanyCode $company, Dataset $dataset, CarbonImmutable $slotAt, string $explanation, array $recipients): Aviso
+    {
+        $slot = $slotAt->setTimezone(SendLoadFailureAlert::TIMEZONE);
+        $title = __('ingesta::alerta.campana.no_llego', [
+            'lote' => mb_strtolower($dataset->label()),
+            'empresa' => $company->value,
+            'hora' => $slot->format('H:i'),
+        ]);
+
+        return new Aviso(
+            recipients: $recipients,
+            kind: self::KIND,
+            title: is_string($title) ? $title : self::KIND,
+            body: $explanation,
+            company: $company->value,
+            subjectType: 'load_slot',
+            key: self::key($company, $dataset),
+            data: [
+                'dataset' => $dataset->value,
+                'slot' => $slot->toIso8601String(),
+                'reason' => LoadAlertKind::NoLlego->value,
             ],
         );
     }

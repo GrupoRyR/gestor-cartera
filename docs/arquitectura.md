@@ -434,7 +434,7 @@ final class ImportReceivablesSnapshot implements ShouldQueue
 
 `BatchAccepted` tiene una sola propiedad: `public readonly LoadRecord $load`. No se despacha para un `batchId` repetido ni para un lote rechazado.
 
-Ingesta también lo escucha (`LoadNotices`): cada carga aceptada, del robot o manual, resuelve los avisos `ingesta.carga:{empresa}:{lote}` de su empresa y lote.
+Ingesta también lo escucha (`LoadNotices`): cada carga aceptada, del robot o manual, resuelve los avisos `ingesta.carga:{empresa}:{lote}` de su empresa y lote. Además, `ingesta:vigilar-carga` corre 30 minutos después de cada hora de `etl/horarios.json` y, si desde esa hora no llegó ninguna carga aceptada de cartera (de cualquier origen) ni un reporte final de falla, avisa por correo y en la campana con el mismo aviso, que también resuelve la siguiente carga aceptada.
 
 ### 6.10 `MailSender`
 

@@ -34,6 +34,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
  * @property string|null $error
  * @property array<string, list<string>>|null $errors
  * @property CarbonImmutable $received_at
+ * @property CarbonImmutable|null $last_seen_at Accepted loads: the latest receipt of the batch, duplicates included; null means received_at.
  * @property int|null $received_by
  * @property CarbonImmutable|null $created_at
  * @property CarbonImmutable|null $updated_at
@@ -42,7 +43,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 #[Table(name: 'ingesta_loads')]
 #[Fillable([
     'batch_id', 'accepted_batch_id', 'dataset', 'company', 'cutoff_date', 'source', 'status', 'row_count',
-    'total', 'overdue', 'columns', 'error', 'errors', 'received_at', 'received_by',
+    'total', 'overdue', 'columns', 'error', 'errors', 'received_at', 'last_seen_at', 'received_by',
 ])]
 final class IngestaLoad extends Model
 {
@@ -81,6 +82,7 @@ final class IngestaLoad extends Model
             'columns' => 'array',
             'errors' => 'array',
             'received_at' => 'immutable_datetime',
+            'last_seen_at' => 'immutable_datetime',
             'received_by' => 'integer',
         ];
     }

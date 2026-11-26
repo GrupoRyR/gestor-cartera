@@ -43,6 +43,20 @@ return [
     // SDC loads its cartera by manual Excel until its SAP schema is configured.
     'alert_companies' => ['SGX'],
 
+    // The load slots (etl/horarios.json, versioned): when the robot runs and
+    // how many minutes later ingesta:vigilar-carga checks that the load
+    // arrived. Only the path is kept here; the file is read when the watch
+    // or the scheduler needs it, and without it the four default slots apply.
+    'load_slots' => base_path('etl/horarios.json'),
+
+    // Companies whose robot (later Bases SAP reader) cartera load is watched
+    // after each slot. Only SGX: SDC loads its cartera by manual Excel.
+    'watch_companies' => ['SGX'],
+
+    // Who brings the watched loads, for the text of the missing-load alert:
+    // "robot" now, "bases_sap" once the Bases SAP reader replaces it.
+    'expected_source' => env('INGESTA_EXPECTED_SOURCE', 'robot'),
+
     // Who receives the missing-load alert (IT and the receivables manager),
     // from a comma-separated list.
     'alert_recipients' => array_values(array_filter(

@@ -6,8 +6,10 @@ use App\Modules\Core\Contracts\AvisoService;
 use App\Modules\Core\Contracts\Events\BatchAccepted;
 use App\Modules\Core\Contracts\IngestaSink;
 use App\Modules\Ingesta\Application\Failures\LoadNotices;
+use App\Modules\Ingesta\Application\Watch\WatchLoadSlot;
 use App\Modules\Ingesta\Console\CheckDailyLoadCommand;
 use App\Modules\Ingesta\Console\PruneManualUploadsCommand;
+use App\Modules\Ingesta\Console\WatchLoadCommand;
 use App\Modules\Ingesta\Infrastructure\DailyCarteraCheck;
 use App\Modules\Ingesta\Infrastructure\EloquentIngestaSink;
 use App\Support\Modules\ModuleServiceProvider;
@@ -17,11 +19,13 @@ use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Console\Scheduling\Schedule;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Event;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\RateLimiter;
+use UnexpectedValueException;
 
 /**
  * Ingesta: signed endpoint for the ETL robot batches, load history, manual
- * Excel upload and the missing-load alert (docs/prompt-gestor-cartera.md,
+ * Excel upload, the missing-load alert and the load watch (docs/prompt-gestor-cartera.md,
  * Part B, "Módulo 1 — Ingesta").
  *
  * Web routes: /ingesta/*, named ingesta.*.
@@ -49,7 +53,7 @@ final class IngestaServiceProvider extends ModuleServiceProvider
             Limit::perMinute(120)->by('global'),
         ]);
 
-        $this->commands([CheckDailyLoadCommand::class, PruneManualUploadsCommand::class]);
+        $this->commands([CheckDailyLoadCommand::class, PruneManualUploadsCommand::class, WatchLoadCommand::class]);
 
         // The bell notice of a load that failed for good: any accepted load
         // of its company and dataset (robot, manual upload) resolves it, and
@@ -61,8 +65,11 @@ final class IngestaServiceProvider extends ModuleServiceProvider
     /**
      * At the deadline (Bogotá), mail the alert when the robot cartera of
      * the day is missing; at 03:00, delete the manual uploads nobody
-     * confirmed or discarded. Both take seconds, so a lock left by a killed
-     * process expires after 10 minutes instead of a day.
+     * confirmed or discarded; vigilante_min minutes after each slot of
+     * etl/horarios.json (on its days, in its timezone), watch that its load
+     * arrived. All take seconds, so a lock left by a killed process expires
+     * after 10 minutes instead of a day. An invalid etl/horarios.json is
+     * logged and only leaves the watch unscheduled, never the other tasks.
      */
     protected function schedule(Schedule $schedule): void
     {
@@ -75,6 +82,25 @@ final class IngestaServiceProvider extends ModuleServiceProvider
             ->dailyAt('03:00')
             ->timezone(DailyCarteraCheck::TIMEZONE)
             ->withoutOverlapping(10);
+
+        try {
+            $slots = $this->app->make(WatchLoadSlot::class)->slots();
+        } catch (UnexpectedValueException $e) {
+            Log::error('Ingesta: the load slots are invalid, so the load watch is not scheduled.', ['exception' => $e]);
+
+            return;
+        }
+
+        foreach ($slots->slots as $slot) {
+            $event = $schedule->command(WatchLoadCommand::class, [$slot->time])
+                ->dailyAt($slot->watchAt($slots->watchDelay))
+                ->timezone($slots->timezone)
+                ->withoutOverlapping(10);
+
+            if ($slot->days !== []) {
+                $event->days($slot->dayNumbers());
+            }
+        }
     }
 
     /**

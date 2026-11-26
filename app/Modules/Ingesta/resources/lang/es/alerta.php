@@ -8,6 +8,36 @@ return [
 
     'campana' => [
         'titulo' => 'Falló la carga de :lote de :empresa de las :hora',
+        'no_llego' => 'No llegó la carga de :lote de :empresa de las :hora',
+    ],
+
+    // ingesta:vigilar-carga (WatchLoadSlot): neither a load nor a final
+    // report arrived for a slot. The cause is chosen by
+    // ingesta.expected_source; "antes_de" is added when the slot has it.
+    'no_llego' => [
+        'asunto' => 'Alerta: no llegó la carga de :lote de :empresa de las :hora del :fecha',
+        'titulo' => 'No llegó la carga de :lote de :empresa',
+        'intro' => 'A las :revision del :fecha (hora de Bogotá) no había llegado la carga de :lote de :empresa programada para las :hora, ni un reporte de falla.',
+        'que_paso' => 'Qué pasó',
+        'causas' => [
+            'robot' => 'No llegó la carga de las :hora ni un reporte del robot: el robot no corrió (¿PC apagado, sin sesión o sin internet?).',
+            'bases_sap' => 'No llegó la carga de las :hora: el lector de Bases SAP no corrió.',
+        ],
+        'antes_de' => 'Si no llega a tiempo, :antes_de saldrá con los datos anteriores.',
+        'enlace' => 'Ver el historial de cargas',
+        'pie' => 'Este aviso lo envía el gestor de cartera una sola vez por carga programada, cuando no llegó ni la carga ni un reporte de falla.',
+        'consola' => [
+            'no_programada' => ':hora no es una hora programada de carga (etl/horarios.json); usa una de estas: :horas.',
+            'no_hoy' => 'Hoy no hay carga programada a las :hora: no se revisa nada.',
+            'antes_de_la_hora' => 'Aún no son las :hora (hora de Bogotá): no se revisa la carga.',
+            'llego' => ':empresa: llegó la carga de las :hora.',
+            'reportada' => ':empresa: el robot reportó la falla de la carga de las :hora; ya se avisó.',
+            'enviada' => ':empresa: no llegó la carga de las :hora; se envió la alerta a :destinatarios.',
+            'ya_enviada' => ':empresa: no llegó la carga de las :hora; la alerta ya se había enviado.',
+            'sin_destinatarios' => ':empresa: no llegó la carga de las :hora, pero no hay destinatarios configurados (INGESTA_ALERT_RECIPIENTS).',
+            'sin_mail_sender' => ':empresa: no llegó la carga de las :hora y no se pudo enviar la alerta: MailSender sin implementación.',
+            'no_enviada' => ':empresa: no llegó la carga de las :hora y no se pudo enviar la alerta.',
+        ],
     ],
 
     'falla' => [
