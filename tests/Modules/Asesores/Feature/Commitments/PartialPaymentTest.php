@@ -196,7 +196,8 @@ it('opens the new commitment with the balance from the link of the notice', func
         ->and($html->one('//dialog[@id="nuevo-compromiso"]//input[@name="valor"]')->getAttribute('value'))->toBe($value ?? '');
 })->with([
     'whole pesos' => ['?nuevo-compromiso=1&valor=1500000', '1500000'],
-    'with cents' => ['?nuevo-compromiso=1&valor=1500000.5', '1500001'],
+    'with cents' => ['?nuevo-compromiso=1&valor=1500000.5', '1500000.5'],
+    'cents written as in Colombia' => ['?nuevo-compromiso=1&valor=1.500.000,50', '1500000.5'],
     'written as in Colombia' => ['?nuevo-compromiso=1&valor=1.500.000', '1500000'],
     'not an amount' => ['?nuevo-compromiso=1&valor=mucho', null],
     'no amount' => ['?nuevo-compromiso=1', null],

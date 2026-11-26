@@ -35,21 +35,16 @@ final class SuggestedAmount
     }
 
     /**
-     * The ?valor= of the client file as the value of the money input: clean
-     * whole pesos ("1500000"), which the field shows as 1.500.000. Null when
-     * it is not an amount above zero.
+     * The ?valor= of the client file as the value of the money input: the
+     * clean amount, cents included ("1500000", "1500000.5"), which the field
+     * shows as 1.500.000 or 1.500.000,5. The query may also be written as in
+     * Colombia ("1.500.000,50"). Null when it is not an amount above zero.
      */
     public static function forField(mixed $query): ?string
     {
         $amount = is_string($query) ? PesosInput::parse($query) : null;
 
-        if ($amount === null) {
-            return null;
-        }
-
-        $amount = round($amount);
-
-        return self::fits($amount) ? number_format($amount, 0, '.', '') : null;
+        return $amount === null ? null : self::forLink($amount);
     }
 
     private static function fits(float $amount): bool
