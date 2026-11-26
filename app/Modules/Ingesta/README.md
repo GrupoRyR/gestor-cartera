@@ -214,16 +214,16 @@ Correrlo dos veces para la misma hora no envía nada nuevo. Con una hora que no 
 
 ### `etl/horarios.json`
 
-Las horas del robot, versionadas con el código (después `scripts/instalar_tarea.ps1` también las leerá). `ingesta.load_slots` guarda solo la ruta; el archivo se lee cuando se necesita y, si no existe, valen las cuatro horas por defecto (`Domain/Watch/LoadSlots::DEFAULT`):
+Las horas del robot, versionadas con el código; `scripts/instalar_tarea.ps1` lee el mismo archivo para crear los disparadores de Windows. `ingesta.load_slots` guarda solo la ruta; el archivo se lee cuando se necesita y, si no existe, valen las cuatro horas por defecto (`Domain/Watch/LoadSlots::DEFAULT`):
 
 ```json
 { "zona": "America/Bogota", "vigilante_min": 30, "horarios": [
   {"hora": "00:00"}, {"hora": "05:00"}, {"hora": "12:00"},
-  {"hora": "16:00", "dias": ["wed"], "antes_de": "el cobro semanal de las 17:00"} ] }
+  {"hora": "16:00", "dias": ["tue", "fri"], "antes_de": "el cobro semanal de las 17:00"} ] }
 ```
 
 - `hora`: HH:MM, en la `zona`; `dias` (opcional): nombres de tres letras en inglés y minúsculas (`mon` … `sun`), sin `dias` corre todos los días; `antes_de` (opcional): lo que usa esa carga.
 - `vigilante_min`: minutos después de cada hora en que corre el vigilante (de 1 a 180). El vigilante debe caer el mismo día: 00:00 se revisa a las 00:30 de ese día.
 - Se valida estricto: una hora, un día, una zona o unos minutos inválidos, una hora repetida o un vigilante después de medianoche lanzan un error que dice qué corregir. Con un archivo inválido el comando falla y `schedule()` no programa el vigilante (lo deja en el log), sin tocar las demás tareas.
 
-`IngestaServiceProvider::schedule()` programa `ingesta:vigilar-carga {hora}` a la hora + `vigilante_min` (hoy 00:30, 05:30 y 12:30 a diario y 16:30 los miércoles), en la `zona`, con `withoutOverlapping(10)`.
+`IngestaServiceProvider::schedule()` programa `ingesta:vigilar-carga {hora}` a la hora + `vigilante_min` (hoy 00:30, 05:30 y 12:30 a diario y 16:30 los martes y viernes, antes del cobro semanal de las 17:00), en la `zona`, con `withoutOverlapping(10)`.

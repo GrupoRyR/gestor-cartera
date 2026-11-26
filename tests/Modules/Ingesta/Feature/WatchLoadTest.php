@@ -186,8 +186,8 @@ it('blames the Bases SAP reader when it is the expected source', function () {
         ->and($this->fakes->avisos->sent()[0]->body)->toBe('No llegó la carga de las 05:00: el lector de Bases SAP no corrió.');
 });
 
-it('warns what the Wednesday 16:00 load comes before', function () {
-    $this->travelTo(CarbonImmutable::parse('2026-11-25 16:30:00', 'America/Bogota'));
+it('warns what the Tuesday and Friday 16:00 load comes before', function (string $now) {
+    $this->travelTo(CarbonImmutable::parse($now, 'America/Bogota'));
 
     $this->artisan('ingesta:vigilar-carga', ['hora' => '16:00'])->assertSuccessful();
 
@@ -195,7 +195,10 @@ it('warns what the Wednesday 16:00 load comes before', function () {
 
     expect(watchMailText($this->fakes->mail->sent()[0]))->toContain($sentence)
         ->and($this->fakes->avisos->sent()[0]->body)->toEndWith($sentence);
-});
+})->with([
+    'tuesday' => ['2026-11-24 16:30:00'],
+    'friday' => ['2026-11-27 16:30:00'],
+]);
 
 it('checks nothing on a day the slot does not run, or before the slot', function (string $now, string $output) {
     $this->travelTo(CarbonImmutable::parse($now, 'America/Bogota'));
@@ -206,8 +209,9 @@ it('checks nothing on a day the slot does not run, or before the slot', function
 
     $this->fakes->mail->assertNothingSent();
 })->with([
+    'wednesday' => ['2026-11-25 16:30:00', 'Hoy no hay carga programada a las 16:00'],
     'thursday' => ['2026-11-26 16:30:00', 'Hoy no hay carga programada a las 16:00'],
-    'before the slot' => ['2026-11-25 15:00:00', 'Aún no son las 16:00'],
+    'before the slot' => ['2026-11-27 15:00:00', 'Aún no son las 16:00'],
 ]);
 
 it('alerts once per slot however many times it runs', function () {
@@ -302,7 +306,7 @@ it('runs 30 minutes after each slot in Bogotá without overlapping', function ()
     ));
 
     expect(array_map(fn (ScheduledEvent $event): string => $event->expression, $events))
-        ->toBe(['30 0 * * *', '30 5 * * *', '30 12 * * *', '30 16 * * 3']);
+        ->toBe(['30 0 * * *', '30 5 * * *', '30 12 * * *', '30 16 * * 2,5']);
 
     foreach (['00:00', '05:00', '12:00', '16:00'] as $index => $time) {
         expect((string) $events[$index]->command)->toContain($time)
