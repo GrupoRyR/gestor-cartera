@@ -12,6 +12,7 @@ use Illuminate\Support\Facades\Storage;
 use Illuminate\Testing\TestResponse;
 use Tests\Fakes\ContractFakes;
 use Tests\Fakes\Make;
+use Tests\Feature\Design\Support\Html;
 use Tests\Modules\Soportes\Support\OverdueClient;
 use Tests\Modules\Soportes\Support\SoportesUsers;
 
@@ -124,7 +125,21 @@ describe('step 2: the form', function () {
             ->assertSee('Al día')
             ->assertDontSee('NC-1001')
             ->assertSee('enctype="multipart/form-data"', false)
-            ->assertSee('name="archivos[]"', false);
+            ->assertSee('name="archivos[]"', false)
+            ->assertSee('En pesos. Usa coma para los centavos.');
+    });
+
+    it('takes the amount in a money input with cents, sent back clean', function () {
+        $html = $this->actingAs(SoportesUsers::analyst())->get('/soportes/nuevo?cliente='.$this->client->id)->assertOk()->getContent() ?: '';
+
+        $field = Html::parse($html)->labelledControl('Valor pagado');
+
+        expect($field->getAttribute('name'))->toBe('valor')
+            ->and($field->getAttribute('type'))->toBe('text')
+            ->and($field->hasAttribute('data-money-input'))->toBeTrue()
+            ->and($field->getAttribute('data-decimals'))->toBe('2')
+            ->and($field->getAttribute('inputmode'))->toBe('decimal')
+            ->and($field->hasAttribute('required'))->toBeTrue();
     });
 
     it('answers 404 for a client of another advisor', function () {

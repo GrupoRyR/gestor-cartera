@@ -72,17 +72,12 @@
                 <x-ui.card :title="__('soportes::carga.formulario.pago.titulo')">
                     <div class="flex max-w-xl flex-col gap-4">
                         <div class="grid gap-4 md:grid-cols-2">
-                            <x-ui.input
+                            <x-ui.money-input
                                 name="valor"
-                                type="number"
-                                prefix="$"
+                                :decimals="2"
                                 :label="__('soportes::carga.formulario.valor')"
                                 :hint="__('soportes::carga.formulario.valor_ayuda')"
                                 :required="true"
-                                min="0.01"
-                                step="0.01"
-                                inputmode="decimal"
-                                autocomplete="off"
                             />
                             <x-ui.input name="fecha_pago" type="date" :label="__('soportes::carga.formulario.fecha')" :required="true" :max="$today" />
                         </div>
