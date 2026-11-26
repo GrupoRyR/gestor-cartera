@@ -71,6 +71,8 @@ class ConectarTest(unittest.TestCase):
                 pass
 
         mensaje = str(error.exception)
+        self.assertIsInstance(error.exception, hana.HanaConexion)
+        self.assertTrue(error.exception.tls)
         self.assertIn("HANA_SSL_TRUSTSTORE", mensaje)
         self.assertIn("HANA_SSL_VALIDATE=false", mensaje)
         self.assertIn("HANA_ENCRYPT=false", mensaje)
@@ -83,6 +85,8 @@ class ConectarTest(unittest.TestCase):
 
         self.assertEqual(self.dbapi.connect.call_count, 3)
         self.assertNotIn("HANA_ENCRYPT", str(error.exception))
+        self.assertIsInstance(error.exception, hana.HanaConexion)
+        self.assertFalse(error.exception.tls)
 
     def test_no_reintenta_un_usuario_rechazado(self):
         self.dbapi.connect.side_effect = Exception("authentication failed")
@@ -92,6 +96,17 @@ class ConectarTest(unittest.TestCase):
 
         self.assertEqual(self.dbapi.connect.call_count, 1)
         self.assertIn("HANA_USER", str(error.exception))
+        self.assertIsInstance(error.exception, hana.HanaCredenciales)
+
+    def test_sin_ruta_al_puerto_levanta_hana_sin_ruta(self):
+        with mock.patch.object(hana, "_esperar_puerto", return_value=False):
+            with self.assertRaises(hana.HanaSinRuta) as error:
+                with hana.conectar(BASE):
+                    pass
+
+        self.assertIsInstance(error.exception, hana.HanaError)
+        self.assertIn("tras 60s de espera", str(error.exception))
+        self.dbapi.connect.assert_not_called()
 
 
 class DescribirCifradoTest(unittest.TestCase):
