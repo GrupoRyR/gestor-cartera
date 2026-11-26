@@ -188,7 +188,9 @@ describe('filters', function () {
     it('narrows by amount, both ends included', function () {
         expect(bancosListed('valor_min=500000'))->toBe(['CCC', 'BBB'])
             ->and(bancosListed('valor_max=500000'))->toBe(['BBB', 'AAA'])
-            ->and(bancosListed('valor_min=500000&valor_max=500000'))->toBe(['BBB']);
+            ->and(bancosListed('valor_min=500000&valor_max=500000'))->toBe(['BBB'])
+            ->and(bancosListed('valor_min=499999.5&valor_max=500000.5'))->toBe(['BBB'])
+            ->and(bancosListed('valor_min=500000.01'))->toBe(['CCC']);
     });
 
     it('takes the amounts in money inputs with cents, prefilled clean', function () {
