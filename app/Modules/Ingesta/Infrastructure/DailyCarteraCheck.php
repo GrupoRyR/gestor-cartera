@@ -6,15 +6,19 @@ use App\Modules\Core\Contracts\Enums\CompanyCode;
 use App\Modules\Core\Contracts\Enums\Dataset;
 use App\Modules\Core\Contracts\Enums\LoadSource;
 use App\Modules\Core\Contracts\Enums\LoadStatus;
+use App\Modules\Ingesta\Domain\Failures\LoadAlertKind;
 use App\Modules\Ingesta\Infrastructure\Persistence\IngestaLoad;
+use App\Modules\Ingesta\Infrastructure\Persistence\LoadAlertRecord;
 use Carbon\CarbonImmutable;
 use UnexpectedValueException;
 
 /**
- * Whether the robot published today's cartera of each company expected
- * every day (config ingesta.alert_companies) by the deadline (config
- * ingesta.alert_deadline). Days are calendar days in America/Bogota. The
- * history shows the warning and ingesta:verificar-carga mails it.
+ * Whether the robot published today's cartera of each watched company
+ * (config ingesta.watch_companies, the same list ingesta:vigilar-carga
+ * watches) by the deadline (config ingesta.alert_deadline). Days are
+ * calendar days in America/Bogota. The history shows the warning and
+ * ingesta:verificar-carga mails it, unless a load slot of the morning
+ * already alerted (alertedSlot()).
  *
  * Only an accepted robot load counts: a manual upload keeps the platform
  * going, but the robot still needs a look.
@@ -24,14 +28,13 @@ final class DailyCarteraCheck
     public const string TIMEZONE = 'America/Bogota';
 
     /**
-     * The companies whose robot cartera is expected every day, in the
-     * configured order; unknown codes are ignored.
+     * The watched companies, in the configured order; unknown codes are ignored.
      *
      * @return list<CompanyCode>
      */
     public function companies(): array
     {
-        $codes = (array) config('ingesta.alert_companies', []);
+        $codes = (array) config('ingesta.watch_companies', []);
 
         return array_values(array_filter(array_map(
             fn (mixed $code): ?CompanyCode => is_string($code) ? CompanyCode::tryFrom($code) : null,
@@ -80,6 +83,32 @@ final class DailyCarteraCheck
             // received_at is stored in the application timezone.
             ->where('received_at', '<=', $now->setTimezone((string) config('app.timezone')))
             ->exists();
+    }
+
+    /**
+     * The latest load slot of today before the deadline (the 00:00 and
+     * 05:00 ones by default) that already mailed the alert recipients about
+     * the cartera of $company, in Bogota; null when none did. Only the mail
+     * claims count (the failure mail or the missing-load mail): a refused
+     * mail rolls its claim back, so a bell-only slot leaves the daily mail
+     * to tell the recipients. The slot's mail already told them, so the
+     * daily one would repeat it.
+     */
+    public function alertedSlot(CompanyCode $company, ?CarbonImmutable $now = null): ?CarbonImmutable
+    {
+        $now = ($now ?? CarbonImmutable::now())->setTimezone(self::TIMEZONE);
+        $timezone = (string) config('app.timezone');
+
+        // slot_at is stored in the application timezone.
+        $slotAt = LoadAlertRecord::query()
+            ->where('company', $company)
+            ->where('dataset', Dataset::Receivables)
+            ->whereIn('kind', [LoadAlertKind::Falla, LoadAlertKind::NoLlego])
+            ->where('slot_at', '>=', $now->startOfDay()->setTimezone($timezone)->format('Y-m-d H:i:s'))
+            ->where('slot_at', '<', $this->deadline($now)->setTimezone($timezone)->format('Y-m-d H:i:s'))
+            ->max('slot_at');
+
+        return $slotAt === null ? null : CarbonImmutable::parse((string) $slotAt, $timezone)->setTimezone(self::TIMEZONE);
     }
 
     /**

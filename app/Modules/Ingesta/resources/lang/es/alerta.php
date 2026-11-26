@@ -93,6 +93,7 @@ return [
     'consola' => [
         'antes_del_limite' => 'Aún no son las :hora (hora de Bogotá), la hora límite: no se revisa la carga ni se envía la alerta.',
         'llego' => ':empresa: la cartera del robot llegó a tiempo.',
+        'ya_avisada' => ':empresa: falta la cartera del robot; ya se avisó en la carga de las :hora, así que no se envía otra alerta.',
         'sin_destinatarios' => ':empresa: falta la cartera del robot, pero no hay destinatarios configurados (INGESTA_ALERT_RECIPIENTS).',
         'enviada' => ':empresa: falta la cartera del robot; se envió la alerta a :destinatarios.',
         'sin_mail_sender' => ':empresa: falta la cartera del robot y no se pudo enviar la alerta: MailSender sin implementación.',

@@ -165,11 +165,11 @@ Escuchan `BatchAccepted`, que se despacha una vez por carga aceptada y después 
 
 ## Historial de cargas
 
-`GET /ingesta` (ruta `ingesta.index`, menú «Cargas de datos» en Administración): las cargas, aceptadas y rechazadas, de las empresas de `CurrentCompany::available()` (todas las del usuario, no solo la activa), 25 por página y la más reciente primero, con filtros por lote, empresa y estado (`?lote=cartera&empresa=SGX&estado=rechazada`; un valor desconocido o una empresa que el usuario no ve no filtra; el filtro de empresa solo ofrece las suyas). Arriba muestra la cartera vigente (`IngestaSink::latest()`) de cada empresa de `ingesta.alert_companies` que el usuario ve y, pasada la hora límite (`ingesta.alert_deadline`, 07:00 en Bogotá), un aviso por cada una que aún no tenga una carga de cartera **del robot**, aceptada y con corte de hoy (`DailyCarteraCheck`). Una carga manual no apaga el aviso: mantiene la plataforma al día, pero el robot igual necesita revisión.
+`GET /ingesta` (ruta `ingesta.index`, menú «Cargas de datos» en Administración): las cargas, aceptadas y rechazadas, de las empresas de `CurrentCompany::available()` (todas las del usuario, no solo la activa), 25 por página y la más reciente primero, con filtros por lote, empresa y estado (`?lote=cartera&empresa=SGX&estado=rechazada`; un valor desconocido o una empresa que el usuario no ve no filtra; el filtro de empresa solo ofrece las suyas). Arriba muestra la cartera vigente (`IngestaSink::latest()`) de cada empresa de `ingesta.watch_companies` que el usuario ve y, pasada la hora límite (`ingesta.alert_deadline`, 07:00 en Bogotá), un aviso por cada una que aún no tenga una carga de cartera **del robot**, aceptada y con corte de hoy (`DailyCarteraCheck`). Una carga manual no apaga el aviso: mantiene la plataforma al día, pero el robot igual necesita revisión.
 
 `GET /ingesta/cargas/{id}` (`ingesta.cargas.show`): los datos de una carga; si se rechazó, el resumen y los mensajes por campo (las filas se numeran desde 0, como en los mensajes); si es una cartera aceptada, el saldo total y el vencido. Un id que no existe, o una carga de una empresa que el usuario no ve, responde 404.
 
-`ingesta.alert_companies` trae solo `SGX`: el robot lee únicamente el esquema SEGUREX de HANA; SDC carga su cartera con el Excel manual hasta que se configure su esquema de SAP.
+`ingesta.watch_companies` trae solo `SGX` (la misma lista del vigilante de cargas): el robot lee únicamente el esquema SEGUREX de HANA; SDC carga su cartera con el Excel manual hasta que se configure su esquema de SAP.
 
 ## Carga manual de cartera
 
@@ -189,8 +189,9 @@ Respaldo del robot, solo para el lote `cartera`. Desde el historial, «Carga man
 
 ## Alerta de carga faltante
 
-`php artisan ingesta:verificar-carga` (`Console/CheckDailyLoadCommand`) no hace nada antes de la hora límite (`ingesta.alert_deadline`): lo dice en la consola, no envía nada y termina bien. Desde esa hora revisa, por cada empresa de `ingesta.alert_companies`, que haya una carga de cartera **del robot**, aceptada, con corte de hoy (Bogotá) y recibida hasta ese momento. Si falta:
+`php artisan ingesta:verificar-carga` (`Console/CheckDailyLoadCommand`) no hace nada antes de la hora límite (`ingesta.alert_deadline`): lo dice en la consola, no envía nada y termina bien. Desde esa hora revisa, por cada empresa de `ingesta.watch_companies`, que haya una carga de cartera **del robot**, aceptada, con corte de hoy (Bogotá) y recibida hasta ese momento. Si falta:
 
+- si una hora programada de hoy anterior a la hora límite (la de las 00:00 o la de las 05:00) ya envió su correo por esa empresa (una fila de cartera en `ingesta_load_alerts` del correo de falla o del de carga que no llegó; si solo sonó la campana porque Graph rechazó ese correo, no cuenta), no envía otro correo: lo dice en la consola («ya se avisó en la carga de las 05:00») y sigue con la siguiente empresa;
 - sin destinatarios (`INGESTA_ALERT_RECIPIENTS` vacío) solo deja una advertencia en el log y termina bien;
 - sin implementación de `MailSender` (la pone Cobro) registra «no se pudo enviar la alerta: MailSender sin implementación» y termina con falla;
 - si no, envía por `MailSender` un correo de categoría `alerta` con el asunto «Alerta: el robot no publicó la cartera de {empresa} del {DD/MM/AAAA}»: la hora límite, la última cartera aceptada (corte, origen y recibida), el error del último rechazo del robot de hoy si lo hubo, si ya hay una carga manual con corte de hoy (que no apaga la alerta) y el enlace al historial. Si Graph no acepta el correo (`MailNotSent`), lo registra y termina con falla.

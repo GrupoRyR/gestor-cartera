@@ -7,6 +7,8 @@ use App\Modules\Core\Contracts\Enums\Dataset;
 use App\Modules\Core\Contracts\Enums\LoadSource;
 use App\Modules\Core\Contracts\Exceptions\MailNotSent;
 use App\Modules\Core\Contracts\MailSender;
+use App\Modules\Ingesta\Application\Failures\SlotAlerts;
+use App\Modules\Ingesta\Domain\Failures\LoadAlertKind;
 use Carbon\CarbonImmutable;
 use Illuminate\Console\Scheduling\Event as ScheduledEvent;
 use Illuminate\Console\Scheduling\Schedule;
@@ -142,8 +144,8 @@ it('tells the error of the robot load rejected today', function () {
         ->toContain('Aún no hay ninguna carga de cartera aceptada de esta empresa.');
 });
 
-it('checks every configured company', function () {
-    config(['ingesta.alert_companies' => ['SGX', 'SDC']]);
+it('checks every watched company', function () {
+    config(['ingesta.watch_companies' => ['SGX', 'SDC']]);
     IngestaLoads::accepted();
 
     $this->artisan('ingesta:verificar-carga')
@@ -157,6 +159,74 @@ it('checks every configured company', function () {
     expect($mail->company)->toBe(CompanyCode::SDC)
         ->and($mail->html)->toContain('background:'.BrandPalette::official(CompanyCode::SDC)->head.';')
         ->not->toContain(BrandPalette::official(CompanyCode::SGX)->accent);
+});
+
+/**
+ * Writes the alert row of a slot, as SendLoadFailureAlert and WatchLoadSlot do.
+ */
+function ingestaSlotAlerted(string $slotAt, LoadAlertKind $kind, CompanyCode $company = CompanyCode::SGX, Dataset $dataset = Dataset::Receivables): void
+{
+    expect(app(SlotAlerts::class)->claim($company, $dataset, CarbonImmutable::parse($slotAt, 'America/Bogota'), $kind))->toBeTrue();
+}
+
+it('skips the alert when a slot before the deadline already alerted', function (string $slotAt, LoadAlertKind $kind, string $time) {
+    ingestaSlotAlerted($slotAt, $kind);
+
+    $this->artisan('ingesta:verificar-carga')
+        ->expectsOutputToContain("Segurex Latam: falta la cartera del robot; ya se avisó en la carga de las {$time}, así que no se envía otra alerta.")
+        ->assertSuccessful();
+
+    $this->mail->assertNothingSent();
+})->with([
+    'the 00:00 failure mail' => ['2026-10-15 00:00:00', LoadAlertKind::Falla, '00:00'],
+    'the 05:00 missing-load mail' => ['2026-10-15 05:00:00', LoadAlertKind::NoLlego, '05:00'],
+]);
+
+it('names the latest slot that alerted', function () {
+    ingestaSlotAlerted('2026-10-15 00:00:00', LoadAlertKind::Falla);
+    ingestaSlotAlerted('2026-10-15 05:00:00', LoadAlertKind::NoLlego);
+
+    $this->artisan('ingesta:verificar-carga')
+        ->expectsOutputToContain('ya se avisó en la carga de las 05:00')
+        ->assertSuccessful();
+
+    $this->mail->assertNothingSent();
+});
+
+it('still alerts when no slot of today before the deadline mailed this company about its cartera', function (Closure $alert) {
+    $alert();
+
+    $this->artisan('ingesta:verificar-carga')->assertSuccessful();
+
+    expect($this->mail->sent())->toHaveCount(1);
+})->with([
+    'yesterday' => [fn () => ingestaSlotAlerted('2026-10-14 05:00:00', LoadAlertKind::NoLlego)],
+    'another company' => [fn () => ingestaSlotAlerted('2026-10-15 05:00:00', LoadAlertKind::NoLlego, CompanyCode::SDC)],
+    'another dataset' => [fn () => ingestaSlotAlerted('2026-10-15 05:00:00', LoadAlertKind::NoLlego, CompanyCode::SGX, Dataset::Advisors)],
+    'at the deadline' => [fn () => ingestaSlotAlerted('2026-10-15 07:00:00', LoadAlertKind::NoLlego)],
+    // The slot's mail was refused (its claim rolled back): only the bell rang.
+    'only the bell' => [fn () => ingestaSlotAlerted('2026-10-15 05:00:00', LoadAlertKind::Campana)],
+]);
+
+it('skips only the companies whose slot already alerted', function () {
+    config(['ingesta.watch_companies' => ['SGX', 'SDC']]);
+    ingestaSlotAlerted('2026-10-15 05:00:00', LoadAlertKind::NoLlego);
+
+    $this->artisan('ingesta:verificar-carga')
+        ->expectsOutputToContain('Segurex Latam: falta la cartera del robot; ya se avisó en la carga de las 05:00')
+        ->expectsOutputToContain('Soluciones y Derivados: falta la cartera del robot; se envió la alerta')
+        ->assertSuccessful();
+
+    expect(ingestaSentAlert($this->mail)->company)->toBe(CompanyCode::SDC);
+});
+
+it('checks the watched companies, not a separate alert list', function () {
+    config(['ingesta.watch_companies' => []]);
+
+    $this->artisan('ingesta:verificar-carga')->assertSuccessful();
+
+    $this->mail->assertNothingSent();
+    expect(config('ingesta.alert_companies'))->toBeNull();
 });
 
 it('only logs a warning when there are no recipients', function () {
