@@ -180,7 +180,6 @@ it('skips the alert when a slot before the deadline already alerted', function (
 })->with([
     'the 00:00 failure mail' => ['2026-10-15 00:00:00', LoadAlertKind::Falla, '00:00'],
     'the 05:00 missing-load mail' => ['2026-10-15 05:00:00', LoadAlertKind::NoLlego, '05:00'],
-    'the 05:00 bell only' => ['2026-10-15 05:00:00', LoadAlertKind::Campana, '05:00'],
 ]);
 
 it('names the latest slot that alerted', function () {
@@ -194,7 +193,7 @@ it('names the latest slot that alerted', function () {
     $this->mail->assertNothingSent();
 });
 
-it('still alerts when the slot alert is not of today before the deadline for this company and cartera', function (Closure $alert) {
+it('still alerts when no slot of today before the deadline mailed this company about its cartera', function (Closure $alert) {
     $alert();
 
     $this->artisan('ingesta:verificar-carga')->assertSuccessful();
@@ -205,6 +204,8 @@ it('still alerts when the slot alert is not of today before the deadline for thi
     'another company' => [fn () => ingestaSlotAlerted('2026-10-15 05:00:00', LoadAlertKind::NoLlego, CompanyCode::SDC)],
     'another dataset' => [fn () => ingestaSlotAlerted('2026-10-15 05:00:00', LoadAlertKind::NoLlego, CompanyCode::SGX, Dataset::Advisors)],
     'at the deadline' => [fn () => ingestaSlotAlerted('2026-10-15 07:00:00', LoadAlertKind::NoLlego)],
+    // The slot's mail was refused (its claim rolled back): only the bell rang.
+    'only the bell' => [fn () => ingestaSlotAlerted('2026-10-15 05:00:00', LoadAlertKind::Campana)],
 ]);
 
 it('skips only the companies whose slot already alerted', function () {

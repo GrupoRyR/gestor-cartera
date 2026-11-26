@@ -6,6 +6,7 @@ use App\Modules\Core\Contracts\Enums\CompanyCode;
 use App\Modules\Core\Contracts\Enums\Dataset;
 use App\Modules\Core\Contracts\Enums\LoadSource;
 use App\Modules\Core\Contracts\Enums\LoadStatus;
+use App\Modules\Ingesta\Domain\Failures\LoadAlertKind;
 use App\Modules\Ingesta\Infrastructure\Persistence\IngestaLoad;
 use App\Modules\Ingesta\Infrastructure\Persistence\LoadAlertRecord;
 use Carbon\CarbonImmutable;
@@ -86,10 +87,12 @@ final class DailyCarteraCheck
 
     /**
      * The latest load slot of today before the deadline (the 00:00 and
-     * 05:00 ones by default) that already alerted for the cartera of
-     * $company, in Bogota; null when none did. Any alert counts: the
-     * failure mail, the missing-load mail or only the bell. The slot's
-     * alert already told the recipients, so the daily mail would repeat it.
+     * 05:00 ones by default) that already mailed the alert recipients about
+     * the cartera of $company, in Bogota; null when none did. Only the mail
+     * claims count (the failure mail or the missing-load mail): a refused
+     * mail rolls its claim back, so a bell-only slot leaves the daily mail
+     * to tell the recipients. The slot's mail already told them, so the
+     * daily one would repeat it.
      */
     public function alertedSlot(CompanyCode $company, ?CarbonImmutable $now = null): ?CarbonImmutable
     {
@@ -100,6 +103,7 @@ final class DailyCarteraCheck
         $slotAt = LoadAlertRecord::query()
             ->where('company', $company)
             ->where('dataset', Dataset::Receivables)
+            ->whereIn('kind', [LoadAlertKind::Falla, LoadAlertKind::NoLlego])
             ->where('slot_at', '>=', $now->startOfDay()->setTimezone($timezone)->format('Y-m-d H:i:s'))
             ->where('slot_at', '<', $this->deadline($now)->setTimezone($timezone)->format('Y-m-d H:i:s'))
             ->max('slot_at');

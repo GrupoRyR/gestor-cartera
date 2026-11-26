@@ -20,8 +20,8 @@ use Illuminate\Support\Facades\Log;
  * accepted robot cartera load with today's cutoff arrived; when it did
  * not, mails ingesta.alert_recipients through MailSender (category
  * "alerta"), unless a load slot of the morning (00:00 or 05:00) already
- * alerted for that company: its alert said it first, so the daily mail
- * is skipped. Before the deadline it checks nothing, sends nothing and
+ * mailed its alert for that company: that mail said it first, so the
+ * daily one is skipped (a bell-only slot does not count). Before the deadline it checks nothing, sends nothing and
  * succeeds. IngestaServiceProvider schedules it daily at the deadline;
  * running it by hand is safe.
  *
