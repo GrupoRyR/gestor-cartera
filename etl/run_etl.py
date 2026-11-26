@@ -38,8 +38,9 @@ import logging
 import sys
 import time
 import traceback
+import uuid
 from contextlib import contextmanager
-from dataclasses import dataclass, replace
+from dataclasses import dataclass, field, replace
 from datetime import date, datetime, timedelta, timezone
 from typing import Any, Callable, Iterator
 
@@ -47,6 +48,7 @@ import esquema
 import hana
 import notificar
 import registro
+import reporte
 from config import (
     STATE_DIR, ConfigError, EmpresaConfig, cargar_config, leer_query, parsear_lotes,
 )
@@ -76,6 +78,8 @@ class Fallo:
     lote: str
     etapa: str
     mensaje: str
+    # El error original: reporte.clasificar decide la causa por su tipo.
+    exc: BaseException | None = field(default=None, compare=False)
 
 
 class Corrida:
@@ -100,7 +104,7 @@ class Corrida:
         mensaje = str(exc)
         self.log.error("Fallo el lote '%s' en la etapa %s: %s",
                        self.etiqueta(nombre), etapa, mensaje)
-        self.fallos.append(Fallo(nombre, etapa, mensaje))
+        self.fallos.append(Fallo(nombre, etapa, mensaje, exc))
         info = self.lotes[nombre]
         info["estado"] = "ERROR"
         info.setdefault("errores", []).append({"etapa": etapa, "error": mensaje})
@@ -113,7 +117,7 @@ class Corrida:
         mensaje = str(exc)
         self.log.error("Fallo la empresa %s en la etapa %s: %s",
                        self.empresa, etapa, mensaje)
-        self.abortada = Fallo("", etapa, mensaje)
+        self.abortada = Fallo("", etapa, mensaje, exc)
         for info in self.lotes.values():
             if info["estado"] == "PENDIENTE":
                 info.update(estado="OMITIDO", motivo=f"fallo la empresa {self.empresa}")
@@ -184,6 +188,8 @@ def main() -> int:
 
     log = registro.configurar()
     inicio_utc = datetime.now(timezone.utc)
+    run_id = str(uuid.uuid4())
+    cfg = None
     inicio = time.monotonic()
     log.info("=" * 68)
     log.info("Inicio del robot de cartera%s",
@@ -199,6 +205,10 @@ def main() -> int:
     except ConfigError as exc:
         log.error("Configuracion incompleta:\n%s", exc)
         guardar_estado(estado="ERROR", etapa="CONFIGURACION", error=str(exc))
+        _reportar(cfg, args.diagnostico, run_id, inicio_utc, [
+            (e.codigo, "CONFIGURACION", exc, str(exc))
+            for e in (cfg.empresas_efectivas if cfg is not None else ())
+        ], log)
         return 2
 
     orden = ordenar_lotes(lotes)
@@ -286,7 +296,10 @@ def main() -> int:
 
         duracion = time.monotonic() - inicio
         if any(c.con_fallos() for c in corridas.values()):
-            return _cerrar_con_fallos(cfg, log, corridas, duracion)
+            codigo = _cerrar_con_fallos(cfg, log, corridas, duracion)
+            _reportar(cfg, args.diagnostico, run_id, inicio_utc,
+                      _fallas_cartera(corridas), log)
+            return codigo
 
         log.info("Actualizacion completada en %.1fs: %s.", duracion, _resumen(corridas))
         guardar_estado(estado="OK", **_estado(corridas), duracion_seg=round(duracion, 1))
@@ -295,15 +308,21 @@ def main() -> int:
     except (VpnError, hana.HanaError, postgres_sink.PostgresError,
             esquema.ColumnasInesperadas, FalloEtapa, ConfigError) as exc:
         etapa_fallo = getattr(exc, "etapa", etapa)
-        return _fallar(cfg, log, etapa_fallo, exc, inicio, inicio_utc, corridas)
+        codigo = _fallar(cfg, log, etapa_fallo, exc, inicio, inicio_utc, corridas)
+        _reportar(cfg, args.diagnostico, run_id, inicio_utc,
+                  _fallas_cartera(corridas, etapa_fallo, exc), log)
+        return codigo
 
     except KeyboardInterrupt:
         log.warning("Ejecucion cancelada por el usuario.")
         return 130
 
     except Exception as exc:  # red de seguridad: nada sale sin registrar
-        return _fallar(cfg, log, etapa, exc, inicio, inicio_utc, corridas,
-                       inesperado=True)
+        codigo = _fallar(cfg, log, etapa, exc, inicio, inicio_utc, corridas,
+                         inesperado=True)
+        _reportar(cfg, args.diagnostico, run_id, inicio_utc,
+                  _fallas_cartera(corridas, etapa, exc), log)
+        return codigo
 
 
 # ------------------------------------------------------------------ etapas
@@ -592,6 +611,55 @@ def _fallar(cfg, log, etapa, exc, inicio, inicio_utc, corridas: dict[str, Corrid
     notificar.avisar_fallo(cfg.alertas, etapa, str(exc),
                            detalle if inesperado else "")
     return 1
+
+
+# ---------------------------------------------------- reporte a la app
+Falla = tuple[str, str, "BaseException | None", str]  # (empresa, etapa, error, mensaje)
+
+
+def _fallas_cartera(corridas: dict[str, Corrida], etapa: str = "",
+                    exc: BaseException | None = None) -> list[Falla]:
+    """Una falla por empresa que se quedo sin cartera.
+
+    Con exc, la corrida entera aborto (VPN, HANA o un lote base). Sin exc,
+    cuenta el aborto de la empresa o el primer fallo de su cartera; uno de
+    SUPABASE no, porque la cartera ya llego a la app."""
+    fallas: list[Falla] = []
+    for codigo, corrida in corridas.items():
+        if corrida.abortada:
+            f = corrida.abortada
+            fallas.append((codigo, f.etapa, f.exc, f.mensaje))
+        elif exc is not None:
+            fallas.append((codigo, etapa, exc, str(exc)))
+        else:
+            fallas.extend(
+                [(codigo, f.etapa, f.exc, f.mensaje) for f in corrida.fallos
+                 if f.lote == "cartera" and f.etapa != "SUPABASE"][:1]
+            )
+    return fallas
+
+
+def _reportar(cfg, diagnostico: bool, run_id: str, inicio_utc: datetime,
+              fallas: list[Falla], log: logging.Logger) -> None:
+    """Un reporte final por empresa a la app. Nunca cambia el resultado de
+    la corrida: un reporte que no sale solo queda en el log."""
+    if diagnostico:
+        return
+    if cfg is None or not cfg.ingesta.habilitada:
+        log.info("Sin INGESTA_URL, INGESTA_KEY_ID o INGESTA_SECRET: la falla no "
+                 "se reporta a la app.")
+        return
+    if not fallas:
+        return
+    try:
+        hora = reporte.franja(inicio_utc, reporte.cargar_horarios())
+        for empresa, etapa, exc, mensaje in fallas:
+            reporte.enviar(cfg.ingesta, reporte.armar(
+                run_id, empresa, hora, etapa, exc, mensaje,
+            ))
+    except Exception as exc:  # el reporte nunca tumba la corrida
+        log.warning("No se pudo reportar la falla a la app: %s",
+                    reporte.sanear(str(exc)))
 
 
 if __name__ == "__main__":
