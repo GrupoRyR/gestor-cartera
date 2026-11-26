@@ -30,7 +30,8 @@ use Tests\Modules\Cobro\Support\CobroPortfolio;
 use Tests\Modules\Cobro\Support\VisibleText;
 
 beforeEach(function () {
-    // Wednesday, the scheduled moment.
+    // 17:00, the weekly time: the command plans today's slot whatever the
+    // day, so these tests do not need a scheduled weekday.
     $this->travelTo(CarbonImmutable::parse('2026-10-21 17:00:00', 'America/Bogota'));
     $this->fakes = ContractFakes::install($this->app);
     $this->portfolio = CobroPortfolio::seed($this->fakes);
@@ -352,12 +353,35 @@ it('runs only for the companies of the weekly collection', function () {
     $this->fakes->mail->assertSentTo('pagos@quimicos.example');
 });
 
-it('is scheduled on Wednesdays at 17:00, Bogotá time', function () {
+it('sends on Tuesday and again on Friday of the same week, once a day', function () {
+    $this->travelTo(CarbonImmutable::parse('2026-10-20 17:00:00', 'America/Bogota'));
+    $this->artisan('cobro:cobro-semanal')->assertSuccessful();
+    $tuesdayMails = count($this->fakes->mail->sent());
+
+    $this->travelTo(CarbonImmutable::parse('2026-10-23 17:00:00', 'America/Bogota'));
+    $this->artisan('cobro:cobro-semanal')->assertSuccessful();
+
+    $this->travelTo(CarbonImmutable::parse('2026-10-23 18:30:00', 'America/Bogota'));
+    $this->artisan('cobro:cobro-semanal')
+        ->expectsOutputToContain('Segurex Latam: el envío de Cobro semanal de esta fecha ya se preparó; no se envía de nuevo.')
+        ->assertSuccessful();
+
+    $slots = fn (CompanyCode $company): array => Run::query()->where('company', $company)->orderBy('scheduled_for')->get()
+        ->map(fn (Run $run): string => $run->scheduled_for->setTimezone('America/Bogota')->format('Y-m-d H:i'))->all();
+
+    expect($tuesdayMails)->toBe(2)
+        ->and(Run::query()->count())->toBe(4)
+        ->and($slots(CompanyCode::SGX))->toBe(['2026-10-20 17:00', '2026-10-23 17:00'])
+        ->and($slots(CompanyCode::SDC))->toBe(['2026-10-20 17:00', '2026-10-23 17:00'])
+        ->and($this->fakes->mail->sent())->toHaveCount(4);
+});
+
+it('is scheduled on Tuesdays and Fridays at 17:00, Bogotá time', function () {
     $event = collect(app(Schedule::class)->events())
         ->first(fn (ScheduledEvent $event): bool => str_contains((string) $event->command, 'cobro:cobro-semanal'));
 
     expect($event)->toBeInstanceOf(ScheduledEvent::class)
-        ->and($event->expression)->toBe('0 17 * * 3')
+        ->and($event->expression)->toBe('0 17 * * 2,5')
         ->and($event->timezone)->toBe('America/Bogota')
         ->and($event->withoutOverlapping)->toBeTrue();
 });

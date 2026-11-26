@@ -76,9 +76,9 @@ final class CobroServiceProvider extends ModuleServiceProvider
      * - Every five minutes, the new replies and bounces of the company
      *   inboxes (a run takes seconds; a lock left by a killed process
      *   expires after 10 minutes).
-     * - Wednesdays at 17:00 (Bogotá), the weekly collection: the command
-     *   only plans the run and queues one job per client, so it takes
-     *   seconds; the queue worker sends them.
+     * - Tuesdays and Fridays at 17:00 (Bogotá, cobro.weekly), the weekly
+     *   collection: the command only plans the run and queues one job per
+     *   client, so it takes seconds; the queue worker sends them.
      * - On the 5th business day of the month (cobro.circularizacion
      *   business_day) at 09:00, the circularization of each company whose
      *   closing snapshot arrived; nothing while cobro.circularizacion.draft
@@ -104,7 +104,8 @@ final class CobroServiceProvider extends ModuleServiceProvider
             ->withoutOverlapping(10);
 
         $schedule->command(SendWeeklyCollectionCommand::class)
-            ->weeklyOn((int) config('cobro.weekly.day', 3), (string) config('cobro.weekly.time', '17:00'))
+            ->days((array) config('cobro.weekly.days', [2, 5]))
+            ->at((string) config('cobro.weekly.time', '17:00'))
             ->timezone(self::TIMEZONE)
             ->withoutOverlapping(30);
     }
