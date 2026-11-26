@@ -11,6 +11,7 @@ use App\Support\Formatting\Money;
 use Carbon\CarbonImmutable;
 use Tests\Fakes\ContractFakes;
 use Tests\Fakes\Make;
+use Tests\Feature\Design\Support\Html;
 use Tests\Modules\Cartera\Support\CarteraUsers;
 use Tests\Modules\Cartera\Support\CarteraWorld;
 
@@ -215,6 +216,22 @@ describe('the button', function () {
                 ->and($html)->toContain('El compromiso es por '.Money::format(1_000_000));
         }
     })->with([Role::PortfolioAnalyst, Role::PortfolioManager]);
+
+    it('takes the paid amount in a whole-peso money input', function () {
+        $commitment = abonoCommitment();
+
+        $html = $this->actingAs(CarteraUsers::analyst())->get("/cartera/clientes/{$this->client->id}")->assertOk()->getContent() ?: '';
+
+        $field = Html::parse($html)->one('//input[@name="abono_'.$commitment->id.'[valor]"]');
+
+        expect($field->getAttribute('type'))->toBe('text')
+            ->and($field->hasAttribute('data-money-input'))->toBeTrue()
+            ->and($field->getAttribute('data-decimals'))->toBe('0')
+            ->and($field->getAttribute('inputmode'))->toBe('numeric')
+            ->and($field->hasAttribute('required'))->toBeTrue()
+            ->and($html)->toContain('El compromiso es por '.Money::format(1_000_000).'. En pesos colombianos.')
+            ->and($html)->not->toContain('sin puntos ni comas');
+    });
 
     it('does not show without the permission', function () {
         $commitment = abonoCommitment();
