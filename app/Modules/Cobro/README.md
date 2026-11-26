@@ -16,20 +16,22 @@ Correo de cobro por Microsoft Graph desde el buzón de cada empresa: cobro seman
 | `GET /cobro/lotes` | `cobro.lotes.index` | `cobro.view` | Informes de envío: enviados, rebotados, sin correo, excluidos y no enviados. |
 | `GET /cobro/lotes/{run}` | `cobro.lotes.show` | `cobro.view` | Un envío cliente por cliente, con el motivo del rebote leído del buzón. |
 | `GET /cobro/informe` | `cobro.informe.index` | `cobro.view` | Informe de cobro: cada correo del cobro semanal y de la circularización, filtrable, con sus cifras (ver «Informe de cobro»). |
+| `GET /cobro/informe/exportar` | `cobro.informe.export` | `cobro.export` | El informe de cobro en Excel, con los mismos filtros y sin páginas; 10 por minuto por usuario. |
 | `GET /cobro/exclusiones` | `cobro.exclusiones.index` | `cobro.manage` | Lista de exclusión con casillas, motivo y fecha de vencimiento opcional. |
 | `GET /cobro/plantillas` | `cobro.plantillas.edit` | `cobro.manage` | Asunto y textos del cobro semanal por empresa, con datos como `{cliente}`. |
 | `GET /cobro/copias` | `cobro.copias.edit` | `cobro.manage` | Copias (CC) del cobro semanal y de la circularización por empresa: correos fijos, el asesor del cliente y los gerentes de cada grupo de SAP. |
 | `GET /cobro/firma` | `cobro.firma.edit` | `cobro.manage` | Quién firma los correos de cada empresa: nombre, cargo, móvil y extensión del PBX (ver «Firma del correo»). |
 
-Permisos (`CobroPermissionSeeder`): `cobro.view` para administrador, gerente y analista de cartera; `cobro.manage` y `cobro.replies` para gerente y analista.
+Permisos (`CobroPermissionSeeder`): `cobro.view` y `cobro.export` para administrador, gerente y analista de cartera; `cobro.manage` y `cobro.replies` para gerente y analista. El despliegue (`deploy/deploy.sh`) corre `db:seed --force`, que crea los permisos nuevos y deja los que ya existen.
 
 ## Informe de cobro
 
-`/cobro/informe` lista, del más reciente al más antiguo, cada cliente de los envíos del cobro semanal y de la circularización de las empresas de la vista, 25 por página. Las fechas son las del día programado del envío en Bogotá; sin fechas cubre los últimos 30 días hasta hoy. Filtros (en la URL, validados por `MailReportRequest`): `desde`, `hasta`, `empresa`, `cliente` (código, nombre o NIT), `asesor` (`SGX:12`: el código de SAP es por empresa), `tipo`, `estado` y `respondio` (`si` o `no`, entre los correos que llegaron al buzón).
+`/cobro/informe` lista, del más reciente al más antiguo, cada cliente de los envíos del cobro semanal y de la circularización de las empresas de la vista, 25 por página. Las fechas son las del día programado del envío en Bogotá; sin fechas cubre los últimos 30 días hasta hoy, y con solo `desde`, hasta hoy (o solo ese día si `desde` es posterior a hoy). Filtros (en la URL, validados por `MailReportRequest`): `desde`, `hasta`, `empresa`, `cliente` (código, nombre o NIT), `asesor` (`SGX:12`: el código de SAP es por empresa), `tipo`, `estado` y `respondio` (`si` o `no`, entre los correos que llegaron al buzón).
 
 - **Cifras**, sobre todo lo filtrado y no solo la página: correos enviados (`enviado` + `rebotado`, como en Gerencia), fallidos, rebotados, clientes alcanzados (distintos entre los enviados), respuestas (clientes enviados con al menos un mensaje que no es rebote unido a su envío, por su id o por su `Message-ID`: `Infrastructure/Reports/ItemReplies`, la misma regla de `DatabaseMailRunResults`), tasa de respuesta y la mediana entre el envío y la primera respuesta (en horas por debajo de 48 h, si no en días).
 - **Respuestas que envió el equipo:** los correos de categoría `respuesta` (`ReplySender`) enviados en esas fechas y empresas; los demás filtros no aplican.
-- **Asesor:** Cobro no lo guarda. El filtro pide a `CarteraRepository::allClients()` los clientes de ese asesor y esa empresa, y la columna muestra el asesor actual de cada cliente de la página (`client()`), o «—» si Core no lo conoce.
+- **Asesor:** Cobro no lo guarda. El filtro pide a `CarteraRepository::allClients()` los clientes de ese asesor y esa empresa una sola vez por consulta, y la columna muestra el asesor actual de cada cliente de la página (`client()`), o «—» si Core no lo conoce.
+- **Excel** («Descargar Excel», solo con `cobro.export`): `/cobro/informe/exportar`, con los filtros de la página, baja todos los correos filtrados y no solo la página, del envío más reciente al más antiguo: fecha del envío, empresa, envío, código, cliente, NIT, asesor, resultado, valor, facturas, enviado, primera respuesta, horas hasta la primera respuesta y detalle (motivo del rebote, del fallo o de la exclusión). Las fechas van en hora de Bogotá y el texto siempre como texto, nunca como fórmula. Lee los correos de 500 en 500 por id (`MailReport::allItems()`) y el asesor con una sola pasada de `allClients()` por empresa, no con un `client()` por fila. Cada descarga queda en la auditoría (`cobro.mail_report.exported`, con las filas y los filtros) y el limitador `cobro-exports` permite 10 por minuto por usuario.
 
 ## Tareas programadas y colas
 

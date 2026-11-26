@@ -25,6 +25,7 @@ use App\Support\Navigation\NavRegistry;
 use Carbon\CarbonImmutable;
 use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Console\Scheduling\Schedule;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\RateLimiter;
 
@@ -68,6 +69,15 @@ final class CobroServiceProvider extends ModuleServiceProvider
         // Exchange Online accepts 30 mails a minute per mailbox; the send
         // jobs stay below it across both mailboxes.
         RateLimiter::for('cobro-mail', fn (): Limit => Limit::perMinute(max(1, (int) config('cobro.send_per_minute', 25)))->by('cobro-mail'));
+
+        // The Excel download of the collection report, as Cartera's
+        // (audit S-10): 10 a minute per user, so a script cannot pull every
+        // client in a loop and one user at the limit never blocks another.
+        RateLimiter::for('cobro-exports', function (Request $request): Limit {
+            $user = $request->user();
+
+            return Limit::perMinute(10)->by($user === null ? 'ip:'.$request->ip() : 'user:'.$user->getAuthIdentifier());
+        });
 
         Event::listen(BounceLinked::class, MarkItemBounced::class);
     }
