@@ -105,14 +105,12 @@
                         <td data-align="end">{{ Labels::rate($row->rule->minimumCompliance) }}</td>
                         @if ($editable)
                             <td class="min-w-44">
-                                <x-ui.input
+                                <x-ui.money-input
                                     name="filas[{{ $code }}][valor]"
+                                    :decimals="2"
                                     :label="__('comisiones::presupuesto.tabla.campo_presupuesto', ['codigo' => $code])"
                                     :label-hidden="true"
-                                    :value="Amount::forInput($row->budget?->valor)"
-                                    prefix="$"
-                                    inputmode="decimal"
-                                    autocomplete="off"
+                                    :value="Amount::forMoneyInput($row->budget?->valor)"
                                     :form="$formId"
                                 />
                             </td>

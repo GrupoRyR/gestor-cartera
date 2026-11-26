@@ -13,6 +13,7 @@ use OpenSpout\Common\Entity\Row;
 use OpenSpout\Writer\XLSX\Writer;
 use Tests\Fakes\AuditEntry;
 use Tests\Fakes\ContractFakes;
+use Tests\Feature\Design\Support\Html;
 use Tests\Modules\Comisiones\Feature\Concerns\ClosedPeriods;
 use Tests\Modules\Comisiones\Feature\Concerns\ComisionesUsers;
 use Tests\Modules\Comisiones\Feature\Concerns\SapBatches;
@@ -150,6 +151,27 @@ it('shows the four tabs with the OBR tab first and the month in course by defaul
     $this->actingAs($this->analyst)->get('/comisiones/ajustes/reintegros?periodo=2026-07')->assertOk()
         ->assertSee('name="formulario" value="reintegros"', false)
         ->assertSee('name="periodo" value="2026-07"', false);
+});
+
+it('takes the OBR and reimbursement amounts in money inputs with cents, and the rate as it is', function () {
+    $fields = [
+        '/comisiones/ajustes?periodo=2026-07' => 'valor_vendido',
+        '/comisiones/ajustes/reintegros?periodo=2026-07' => 'valor',
+    ];
+
+    foreach ($fields as $url => $name) {
+        $page = Html::parse($this->actingAs($this->analyst)->get($url)->assertOk()->getContent() ?: '');
+        $field = $page->one('//input[@name="'.$name.'"]');
+
+        expect($field->getAttribute('type'))->toBe('text')
+            ->and($field->hasAttribute('data-money-input'))->toBeTrue()
+            ->and($field->getAttribute('data-decimals'))->toBe('2')
+            ->and($field->getAttribute('inputmode'))->toBe('decimal');
+    }
+
+    $rate = Html::parse($this->actingAs($this->analyst)->get('/comisiones/ajustes?periodo=2026-07')->getContent() ?: '')->one('//input[@name="tasa"]');
+
+    expect($rate->hasAttribute('data-money-input'))->toBeFalse();
 });
 
 it('registers an OBR sale pending, with its support on the private disk, and audits it', function () {
