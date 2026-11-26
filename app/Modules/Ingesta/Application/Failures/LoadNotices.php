@@ -29,7 +29,9 @@ use Throwable;
  *
  * Its key groups the notices of one company and dataset, whatever the slot,
  * so any accepted load of them (robot batch, manual upload, later the Bases
- * SAP reader) resolves every open one: the data is current again.
+ * SAP reader) resolves every open one: the data is current again. A
+ * duplicate of an accepted batch resolves them too (EloquentIngestaSink
+ * calls resolve() without BatchAccepted).
  *
  * It goes to the active users whose e-mail is in ingesta.alert_recipients
  * (compared normalized, like User::normalizeEmail()) and to the active

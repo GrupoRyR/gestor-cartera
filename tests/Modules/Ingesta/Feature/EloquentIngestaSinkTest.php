@@ -93,6 +93,24 @@ it('returns the original load for a repeated batch id without storing or dispatc
     Event::assertDispatchedTimes(BatchAccepted::class, 1);
 });
 
+it('marks when an accepted batch was last seen and moves it only forward on a duplicate', function () {
+    $batch = IngestaRows::batch('asesores-1', [IngestaRows::advisor(11)]);
+    $this->sink->receive($batch);
+
+    expect(IngestaLoad::query()->sole()->last_seen_at?->toDateTimeString())->toBe('2026-10-15 07:00:00');
+
+    $this->travelTo(CarbonImmutable::parse('2026-10-15 13:00:00', 'America/Bogota'));
+    $this->sink->receive($batch);
+    $this->travelTo(CarbonImmutable::parse('2026-10-15 10:00:00', 'America/Bogota'));
+    $this->sink->receive($batch);
+
+    $load = IngestaLoad::query()->sole();
+
+    expect($load->last_seen_at?->toDateTimeString())->toBe('2026-10-15 13:00:00')
+        ->and($load->received_at->toDateTimeString())->toBe('2026-10-15 07:00:00');
+    Event::assertDispatchedTimes(BatchAccepted::class, 1);
+});
+
 it('records a rejected batch, stores nothing else and accepts the same batch id once fixed', function () {
     $broken = [IngestaRows::advisor(11, ['nombre' => null]), IngestaRows::advisor(12, ['clientes' => '40'])];
 

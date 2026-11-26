@@ -27,6 +27,7 @@ use App\Modules\Ingesta\Infrastructure\EloquentIngestaSink;
 use App\Modules\Ingesta\Infrastructure\Persistence\LoadAlertRecord;
 use App\Modules\Ingesta\Infrastructure\Persistence\LoadFailureRecord;
 use Carbon\CarbonImmutable;
+use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Queue;
 use Tests\Fakes\ContractFakes;
@@ -243,6 +244,44 @@ it('closes the bell notice when the sink accepts the next load', function () {
 
     $this->fakes->avisos->assertResolved('ingesta.carga:SGX:cartera');
     expect($this->fakes->avisos->resolve('ingesta.carga:SGX:cartera'))->toBe(0);
+});
+
+it('closes the bell notice when a duplicate of the accepted batch arrives, without BatchAccepted', function () {
+    IngestaUsers::create(Role::Admin);
+    Event::fake([BatchAccepted::class]);
+    $sink = app(EloquentIngestaSink::class);
+    $batch = IngestaRows::batch('cartera-SGX-1', [IngestaRows::cartera()], Dataset::Receivables);
+    $first = $sink->receive($batch);
+    recordNoticedFailure();
+
+    expect($this->fakes->avisos->resolvedKeys())->toBe([]);
+
+    expect($sink->receive($batch))->toEqual($first)
+        ->and($this->fakes->avisos->resolvedKeys())->toBe(['ingesta.carga:SGX:cartera'])
+        ->and($this->fakes->avisos->resolve('ingesta.carga:SGX:cartera'))->toBe(0);
+    Event::assertDispatchedTimes(BatchAccepted::class, 1);
+});
+
+it('logs and swallows a failure to resolve on a duplicate batch, so the robot still gets its load', function () {
+    Event::fake([BatchAccepted::class]);
+    $sink = app(EloquentIngestaSink::class);
+    $batch = IngestaRows::batch('cartera-SGX-1', [IngestaRows::cartera()], Dataset::Receivables);
+    $first = $sink->receive($batch);
+    Log::spy();
+    $this->app->instance(AvisoService::class, new class implements AvisoService
+    {
+        public function send(Aviso $aviso): void {}
+
+        public function resolve(string $key): int
+        {
+            throw new RuntimeException('The notices table is gone.');
+        }
+
+        public function linkUsing(string $kind, Closure $resolver): void {}
+    });
+
+    expect($sink->receive($batch))->toEqual($first);
+    Log::shouldHaveReceived('error')->withArgs(fn (string $message): bool => str_contains($message, 'could not resolve'))->once();
 });
 
 it('ignores accepted loads while AvisoService has no implementation', function () {

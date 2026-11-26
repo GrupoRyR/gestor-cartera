@@ -6,6 +6,7 @@ use App\Modules\Core\Contracts\Enums\CompanyCode;
 use App\Modules\Core\Contracts\Enums\Dataset;
 use App\Modules\Core\Contracts\Enums\LoadSource;
 use App\Modules\Core\Contracts\Enums\Role;
+use App\Modules\Core\Contracts\Events\BatchAccepted;
 use App\Modules\Core\Contracts\Exceptions\MailNotSent;
 use App\Modules\Core\Contracts\MailSender;
 use App\Modules\Ingesta\Application\Failures\LoadFailure;
@@ -14,13 +15,16 @@ use App\Modules\Ingesta\Domain\Failures\FailureCause;
 use App\Modules\Ingesta\Domain\Failures\FailureSource;
 use App\Modules\Ingesta\Domain\Failures\FailureStage;
 use App\Modules\Ingesta\Domain\Failures\LoadAlertKind;
+use App\Modules\Ingesta\Infrastructure\EloquentIngestaSink;
 use App\Modules\Ingesta\Infrastructure\Persistence\LoadAlertRecord;
 use Carbon\CarbonImmutable;
 use Illuminate\Console\Scheduling\Event as ScheduledEvent;
 use Illuminate\Console\Scheduling\Schedule;
+use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Queue;
 use Tests\Fakes\ContractFakes;
 use Tests\Modules\Ingesta\Support\IngestaLoads;
+use Tests\Modules\Ingesta\Support\IngestaRows;
 use Tests\Modules\Ingesta\Support\IngestaUsers;
 
 beforeEach(function () {
@@ -78,6 +82,43 @@ it('stays quiet when a load of any source arrived after the slot', function (Loa
 
 it('alerts when the only load arrived before the slot', function () {
     IngestaLoads::accepted(['received_at' => CarbonImmutable::parse('2026-11-25 04:59:59', 'America/Bogota')]);
+
+    $this->artisan('ingesta:vigilar-carga', ['hora' => '05:00'])->assertSuccessful();
+
+    $this->fakes->mail->assertSent(times: 1);
+    expect($this->fakes->avisos->sent())->toHaveCount(1);
+});
+
+/**
+ * Receives the same SGX cartera batch through the sink at each Bogotá time,
+ * as the robot does when SAP did not change between slots.
+ */
+function receiveSameBatchAt(string ...$times): void
+{
+    Event::fake([BatchAccepted::class]);
+    $batch = IngestaRows::batch('cartera-SGX-hash', [IngestaRows::cartera()], Dataset::Receivables, cutoffDate: '2026-11-25');
+
+    foreach ($times as $time) {
+        test()->travelTo(CarbonImmutable::parse("2026-11-25 {$time}", 'America/Bogota'));
+        app(EloquentIngestaSink::class)->receive($batch);
+    }
+
+    test()->travelTo(CarbonImmutable::parse('2026-11-25 05:30:00', 'America/Bogota'));
+}
+
+it('counts a duplicate batch received after the slot as the arrival', function () {
+    receiveSameBatchAt('00:10:00', '05:10:00');
+
+    $this->artisan('ingesta:vigilar-carga', ['hora' => '05:00'])
+        ->expectsOutputToContain('Segurex Latam: llegó la carga de las 05:00.')
+        ->assertSuccessful();
+
+    $this->fakes->mail->assertNothingSent();
+    $this->fakes->avisos->assertNothingSent();
+});
+
+it('alerts when the duplicate batch was only seen before the slot', function () {
+    receiveSameBatchAt('00:10:00', '04:50:00');
 
     $this->artisan('ingesta:vigilar-carga', ['hora' => '05:00'])->assertSuccessful();
 

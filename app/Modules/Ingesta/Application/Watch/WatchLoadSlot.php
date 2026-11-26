@@ -19,6 +19,7 @@ use App\Modules\Ingesta\Infrastructure\Persistence\IngestaLoad;
 use App\Modules\Ingesta\Infrastructure\Persistence\LoadFailureRecord;
 use App\Support\Formatting\DateFormat;
 use Carbon\CarbonImmutable;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use UnexpectedValueException;
@@ -29,7 +30,10 @@ use UnexpectedValueException;
  * ingesta.watch_companies, alerts when, since the slot, neither an
  * accepted cartera load of any source (robot, manual Excel, later the
  * Bases SAP reader) nor a final failure report of that slot arrived. The
- * failure report already has its own alert (SendLoadFailureAlert).
+ * failure report already has its own alert (SendLoadFailureAlert). A
+ * duplicate of an accepted batch counts as arrived: the robot sends the
+ * same batch while SAP does not change, and the sink moves the load's
+ * last_seen_at forward.
  *
  * The alert goes like the failure alert, through SlotAlerts: first the
  * bell, under the same "campana" claim, so a slot gets one bell notice
@@ -98,7 +102,10 @@ final class WatchLoadSlot
             ->where('company', $company)
             ->where('dataset', self::DATASET)
             ->where('status', LoadStatus::Accepted)
-            ->where('received_at', '>=', $stored)
+            // last_seen_at moves with every duplicate of the batch; null on older loads means received_at.
+            ->where(fn (Builder $query) => $query
+                ->where('last_seen_at', '>=', $stored)
+                ->orWhere(fn (Builder $older) => $older->whereNull('last_seen_at')->where('received_at', '>=', $stored)))
             ->exists();
 
         if ($arrived) {

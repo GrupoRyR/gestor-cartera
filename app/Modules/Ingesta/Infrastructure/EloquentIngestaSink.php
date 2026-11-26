@@ -13,6 +13,7 @@ use App\Modules\Core\Contracts\Exceptions\InvalidBatch;
 use App\Modules\Core\Contracts\Exceptions\RecordNotFound;
 use App\Modules\Core\Contracts\IngestaSink;
 use App\Modules\Ingesta\Application\BatchValidator;
+use App\Modules\Ingesta\Application\Failures\LoadNotices;
 use App\Modules\Ingesta\Domain\Cents;
 use App\Modules\Ingesta\Domain\Schema\DatasetSchemas;
 use App\Modules\Ingesta\Infrastructure\Persistence\IngestaLoad;
@@ -23,8 +24,10 @@ use Generator;
 use Illuminate\Database\DatabaseManager;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\UniqueConstraintViolationException;
+use Illuminate\Support\Facades\Log;
 use InvalidArgumentException;
 use OverflowException;
+use Throwable;
 use UnexpectedValueException;
 
 /**
@@ -38,15 +41,23 @@ use UnexpectedValueException;
  *
  * Idempotency rests on the unique accepted_batch_id: a repeated batch id,
  * also from a concurrent request, returns the accepted load without
- * dispatching again. BatchAccepted is dispatched after the transaction
- * commits, so the queued listeners of Core and Comisiones (the database
- * queue does not wait for commits) always find the rows.
+ * storing or dispatching again. BatchAccepted is dispatched after the
+ * transaction commits, so the queued listeners of Core and Comisiones (the
+ * database queue does not wait for commits) always find the rows.
+ *
+ * The robot sends the same batch at every slot while SAP does not change,
+ * so a duplicate still proves the load works: it moves the load's
+ * last_seen_at forward (the load watch reads it) and resolves the bell
+ * notices of its company and dataset (LoadNotices). It never dispatches
+ * BatchAccepted, whose listeners would import the same rows again, and a
+ * failure in the bell is logged without failing the receipt.
  */
 final class EloquentIngestaSink implements IngestaSink
 {
     public function __construct(
         private readonly BatchValidator $validator,
         private readonly DatabaseManager $db,
+        private readonly LoadNotices $notices,
     ) {}
 
     public function receive(IncomingBatch $batch): LoadRecord
@@ -54,7 +65,7 @@ final class EloquentIngestaSink implements IngestaSink
         $existing = $this->findAccepted($batch->batchId);
 
         if ($existing !== null) {
-            return $existing;
+            return $this->seenAgain($existing);
         }
 
         $errors = $this->validator->errors($batch);
@@ -80,7 +91,7 @@ final class EloquentIngestaSink implements IngestaSink
             $load = $this->db->connection()->transaction(fn (): IngestaLoad => $this->storeAccepted($batch, $total, $overdue));
         } catch (UniqueConstraintViolationException $e) {
             // A concurrent copy of the batch was accepted first: it wins.
-            return $this->findAccepted($batch->batchId) ?? throw $e;
+            return $this->seenAgain($this->findAccepted($batch->batchId) ?? throw $e);
         }
 
         $record = $this->toRecord($load);
@@ -149,6 +160,33 @@ final class EloquentIngestaSink implements IngestaSink
     }
 
     /**
+     * A duplicate of the accepted $load arrived: one UPDATE that only moves
+     * last_seen_at forward, then the bell notices are resolved.
+     */
+    private function seenAgain(LoadRecord $load): LoadRecord
+    {
+        // In the app timezone, like received_at.
+        $now = CarbonImmutable::now();
+
+        IngestaLoad::query()
+            ->whereKey($load->id)
+            ->where(fn (Builder $query) => $query->whereNull('last_seen_at')->orWhere('last_seen_at', '<', $now))
+            ->update(['last_seen_at' => $now]);
+
+        try {
+            $this->notices->resolve($load->company, $load->dataset);
+        } catch (Throwable $e) {
+            Log::error('Ingesta: could not resolve the load failure notices of a duplicate batch.', [
+                'company' => $load->company->value,
+                'dataset' => $load->dataset->value,
+                'exception' => $e,
+            ]);
+        }
+
+        return $load;
+    }
+
+    /**
      * @param  array<string, list<string>>  $errors
      */
     private function storeRejected(IncomingBatch $batch, array $errors): void
@@ -172,9 +210,12 @@ final class EloquentIngestaSink implements IngestaSink
     {
         $columns = DatasetSchemas::for($batch->dataset)->columnNames();
 
-        $load = IngestaLoad::query()->create($this->attributes($batch) + [
+        $attributes = $this->attributes($batch);
+
+        $load = IngestaLoad::query()->create($attributes + [
             'batch_id' => $batch->batchId,
             'accepted_batch_id' => $batch->batchId,
+            'last_seen_at' => $attributes['received_at'],
             'status' => LoadStatus::Accepted,
             'total' => $total === null ? null : Cents::toDecimal($total),
             'overdue' => $overdue === null ? null : Cents::toDecimal($overdue),
