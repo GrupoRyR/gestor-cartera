@@ -3,6 +3,7 @@
 use App\Modules\Cobro\Domain\Runs\RunKind;
 use App\Modules\Cobro\Http\Controllers\CopyController;
 use App\Modules\Cobro\Http\Controllers\ExclusionController;
+use App\Modules\Cobro\Http\Controllers\MailReportController;
 use App\Modules\Cobro\Http\Controllers\ReplyInboxController;
 use App\Modules\Cobro\Http\Controllers\RunPreviewController;
 use App\Modules\Cobro\Http\Controllers\RunReportController;
@@ -46,6 +47,10 @@ Route::middleware(['auth', 'can:cobro.view'])->prefix('lotes')->name('lotes.')->
     Route::get('/', [RunReportController::class, 'index'])->name('index');
     Route::get('{run}', [RunReportController::class, 'show'])->whereNumber('run')->name('show');
 });
+
+// Collection report: every weekly collection and circularization mail,
+// filterable, with its replies.
+Route::get('informe', [MailReportController::class, 'index'])->middleware(['auth', 'can:cobro.view'])->name('informe.index');
 
 // Exclusion list: clients that receive no collection mail.
 Route::middleware(['auth', 'can:cobro.manage'])->prefix('exclusiones')->name('exclusiones.')->group(function () {

@@ -149,6 +149,16 @@ final class CobroServiceProvider extends ModuleServiceProvider
                 activePattern: 'cobro.lotes.*',
             ),
             new NavItem(
+                key: 'cobro.informe',
+                label: 'Informe de cobro',
+                route: 'cobro.informe.index',
+                icon: 'chart',
+                permission: 'cobro.view',
+                group: 'Cobro',
+                order: 132,
+                activePattern: 'cobro.informe.*',
+            ),
+            new NavItem(
                 key: 'cobro.circularizacion',
                 label: 'Circularización',
                 route: 'cobro.circularizacion.show',
