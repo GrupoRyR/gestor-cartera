@@ -7,36 +7,40 @@ return [
     'contexto' => 'Soportes de pago',
     'titulo' => 'Cargar soporte de pago',
 
+    // Days overdue column (here and in the receipt detail) for a client or
+    // an invoice that is not overdue: 0 or negative days.
+    'al_dia' => 'Al día',
+
     'clientes' => [
-        'descripcion' => 'Busca el cliente que pagó. Solo aparecen clientes con facturas vencidas que puedes gestionar.',
+        'descripcion' => 'Busca el cliente que pagó. Solo aparecen los clientes que puedes gestionar.',
         'buscar' => [
             'etiqueta' => 'Buscar cliente',
             'campo' => 'Nombre o NIT',
             'aplicar' => 'Buscar',
             'limpiar' => 'Limpiar',
         ],
-        'tabla' => 'Clientes con facturas vencidas',
+        'tabla' => 'Clientes que puedes gestionar',
         'columnas' => [
             'cliente' => 'Cliente',
             'empresa' => 'Empresa',
             'nit' => 'NIT',
-            'vencido' => 'Saldo vencido',
+            'saldo' => 'Saldo',
             'dias' => 'Días de mora',
         ],
         'vacio' => [
-            'titulo' => 'No encontramos clientes con facturas vencidas',
+            'titulo' => 'No encontramos clientes',
             'detalle' => 'Prueba con otro nombre o NIT.',
         ],
     ],
 
     'formulario' => [
-        'descripcion' => 'Marca las facturas vencidas que cubre el pago y adjunta el comprobante. El soporte queda pendiente hasta que cartera lo revise.',
+        'descripcion' => 'Marca las facturas que cubre el pago y adjunta el comprobante. El soporte queda pendiente hasta que cartera lo revise.',
         'cliente' => 'NIT :nit · código :codigo · :empresa',
         'cambiar' => 'Cambiar cliente',
         'facturas' => [
             'titulo' => 'Facturas que cubre el pago',
-            'descripcion' => 'Solo se muestran las facturas vencidas con saldo.',
-            'tabla' => 'Facturas vencidas del cliente',
+            'descripcion' => 'Se muestran las facturas con saldo, vencidas o por vencer.',
+            'tabla' => 'Facturas abiertas del cliente',
             'columnas' => [
                 'documento' => 'Documento',
                 'tipo' => 'Tipo',
@@ -44,10 +48,10 @@ return [
                 'dias' => 'Días de mora',
                 'saldo' => 'Saldo',
             ],
-            'cuotas' => '{2} 2 cuotas vencidas|[3,*] :count cuotas vencidas',
+            'cuotas' => '{2} 2 cuotas|[3,*] :count cuotas',
             'vacio' => [
-                'titulo' => 'Este cliente no tiene facturas vencidas',
-                'detalle' => 'Solo puedes cargar soportes de pago de facturas vencidas.',
+                'titulo' => 'Este cliente no tiene facturas abiertas',
+                'detalle' => 'Solo puedes cargar soportes de pago de facturas con saldo.',
             ],
         ],
         'pago' => [
@@ -79,7 +83,7 @@ return [
     ],
 
     'validacion' => [
-        'facturas' => 'Marca al menos una factura vencida.',
+        'facturas' => 'Marca al menos una factura.',
         'factura_repetida' => 'Marcaste la misma factura dos veces.',
         'valor' => 'Escribe el valor en pesos, sin puntos de miles y con máximo dos decimales.',
         'valor_positivo' => 'El valor pagado debe ser mayor que cero.',
@@ -93,7 +97,7 @@ return [
     // Refusals of UploadReceipt (ReceiptRefused::$reason).
     'errores' => [
         'cliente_no_encontrado' => 'No encontramos ese cliente entre los que puedes gestionar.',
-        'factura_no_vencida' => 'Alguna de las facturas marcadas ya no está vencida o no es de este cliente. Revisa la lista.',
+        'factura_no_abierta' => 'Alguna de las facturas marcadas ya no tiene saldo o no es de este cliente. Revisa la lista.',
         'archivo_no_aceptado' => 'Cada comprobante debe ser un PDF, JPG o PNG.',
     ],
 

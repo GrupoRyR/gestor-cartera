@@ -1,5 +1,5 @@
 {{--
-    GET /soportes/nuevo (soportes.create), step 1: the overdue clients the
+    GET /soportes/nuevo (soportes.create), step 1: the clients the
     user may upload for. $clients: paginator of ClientSummary filtered by
     $search (name or NIT); $isGroup: the group view shows each client's
     company. Each client links to step 2 (?cliente={id}).
@@ -9,7 +9,7 @@
         ['key' => 'name', 'label' => __('soportes::carga.clientes.columnas.cliente')],
         ...($isGroup ? [['key' => 'company', 'label' => __('soportes::carga.clientes.columnas.empresa')]] : []),
         ['key' => 'tax_id', 'label' => __('soportes::carga.clientes.columnas.nit')],
-        ['key' => 'overdue', 'label' => __('soportes::carga.clientes.columnas.vencido'), 'align' => 'end'],
+        ['key' => 'balance', 'label' => __('soportes::carga.clientes.columnas.saldo'), 'align' => 'end'],
         ['key' => 'days', 'label' => __('soportes::carga.clientes.columnas.dias'), 'align' => 'end'],
     ];
 @endphp
@@ -44,8 +44,8 @@
                                 <td><x-ui.chip :dot="false">{{ $client->company->value }}</x-ui.chip></td>
                             @endif
                             <td>{{ $client->taxId }}</td>
-                            <td data-align="end"><x-ui.money :value="$client->overdue" /></td>
-                            <td data-align="end">{{ number_format($client->maxDaysOverdue, 0, ',', '.') }}</td>
+                            <td data-align="end"><x-ui.money :value="$client->balance" /></td>
+                            <td data-align="end">{{ $client->maxDaysOverdue > 0 ? number_format($client->maxDaysOverdue, 0, ',', '.') : __('soportes::carga.al_dia') }}</td>
                         </tr>
                     @endforeach
                 </x-ui.table>

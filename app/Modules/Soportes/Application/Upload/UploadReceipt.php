@@ -17,12 +17,12 @@ use Throwable;
 
 /**
  * Uploads a payment receipt: a pending receipt of one client covering one
- * or more of its overdue invoices, with its files.
+ * or more of its open invoices, overdue or not, with its files.
  *
  * It runs as the authenticated user, because the portfolio scope comes from
  * them: CarteraRepository::client() must find the client (an advisor only
  * finds their own clients; the portfolio team, any client of the companies
- * in scope) and every document number must be one of its overdue invoices.
+ * in scope) and every document number must be one of its open invoices.
  * The client and invoice fields are copied, so the receipt never depends on
  * a later snapshot. The app never marks an invoice as paid and sends no
  * e-mail.
@@ -34,13 +34,13 @@ final readonly class UploadReceipt
 {
     public function __construct(
         private CarteraRepository $cartera,
-        private OverdueInvoices $overdue,
+        private OpenInvoices $open,
         private ReceiptStorage $storage,
         private AuditLogger $audit,
     ) {}
 
     /**
-     * @throws ReceiptRefused When the client is out of scope, a document is not an overdue invoice
+     * @throws ReceiptRefused When the client is out of scope, a document is not an open invoice
      *                        of the client, or a file is not really a PDF, JPG or PNG.
      */
     public function handle(NewReceipt $input, User $uploader): Receipt
@@ -76,18 +76,18 @@ final readonly class UploadReceipt
     }
 
     /**
-     * The overdue invoices of the selected documents, every installment of
+     * The open invoices of the selected documents, every installment of
      * each one.
      *
      * @return list<Invoice>
      *
-     * @throws ReceiptRefused When a document is not an overdue invoice of the client.
+     * @throws ReceiptRefused When a document is not an open invoice of the client.
      */
     private function invoices(NewReceipt $input): array
     {
         $documents = [];
 
-        foreach ($this->overdue->byDocument($input->clientId) as $installments) {
+        foreach ($this->open->byDocument($input->clientId) as $installments) {
             $documents[$installments[0]->documentNumber] = $installments;
         }
 
@@ -97,7 +97,7 @@ final readonly class UploadReceipt
         ));
 
         if ($missing !== []) {
-            throw ReceiptRefused::invoicesNotOverdue($input->clientId, $missing);
+            throw ReceiptRefused::invoicesNotOpen($input->clientId, $missing);
         }
 
         $invoices = [];
