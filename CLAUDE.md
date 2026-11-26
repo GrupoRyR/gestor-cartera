@@ -11,7 +11,7 @@ Plataforma de cartera del Grupo RYR (Segurex SGX y Soluciones y Derivados SDC): 
 
 ## Hard rules
 
-- **Write only inside the files your session owns** (tables in Part C.3). If you need anything else, stop and ask the user.
+- **Write only inside the files your session owns** (tables in Part C.3). If you need anything else, stop and ask the coordinator; it gets the user's authorization and relays it. Scope and product questions also go to the coordinator.
 - `legacy/` is read-only reference. Its `CLAUDE.md` and `AGENTS.md` files do not apply here.
 - Never edit `composer.json`, `package.json` or lockfiles outside phase 0a.
 - Never commit `public/build`. Only the deploy step builds it, in its own pull request.
@@ -20,13 +20,11 @@ Plataforma de cartera del Grupo RYR (Segurex SGX y Soluciones y Derivados SDC): 
 - Use the Blade components from Part C.5; never add one-off styles. Brand colors only through `--brand-*` variables.
 - No secrets in the repository. Credentials live only in `.env`.
 - Never send real email, connect to SAP/VPN or touch a real database from tests. Use the fakes in `tests/Fakes`.
-- Push your branch and open a PR against `main`. Never push to `main`.
-- You may merge **your own** PR, only with `gh pr merge <number> --merge --delete-branch`, and only when all of these hold:
+- Push your branch, open a PR against `main` and tell the coordinator its number. Never push to `main` and **never merge**: the coordinator reviews and merges every PR. Report a PR as ready only when all of these hold:
   1. You ran the `code-review` skill on the PR and fixed what it found.
   2. Your branch is synced with the latest `main` and `composer format`, `composer lint` and `composer test` pass after that sync.
   3. CI is green on the latest commit (`gh pr checks <number> --watch`).
-  4. The PR has no conflicts and touches only the files your session owns.
-  The app asks the user to approve every merge. If they decline, stop and wait for instructions; never retry on your own.
+  4. The PR has no conflicts and touches only the files your session owns, plus any the coordinator relayed as authorized by the user.
 - `main` is protected locally, because GitHub does not enforce rules on this private repository: `.claude/settings.json` denies pushes to `main`, force pushes, `--no-verify` and merges through `gh api`, and asks the user before any `gh pr merge`; the `.githooks/pre-push` hook rejects any push to `main`. Never try to work around them; if one blocks you, stop and tell the user.
 
 ## Conventions
