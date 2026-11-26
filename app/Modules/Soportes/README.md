@@ -65,7 +65,7 @@ Routes in `routes/web.php` (`auth` and `can:create` on `Receipt`, i.e. `soportes
 | `GET /soportes/nuevo?cliente={id}` | `soportes.create` | Step 2: the form for that client (404 when `client()` does not find it): its open invoices as checkboxes, overdue or not («Al día» in the days column), amount, payment date, method, note and files. Other screens can link here. |
 | `POST /soportes` | `soportes.store` | `StoreReceiptRequest`, then `UploadReceipt`. Errors and refusals go back to step 2 with the input; success opens the new receipt (`soportes.show`) with «Soporte cargado. Queda pendiente de revisión.». |
 
-`StoreReceiptRequest` fields: `cliente`; `facturas[]` (document numbers, at least one, distinct); `valor` (pesos, digits with up to two decimals, above zero); `fecha_pago` (`Y-m-d`, not after today); `metodo` (optional, `PaymentMethod`); `nota` (optional, up to 1,000 characters); `archivos[]` (1 to `max_files`, each `file`, `extensions` and `mimetypes` from the config, which Laravel checks against the sniffed content type, up to `max_file_kilobytes`). Texts in `resources/lang/es/carga.php`.
+`StoreReceiptRequest` fields: `cliente`; `facturas[]` (document numbers, at least one, distinct); `valor` (pesos, digits with up to two decimals, above zero; the form shows it in an `<x-ui.money-input :decimals="2">`, which formats 1.234.567,50 while typing and sends the clean number, so the rule is unchanged); `fecha_pago` (`Y-m-d`, not after today); `metodo` (optional, `PaymentMethod`); `nota` (optional, up to 1,000 characters); `archivos[]` (1 to `max_files`, each `file`, `extensions` and `mimetypes` from the config, which Laravel checks against the sniffed content type, up to `max_file_kilobytes`). Texts in `resources/lang/es/carga.php`.
 
 ## Inbox
 

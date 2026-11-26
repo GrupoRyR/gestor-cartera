@@ -58,7 +58,7 @@ return [
             'titulo' => 'Datos del pago',
         ],
         'valor' => 'Valor pagado',
-        'valor_ayuda' => 'En pesos, sin puntos de miles. Usa punto para los centavos.',
+        'valor_ayuda' => 'En pesos. Usa coma para los centavos.',
         'fecha' => 'Fecha de pago',
         'metodo' => 'Medio de pago',
         'metodo_vacio' => 'Sin especificar',

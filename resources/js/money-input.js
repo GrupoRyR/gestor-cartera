@@ -7,6 +7,8 @@
  *   each keystroke or paste, keeping the caret after the same digit.
  * - data-decimals (0 to 2) caps the decimals; with 0 a comma and what
  *   follows it are dropped. A "." typed where a decimal fits becomes ",".
+ * - A pasted figure is read in its own notation first (normalizePasted), so
+ *   "1234567.50" from Excel or SAP stays 1.234.567,50, never 123.456.750.
  * - On submit, the formdata event replaces each field's entry with the
  *   clean number, in POST and GET forms alike; the field itself keeps
  *   showing the formatted figure.
@@ -72,6 +74,41 @@ export function formatTyped(typed, decimals) {
 /** What the field shows for a clean value from the server: "1234567.5" → "1.234.567,5". */
 export function formatClean(clean, decimals) {
     return show(partsOfClean(clean, decimals));
+}
+
+/**
+ * A pasted figure in the field's own notation (comma for decimals, dots for
+ * thousands), whatever notation it came in. Excel, SAP or a bank statement
+ * may use a dot for decimals: "1234567.50" must not become 123.456.750.
+ * - With both separators, the last one is the decimal one.
+ * - Only dots: the last dot is decimal when 1 or 2 digits follow it
+ *   ("1234567.50", "1,234.5"); otherwise they are thousands ("1.500.000").
+ * - Only commas: several are thousands ("1,234,567"); a single one is the
+ *   decimal comma.
+ */
+export function normalizePasted(text) {
+    const figure = String(text).replace(/[^\d.,]/g, '');
+    const lastDot = figure.lastIndexOf('.');
+    const lastComma = figure.lastIndexOf(',');
+
+    if (lastDot !== -1 && lastComma !== -1) {
+        const decimal = lastDot > lastComma ? '.' : ',';
+        const [integer, fraction] = [figure.slice(0, Math.max(lastDot, lastComma)), figure.slice(Math.max(lastDot, lastComma) + 1)];
+
+        return `${integer.replace(/[.,]/g, '')},${fraction.replace(decimal === '.' ? /,/g : /\./g, '')}`;
+    }
+
+    if (lastDot !== -1) {
+        return /\.\d{1,2}$/.test(figure)
+            ? `${figure.slice(0, lastDot).replace(/\./g, '')},${figure.slice(lastDot + 1)}`
+            : figure.replace(/\./g, '');
+    }
+
+    if (figure.indexOf(',') !== lastComma) {
+        return figure.replace(/,/g, '');
+    }
+
+    return figure;
 }
 
 /** Digits and commas before position $caret: what the caret must stay after. */
@@ -140,6 +177,19 @@ function onBeforeInput(event) {
     }
 }
 
+function onPaste(event) {
+    const input = event.target;
+    const text = event.clipboardData?.getData('text');
+
+    if (!(input instanceof HTMLInputElement) || !input.matches(SELECTOR) || !text) {
+        return;
+    }
+
+    event.preventDefault();
+    input.setRangeText(normalizePasted(text), input.selectionStart ?? input.value.length, input.selectionEnd ?? input.value.length, 'end');
+    reformat(input);
+}
+
 function onInput(event) {
     if (event.target instanceof HTMLInputElement && event.target.matches(SELECTOR)) {
         reformat(event.target);
@@ -148,7 +198,8 @@ function onInput(event) {
 
 function onFormData(event) {
     for (const element of event.target.elements) {
-        if (element instanceof HTMLInputElement && element.matches(SELECTOR) && element.name !== '' && !element.disabled) {
+        // :disabled also covers a field inside a <fieldset disabled>, which the form leaves out.
+        if (element instanceof HTMLInputElement && element.matches(SELECTOR) && element.name !== '' && !element.matches(':disabled')) {
             event.formData.set(element.name, cleanMoney(element.value, decimalsOf(element)));
         }
     }
@@ -163,6 +214,7 @@ function formatOnLoad(input) {
 export function startMoneyInputs() {
     document.querySelectorAll(SELECTOR).forEach(formatOnLoad);
     document.addEventListener('beforeinput', onBeforeInput);
+    document.addEventListener('paste', onPaste);
     document.addEventListener('input', onInput);
     // Capture: the listener runs for every form, whether or not formdata bubbles.
     document.addEventListener('formdata', onFormData, true);
