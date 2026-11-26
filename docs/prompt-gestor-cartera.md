@@ -251,7 +251,7 @@ Migra el portal Next.js (`legacy/portal-asesores/web`).
 
 **4.1 Cobro semanal de facturas vencidas**
 
-1. Todos los **miércoles a las 5:00 p. m.** (hora de Colombia) se envía a cada cliente con facturas vencidas un correo con el detalle de esas facturas.
+1. Todos los **martes y viernes a las 5:00 p. m.** (hora de Colombia) se envía a cada cliente con facturas vencidas un correo con el detalle de esas facturas.
 2. **Lista de exclusión:** pantalla con casillas para marcar los clientes a los que **no** se cobra, con motivo y una fecha opcional en que la exclusión vence. Tabla propia `cobro_exclusiones`.
 3. Vista previa del lote antes del envío programado y botón para enviar una prueba al usuario.
 4. Plantilla de correo editable por empresa, con la marca de la empresa.

@@ -17,7 +17,7 @@ use Tests\Modules\Cobro\Support\CobroUsers;
 
 beforeEach(function () {
     $this->seed(CobroPermissionSeeder::class);
-    // Monday: the next run is on Wednesday.
+    // Monday: the next run is on Tuesday.
     $this->travelTo(CarbonImmutable::parse('2026-10-19 10:00:00', 'America/Bogota'));
     $this->fakes = ContractFakes::install($this->app);
     $this->portfolio = CobroPortfolio::seed($this->fakes);
@@ -40,7 +40,7 @@ it('forbids the preview to every other role', function (?Role $role) {
 
 it('shows who gets the next mail, without e-mail or excluded, and when', function () {
     $this->actingAs($this->analyst)->get('/cobro/semanal')->assertOk()
-        ->assertSeeText('21/10/2026 a las 17:00 (hora de Colombia)')
+        ->assertSeeText('20/10/2026 a las 17:00 (hora de Colombia)')
         ->assertSeeText('Ferretería El Tornillo SAS')
         ->assertSeeText('tesoreria@tornillo.example, pagos@tornillo.example')
         ->assertSeeText('Distribuciones Andinas SAS')

@@ -12,20 +12,35 @@ use InvalidArgumentException;
 final class RunCalendar
 {
     /**
-     * The next $dayOfWeek (0 = Sunday … 6 = Saturday) at $time ("HH:MM"),
-     * today when that time has not passed yet.
+     * The next of $days (0 = Sunday … 6 = Saturday) at $time ("HH:MM"),
+     * today when today is one of them and that time has not passed yet.
+     *
+     * @param  list<int>  $days
      */
-    public static function nextWeekly(CarbonImmutable $now, int $dayOfWeek, string $time): CarbonImmutable
+    public static function nextWeekly(CarbonImmutable $now, array $days, string $time): CarbonImmutable
     {
         [$hour, $minute] = self::time($time);
 
-        if ($dayOfWeek < 0 || $dayOfWeek > 6) {
-            throw new InvalidArgumentException("The day of week must be 0 to 6, {$dayOfWeek} given.");
+        if ($days === []) {
+            throw new InvalidArgumentException('At least one day of week is needed.');
         }
 
-        $candidate = $now->setTime($hour, $minute)->addDays(($dayOfWeek - $now->dayOfWeek + 7) % 7);
+        $next = null;
 
-        return $candidate->lessThan($now) ? $candidate->addWeek() : $candidate;
+        foreach ($days as $dayOfWeek) {
+            if ($dayOfWeek < 0 || $dayOfWeek > 6) {
+                throw new InvalidArgumentException("The day of week must be 0 to 6, {$dayOfWeek} given.");
+            }
+
+            $candidate = $now->setTime($hour, $minute)->addDays(($dayOfWeek - $now->dayOfWeek + 7) % 7);
+            $candidate = $candidate->lessThan($now) ? $candidate->addWeek() : $candidate;
+
+            if ($next === null || $candidate->lessThan($next)) {
+                $next = $candidate;
+            }
+        }
+
+        return $next;
     }
 
     /**

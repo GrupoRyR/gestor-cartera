@@ -6,7 +6,7 @@ use DomainException;
 
 /**
  * An upload the rules refuse even though the form was well formed: the
- * client is not one the user may upload for, an invoice is not an overdue
+ * client is not one the user may upload for, a document is not an open
  * invoice of that client, or a file is not really a PDF, JPG or PNG.
  *
  * $field names the form field the refusal belongs to and $reason one of the
@@ -17,7 +17,7 @@ final class ReceiptRefused extends DomainException
 {
     public const string CLIENT_NOT_FOUND = 'cliente_no_encontrado';
 
-    public const string INVOICE_NOT_OVERDUE = 'factura_no_vencida';
+    public const string INVOICE_NOT_OPEN = 'factura_no_abierta';
 
     public const string FILE_NOT_ACCEPTED = 'archivo_no_aceptado';
 
@@ -37,12 +37,12 @@ final class ReceiptRefused extends DomainException
     /**
      * @param  list<string>  $documentNumbers
      */
-    public static function invoicesNotOverdue(int $clientId, array $documentNumbers): self
+    public static function invoicesNotOpen(int $clientId, array $documentNumbers): self
     {
         return new self(
             'facturas',
-            self::INVOICE_NOT_OVERDUE,
-            'Not overdue invoices of client '.$clientId.': '.implode(', ', $documentNumbers).'.',
+            self::INVOICE_NOT_OPEN,
+            'Not open invoices of client '.$clientId.': '.implode(', ', $documentNumbers).'.',
         );
     }
 

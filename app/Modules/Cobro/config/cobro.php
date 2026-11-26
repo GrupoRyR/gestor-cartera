@@ -89,11 +89,13 @@ return [
     // Exchange Online accepts 30 a minute per mailbox.
     'send_per_minute' => 25,
 
-    // Weekly collection of overdue invoices (4.1): Wednesdays at 17:00,
-    // Bogotá time, for both companies, each with its own template and copies.
+    // Weekly collection of overdue invoices (4.1): Tuesdays and Fridays at
+    // 17:00, Bogotá time, for both companies, each with its own template and
+    // copies. Days use the cron numbering (0 = Sunday, 2 = Tuesday,
+    // 5 = Friday); a client still overdue gets both mails of the week.
     'weekly' => [
         'companies' => ['SGX', 'SDC'],
-        'day' => 3,
+        'days' => [2, 5],
         'time' => '17:00',
     ],
 

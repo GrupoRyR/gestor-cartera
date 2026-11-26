@@ -7,7 +7,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 /**
- * An overdue invoice a receipt covers (soporte_facturas), copied at upload:
+ * An open invoice a receipt covers (soporte_facturas), copied at upload:
  * the SAP document number identifies it, because Core's invoice id changes
  * with every snapshot. balance is a decimal string with two places.
  *

@@ -47,7 +47,7 @@ function newReceipt(int $clientId, array $documents = ['FV-1001'], ?array $files
     );
 }
 
-it('stores a pending receipt with copies of the client and its overdue invoices', function () {
+it('stores a pending receipt with copies of the client and its open invoices', function () {
     $client = OverdueClient::add($this->fakes->cartera, advisorCode: 10);
     $advisor = SoportesUsers::advisor();
 
@@ -98,17 +98,32 @@ it('stores the files on the private disk under generated names, never the upload
     expect(implode("\n", Storage::disk('local')->allFiles()))->not->toContain('comprobante')->not->toContain('foto');
 });
 
-it('copies every overdue installment of a document with split payment terms', function () {
+it('copies every open installment of a document with split payment terms, due or not', function () {
     $summary = Make::client(overdue: 900_000.0, maxDaysOverdue: 40, advisor: Make::advisor(code: 10));
     $this->fakes->cartera->addClient(
         Make::clientDetail($summary),
         Make::invoice(clientId: $summary->id, documentNumber: 'FV-2001', amount: 400_000.0, daysOverdue: 40),
         Make::invoice(clientId: $summary->id, documentNumber: 'FV-2001', amount: 500_000.0, daysOverdue: 10),
+        Make::invoice(clientId: $summary->id, documentNumber: 'FV-2001', amount: 600_000.0, daysOverdue: -20),
     );
 
     $receipt = app(UploadReceipt::class)->handle(newReceipt($summary->id, ['FV-2001']), SoportesUsers::advisor());
 
-    expect($receipt->invoices()->orderBy('id')->pluck('days_overdue')->all())->toBe([40, 10]);
+    expect($receipt->invoices()->orderBy('id')->pluck('days_overdue')->all())->toBe([40, 10, -20]);
+});
+
+it('takes invoices that are not due yet or due today', function () {
+    $summary = Make::client(balance: 800_000.0, advisor: Make::advisor(code: 10));
+    $this->fakes->cartera->addClient(
+        Make::clientDetail($summary),
+        Make::invoice(clientId: $summary->id, documentNumber: 'FV-4001', amount: 500_000.0, daysOverdue: -5),
+        Make::invoice(clientId: $summary->id, documentNumber: 'FV-4002', amount: 300_000.0, daysOverdue: 0),
+    );
+
+    $receipt = app(UploadReceipt::class)->handle(newReceipt($summary->id, ['FV-4001', 'FV-4002']), SoportesUsers::advisor());
+
+    expect($receipt->invoices()->orderBy('document_number')->pluck('days_overdue', 'document_number')->all())
+        ->toBe(['FV-4001' => -5, 'FV-4002' => 0]);
 });
 
 it('refuses a client outside the advisor scope and stores nothing', function () {
@@ -124,17 +139,16 @@ it('refuses a client outside the advisor scope and stores nothing', function () 
     $this->fakes->audit->assertNothingRecorded();
 });
 
-it('refuses an invoice that is not an overdue invoice of that client', function (string $document) {
+it('refuses a document that is not an open invoice of that client', function (string $document) {
     $client = OverdueClient::add($this->fakes->cartera);
     OverdueClient::add($this->fakes->cartera, name: 'Otro Cliente SAS');
 
     expect(fn () => app(UploadReceipt::class)->handle(newReceipt($client->id, ['FV-1001', $document]), SoportesUsers::advisor()))
-        ->toThrow(fn (ReceiptRefused $e) => expect($e->field)->toBe('facturas')->and($e->reason)->toBe(ReceiptRefused::INVOICE_NOT_OVERDUE));
+        ->toThrow(fn (ReceiptRefused $e) => expect($e->field)->toBe('facturas')->and($e->reason)->toBe(ReceiptRefused::INVOICE_NOT_OPEN));
 
     expect(Receipt::query()->count())->toBe(0)
         ->and(Storage::disk('local')->allFiles())->toBe([]);
 })->with([
-    'not due yet' => 'FV-1003',
     'a credit note' => 'NC-1001',
     'unknown' => 'FV-9999',
 ]);
