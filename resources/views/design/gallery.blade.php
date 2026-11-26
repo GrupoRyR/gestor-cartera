@@ -95,6 +95,7 @@
         'ui-empty' => 'x-ui.empty',
         'ui-alert' => 'x-ui.alert',
         'ui-input' => 'x-ui.input',
+        'ui-money-input' => 'x-ui.money-input',
         'ui-select' => 'x-ui.select',
         'ui-checkbox' => 'x-ui.checkbox',
         'ui-textarea' => 'x-ui.textarea',
@@ -370,11 +371,20 @@
             <p class="{{ $leadClass }}">Etiqueta siempre visible (oculta solo cuando el contexto es obvio, como la búsqueda), ayuda y error enlazados al campo.</p>
             <div class="grid gap-5 md:grid-cols-2">
                 <x-ui.input name="galeria_nombre" label="Nombre del contacto" hint="Como aparece en la factura." :required="true" />
-                <x-ui.input name="galeria_valor" label="Valor del compromiso" prefix="$" suffix="COP" inputmode="numeric" value="2.500.000" />
+                <x-ui.money-input name="galeria_valor" label="Valor del compromiso" suffix="COP" value="2500000" />
                 <x-ui.input name="galeria_correo" label="Correo de pagos" type="email" value="pagos@" />
                 <x-ui.input name="galeria_buscar" label="Buscar cliente" type="search" :label-hidden="true" placeholder="Buscar por nombre o NIT" />
                 <x-ui.input name="galeria_nit" label="NIT" value="900.123.456-7" disabled hint="Viene de SAP: no se edita aquí." />
                 <x-ui.input name="galeria_fecha" label="Fecha del compromiso" type="date" value="2026-10-22" />
+            </div>
+        </section>
+
+        <section id="component-ui-money-input" aria-labelledby="component-ui-money-input-title" class="{{ $sectionClass }}">
+            <h2 id="component-ui-money-input-title" class="{{ $headingClass }}"><code>&lt;x-ui.money-input&gt;</code></h2>
+            <p class="{{ $leadClass }}">Montos en pesos: pone el punto de los miles mientras escribes y envía el número limpio (1234567,5 llega como 1234567.5). Con <code>:decimals="2"</code> acepta centavos con coma.</p>
+            <div class="grid gap-5 md:grid-cols-2">
+                <x-ui.money-input name="galeria_monto" label="Valor del abono" hint="En pesos, sin centavos." value="1250000" />
+                <x-ui.money-input name="galeria_monto_centavos" label="Valor pagado" :decimals="2" hint="Usa coma para los centavos." value="1250000.5" />
             </div>
         </section>
 
@@ -430,7 +440,7 @@
             </x-ui.modal>
             <x-ui.modal id="galeria-compromiso" title="Nuevo compromiso de pago">
                 <form id="galeria-compromiso-form" method="GET" action="#component-ui-modal" class="flex flex-col gap-4">
-                    <x-ui.input name="galeria_modal_valor" label="Valor" prefix="$" inputmode="numeric" :required="true" />
+                    <x-ui.money-input name="galeria_modal_valor" label="Valor" :required="true" />
                     <x-ui.input name="galeria_modal_fecha" label="Fecha en que pagará" type="date" :required="true" />
                     <x-ui.textarea name="galeria_modal_nota" label="Notas" :rows="3" />
                 </form>
