@@ -4,7 +4,7 @@ Inbox of payment receipts (soportes de pago). Clients send receipts by mail or W
 
 The app never marks an invoice as paid and does not change the weekly collection: an invoice only shows as paid once SAP has the payment and the robot brings the next snapshot. The module talks to the rest of the app only through Core's contracts (`docs/arquitectura.md` §6). The feature plan is `odd/tasks/soportes-pago.md`.
 
-The module ships the data, the rules, the permissions, the upload, the inbox with its menu entry ("Soportes de pago"), the detail, the file downloads and the review (apply or reject).
+The module ships the data, the rules, the permissions, the upload, the inbox with its menu entry ("Soportes de pago"), the detail with its file downloads and in-browser view, and the review (apply or reject).
 
 ## States
 
@@ -84,12 +84,15 @@ The page is titled «Soportes de pago» for whoever reaches every client of the 
 
 ## Detail and downloads
 
-Both routes sit behind `can:view,soporte` (`ReceiptPolicy::view`), so a user who may not open the receipt gets 403 and an unknown id 404. `ReceiptController`:
+Every route here sits behind `can:view,soporte` (`ReceiptPolicy::view`), so a user who may not open the receipt gets 403 and an unknown id 404. `ReceiptController`:
 
 | Route | Name | What |
 |---|---|---|
 | `GET /soportes/{soporte}` | `soportes.show` | The payment data (client, company, amount, payment date, method, note, who uploaded it and when), the review (status, who reviewed it and when, the cash receipt number or the rejection reason), the invoices it covers (the copies taken at upload) and its files. The inbox rows link here. |
 | `GET /soportes/{soporte}/archivos/{archivo}` | `soportes.files.download` | The file, streamed from `config('soportes.disk')` as an attachment named as it was uploaded (path separators replaced), with its stored sniffed type and `X-Content-Type-Options: nosniff`. A file of another receipt answers 404; a file missing on the disk answers 404 and logs a warning. 60 downloads a minute. Never a public URL. |
+| `GET /soportes/{soporte}/archivos/{archivo}/ver` | `soportes.files.show` | The same file for the browser to show: `Content-Disposition: inline`, the stored type, `nosniff`, `Cross-Origin-Resource-Policy: same-origin` and `Cache-Control: private, no-store`. Only for `ReceiptController::INLINE` (PDF, JPEG, PNG); any other stored type answers 404, so SVG or HTML never render inline. Same 404s and limit as the download. |
+
+In the detail, a JPG or PNG is shown in the page (`<img>`) and a PDF opens in another tab («Ver PDF»), each next to «Descargar». A PDF is never framed: every response carries `X-Frame-Options: DENY` (`public/.htaccess`) and `frame-ancestors 'none'` (Core's CSP middleware), and `object-src 'none'` rules out `<object>` (user decision 2026-11-26: another tab). On a phone the PDF opens in the phone's own viewer.
 
 ## Review
 
@@ -102,7 +105,7 @@ Both routes sit behind `can:view,soporte` (`ReceiptPolicy::view`), so a user who
 
 ## Storage
 
-Files live on the private `local` disk (`storage/app/private`), never under `public/`, at `soportes/{company}/{yyyy}/{mm}/{uuid}.{ext}` under a generated name; the uploaded name is only shown, and given back as the download name. They are served only by the authorized download action (see «Detail and downloads»). Settings in `config/soportes.php`, read with `config('soportes.<key>')`:
+Files live on the private `local` disk (`storage/app/private`), never under `public/`, at `soportes/{company}/{yyyy}/{mm}/{uuid}.{ext}` under a generated name; the uploaded name is only shown, and given back as the download name. They are served only by the authorized download and view actions (see «Detail and downloads»). Settings in `config/soportes.php`, read with `config('soportes.<key>')`:
 
 | Key | Default | Purpose |
 |---|---|---|

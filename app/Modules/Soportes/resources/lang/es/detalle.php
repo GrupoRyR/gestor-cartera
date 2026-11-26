@@ -47,6 +47,10 @@ return [
     'archivos' => [
         'titulo' => 'Comprobantes',
         'descargar' => 'Descargar :nombre',
+        'descargar_corto' => 'Descargar',
+        'ver_pdf' => 'Ver PDF',
+        'ver_pdf_de' => 'Ver :nombre en otra pestaña',
+        'imagen' => 'Comprobante :nombre',
         'peso' => ':kb KB',
     ],
 
