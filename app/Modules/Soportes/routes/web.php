@@ -22,6 +22,8 @@ Route::middleware(['auth', 'can:viewAny,'.Receipt::class])->group(function () {
         Route::get('{soporte}', [ReceiptController::class, 'show'])->whereNumber('soporte')->name('show');
         Route::get('{soporte}/archivos/{archivo}', [ReceiptController::class, 'download'])
             ->whereNumber(['soporte', 'archivo'])->middleware('throttle:60,1')->name('files.download');
+        Route::get('{soporte}/archivos/{archivo}/ver', [ReceiptController::class, 'inline'])
+            ->whereNumber(['soporte', 'archivo'])->middleware('throttle:60,1')->name('files.show');
 
         Route::middleware('throttle:30,1')->group(function () {
             Route::patch('{soporte}/aplicar', [ReviewController::class, 'apply'])->whereNumber('soporte')->name('apply');

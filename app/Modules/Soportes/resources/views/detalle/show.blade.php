@@ -3,10 +3,13 @@
 {{--
     GET /soportes/{soporte} (soportes.show): one receipt. $receipt: Receipt
     with invoices (oldest due date first), files, uploader and reviewer.
-    The invoices are the copies taken at upload; the files link to the
-    authorized download (soportes.files.download). A reviewer who may still
-    decide (ReceiptPolicy::review) gets the apply and reject forms
-    (soportes.apply, soportes.reject), which come back here.
+    The invoices are the copies taken at upload. Each file links to the
+    authorized download (soportes.files.download); a JPG or PNG is also
+    shown in the page and a PDF opens in another tab, both through the
+    inline route (soportes.files.show), never in a frame: the app forbids
+    framing (X-Frame-Options DENY, frame-ancestors 'none'). A reviewer who
+    may still decide (ReceiptPolicy::review) gets the apply and reject
+    forms (soportes.apply, soportes.reject), which come back here.
 --}}
 @php
     $columns = [
@@ -144,16 +147,27 @@
         </x-ui.card>
 
         <x-ui.card :title="__('soportes::detalle.archivos.titulo')">
-            <ul class="flex flex-col gap-3">
+            <ul class="flex flex-col gap-6">
                 @foreach ($receipt->files as $file)
-                    <li class="flex flex-wrap items-center gap-2">
-                        <x-ui.icon name="download" />
-                        <a
-                            href="{{ route('soportes.files.download', ['soporte' => $receipt, 'archivo' => $file->id]) }}"
-                            class="font-semibold break-words text-brand-ink underline underline-offset-4"
-                            aria-label="{{ __('soportes::detalle.archivos.descargar', ['nombre' => $file->original_name]) }}"
-                        >{{ $file->original_name }}</a>
-                        <span class="text-sm text-fg-muted">{{ __('soportes::detalle.archivos.peso', ['kb' => number_format(max(1, (int) ceil($file->size / 1024)), 0, ',', '.')]) }}</span>
+                    @php($viewUrl = route('soportes.files.show', ['soporte' => $receipt, 'archivo' => $file->id]))
+                    <li class="flex flex-col gap-3">
+                        @if (in_array($file->mime, ['image/jpeg', 'image/png'], true))
+                            <img src="{{ $viewUrl }}" alt="{{ __('soportes::detalle.archivos.imagen', ['nombre' => $file->original_name]) }}" loading="lazy" class="block h-auto max-w-full rounded-card border border-line">
+                        @endif
+                        <div class="flex flex-wrap items-center gap-3">
+                            <span class="font-semibold break-words">{{ $file->original_name }}</span>
+                            <span class="text-sm text-fg-muted">{{ __('soportes::detalle.archivos.peso', ['kb' => number_format(max(1, (int) ceil($file->size / 1024)), 0, ',', '.')]) }}</span>
+                            @if ($file->mime === 'application/pdf')
+                                <a href="{{ $viewUrl }}" target="_blank" rel="noopener" class="inline-flex items-center gap-2 font-semibold text-brand-ink underline underline-offset-4" aria-label="{{ __('soportes::detalle.archivos.ver_pdf_de', ['nombre' => $file->original_name]) }}">
+                                    <x-ui.icon name="external" />{{ __('soportes::detalle.archivos.ver_pdf') }}
+                                </a>
+                            @endif
+                            <a
+                                href="{{ route('soportes.files.download', ['soporte' => $receipt, 'archivo' => $file->id]) }}"
+                                class="inline-flex items-center gap-2 font-semibold text-brand-ink underline underline-offset-4"
+                                aria-label="{{ __('soportes::detalle.archivos.descargar', ['nombre' => $file->original_name]) }}"
+                            ><x-ui.icon name="download" />{{ __('soportes::detalle.archivos.descargar_corto') }}</a>
+                        </div>
                     </li>
                 @endforeach
             </ul>

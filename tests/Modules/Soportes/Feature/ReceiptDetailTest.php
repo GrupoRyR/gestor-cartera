@@ -223,3 +223,93 @@ describe('downloading a file', function () {
         Log::shouldHaveReceived('warning')->once();
     });
 });
+
+/**
+ * The in-browser view URL of $file of $receipt.
+ */
+function soportesViewUrl(Receipt $receipt, ReceiptFile $file): string
+{
+    return route('soportes.files.show', ['soporte' => $receipt, 'archivo' => $file->id], false);
+}
+
+describe('viewing a file in the browser', function () {
+    it('serves it at …/archivos/{archivo}/ver', function () {
+        $receipt = soportesDetailReceipt($this->client);
+
+        expect(soportesViewUrl($receipt, $receipt->files[0]))->toBe("/soportes/{$receipt->id}/archivos/{$receipt->files[0]->id}/ver");
+    });
+
+    it('streams an image or a PDF inline, with its sniffed type, never sniffed again nor cached', function (string $name, string $mime) {
+        $receipt = soportesDetailReceipt($this->client);
+        $file = soportesDetailFile($receipt, $name, 'file-bytes', $mime);
+        $this->fakes->cartera->restrictToAdvisor(10);
+
+        $response = $this->actingAs($this->advisor)->get(soportesViewUrl($receipt, $file))->assertOk();
+
+        expect($response->streamedContent())->toBe('file-bytes')
+            ->and($response->headers->get('Content-Type'))->toBe($mime)
+            ->and($response->headers->get('Content-Disposition'))->toStartWith('inline;')
+            ->and($response->headers->get('Content-Disposition'))->toContain($name)
+            ->and($response->headers->get('X-Content-Type-Options'))->toBe('nosniff')
+            ->and($response->headers->get('Cross-Origin-Resource-Policy'))->toBe('same-origin')
+            ->and($response->headers->get('Cache-Control'))->toContain('no-store')
+            ->and($response->headers->get('Cache-Control'))->toContain('private');
+    })->with([
+        'a PNG' => ['pago noviembre.png', 'image/png'],
+        'a JPG' => ['foto.jpg', 'image/jpeg'],
+        'a PDF' => ['comprobante.pdf', 'application/pdf'],
+    ]);
+
+    it('answers 404 for a stored type that may not be shown inline', function (string $mime) {
+        $receipt = soportesDetailReceipt($this->client);
+        $file = soportesDetailFile($receipt, 'raro', '<svg onload="alert(1)"/>', $mime);
+
+        $this->actingAs(SoportesUsers::analyst())->get(soportesViewUrl($receipt, $file))->assertNotFound();
+    })->with([['image/svg+xml'], ['text/html'], ['application/octet-stream']]);
+
+    it('answers 404 for a file of another receipt', function () {
+        $receipt = soportesDetailReceipt($this->client);
+        $other = soportesDetailReceipt($this->client);
+
+        $this->actingAs(SoportesUsers::analyst())->get(soportesViewUrl($receipt, $other->files[0]))->assertNotFound();
+    });
+
+    it('keeps out another advisor and a reviewer of another company', function () {
+        $receipt = soportesDetailReceipt($this->client);
+        $url = soportesViewUrl($receipt, $receipt->files[0]);
+        $this->fakes->cartera->restrictToAdvisor(20);
+
+        $this->actingAs(SoportesUsers::advisor('Asesor B'))->get($url)->assertForbidden();
+
+        app()->instance(CurrentCompany::class, new FakeCurrentCompany(CompanyCode::SDC, [CompanyCode::SDC]));
+
+        $this->actingAs(SoportesUsers::analyst())->get($url)->assertForbidden();
+    });
+
+    it('answers 404, and logs it, when the file is missing on the disk', function () {
+        $receipt = soportesDetailReceipt($this->client);
+        Storage::disk('local')->delete($receipt->files[0]->path);
+        Log::spy();
+
+        $this->actingAs(SoportesUsers::analyst())->get(soportesViewUrl($receipt, $receipt->files[0]))->assertNotFound();
+
+        Log::shouldHaveReceived('warning')->once();
+    });
+
+    it('shows images on the detail and opens a PDF in another tab, next to the download', function () {
+        $receipt = soportesDetailReceipt($this->client);
+        $image = soportesDetailFile($receipt, 'pago noviembre.png', 'png-bytes', 'image/png');
+        $pdf = $receipt->files[0];
+
+        $this->actingAs(SoportesUsers::analyst())->get('/soportes/'.$receipt->id)
+            ->assertOk()
+            ->assertSee('<img src="'.e(route('soportes.files.show', ['soporte' => $receipt, 'archivo' => $image->id])).'"', false)
+            ->assertSee('alt="Comprobante pago noviembre.png"', false)
+            ->assertSee('href="'.e(route('soportes.files.show', ['soporte' => $receipt, 'archivo' => $pdf->id])).'" target="_blank" rel="noopener"', false)
+            ->assertSee('Ver PDF')
+            ->assertSee(soportesDownloadUrl($receipt, $pdf))
+            ->assertSee(soportesDownloadUrl($receipt, $image))
+            ->assertDontSee('<iframe', false)
+            ->assertDontSee('<object', false);
+    });
+});
