@@ -40,10 +40,22 @@ Cuando una empresa se queda sin cartera, el robot se lo cuenta a la app con `POS
 - **Cuándo:** si la corrida falla por la configuración, la VPN, HANA o un lote base, o si la cartera de una empresa falla al validarse, respaldarse o publicarse en Laravel. Se envía un reporte por empresa que falló. Un fallo de Supabase no se reporta: la cartera ya llegó a la app.
 - **Qué lleva:** la empresa, el lote (`cartera`), la etapa que falló, la causa (`vpn`, `ruta_hana`, `red`, `credenciales`, `datos`, `configuracion` o `inesperado`), si un reintento podría servir y el mensaje del error sin contraseñas, rutas, cadenas de conexión ni IPs, cortado a 300 caracteres.
 - **La hora programada** (`slot`) es la franja de `etl/horarios.json` más reciente a la hora en que empezó la corrida, en hora de Bogotá y respetando los días (la de las 16:00 solo cuenta los miércoles). Si ninguna franja aplica, es la hora de inicio truncada al minuto.
-- Por ahora cada reporte es el intento 1 de 1 y es final: el robot todavía no reintenta la corrida.
+- **Un reporte por intento fallido** (ver «Reintentos»): todos llevan el mismo `run_id` y cada uno su `report_id`. `attempt` es el número del intento y `max_attempts` los intentos que la corrida todavía podía hacer al reportar. `final` es `false` si sigue un reintento y `true` en el último; en un reporte final `max_attempts` es igual a `attempt`. La app solo alerta con `final=true`.
 - Los fallos de otros lotes que no frenan la cartera (un lote de mejor esfuerzo, o asesores al publicarse en Laravel) no se reportan todavía; siguen en el correo y en `ultima_ejecucion.json`.
 - No se reporta en `--diagnostico` ni sin Laravel configurado (`INGESTA_URL`, `INGESTA_KEY_ID` e `INGESTA_SECRET`).
 - Un reporte que no se puede enviar (sin red, firma rechazada, 4xx o 5xx) solo queda en el log: no se reintenta ni se guarda para después, y nunca cambia el resultado de la corrida. Si la carga no llega, el vigilante de la app avisa igual.
+
+### Reintentos
+
+El Programador de tareas de Windows no vuelve a correr el robot cuando termina con código 1, así que el robot reintenta por su cuenta:
+
+- Hasta 3 intentos en total (`ETL_REINTENTOS=2`), con 10 minutos entre uno y otro (`ETL_ESPERA_REINTENTO_MIN`). Antes de cada reintento baja y vuelve a levantar la VPN si la abrió el robot; un túnel ajeno que siga arriba (el robot de cuentas por pagar comparte la VPN) no se toca y se reutiliza.
+- **Tope:** ningún reintento empieza después de la franja de la corrida más 20 minutos (`ETL_TOPE_REINTENTO_MIN`). Por ejemplo, en la franja de las 05:00, si el intento 1 falla a las 05:08 el 2 empieza a las 05:18; si ese falla, el 3 empezaría después de las 05:20 y no se intenta.
+- **Solo se reintenta una falla pasajera:** cuentan las mismas fallas que se reportan (el aborto de la corrida o de una empresa, o su cartera) y se reintenta si todas son de causa `vpn`, `ruta_hana` o `red`. Una de `credenciales`, `datos`, `configuracion` o `inesperado` corta en ese intento. Los lotes de mejor esfuerzo y Supabase no cuentan: ni impiden reintentar la cartera ni provocan un reintento si la cartera llegó.
+- **Solo se reintentan las empresas que fallaron**; las que ya publicaron no se vuelven a correr. Una empresa reintentada vuelve a extraer y publicar todos sus lotes: como el `batch_id` sale del contenido, lo que Laravel ya había recibido igual responde «duplicado».
+- El correo de alerta, el archivo `ultima_ejecucion.json` y el código de salida cuentan solo el resultado final: 0 si un reintento sale bien y 1 si se acaban los intentos. Los intentos intermedios solo quedan en el log y en los reportes a la app.
+- `--diagnostico` hace un solo intento. Con `ETL_REINTENTOS=0` el robot se porta como antes: un intento y un reporte final.
+- Con los topes de abajo la corrida termina dentro de la hora que le da la tarea de Windows.
 
 ## Configuración
 
@@ -62,6 +74,9 @@ Copia `etl/.env.example` como `etl/.env` y complétalo. El `.env` nunca se sube 
 | `INGESTA_TIMEOUT` | Segundos de espera por envío; por defecto 120. |
 | `INGESTA_GZIP` | Comprimir el cuerpo; por defecto `true`. |
 | `ETL_LOTES` | Lotes que se extraen y publican, separados por comas; por defecto `cartera,asesores`. |
+| `ETL_REINTENTOS` | Reintentos tras el primer intento; por defecto 2 (de 0 a 5). Ver «Reintentos». |
+| `ETL_ESPERA_REINTENTO_MIN` | Minutos entre intentos; por defecto 10 (de 0 a 30). |
+| `ETL_TOPE_REINTENTO_MIN` | Minutos después de la franja tras los que no empieza ningún reintento; por defecto 20 (de 0 a 40). Un valor fuera de rango en estas tres es un error de configuración. |
 | `SUPABASE_DB_URL` | Respaldo en Supabase (opcional). |
 | `ALERTA_*` | Correo de alerta cuando algo falla (opcional). El robot verifica el certificado del servidor SMTP al hacer STARTTLS: con un certificado autofirmado o de otro nombre la alerta no sale. Ese error queda en `etl/logs/etl.log` y no cambia el resultado de la corrida. |
 
