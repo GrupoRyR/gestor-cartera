@@ -16,10 +16,10 @@
  * - A field added after the page loaded (a fetched fragment, a cloned row)
  *   is formatted as soon as it enters the document (MutationObserver).
  *
- * The value printed by the server is clean (digits and an optional dot with
- * one or two decimals); anything else, like old input typed without the
- * script ("1.500") or a value the browser restored (back button, autofill),
- * is read as typed text instead.
+ * The value printed by the server is clean (digits and an optional decimal
+ * dot); anything else, like old input typed without the script ("1.500",
+ * shaped like thousands) or a value the browser restored (back button,
+ * autofill), is read as typed text instead.
  */
 
 const SELECTOR = 'input[data-money-input]';
@@ -35,15 +35,19 @@ function partsOfTyped(text, decimals) {
     return { integer, fraction, hasComma };
 }
 
+/** "1.500" and "12.345.678": one to three digits, then groups of three after each dot. */
+const THOUSANDS = /^\d{1,3}(?:\.\d{3})+$/;
+
 /**
- * Digits and the decimal part of a clean value (1234567.5). A value is clean
- * only when its dot has at most two digits after it, as the server prints
- * them; "1.500" is old input typed without the script (thousands), so it is
- * read as typed text. Two digits, not $decimals: a clean "1500000.50" in a
+ * Digits and the decimal part of a clean value (1234567.5). A value shaped
+ * like thousands ("1.500") is old input typed without the script, so it is
+ * read as typed text, as PesosInput reads it on the server. Any other dot is
+ * decimal and its digits are cut to $decimals: a clean "1500000.50" in a
  * whole-peso field keeps its pesos and drops the cents.
  */
 function partsOfClean(text, decimals) {
-    const match = /^(\d*)(?:\.(\d{0,2}))?$/.exec(String(text).trim());
+    const trimmed = String(text).trim();
+    const match = THOUSANDS.test(trimmed) ? null : /^(\d*)(?:\.(\d*))?$/.exec(trimmed);
 
     if (match === null) {
         return partsOfTyped(text, decimals);
