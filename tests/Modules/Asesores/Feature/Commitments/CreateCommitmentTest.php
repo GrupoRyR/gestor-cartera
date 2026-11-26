@@ -66,6 +66,7 @@ it('reads the amount the way it is written in Colombia', function (string $typed
     'thousands' => ['5.000.000', '5000000.00'],
     'with sign' => ['$ 1.250.000', '1250000.00'],
     'with cents' => ['1.250.000,50', '1250000.50'],
+    'clean, as the money input sends it' => ['1250000.5', '1250000.50'],
 ]);
 
 it('accepts today as the day of payment, and no notes', function () {
