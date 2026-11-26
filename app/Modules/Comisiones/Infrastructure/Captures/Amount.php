@@ -105,9 +105,7 @@ final class Amount
             return '';
         }
 
-        $text = BigDecimal::of($amount)->toScale(2, RoundingMode::HalfUp)->toString();
-
-        return str_contains($text, '.') ? rtrim(rtrim($text, '0'), '.') : $text;
+        return BigDecimal::of($amount)->toScale(2, RoundingMode::HalfUp)->strippedOfTrailingZeros()->toString();
     }
 
     /**
