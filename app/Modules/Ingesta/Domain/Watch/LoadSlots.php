@@ -11,7 +11,7 @@ use UnexpectedValueException;
  * slot ingesta:vigilar-carga checks that its load arrived. The file shape:
  *
  *     {"zona": "America/Bogota", "vigilante_min": 30, "horarios": [
- *       {"hora": "05:00"}, {"hora": "16:00", "dias": ["wed"], "antes_de": "…"}]}
+ *       {"hora": "05:00"}, {"hora": "16:00", "dias": ["tue", "fri"], "antes_de": "…"}]}
  *
  * Validated strictly: a bad time, day, zone or delay, a repeated slot or a
  * watch that would fall after midnight throws UnexpectedValueException
@@ -27,7 +27,7 @@ final readonly class LoadSlots
             ['hora' => '00:00'],
             ['hora' => '05:00'],
             ['hora' => '12:00'],
-            ['hora' => '16:00', 'dias' => ['wed'], 'antes_de' => 'el cobro semanal de las 17:00'],
+            ['hora' => '16:00', 'dias' => ['tue', 'fri'], 'antes_de' => 'el cobro semanal de las 17:00'],
         ],
     ];
 

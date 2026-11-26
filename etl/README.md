@@ -237,18 +237,21 @@ Las pruebas no usan la VPN, SAP, Laravel ni Supabase: trabajan con datos de mues
 
 ## Programación
 
-`scripts/instalar_tarea.ps1` registra la tarea `CarteraWeb-ETL` con tres corridas diarias:
+`scripts/instalar_tarea.ps1` registra la tarea `CarteraWeb-ETL` con un disparador por cada horario de `etl/horarios.json`, el mismo archivo con el que la plataforma vigila que la carga llegue. Para cambiar una hora, cambia el archivo, despliega y vuelve a correr el script:
 
-| Hora | Para qué |
-|---|---|
-| 00:00 | Corrida principal. |
-| 05:00 | Reintento antes de la alerta de Laravel de las 07:00. Repetir una extracción idéntica no duplica nada. |
-| 12:00 | Actualización de mediodía. |
+| Hora | Días | Para qué |
+|---|---|---|
+| 00:00 | todos | Corrida principal. |
+| 05:00 | todos | Reintento antes de la alerta de Laravel de las 07:00. Repetir una extracción idéntica no duplica nada. |
+| 12:00 | todos | Actualización de mediodía. |
+| 16:00 | martes y viernes | Cartera fresca antes del cobro semanal de las 17:00. |
 
-Las horas evitan las 06:00 y las 12:30 del robot de cuentas por pagar, que comparte la VPN: si se solapan, uno le baja el túnel al otro.
+Las horas evitan las 06:00 y las 12:30 del robot de cuentas por pagar, que comparte la VPN: si se solapan, uno le baja el túnel al otro. Se programan en la hora local del PC, que debe estar en la zona de Bogotá; si no lo está, el script avisa.
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File scripts\instalar_tarea.ps1
-powershell -ExecutionPolicy Bypass -File scripts\instalar_tarea.ps1 -Horas 00:00,05:00
+powershell -ExecutionPolicy Bypass -File scripts\instalar_tarea.ps1 -SoloMostrar
 powershell -ExecutionPolicy Bypass -File scripts\instalar_tarea.ps1 -Desinstalar
 ```
+
+`-SoloMostrar` lista los disparadores que leería del archivo, sin registrar nada.

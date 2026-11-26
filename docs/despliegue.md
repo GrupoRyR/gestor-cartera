@@ -267,7 +267,7 @@ En el PC con la VPN Sophos, desde la raíz del repositorio (`etl/README.md`):
 - [ ] Deja `SUPABASE_DB_URL` mientras siga vivo el portal anterior.
 - [ ] El reloj del PC debe estar sincronizado: Laravel rechaza firmas con más de 5 minutos de diferencia.
 - [ ] Haz una corrida manual con `python etl/run_etl.py` y revisa en la app que llegue el corte.
-- [ ] Programa la tarea `CarteraWeb-ETL` (00:00, 05:00 y 12:00):
+- [ ] Programa la tarea `CarteraWeb-ETL` con los horarios de `etl/horarios.json` (hoy 00:00, 05:00 y 12:00 a diario y 16:00 los martes y viernes, antes del cobro semanal de las 17:00). Vuelve a correrlo cada vez que cambie ese archivo:
 
   ```powershell
   powershell -ExecutionPolicy Bypass -File scripts\instalar_tarea.ps1

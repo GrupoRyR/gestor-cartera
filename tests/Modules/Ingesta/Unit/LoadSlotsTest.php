@@ -40,6 +40,13 @@ it('tells whether a slot runs on a day', function () {
         ->and(LoadSlots::defaults()->find('05:00')?->runsOn(CarbonImmutable::parse('2026-11-26')))->toBeTrue();
 });
 
+it('runs the slot before the weekly collection on Tuesdays and Fridays, by default and in etl/horarios.json', function () {
+    foreach ([LoadSlots::defaults(), LoadSlots::fromFile(base_path('etl/horarios.json'))] as $slots) {
+        expect($slots->find('16:00')?->days)->toBe(['tue', 'fri'])
+            ->and($slots->find('16:00')?->before)->toBe('el cobro semanal de las 17:00');
+    }
+});
+
 it('reads the versioned etl/horarios.json, which holds the default slots', function () {
     $slots = LoadSlots::fromFile(dirname(__DIR__, 4).'/etl/horarios.json');
 
