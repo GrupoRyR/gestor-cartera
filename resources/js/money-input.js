@@ -13,6 +13,9 @@
  *   clean number, in POST and GET forms alike; the field itself keeps
  *   showing the formatted figure.
  *
+ * - A field added after the page loaded (a fetched fragment, a cloned row)
+ *   is formatted as soon as it enters the document (MutationObserver).
+ *
  * The value printed by the server is clean (digits and an optional dot with
  * one or two decimals); anything else, like old input typed without the
  * script ("1.500") or a value the browser restored (back button, autofill),
@@ -218,8 +221,30 @@ function formatOnLoad(input) {
     input.value = input.value === input.defaultValue ? formatClean(input.value, decimals) : formatTyped(input.value, decimals);
 }
 
+/**
+ * Formats the money fields among the nodes added to the document. Formatting
+ * twice is harmless: a formatted value no longer equals the printed one, so
+ * it is read as typed text and stays the same.
+ */
+function formatAdded(records) {
+    for (const record of records) {
+        for (const node of record.addedNodes) {
+            if (!(node instanceof Element)) {
+                continue;
+            }
+
+            if (node.matches(SELECTOR)) {
+                formatOnLoad(node);
+            }
+
+            node.querySelectorAll(SELECTOR).forEach(formatOnLoad);
+        }
+    }
+}
+
 export function startMoneyInputs() {
     document.querySelectorAll(SELECTOR).forEach(formatOnLoad);
+    new MutationObserver(formatAdded).observe(document.documentElement, { childList: true, subtree: true });
     document.addEventListener('beforeinput', onBeforeInput);
     document.addEventListener('paste', onPaste);
     document.addEventListener('input', onInput);
