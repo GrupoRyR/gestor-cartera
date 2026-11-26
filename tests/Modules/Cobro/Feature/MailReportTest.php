@@ -10,6 +10,8 @@ use App\Modules\Cobro\Infrastructure\Persistence\InboundMessage;
 use App\Modules\Cobro\Infrastructure\Persistence\Run;
 use App\Modules\Cobro\Infrastructure\Persistence\RunItem;
 use App\Modules\Cobro\Infrastructure\Persistence\SentMessage;
+use App\Modules\Core\Contracts\CarteraRepository;
+use App\Modules\Core\Contracts\Data\ClientQuery;
 use App\Modules\Core\Contracts\Enums\CompanyCode;
 use App\Modules\Core\Contracts\Enums\Role;
 use App\Support\Navigation\NavItem;
@@ -18,6 +20,7 @@ use Carbon\CarbonImmutable;
 use Illuminate\Support\Arr;
 use Illuminate\Testing\TestResponse;
 use Tests\Fakes\ContractFakes;
+use Tests\Fakes\FakeCarteraRepository;
 use Tests\Fakes\Make;
 use Tests\Modules\Cobro\Support\CobroUsers;
 use Tests\Modules\Cobro\Support\VisibleText;
@@ -144,6 +147,33 @@ function mailReportMetric(TestResponse $response, string $key): string
     return VisibleText::of($match[1]);
 }
 
+/**
+ * Puts a CarteraRepository in front of $fake that answers as the fake and
+ * keeps the queries allClients() receives, in order.
+ *
+ * @return ArrayObject<int, ClientQuery>
+ */
+function mailReportAllClientsCalls(FakeCarteraRepository $fake): ArrayObject
+{
+    $calls = new ArrayObject;
+    $cartera = Mockery::mock(CarteraRepository::class);
+
+    foreach ((new ReflectionClass(CarteraRepository::class))->getMethods() as $method) {
+        $name = $method->getName();
+        $cartera->shouldReceive($name)->andReturnUsing(function (mixed ...$arguments) use ($fake, $name, $calls): mixed {
+            if ($name === 'allClients') {
+                $calls[] = $arguments[0];
+            }
+
+            return $fake->{$name}(...$arguments);
+        });
+    }
+
+    app()->instance(CarteraRepository::class, $cartera);
+
+    return $calls;
+}
+
 function mailReport(User $user, array $query = []): TestResponse
 {
     return test()->actingAs($user)->get(route('cobro.informe.index', $query));
@@ -190,6 +220,26 @@ it('covers the last 30 days by default, by the scheduled Bogotá day', function 
         ->assertSee('value="2026-10-22"', false)
         ->assertSeeInOrder(['Ferretería El Tornillo SAS', 'Circularizada SAS', 'Primer día SAS'])
         ->assertDontSeeText('Fuera del rango SAS');
+});
+
+it('reads only a start date after today as that one day', function () {
+    mailReportRun(CompanyCode::SGX, RunKind::Weekly, '2026-10-25 17:00:00', [['client_name' => 'Domingo SAS']]);
+    mailReportRun(CompanyCode::SGX, RunKind::Weekly, '2026-10-26 17:00:00', [['client_name' => 'Lunes SAS']]);
+    mailReportRun(CompanyCode::SGX, RunKind::Weekly, '2026-10-21 17:00:00', [['client_name' => 'Miércoles SAS']]);
+
+    mailReport($this->analyst, ['desde' => '2026-10-25'])->assertOk()
+        ->assertSee('value="2026-10-25"', false)
+        ->assertDontSee('value="2026-10-22"', false)
+        ->assertSeeText('Domingo SAS')
+        ->assertDontSeeText('Lunes SAS')
+        ->assertDontSeeText('Miércoles SAS');
+
+    mailReport($this->analyst, ['desde' => '2026-10-01'])->assertOk()
+        ->assertSee('value="2026-10-22"', false)
+        ->assertSeeText('Miércoles SAS')
+        ->assertDontSeeText('Domingo SAS');
+
+    mailReport($this->analyst, ['desde' => '2026-10-25', 'hasta' => '2026-10-24'])->assertSessionHasErrors('hasta');
 });
 
 it('filters by the date range', function () {
@@ -284,6 +334,20 @@ it('filters by advisor of the company and shows each client current advisor', fu
         ->assertDontSeeText('Cliente de Diana SAS')
         ->assertDontSeeText('Cliente sin ficha SAS')
         ->assertDontSeeText('Cliente de Sandra SAS');
+});
+
+it('asks Core for the advisor clients once per request', function () {
+    $carlos = Make::advisor(code: 12, name: 'Carlos Pérez');
+    $this->fakes->cartera->addAdvisor($carlos)->addClient(Make::clientDetail(Make::client(id: 7001, advisor: $carlos)));
+    mailReportRun(CompanyCode::SGX, RunKind::Weekly, '2026-10-21 17:00:00', [['client_id' => 7001, 'client_name' => 'Cliente de Carlos SAS'], ['client_name' => 'Otro SAS']]);
+    $calls = mailReportAllClientsCalls($this->fakes->cartera);
+
+    $response = mailReport($this->analyst, ['asesor' => 'SGX:12'])->assertOk()
+        ->assertSeeText('Cliente de Carlos SAS')
+        ->assertDontSeeText('Otro SAS');
+
+    expect(mailReportMetric($response, 'sent'))->toBe('1')
+        ->and(array_map(fn (ClientQuery $query): ?int => $query->advisorCode, $calls->getArrayCopy()))->toBe([12]);
 });
 
 it('filters by kind of mail and by status', function () {

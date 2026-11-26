@@ -9,7 +9,8 @@
     first_reply_at; $metrics: MailReportMetrics over every filtered item;
     $advisors: client id => current advisor name; $advisorOptions:
     "<company>:<code>" => name; $companyOptions: code => name, or null with
-    a single company in scope; $narrowed: whether a filter is in the URL.
+    a single company in scope; $query: the filters in the URL, without the
+    page (for the Excel link); $narrowed: whether a filter is in the URL.
 --}}
 @php
     $number = fn (int $value): string => number_format($value, 0, ',', '.');
@@ -37,7 +38,13 @@
 @endphp
 
 <x-layouts.app :title="__('cobro::informe.titulo')">
-    <x-ui.page-header :title="__('cobro::informe.titulo')" :description="__('cobro::informe.descripcion')" />
+    <x-ui.page-header :title="__('cobro::informe.titulo')" :description="__('cobro::informe.descripcion')">
+        @can('cobro.export')
+            <x-slot:actions>
+                <x-ui.link-button :href="route('cobro.informe.export', $query)" variant="secondary" icon="download">{{ __('cobro::informe.exportar.boton') }}</x-ui.link-button>
+            </x-slot:actions>
+        @endcan
+    </x-ui.page-header>
 
     <div class="flex flex-col gap-6">
         <form method="GET" action="{{ route('cobro.informe.index') }}" role="search" aria-label="{{ __('cobro::informe.filtros.etiqueta') }}" class="grid gap-4 rounded-card border border-line bg-surface p-4 md:grid-cols-2 md:p-5 lg:grid-cols-4">

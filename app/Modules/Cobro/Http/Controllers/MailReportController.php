@@ -26,6 +26,7 @@ final class MailReportController
     {
         $filter = $request->filter();
         $items = $this->report->items($filter, self::PER_PAGE);
+        $query = array_diff_key($request->query(), ['page' => true]);
         $companies = [];
 
         foreach ($this->currentCompany->scope() as $company) {
@@ -39,7 +40,8 @@ final class MailReportController
             'advisors' => $this->report->advisorNames($items->items()),
             'advisorOptions' => $request->advisorOptions(),
             'companyOptions' => count($companies) > 1 ? $companies : null,
-            'narrowed' => array_diff_key($request->query(), ['page' => true]) !== [],
+            'query' => $query,
+            'narrowed' => $query !== [],
         ]);
     }
 }

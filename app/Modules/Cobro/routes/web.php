@@ -4,6 +4,7 @@ use App\Modules\Cobro\Domain\Runs\RunKind;
 use App\Modules\Cobro\Http\Controllers\CopyController;
 use App\Modules\Cobro\Http\Controllers\ExclusionController;
 use App\Modules\Cobro\Http\Controllers\MailReportController;
+use App\Modules\Cobro\Http\Controllers\MailReportExportController;
 use App\Modules\Cobro\Http\Controllers\ReplyInboxController;
 use App\Modules\Cobro\Http\Controllers\RunPreviewController;
 use App\Modules\Cobro\Http\Controllers\RunReportController;
@@ -51,6 +52,12 @@ Route::middleware(['auth', 'can:cobro.view'])->prefix('lotes')->name('lotes.')->
 // Collection report: every weekly collection and circularization mail,
 // filterable, with its replies.
 Route::get('informe', [MailReportController::class, 'index'])->middleware(['auth', 'can:cobro.view'])->name('informe.index');
+
+// Its Excel download, every filtered item: cobro.export, 10 a minute per
+// user (cobro-exports, CobroServiceProvider).
+Route::get('informe/exportar', MailReportExportController::class)
+    ->middleware(['auth', 'can:cobro.export', 'throttle:cobro-exports'])
+    ->name('informe.export');
 
 // Exclusion list: clients that receive no collection mail.
 Route::middleware(['auth', 'can:cobro.manage'])->prefix('exclusiones')->name('exclusiones.')->group(function () {
