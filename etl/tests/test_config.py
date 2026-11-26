@@ -293,5 +293,35 @@ class ConfigHanaTest(unittest.TestCase):
         self.assertTrue(hana.validar_certificado)
 
 
+class ReintentosTest(unittest.TestCase):
+    """ETL_REINTENTOS, ETL_ESPERA_REINTENTO_MIN y ETL_TOPE_REINTENTO_MIN."""
+
+    def _leer(self, **entorno: str) -> config.ReintentoConfig:
+        with mock.patch.dict(os.environ, entorno, clear=True):
+            return config.leer_reintentos()
+
+    def test_por_defecto_dos_reintentos_cada_diez_minutos_hasta_veinte(self):
+        self.assertEqual(self._leer(), config.ReintentoConfig(2, 10, 20))
+        self.assertEqual(_config().reintento, config.ReintentoConfig(2, 10, 20))
+
+    def test_lee_los_valores_del_entorno(self):
+        leido = self._leer(ETL_REINTENTOS=" 0 ", ETL_ESPERA_REINTENTO_MIN="5",
+                           ETL_TOPE_REINTENTO_MIN="15")
+        self.assertEqual(leido, config.ReintentoConfig(0, 5, 15))
+
+    def test_un_valor_invalido_es_un_error_que_nombra_la_variable(self):
+        casos = {
+            "ETL_REINTENTOS": ("-1", "dos", "6"),
+            "ETL_ESPERA_REINTENTO_MIN": ("-5", "1.5", "31"),
+            "ETL_TOPE_REINTENTO_MIN": ("-1", "x", "41"),
+        }
+        for variable, valores in casos.items():
+            for valor in valores:
+                with self.subTest(variable=variable, valor=valor):
+                    with self.assertRaises(ConfigError) as error:
+                        self._leer(**{variable: valor})
+                    self.assertIn(variable, str(error.exception))
+
+
 if __name__ == "__main__":
     unittest.main()

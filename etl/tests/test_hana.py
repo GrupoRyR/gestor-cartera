@@ -108,6 +108,15 @@ class ConectarTest(unittest.TestCase):
         self.assertIn("tras 60s de espera", str(error.exception))
         self.dbapi.connect.assert_not_called()
 
+    def test_sin_el_driver_levanta_hana_sin_driver(self):
+        with mock.patch.dict(sys.modules, {"hdbcli": None}):
+            with self.assertRaises(hana.HanaSinDriver) as error:
+                with hana.conectar(BASE):
+                    pass
+
+        self.assertIsInstance(error.exception, hana.HanaError)
+        self.assertIn("pip install", str(error.exception))
+
 
 class DescribirCifradoTest(unittest.TestCase):
     def test_resume_el_modo_para_el_diagnostico(self):

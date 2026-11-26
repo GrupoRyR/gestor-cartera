@@ -133,6 +133,22 @@ class IngestaConfig:
 
 
 @dataclass(frozen=True)
+class ReintentoConfig:
+    """Reintentos de la corrida dentro del robot (el Programador de tareas no
+    relanza una corrida que termina con codigo 1)."""
+
+    reintentos: int = 2      # ETL_REINTENTOS: intentos extra tras el primero
+    espera_min: int = 10     # ETL_ESPERA_REINTENTO_MIN: pausa entre intentos
+    tope_min: int = 20       # ETL_TOPE_REINTENTO_MIN: ninguno empieza despues de franja + tope
+
+
+# Topes: la tarea de Windows corta el robot a la hora (ExecutionTimeLimit).
+_TOPES_REINTENTO = {
+    "ETL_REINTENTOS": 5, "ETL_ESPERA_REINTENTO_MIN": 30, "ETL_TOPE_REINTENTO_MIN": 40,
+}
+
+
+@dataclass(frozen=True)
 class EmpresaConfig:
     """Una empresa de la corrida: su esquema HANA y el usuario con que se entra a el."""
 
@@ -152,6 +168,7 @@ class Config:
     lotes: tuple[str, ...]
     # ETL_EMPRESAS: vacio = una sola empresa (INGESTA_EMPRESA con HANA_SCHEMA).
     empresas: tuple[EmpresaConfig, ...] = ()
+    reintento: ReintentoConfig = field(default_factory=ReintentoConfig)
 
     @property
     def empresas_efectivas(self) -> tuple[EmpresaConfig, ...]:
@@ -324,6 +341,29 @@ def leer_hana(empresa: str = "") -> HanaConfig:
     )
 
 
+def leer_reintentos() -> ReintentoConfig:
+    """ETL_REINTENTOS, ETL_ESPERA_REINTENTO_MIN y ETL_TOPE_REINTENTO_MIN.
+
+    Sin la variable vale el valor por defecto; un valor que no es un entero
+    entre 0 y su tope es un ConfigError que nombra la variable."""
+    defecto = ReintentoConfig()
+    valores = []
+    for variable, por_defecto in zip(
+        _TOPES_REINTENTO, (defecto.reintentos, defecto.espera_min, defecto.tope_min)
+    ):
+        texto = os.getenv(variable, "").strip()
+        tope = _TOPES_REINTENTO[variable]
+        if not texto:
+            valores.append(por_defecto)
+            continue
+        if not (texto.isascii() and texto.isdigit()) or int(texto) > tope:
+            raise ConfigError(
+                f"{variable} debe ser un entero entre 0 y {tope} (valor actual: {texto})."
+            )
+        valores.append(int(texto))
+    return ReintentoConfig(*valores)
+
+
 def leer_empresas() -> tuple[EmpresaConfig, ...]:
     """ETL_EMPRESAS ("SGX,SDC") con el esquema y el usuario de HANA de cada una.
 
@@ -404,6 +444,7 @@ def cargar_config() -> Config:
             os.getenv("ETL_LOTES", "").strip() or LOTES_POR_DEFECTO
         ),
         empresas=leer_empresas(),
+        reintento=leer_reintentos(),
     )
 
 

@@ -17,7 +17,7 @@ import registro
 import reporte
 from config import ConfigError, IngestaConfig, VpnConfig
 from sinks import http_sink
-from vpn import RobotVPN, VpnError
+from vpn import RobotVPN, VpnCredenciales, VpnError
 
 SECRETO = "s3cr3t0-de-prueba"
 CFG = IngestaConfig("https://cartera.example.com/", "k2026a", SECRETO, timeout=30)
@@ -59,6 +59,9 @@ class ClasificarTest(unittest.TestCase):
         casos = [
             (VpnError("Sophos no conecto"), ("vpn", True)),
             (_error_vpn_credenciales(), ("credenciales", False)),
+            # Decide la clase, no el texto.
+            (VpnCredenciales("Sophos dijo que no"), ("credenciales", False)),
+            (hana.HanaSinDriver("Falta el driver de SAP HANA"), ("configuracion", False)),
             (hana.HanaSinRuta("No hay ruta"), ("ruta_hana", True)),
             (hana.HanaConexion("No se pudo conectar a HANA tras 3 intentos"), ("ruta_hana", True)),
             (hana.HanaConexion("Fallo la validacion del certificado", tls=True), ("configuracion", False)),

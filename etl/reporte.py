@@ -6,6 +6,7 @@ firmada para la ruta /api/ingesta/reportes, y JSON sin comprimir (hasta 8 KB).
 
 Un reporte que no se puede enviar solo queda en el log: no hay cola ni
 reintento, porque el vigilante de la app avisa igual si la carga no llega.
+Cada intento fallido de la corrida manda el suyo (run_etl reintenta).
 """
 from __future__ import annotations
 
@@ -23,7 +24,7 @@ import hana
 import registro
 from config import ConfigError, IngestaConfig
 from sinks import http_sink
-from vpn import VpnError
+from vpn import VpnCredenciales, VpnError
 
 log = registro.obtener("reporte")
 
@@ -33,10 +34,6 @@ ARCHIVO_HORARIOS = Path(__file__).resolve().parent / "horarios.json"
 ZONA = timezone(timedelta(hours=-5))
 DIAS = ("mon", "tue", "wed", "thu", "fri", "sat", "sun")
 MAX_MENSAJE = 300
-
-# Texto del VpnError de vpn.py cuando Sophos rechaza la cuenta: VpnError no
-# tiene una subclase para eso.
-_PISTA_VPN_CREDENCIALES = "rechazo el usuario o la contrasena"
 
 
 # --------------------------------------------------------------- clasificar
@@ -50,9 +47,9 @@ def _original(exc: BaseException | None) -> BaseException | None:
 def clasificar(exc: BaseException | None) -> tuple[str, bool]:
     """(causa, transitoria) del contrato de la app para un error del robot."""
     exc = _original(exc)
+    if isinstance(exc, VpnCredenciales):
+        return "credenciales", False
     if isinstance(exc, VpnError):
-        if _PISTA_VPN_CREDENCIALES in str(exc):
-            return "credenciales", False
         return "vpn", True
     if isinstance(exc, hana.HanaSinRuta):
         return "ruta_hana", True
@@ -60,6 +57,8 @@ def clasificar(exc: BaseException | None) -> tuple[str, bool]:
         return ("configuracion", False) if exc.tls else ("ruta_hana", True)
     if isinstance(exc, hana.HanaCredenciales):
         return "credenciales", False
+    if isinstance(exc, hana.HanaSinDriver):
+        return "configuracion", False
     if isinstance(exc, http_sink.ErrorConexion):
         return "red", True
     if isinstance(exc, (http_sink.DatoInvalido, esquema.ColumnasInesperadas, hana.HanaError)):
