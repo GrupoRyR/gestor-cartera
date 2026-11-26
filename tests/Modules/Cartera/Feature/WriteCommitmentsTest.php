@@ -272,6 +272,9 @@ describe('the client file', function () {
                 ->and($field->getAttribute('inputmode'))->toBe('numeric')
                 ->and($field->getAttribute('value'))->toBe($value);
         }
+
+        expect($html)->toContain('En pesos colombianos.')
+            ->and($html)->not->toContain('sin puntos ni comas');
     });
 
     it('offers no actions on a commitment that is closed', function () {

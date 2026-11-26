@@ -39,7 +39,7 @@ return [
         'boton' => 'Registrar descuento ofrecido',
         'titulo' => 'Registrar descuento ofrecido',
         'valor' => 'Valor del descuento',
-        'valor_ayuda' => 'En pesos colombianos, sin puntos ni comas.',
+        'valor_ayuda' => 'En pesos colombianos.',
         'detalle' => 'Condiciones',
         'detalle_ayuda' => 'Por ejemplo, «si paga de contado antes del viernes».',
         'guardar' => 'Guardar descuento',

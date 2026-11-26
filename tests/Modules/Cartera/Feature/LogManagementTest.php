@@ -195,7 +195,8 @@ describe('the buttons in the client file', function () {
             ->and($field->hasAttribute('data-money-input'))->toBeTrue()
             ->and($field->getAttribute('data-decimals'))->toBe('0')
             ->and($field->getAttribute('inputmode'))->toBe('numeric')
-            ->and($field->hasAttribute('required'))->toBeTrue();
+            ->and($field->hasAttribute('required'))->toBeTrue()
+            ->and($html)->not->toContain('sin puntos ni comas');
     });
 
     it('are not there for those who may only look', function () {

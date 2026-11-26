@@ -228,7 +228,9 @@ describe('the button', function () {
             ->and($field->hasAttribute('data-money-input'))->toBeTrue()
             ->and($field->getAttribute('data-decimals'))->toBe('0')
             ->and($field->getAttribute('inputmode'))->toBe('numeric')
-            ->and($field->hasAttribute('required'))->toBeTrue();
+            ->and($field->hasAttribute('required'))->toBeTrue()
+            ->and($html)->toContain('El compromiso es por '.Money::format(1_000_000).'. En pesos colombianos.')
+            ->and($html)->not->toContain('sin puntos ni comas');
     });
 
     it('does not show without the permission', function () {
