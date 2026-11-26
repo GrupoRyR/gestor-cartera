@@ -196,3 +196,34 @@ Respaldo del robot, solo para el lote `cartera`. Desde el historial, «Carga man
 - si no, envía por `MailSender` un correo de categoría `alerta` con el asunto «Alerta: el robot no publicó la cartera de {empresa} del {DD/MM/AAAA}»: la hora límite, la última cartera aceptada (corte, origen y recibida), el error del último rechazo del robot de hoy si lo hubo, si ya hay una carga manual con corte de hoy (que no apaga la alerta) y el enlace al historial. Si Graph no acepta el correo (`MailNotSent`), lo registra y termina con falla.
 
 `IngestaServiceProvider::schedule()` la programa cada día a la hora de `INGESTA_ALERT_DEADLINE` (07:00 por defecto) en `America/Bogota`, con `withoutOverlapping(10)`. Correrla a mano es seguro: solo vuelve a avisar.
+
+## Vigilante de cargas
+
+`php artisan ingesta:vigilar-carga {hora}` (`Console/WatchLoadCommand`, `Application/Watch/WatchLoadSlot`) revisa una hora programada de carga. Por cada empresa de `ingesta.watch_companies` (por defecto solo `SGX`: SDC carga su cartera por Excel), si **desde esa hora** no llegó una carga de cartera aceptada de **cualquier origen** (robot, carga manual y después el lector de Bases SAP) **ni** un reporte de falla con `final: true` de esa misma hora (ese ya tiene su propia alerta), avisa:
+
+- **Campana:** el aviso `ingesta.carga` «No llegó la carga de {lote} de {empresa} de las {HH:MM}», con la misma llave `ingesta.carga:{empresa}:{lote}`, así que la siguiente carga aceptada lo resuelve. Usa el mismo reclamo `campana` que la alerta de carga fallida: **una campana por hora programada**, sea cual sea el motivo.
+- **Correo:** a `ingesta.alert_recipients`, desde el buzón de Segurex, categoría `alerta`, asunto «Alerta: no llegó la carga de {lote} de {empresa} de las {HH:MM} del {DD/MM/AAAA}», con el enlace al historial filtrado. Lo reclama con el tipo `no_llego` en la misma transacción del envío: si Graph lo rechaza (`MailNotSent`), el reclamo se deshace y el comando termina con falla, así que la siguiente corrida todavía puede enviarlo. Sin destinatarios solo deja una advertencia; sin `MailSender`, un error y termina con falla.
+
+Correrlo dos veces para la misma hora no envía nada nuevo. Con una hora que no está en `etl/horarios.json` termina con falla; un día en que esa hora no corre, o antes de la hora, no revisa nada.
+
+**Textos** (`alerta.php`, `no_llego`), según `ingesta.expected_source` (`INGESTA_EXPECTED_SOURCE`):
+
+- `robot` (por defecto): «No llegó la carga de las {HH:MM} ni un reporte del robot: el robot no corrió (¿PC apagado, sin sesión o sin internet?).»
+- `bases_sap`: «No llegó la carga de las {HH:MM}: el lector de Bases SAP no corrió.»
+- Si la hora tiene `antes_de`, se agrega: «Si no llega a tiempo, {antes_de} saldrá con los datos anteriores.»
+
+### `etl/horarios.json`
+
+Las horas del robot, versionadas con el código (después `scripts/instalar_tarea.ps1` también las leerá). `ingesta.load_slots` guarda solo la ruta; el archivo se lee cuando se necesita y, si no existe, valen las cuatro horas por defecto (`Domain/Watch/LoadSlots::DEFAULT`):
+
+```json
+{ "zona": "America/Bogota", "vigilante_min": 30, "horarios": [
+  {"hora": "00:00"}, {"hora": "05:00"}, {"hora": "12:00"},
+  {"hora": "16:00", "dias": ["wed"], "antes_de": "el cobro semanal de las 17:00"} ] }
+```
+
+- `hora`: HH:MM, en la `zona`; `dias` (opcional): nombres de tres letras en inglés y minúsculas (`mon` … `sun`), sin `dias` corre todos los días; `antes_de` (opcional): lo que usa esa carga.
+- `vigilante_min`: minutos después de cada hora en que corre el vigilante (de 1 a 180). El vigilante debe caer el mismo día: 00:00 se revisa a las 00:30 de ese día.
+- Se valida estricto: una hora, un día, una zona o unos minutos inválidos, una hora repetida o un vigilante después de medianoche lanzan un error que dice qué corregir. Con un archivo inválido el comando falla y `schedule()` no programa el vigilante (lo deja en el log), sin tocar las demás tareas.
+
+`IngestaServiceProvider::schedule()` programa `ingesta:vigilar-carga {hora}` a la hora + `vigilante_min` (hoy 00:30, 05:30 y 12:30 a diario y 16:30 los miércoles), en la `zona`, con `withoutOverlapping(10)`.
