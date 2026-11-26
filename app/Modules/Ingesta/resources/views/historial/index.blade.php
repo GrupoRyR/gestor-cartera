@@ -6,7 +6,7 @@
     GET /ingesta (ingesta.index): the load history, 25 per page, newest
     received first, with GET filters by dataset (lote), company (empresa)
     and status (estado). Above it, the current cartera of each company in
-    ingesta.alert_companies and a warning per company still missing today's
+    ingesta.watch_companies and a warning per company still missing today's
     robot load after the deadline. Only the companies the user may see.
     $loads: paginator of IngestaLoad with receivedBy; $filters: the valid
     filter values; $companies: value => label of the companies the user may

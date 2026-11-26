@@ -16,10 +16,12 @@ use Illuminate\Support\Facades\Log;
 
 /**
  * ingesta:verificar-carga: once ingesta.alert_deadline (Bogotá) has
- * passed, checks for each company of ingesta.alert_companies that an
+ * passed, checks for each company of ingesta.watch_companies that an
  * accepted robot cartera load with today's cutoff arrived; when it did
  * not, mails ingesta.alert_recipients through MailSender (category
- * "alerta"). Before the deadline it checks nothing, sends nothing and
+ * "alerta"), unless a load slot of the morning (00:00 or 05:00) already
+ * alerted for that company: its alert said it first, so the daily mail
+ * is skipped. Before the deadline it checks nothing, sends nothing and
  * succeeds. IngestaServiceProvider schedules it daily at the deadline;
  * running it by hand is safe.
  *
@@ -58,6 +60,14 @@ final class CheckDailyLoadCommand extends Command
 
             if ($check->robotArrived($company, $now)) {
                 $this->info(__('ingesta::alerta.consola.llego', $name));
+
+                continue;
+            }
+
+            $alerted = $check->alertedSlot($company, $now);
+
+            if ($alerted !== null) {
+                $this->info(__('ingesta::alerta.consola.ya_avisada', $name + ['hora' => $alerted->format('H:i')]));
 
                 continue;
             }

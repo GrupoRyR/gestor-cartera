@@ -37,12 +37,6 @@ return [
     // Time (America/Bogota) by which the robot must have published the day's load.
     'alert_deadline' => env('INGESTA_ALERT_DEADLINE', '07:00'),
 
-    // Companies whose robot cartera load is expected every day: the history
-    // warns, and ingesta:verificar-carga mails, when it is missing after the
-    // deadline. Only SGX: the robot reads the SEGUREX HANA schema only, and
-    // SDC loads its cartera by manual Excel until its SAP schema is configured.
-    'alert_companies' => ['SGX'],
-
     // The load slots (etl/horarios.json, versioned): when the robot runs and
     // how many minutes later ingesta:vigilar-carga checks that the load
     // arrived. Only the path is kept here; the file is read when the watch
@@ -50,7 +44,10 @@ return [
     'load_slots' => base_path('etl/horarios.json'),
 
     // Companies whose robot (later Bases SAP reader) cartera load is watched
-    // after each slot. Only SGX: SDC loads its cartera by manual Excel.
+    // after each slot (ingesta:vigilar-carga) and checked at the deadline: the
+    // history warns, and ingesta:verificar-carga mails, when it is missing.
+    // Only SGX: the robot reads the SEGUREX HANA schema only, and SDC loads
+    // its cartera by manual Excel until its SAP schema is configured.
     'watch_companies' => ['SGX'],
 
     // Who brings the watched loads, for the text of the missing-load alert:

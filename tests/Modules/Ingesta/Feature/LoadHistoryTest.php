@@ -200,7 +200,7 @@ it('warns once the deadline passes without the robot cartera of today', function
 ]);
 
 it('follows the configured deadline and companies', function () {
-    config(['ingesta.alert_deadline' => '10:00', 'ingesta.alert_companies' => ['SGX', 'SDC']]);
+    config(['ingesta.alert_deadline' => '10:00', 'ingesta.watch_companies' => ['SGX', 'SDC']]);
 
     $this->actingAs(ingestaAnalyst())->get('/ingesta')->assertOk()->assertDontSeeText('Falta la cartera de hoy');
 
@@ -213,8 +213,8 @@ it('follows the configured deadline and companies', function () {
         ->assertSeeText('Cartera vigente de Soluciones y Derivados');
 });
 
-it('ships SGX as the only alert company', function () {
-    expect(config('ingesta.alert_companies'))->toBe(['SGX']);
+it('ships SGX as the only watched company', function () {
+    expect(config('ingesta.watch_companies'))->toBe(['SGX']);
 });
 
 it('shows the details and totals of an accepted cartera load', function () {
@@ -258,7 +258,7 @@ it('lists the errors of a rejected load', function () {
 });
 
 it('limits the history to the companies the user may see', function () {
-    config(['ingesta.alert_companies' => ['SGX', 'SDC']]);
+    config(['ingesta.watch_companies' => ['SGX', 'SDC']]);
     $this->app->instance(CurrentCompany::class, new FakeCurrentCompany(CompanyCode::SGX, [CompanyCode::SGX]));
     $user = ingestaAnalyst();
     $sgx = IngestaLoads::accepted(['batch_id' => 'cartera-sgx']);
