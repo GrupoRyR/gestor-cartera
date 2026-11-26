@@ -6,13 +6,14 @@ use App\Modules\Cobro\Domain\Runs\ItemStatus;
 use App\Modules\Cobro\Domain\Runs\RunKind;
 use App\Modules\Cobro\Infrastructure\Persistence\Run;
 use App\Modules\Cobro\Infrastructure\Persistence\RunItem;
+use App\Modules\Cobro\Infrastructure\Reports\ItemReplies;
 use App\Modules\Cobro\Providers\CobroServiceProvider;
 use App\Modules\Core\Contracts\Data\MailRunResults;
 use App\Modules\Core\Contracts\Enums\CompanyCode;
 use App\Modules\Core\Contracts\Enums\MailRunKind;
 use App\Modules\Core\Contracts\MailRunResultsProvider;
 use Carbon\CarbonImmutable;
-use Illuminate\Database\Query\Builder as QueryBuilder;
+use Illuminate\Database\Eloquent\Builder;
 use InvalidArgumentException;
 
 /**
@@ -65,26 +66,9 @@ final class DatabaseMailRunResults implements MailRunResultsProvider
             ->map(fn (mixed $total): int => (int) $total)
             ->all();
 
-        // An item normally links its send through sent_message_id;
-        // SendRunItem fills it after marking the item sent, so when that
-        // update failed only the Message-ID is left (MarkItemBounced falls
-        // back the same way).
         $replies = RunItem::query()
             ->whereIn('run_id', $runIds)
-            ->whereIn('status', [ItemStatus::Sent, ItemStatus::Bounced])
-            ->whereExists(fn (QueryBuilder $inbound) => $inbound
-                ->selectRaw('1')
-                ->from('cobro_inbound_messages')
-                ->where('cobro_inbound_messages.is_bounce', false)
-                ->where(fn (QueryBuilder $link) => $link
-                    ->whereColumn('cobro_inbound_messages.sent_message_id', 'cobro_run_items.sent_message_id')
-                    ->orWhere(fn (QueryBuilder $byMessageId) => $byMessageId
-                        ->whereNull('cobro_run_items.sent_message_id')
-                        ->whereNotNull('cobro_run_items.internet_message_id')
-                        ->whereIn('cobro_inbound_messages.sent_message_id', fn (QueryBuilder $sends) => $sends
-                            ->select('cobro_sent_messages.id')
-                            ->from('cobro_sent_messages')
-                            ->whereColumn('cobro_sent_messages.internet_message_id', 'cobro_run_items.internet_message_id')))))
+            ->tap(fn (Builder $items) => ItemReplies::whereReplied($items))
             ->count();
 
         $bounced = $counts[ItemStatus::Bounced->value] ?? 0;
