@@ -13,9 +13,10 @@
  *   clean number, in POST and GET forms alike; the field itself keeps
  *   showing the formatted figure.
  *
- * The value printed by the server is always clean (digits and an optional
- * dot); a value the browser restored (back button, autofill) is read as
- * typed text instead.
+ * The value printed by the server is clean (digits and an optional dot with
+ * one or two decimals); anything else, like old input typed without the
+ * script ("1.500") or a value the browser restored (back button, autofill),
+ * is read as typed text instead.
  */
 
 const SELECTOR = 'input[data-money-input]';
@@ -31,9 +32,15 @@ function partsOfTyped(text, decimals) {
     return { integer, fraction, hasComma };
 }
 
-/** Digits and the decimal part of a clean value (1234567.5). */
+/**
+ * Digits and the decimal part of a clean value (1234567.5). A value is clean
+ * only when its dot has at most two digits after it, as the server prints
+ * them; "1.500" is old input typed without the script (thousands), so it is
+ * read as typed text. Two digits, not $decimals: a clean "1500000.50" in a
+ * whole-peso field keeps its pesos and drops the cents.
+ */
 function partsOfClean(text, decimals) {
-    const match = /^(\d*)(?:\.(\d*))?$/.exec(String(text).trim());
+    const match = /^(\d*)(?:\.(\d{0,2}))?$/.exec(String(text).trim());
 
     if (match === null) {
         return partsOfTyped(text, decimals);
