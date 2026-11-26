@@ -4,6 +4,7 @@
  */
 import Alpine from 'alpinejs';
 import focus from '@alpinejs/focus';
+import { startMoneyInputs } from './money-input';
 
 Alpine.plugin(focus);
 window.Alpine = Alpine;
@@ -74,6 +75,9 @@ document.addEventListener('click', (event) => {
 
 // <x-ui.modal :open="true"> renders data-modal-autoopen (e.g. after a validation error).
 document.querySelectorAll('dialog[data-modal-autoopen]').forEach((dialog) => dialog.showModal());
+
+// <x-ui.money-input>: thousands separator while typing, clean number on submit.
+startMoneyInputs();
 
 // PWA (A.6): the service worker caches static files and the offline page
 // only, never portfolio data. Browsers allow it on HTTPS and localhost.
