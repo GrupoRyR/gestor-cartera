@@ -28,7 +28,7 @@ return [
     'ver_de' => 'del :fecha',
     'vacio' => [
         'titulo' => 'Aún no hay envíos',
-        'detalle' => 'Aquí verás el resultado de cada cobro semanal después del miércoles.',
+        'detalle' => 'Aquí verás el resultado de cada cobro semanal después de cada envío, los martes y los viernes.',
     ],
 
     'detalle' => [

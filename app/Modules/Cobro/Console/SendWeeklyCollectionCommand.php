@@ -11,8 +11,8 @@ use Carbon\CarbonImmutable;
 /**
  * cobro:cobro-semanal: starts the weekly collection of overdue invoices
  * (4.1) for each company of config cobro.weekly.companies. The slot is
- * today at cobro.weekly.time (Bogotá), so the scheduled Wednesday run and
- * any manual run of the same day are the same run.
+ * today at cobro.weekly.time (Bogotá), so the scheduled Tuesday or Friday
+ * run and any manual run of the same day are the same run.
  */
 final class SendWeeklyCollectionCommand extends StartRunCommand
 {

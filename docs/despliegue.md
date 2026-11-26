@@ -301,7 +301,7 @@ En el PC con la VPN Sophos, desde la raíz del repositorio (`etl/README.md`):
 
 ## 15. Riesgos abiertos
 
-- **Envíos reales automáticos.** Con el cron activo y la cartera cargada, el cobro semanal sale a los clientes **los miércoles a las 5:00 p. m.** y la circularización **el día 1 a las 9:00 a. m.** No hay un interruptor en `.env`. Antes del primer miércoles, revisa las plantillas y las copias, y acuerda que el portal anterior deje de enviar los mismos correos, para que nadie los reciba dos veces. Mientras el lote `contactos` no esté activo, los clientes salen «Sin correo» y no reciben nada; al activarlo (paso 16), los envíos empiezan a llegar a los clientes.
+- **Envíos reales automáticos.** Con el cron activo y la cartera cargada, el cobro semanal sale a los clientes **los martes y viernes a las 5:00 p. m.** y la circularización **el 5.º día hábil de cada mes a las 9:00 a. m.** No hay un interruptor en `.env`. Antes del primer martes o viernes, revisa las plantillas y las copias, y acuerda que el portal anterior deje de enviar los mismos correos, para que nadie los reciba dos veces. Mientras el lote `contactos` no esté activo, los clientes salen «Sin correo» y no reciben nada; al activarlo (paso 16), los envíos empiezan a llegar a los clientes.
 - **Cambio de estados sin vuelta atrás.** La migración `2026_10_01_000015` no se deshace con `migrate:rollback`; el plan es la copia de la base (paso 16).
 - **Proxy (S-28)** sin confirmar hasta hacer el paso 11.
 - **Secretos con vencimiento.** Los secretos de cliente de los dos registros de Entra ID vencen: renuévalos antes y luego corre un despliegue (o `php artisan optimize`).

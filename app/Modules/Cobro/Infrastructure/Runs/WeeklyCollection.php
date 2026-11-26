@@ -23,10 +23,10 @@ use App\Modules\Core\Contracts\Enums\CompanyCode;
 use Carbon\CarbonImmutable;
 
 /**
- * 4.1: every Wednesday at 17:00 (config cobro.weekly), each client with
- * overdue invoices (daysOverdue > 0 in the latest snapshot) gets the
- * statement of its open invoices, the overdue ones highlighted, with the
- * company's editable template. The run's amount and invoice count are the
+ * 4.1: every Tuesday and Friday at 17:00 (config cobro.weekly), each
+ * client with overdue invoices (daysOverdue > 0 in the latest snapshot)
+ * gets the statement of its open invoices, the overdue ones highlighted,
+ * with the company's editable template. The run's amount and invoice count are the
  * overdue ones. The mail copies (Cc) the company's CopyStore recipients;
  * a test send copies nobody.
  *
@@ -63,7 +63,7 @@ final class WeeklyCollection implements RunDefinition
     {
         return RunCalendar::nextWeekly(
             $now->setTimezone(CobroServiceProvider::TIMEZONE),
-            (int) config('cobro.weekly.day', 3),
+            array_map('intval', (array) config('cobro.weekly.days', [2, 5])),
             (string) config('cobro.weekly.time', '17:00'),
         );
     }

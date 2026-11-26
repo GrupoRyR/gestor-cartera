@@ -8,7 +8,7 @@ namespace App\Modules\Cobro\Domain\Runs;
  */
 enum RunKind: string
 {
-    // 4.1: overdue invoices, every Wednesday.
+    // 4.1: overdue invoices, every Tuesday and Friday.
     case Weekly = 'cobro_semanal';
 
     // 4.2: the portfolio statement at month close.

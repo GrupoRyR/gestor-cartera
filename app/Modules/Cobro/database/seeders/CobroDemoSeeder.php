@@ -66,8 +66,10 @@ final class CobroDemoSeeder extends Seeder
             $this->exclude($company, $clients, $today);
 
             if (in_array($company->value, (array) config('cobro.weekly.companies'), true)) {
-                for ($back = self::WEEKLY_RUNS; $back >= 1; $back--) {
-                    $scheduledFor = $today->subWeeks($back - 1)->previous(CarbonImmutable::WEDNESDAY)->setTime(17, 0);
+                $slots = self::weeklySlots($today);
+
+                for ($back = count($slots); $back >= 1; $back--) {
+                    $scheduledFor = $slots[$back - 1];
                     $owing = array_values(array_filter($clients, fn (ClientSummary $client): bool => $client->overdue > 0));
                     $this->deliver($company, RunKind::Weekly, $scheduledFor, $owing, $emails, $back);
                 }
@@ -81,6 +83,31 @@ final class CobroDemoSeeder extends Seeder
                 }
             }
         }
+    }
+
+    /**
+     * The last WEEKLY_RUNS scheduled weekly days (cobro.weekly.days) before
+     * $today, at cobro.weekly.time, the latest first; each on its own day,
+     * so every run has its own slot.
+     *
+     * @return list<CarbonImmutable>
+     */
+    private static function weeklySlots(CarbonImmutable $today): array
+    {
+        $days = array_map('intval', (array) config('cobro.weekly.days', [2, 5]));
+        [$hour, $minute] = array_map('intval', explode(':', (string) config('cobro.weekly.time', '17:00')));
+        $slots = [];
+
+        // A week back per run is enough for any non-empty list of days.
+        for ($back = 1; $back <= 7 * self::WEEKLY_RUNS && count($slots) < self::WEEKLY_RUNS; $back++) {
+            $day = $today->subDays($back);
+
+            if (in_array($day->dayOfWeek, $days, true)) {
+                $slots[] = $day->setTime($hour, $minute);
+            }
+        }
+
+        return $slots;
     }
 
     /**
