@@ -16,6 +16,8 @@ final class CobroPermissionSeeder extends PermissionSeeder
      * - cobro.manage: the exclusion list, the mail templates and the test
      *   sends.
      * - cobro.replies: the client replies inbox (read and mark messages).
+     * - cobro.export: the Excel download of the collection report, for the
+     *   same roles as cobro.view.
      *
      * @return array<string, list<string|\BackedEnum>>
      */
@@ -23,6 +25,7 @@ final class CobroPermissionSeeder extends PermissionSeeder
     {
         return [
             'cobro.view' => [Role::Admin, Role::PortfolioManager, Role::PortfolioAnalyst],
+            'cobro.export' => [Role::Admin, Role::PortfolioManager, Role::PortfolioAnalyst],
             'cobro.manage' => [Role::PortfolioManager, Role::PortfolioAnalyst],
             'cobro.replies' => [Role::PortfolioManager, Role::PortfolioAnalyst],
         ];

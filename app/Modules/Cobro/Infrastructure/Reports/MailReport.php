@@ -7,6 +7,7 @@ use App\Modules\Cobro\Application\Reports\MailReportMetrics;
 use App\Modules\Cobro\Application\Reports\ReportNumbers;
 use App\Modules\Cobro\Domain\Runs\ItemStatus;
 use App\Modules\Cobro\Infrastructure\Mail\ReplySender;
+use App\Modules\Cobro\Infrastructure\Persistence\Run;
 use App\Modules\Cobro\Infrastructure\Persistence\RunItem;
 use App\Modules\Cobro\Infrastructure\Persistence\SentMessage;
 use App\Modules\Cobro\Providers\CobroServiceProvider;
@@ -23,7 +24,9 @@ use Illuminate\Database\Eloquent\Builder;
  * their figures. Cobro does not keep the client's advisor, so it asks
  * Core's CarteraRepository: for the advisor filter, the advisor's clients
  * of that company, once per instance (one request) however many queries
- * use them; for the advisor column, each client of the page.
+ * use them; for the advisor column, each client of the page (at most a
+ * page of keyed reads, cheaper than a pass over every client) or, in the
+ * export, every client of each company in one pass.
  */
 final class MailReport
 {
@@ -58,6 +61,36 @@ final class MailReport
             ->orderByDesc('cobro_run_items.id')
             ->paginate($perPage)
             ->withQueryString();
+    }
+
+    /**
+     * Every item of the filter, for the export: run by run, newest first,
+     * and inside a run newest item first, read $chunk items at a time (by
+     * id, not by offset) so memory stays flat however many there are. Each
+     * item carries its run and first_reply_at, as in items().
+     *
+     * @return iterable<int, RunItem>
+     */
+    public function allItems(MailReportFilter $filter, int $chunk = 500): iterable
+    {
+        $runs = Run::query()
+            ->whereIn('id', $this->matching($filter)->select('cobro_run_items.run_id'))
+            ->orderByDesc('scheduled_for')
+            ->orderByDesc('id')
+            ->get();
+
+        foreach ($runs as $run) {
+            $items = $this->matching($filter)
+                ->where('cobro_run_items.run_id', $run->id)
+                ->select('cobro_run_items.*')
+                ->selectSub(ItemReplies::firstReceivedAt(), 'first_reply_at')
+                ->withCasts(['first_reply_at' => 'immutable_datetime'])
+                ->lazyByIdDesc($chunk, 'cobro_run_items.id', 'id');
+
+            foreach ($items as $item) {
+                yield $item->setRelation('run', $run);
+            }
+        }
     }
 
     public function metrics(MailReportFilter $filter): MailReportMetrics
@@ -124,6 +157,30 @@ final class MailReport
         }
 
         return array_filter($names, fn (?string $name): bool => $name !== null);
+    }
+
+    /**
+     * The current advisor's name of every client of the filter's companies
+     * (client id => name), with one pass over the clients of each company:
+     * for the export, where asking client by client would take a call per
+     * row. With the advisor filter, only the clients of its company.
+     *
+     * @return array<int, string>
+     */
+    public function advisorNamesByClient(MailReportFilter $filter): array
+    {
+        $companies = $filter->advisorCompany !== null && $filter->advisorCode !== null ? [$filter->advisorCompany] : $filter->companies;
+        $names = [];
+
+        foreach ($companies as $company) {
+            foreach ($this->cartera->allClients(new ClientQuery(companies: [$company])) as $client) {
+                if ($client->advisor !== null) {
+                    $names[$client->id] = $client->advisor->name;
+                }
+            }
+        }
+
+        return $names;
     }
 
     /**

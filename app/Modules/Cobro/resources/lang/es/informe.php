@@ -65,4 +65,26 @@ return [
         'detalle' => 'Cambia las fechas o quita algún filtro.',
     ],
 
+    'exportar' => [
+        'boton' => 'Descargar Excel',
+        'archivo' => 'informe-cobro-:desde-a-:hasta',
+        'hoja' => 'Informe de cobro',
+        'columnas' => [
+            'fecha' => 'Fecha del envío',
+            'empresa' => 'Empresa',
+            'tipo' => 'Envío',
+            'codigo' => 'Código del cliente',
+            'cliente' => 'Cliente',
+            'nit' => 'NIT',
+            'asesor' => 'Asesor',
+            'estado' => 'Resultado',
+            'monto' => 'Valor',
+            'facturas' => 'Facturas',
+            'enviado' => 'Enviado',
+            'respuesta' => 'Primera respuesta',
+            'horas' => 'Horas hasta la primera respuesta',
+            'detalle' => 'Detalle',
+        ],
+    ],
+
 ];
