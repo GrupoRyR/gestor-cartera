@@ -11,6 +11,7 @@ use App\Support\Navigation\NavRegistry;
 use Carbon\CarbonImmutable;
 use Tests\Fakes\ContractFakes;
 use Tests\Fakes\FakeCurrentCompany;
+use Tests\Feature\Design\Support\Html;
 use Tests\Modules\Bancos\Support\BancosUsers;
 
 beforeEach(function () {
@@ -188,6 +189,21 @@ describe('filters', function () {
         expect(bancosListed('valor_min=500000'))->toBe(['CCC', 'BBB'])
             ->and(bancosListed('valor_max=500000'))->toBe(['BBB', 'AAA'])
             ->and(bancosListed('valor_min=500000&valor_max=500000'))->toBe(['BBB']);
+    });
+
+    it('takes the amounts in money inputs with cents, prefilled clean', function () {
+        $html = $this->actingAs($this->analyst)->get('/bancos/movimientos/bogota?valor_min=1500000.5&valor_max=2000000')->assertOk()->getContent() ?: '';
+        $page = Html::parse($html);
+
+        foreach (['valor_min' => '1500000.5', 'valor_max' => '2000000'] as $name => $value) {
+            $field = $page->one('//input[@name="'.$name.'"]');
+
+            expect($field->getAttribute('type'))->toBe('text')
+                ->and($field->hasAttribute('data-money-input'))->toBeTrue()
+                ->and($field->getAttribute('data-decimals'))->toBe('2')
+                ->and($field->getAttribute('inputmode'))->toBe('decimal')
+                ->and($field->getAttribute('value'))->toBe($value);
+        }
     });
 
     it('narrows by status', function (string $status, array $expected) {
