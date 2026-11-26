@@ -1,11 +1,12 @@
 {{--
     GET /soportes/nuevo?cliente={id} (soportes.create), step 2: the upload
     form for one client. $client: ClientSummary; $documents: the client's
-    overdue invoices grouped by document number (list of non-empty lists of
-    Invoice, oldest due date first; more than one when the document has
-    split payment terms); $methods: PaymentMethod value => label; $today:
-    "Y-m-d", the latest payment date. Posts to soportes.store, which comes
-    back here with the errors and the input when something is wrong.
+    open invoices, overdue or not, grouped by document number (list of
+    non-empty lists of Invoice, oldest due date first; more than one when
+    the document has split payment terms); $methods: PaymentMethod value =>
+    label; $today: "Y-m-d", the latest payment date. Posts to
+    soportes.store, which comes back here with the errors and the input
+    when something is wrong.
 --}}
 @php
     $columns = [
@@ -61,7 +62,7 @@
                                 </td>
                                 <td>{{ $first->documentType }}</td>
                                 <td><x-ui.date :value="$first->dueAt" /></td>
-                                <td data-align="end">{{ number_format($first->daysOverdue, 0, ',', '.') }}</td>
+                                <td data-align="end">{{ $first->daysOverdue > 0 ? number_format($first->daysOverdue, 0, ',', '.') : __('soportes::carga.al_dia') }}</td>
                                 <td data-align="end"><x-ui.money :value="array_sum(array_map(fn ($invoice) => $invoice->balance, $installments))" /></td>
                             </tr>
                         @endforeach

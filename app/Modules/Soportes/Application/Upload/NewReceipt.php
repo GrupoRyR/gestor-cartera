@@ -16,7 +16,7 @@ final readonly class NewReceipt
 {
     /**
      * @param  int  $clientId  Core's client id (ClientSummary::$id).
-     * @param  list<string>  $documentNumbers  SAP document numbers of the overdue invoices the payment covers.
+     * @param  list<string>  $documentNumbers  SAP document numbers of the open invoices the payment covers.
      * @param  string  $amount  Amount paid in Colombian pesos: digits with up to two decimals, above zero.
      * @param  CarbonImmutable  $paidAt  Day the client paid.
      * @param  list<UploadedFile>  $files  One or more PDF, JPG or PNG files.

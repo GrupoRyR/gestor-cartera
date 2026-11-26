@@ -13,7 +13,7 @@ use Illuminate\Validation\ValidationException;
 use UnexpectedValueException;
 
 /**
- * POST /soportes: the client, the overdue invoices the payment covers (by
+ * POST /soportes: the client, the open invoices the payment covers (by
  * document number), the amount in pesos, the payment date (not after
  * today), the optional method and note, and 1 to 3 files, each a PDF, JPG
  * or PNG by name and by content (sniffed from the bytes), up to the size in
