@@ -27,6 +27,10 @@ class VpnError(RuntimeError):
     """No se pudo establecer o verificar el tunel VPN."""
 
 
+class VpnCredenciales(VpnError):
+    """Sophos rechazo el usuario o la contrasena: no se reintenta."""
+
+
 class RobotVPN:
     def __init__(self, cfg: VpnConfig) -> None:
         self.cfg = cfg
@@ -110,7 +114,7 @@ class RobotVPN:
                         intento, ultimo_error)
 
             if self._credenciales_rechazadas(salida):
-                raise VpnError(
+                raise VpnCredenciales(
                     "La VPN rechazo el usuario o la contrasena. Corrige "
                     "SOPHOS_USER / SOPHOS_PASSWORD en el archivo .env. "
                     "(No se reintenta para no bloquear la cuenta.)"
@@ -126,6 +130,16 @@ class RobotVPN:
             f"No se pudo conectar la VPN tras {intentos} intentos. "
             f"Ultimo detalle: {ultimo_error}"
         )
+
+    def reconectar(self) -> None:
+        """Antes de reintentar una corrida: baja el tunel si lo abrimos nosotros
+        y lo vuelve a levantar. Uno ajeno (el robot de cuentas por pagar
+        comparte la VPN) no se toca: si esta arriba se reutiliza."""
+        log.info("Reconectando la VPN '%s' antes de reintentar...", self.cfg.conexion)
+        if self._la_conectamos_nosotros:
+            self._sccli("disable", "-n", self.cfg.conexion)
+            self._la_conectamos_nosotros = False
+        self.conectar()
 
     @staticmethod
     def _credenciales_rechazadas(salida: str) -> bool:

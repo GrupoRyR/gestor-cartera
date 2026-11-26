@@ -35,6 +35,10 @@ class HanaSinRuta(HanaError):
     """El puerto de HANA no respondio en la espera: la VPN no enruta (aun)."""
 
 
+class HanaSinDriver(HanaError):
+    """No esta instalado hdbcli: es de configuracion del PC, no se reintenta."""
+
+
 class HanaCredenciales(HanaError):
     """HANA rechazo el usuario o la contrasena."""
 
@@ -116,7 +120,7 @@ def conectar(cfg: HanaConfig, intentos: int = 3) -> Iterator[Any]:
     try:
         from hdbcli import dbapi
     except ImportError as exc:
-        raise HanaError(
+        raise HanaSinDriver(
             "Falta el driver de SAP HANA. Instalalo con:\n"
             "    pip install -r etl/requirements.txt"
         ) from exc
