@@ -8,6 +8,7 @@ use App\Support\Formatting\Money;
 use Carbon\CarbonImmutable;
 use Tests\Fakes\ContractFakes;
 use Tests\Fakes\Make;
+use Tests\Feature\Design\Support\Html;
 use Tests\Modules\Cartera\Support\CarteraUsers;
 use Tests\Modules\Cartera\Support\CarteraWorld;
 
@@ -254,6 +255,23 @@ describe('the client file', function () {
             ->and($html)->not->toContain('action="'.route('cartera.compromisos.incumplir', $broken->id).'"')
             ->and($html)->toContain('data-modal-open="compromiso-'.$broken->id.'-anular"')
             ->and($html)->not->toContain('data-modal-open="compromiso-'.$broken->id.'-editar"');
+    });
+
+    it('takes the new and the edited value in whole-peso money inputs, prefilled clean', function () {
+        $commitment = sdcCommitment(amount: 1_234_567.0);
+
+        $html = $this->actingAs(CarteraUsers::analyst())->get($this->file.'?nuevo-compromiso=1&valor=1500000')->assertOk()->getContent() ?: '';
+        $page = Html::parse($html);
+
+        foreach (['compromiso[valor]' => '1500000', "edicion_{$commitment->id}[valor]" => '1234567'] as $name => $value) {
+            $field = $page->one('//input[@name="'.$name.'"]');
+
+            expect($field->getAttribute('type'))->toBe('text')
+                ->and($field->hasAttribute('data-money-input'))->toBeTrue()
+                ->and($field->getAttribute('data-decimals'))->toBe('0')
+                ->and($field->getAttribute('inputmode'))->toBe('numeric')
+                ->and($field->getAttribute('value'))->toBe($value);
+        }
     });
 
     it('offers no actions on a commitment that is closed', function () {
