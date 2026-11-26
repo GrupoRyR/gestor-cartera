@@ -10,7 +10,7 @@ import sys
 import unittest
 import uuid
 from contextlib import ExitStack, contextmanager
-from datetime import date, datetime, timedelta
+from datetime import date, datetime, timedelta, timezone
 from decimal import Decimal
 from pathlib import Path
 from unittest import mock
@@ -21,10 +21,14 @@ import notificar
 import registro
 import reporte
 import run_etl
-from config import AlertaConfig, Config, EmpresaConfig, HanaConfig, IngestaConfig, VpnConfig
+from config import (
+    AlertaConfig, Config, EmpresaConfig, HanaConfig, IngestaConfig, ReintentoConfig, VpnConfig,
+)
 from esquema import ENTERO, FECHA, NUMERO, TASA, Columna, Lote
 from sinks import csv_sink, http_sink, postgres_sink
-from vpn import VpnError
+from vpn import VpnCredenciales, VpnError
+
+BOGOTA = timezone(timedelta(hours=-5))
 
 MUESTRA = {
     esquema.TEXTO: "x",
@@ -50,8 +54,22 @@ def _resultado(nombre: str, filas: int = 2):
 class Escenario:
     def __init__(self, resultados, lotes, *, laravel=True, supabase=False,
                  fallos_laravel=(), argv=(), empresa="SGX", empresas=None,
-                 vpn_falla=False, conexion_falla=(), reporte_falla=False):
+                 vpn_falla=False, conexion_falla=(), reporte_falla=False,
+                 vpn_fallas=0, vpn_error=None, sin_ruta=None, reintentos=0,
+                 inicio=datetime(2026, 10, 16, 0, 0, tzinfo=BOGOTA),
+                 minutos_por_intento=0, laravel_caido=None):
         self.vpn_falla = vpn_falla
+        # {lote: n}: Laravel no responde a sus primeras n publicaciones.
+        self.laravel_caido = dict(laravel_caido or {})
+        # Las primeras vpn_fallas conexiones fallan con vpn_error (o VpnError).
+        self.vpn_fallas = vpn_fallas
+        self.vpn_error = vpn_error
+        # {esquema: n}: sus primeras n conexiones a HANA no tienen ruta.
+        self.sin_ruta = dict(sin_ruta or {})
+        # Reloj falso: cada intento dura minutos_por_intento; dormir lo adelanta.
+        self.ahora = inicio
+        self.minutos_por_intento = minutos_por_intento
+        self.esperas: list[float] = []
         # Reportes de falla enviados a la app (reporte.enviar).
         self.reportes: list[dict] = []
         self.reporte_falla = reporte_falla
@@ -85,20 +103,34 @@ class Escenario:
             empresas=tuple(
                 EmpresaConfig(*e, f"usuario_{e[0]}", f"clave_{e[0]}") for e in empresas or ()
             ),
+            reintento=ReintentoConfig(reintentos, 10, 20),
         )
         self.argv = ["run_etl.py", *argv]
         self.hoy = lambda: date(2026, 10, 16)
 
     # -- dobles ------------------------------------------------------------
+    def _reloj(self):
+        return self.ahora.astimezone(timezone.utc)
+
+    def _dormir(self, segundos):
+        self.esperas.append(segundos)
+        self.ahora += timedelta(seconds=segundos)
+
     def _vpn(self, _cfg):
         eventos = self.eventos
-        falla = self.vpn_falla
+        escenario = self
 
         class VpnFalsa:
             def conectar(self):
-                if falla:
-                    raise VpnError("Sophos no conecto")
+                escenario.ahora += timedelta(minutes=escenario.minutos_por_intento)
+                if escenario.vpn_falla or escenario.vpn_fallas > 0:
+                    escenario.vpn_fallas -= 1
+                    raise escenario.vpn_error or VpnError("Sophos no conecto")
                 eventos.append("vpn:arriba")
+
+            def reconectar(self):
+                eventos.append("vpn:reconectar")
+                self.conectar()
 
             def desconectar(self):
                 eventos.append("vpn:abajo")
@@ -111,6 +143,9 @@ class Escenario:
         self.credenciales.append((cfg.usuario, cfg.password, cfg.esquema))
         if cfg.esquema in self.conexion_falla:
             raise hana.HanaError(f"HANA rechazo el usuario {cfg.usuario}")
+        if self.sin_ruta.get(cfg.esquema, 0) > 0:
+            self.sin_ruta[cfg.esquema] -= 1
+            raise hana.HanaSinRuta(f"No hay ruta hasta HANA ({cfg.esquema})")
         yield "conexion"
 
     def _leer_query(self, nombre, empresa):
@@ -129,6 +164,9 @@ class Escenario:
 
     def _publicar(self, _cfg, lote, empresa, corte, columnas, filas):
         self.eventos.append(f"laravel:{empresa}:{lote}" if self.multi else f"laravel:{lote}")
+        if self.laravel_caido.get(lote, 0) > 0:
+            self.laravel_caido[lote] -= 1
+            raise http_sink.HttpSinkError(f"Laravel no respondio al lote '{lote}'", None)
         if lote in self.fallos_laravel or (empresa, lote) in self.fallos_laravel:
             raise http_sink.HttpSinkError(f"Laravel rechazo el lote '{lote}'", 422)
         assert (self.multi or empresa == self.empresa) and corte == date(2026, 10, 16)
@@ -173,7 +211,7 @@ class Escenario:
             parche(postgres_sink, "registrar_historico", lambda _pg: 0)
             parche(postgres_sink, "registrar_run", lambda *_, **__: None)
             pila.enter_context(mock.patch.dict(esquema.LOTES, {"prueba": LOTE_PRUEBA}))
-            return run_etl.main()
+            return run_etl.main(dormir=self._dormir, reloj=self._reloj)
 
 
 class RunEtlTest(unittest.TestCase):
@@ -626,6 +664,135 @@ class ReporteDeFallasTest(unittest.TestCase):
                               argv=["--diagnostico"])
         self.assertEqual(escenario.ejecutar(), 1)
         self.assertEqual(escenario.reportes, [])
+
+
+class ReintentosTest(unittest.TestCase):
+    """Reintentos dentro del robot: el Programador de tareas no relanza un codigo 1."""
+    BASE = {"cartera": _resultado("cartera"), "asesores": _resultado("asesores")}
+
+    def _escenario(self, **opciones):
+        return Escenario(self.BASE, ["cartera", "asesores"], reintentos=2, **opciones)
+
+    def _intentos(self, escenario):
+        return [(d["attempt"], d["max_attempts"], d["final"]) for d in escenario.reportes]
+
+    def test_una_falla_de_vpn_pasajera_se_reintenta_y_termina_bien(self):
+        escenario = self._escenario(vpn_fallas=1)
+        self.assertEqual(escenario.ejecutar(), 0)
+        self.assertEqual(escenario.eventos.count("vpn:reconectar"), 1)
+        self.assertEqual(escenario.esperas, [600])
+        self.assertIn("laravel:cartera", escenario.eventos)
+        self.assertEqual(self._intentos(escenario), [(1, 3, False)])
+        self.assertEqual(escenario.avisos, [])
+        self.assertEqual([e["estado"] for e in escenario.estados], ["OK"])
+
+    def test_si_falla_en_cada_intento_reporta_cada_uno_y_avisa_una_vez(self):
+        escenario = self._escenario(vpn_falla=True)
+        self.assertEqual(escenario.ejecutar(), 1)
+        self.assertEqual(self._intentos(escenario),
+                         [(1, 3, False), (2, 3, False), (3, 3, True)])
+        self.assertEqual(escenario.eventos.count("vpn:reconectar"), 2)
+        self.assertEqual(escenario.esperas, [600, 600])
+        self.assertEqual(len({d["run_id"] for d in escenario.reportes}), 1)
+        self.assertEqual(len({d["report_id"] for d in escenario.reportes}), 3)
+        self.assertEqual(len(escenario.avisos), 1)
+        self.assertEqual([e["etapa"] for e in escenario.estados], ["VPN"])
+
+    def test_no_empieza_un_reintento_despues_del_tope(self):
+        # Franja 05:00, tope 05:20: el intento 1 falla a las 05:08 y el 2 empieza
+        # a las 05:18; el 3 empezaria despues de las 05:28 y ya no se intenta.
+        escenario = self._escenario(
+            vpn_falla=True, minutos_por_intento=3,
+            inicio=datetime(2026, 10, 16, 5, 5, tzinfo=BOGOTA),
+        )
+        self.assertEqual(escenario.ejecutar(), 1)
+        self.assertEqual(self._intentos(escenario), [(1, 2, False), (2, 2, True)])
+        self.assertEqual(escenario.esperas, [600])
+        self.assertEqual(escenario.reportes[0]["slot"], "2026-10-16T05:00:00-05:00")
+        self.assertEqual(len(escenario.avisos), 1)
+
+    def test_una_falla_que_no_es_pasajera_no_se_reintenta(self):
+        casos = {
+            "credenciales": {"vpn_error": VpnCredenciales("rechazo"), "vpn_falla": True},
+            "datos": {"conexion_falla": {"SEGUREX"}},
+        }
+        for causa, opciones in casos.items():
+            with self.subTest(causa=causa):
+                escenario = self._escenario(**opciones)
+                self.assertEqual(escenario.ejecutar(), 1)
+                self.assertEqual(self._intentos(escenario), [(1, 1, True)])
+                self.assertEqual(escenario.reportes[0]["cause"], causa)
+                self.assertEqual(escenario.esperas, [])
+                self.assertNotIn("vpn:reconectar", escenario.eventos)
+                self.assertEqual(len(escenario.avisos), 1)
+
+    def test_un_lote_de_mejor_esfuerzo_no_impide_reintentar_la_cartera(self):
+        escenario = Escenario(
+            {**self.BASE, "prueba": hana.HanaError("invalid column name")},
+            ["cartera", "asesores", "prueba"], reintentos=2,
+            laravel_caido={"cartera": 1},
+        )
+        self.assertEqual(escenario.ejecutar(), 1)  # prueba sigue fallando
+        self.assertEqual(escenario.eventos.count("laravel:cartera"), 2)
+        self.assertEqual(escenario.esperas, [600])
+        self.assertEqual(self._intentos(escenario), [(1, 3, False)])
+        self.assertEqual(escenario.reportes[0]["cause"], "red")
+        (aviso,) = escenario.avisos
+        self.assertEqual(aviso[0], "HANA (prueba)")
+
+    def test_si_solo_falla_un_lote_de_mejor_esfuerzo_no_se_reintenta(self):
+        escenario = Escenario(
+            {**self.BASE, "prueba": hana.HanaSinRuta("se cayo la ruta")},
+            ["cartera", "asesores", "prueba"], reintentos=2,
+        )
+        self.assertEqual(escenario.ejecutar(), 1)
+        self.assertEqual(escenario.esperas, [])
+        self.assertEqual(escenario.reportes, [])
+        self.assertNotIn("vpn:reconectar", escenario.eventos)
+        self.assertEqual(len(escenario.avisos), 1)
+
+    def test_el_aborto_de_una_empresa_que_no_es_pasajero_no_se_reintenta(self):
+        escenario = Escenario(
+            _base("SGX", "SDC"), ["cartera", "asesores"], empresas=DOS_EMPRESAS,
+            reintentos=2, conexion_falla={"HBT_SDERIVADOS"},
+        )
+        self.assertEqual(escenario.ejecutar(), 1)
+        self.assertEqual(escenario.esperas, [])
+        (datos,) = escenario.reportes
+        self.assertEqual((datos["company"], datos["cause"], datos["attempt"],
+                          datos["max_attempts"], datos["final"]),
+                         ("SDC", "datos", 1, 1, True))
+
+    def test_solo_se_reintenta_la_empresa_que_fallo(self):
+        escenario = Escenario(
+            _base("SGX", "SDC"), ["cartera", "asesores"], empresas=DOS_EMPRESAS,
+            reintentos=2, sin_ruta={"HBT_SDERIVADOS": 1},
+        )
+        self.assertEqual(escenario.ejecutar(), 0)
+        self.assertEqual(escenario.esquemas_conectados,
+                         ["SEGUREX", "HBT_SDERIVADOS", "HBT_SDERIVADOS"])
+        self.assertEqual(escenario.eventos.count("laravel:SGX:cartera"), 1)
+        self.assertEqual(escenario.eventos.count("laravel:SDC:cartera"), 1)
+        (datos,) = escenario.reportes
+        self.assertEqual((datos["company"], datos["cause"], datos["final"]),
+                         ("SDC", "ruta_hana", False))
+        estado = escenario.estados[-1]
+        self.assertEqual(estado["estado"], "OK")
+        self.assertEqual(set(estado["empresas"]), {"SGX", "SDC"})
+
+    def test_sin_reintentos_se_porta_como_antes(self):
+        escenario = Escenario(self.BASE, ["cartera", "asesores"], vpn_falla=True,
+                              reintentos=0)
+        self.assertEqual(escenario.ejecutar(), 1)
+        self.assertEqual(self._intentos(escenario), [(1, 1, True)])
+        self.assertEqual(escenario.esperas, [])
+        self.assertEqual(len(escenario.avisos), 1)
+
+    def test_el_diagnostico_no_reintenta(self):
+        escenario = self._escenario(vpn_falla=True, argv=["--diagnostico"])
+        self.assertEqual(escenario.ejecutar(), 1)
+        self.assertEqual(escenario.esperas, [])
+        self.assertNotIn("vpn:reconectar", escenario.eventos)
 
 
 class FechaDeCorteTest(unittest.TestCase):

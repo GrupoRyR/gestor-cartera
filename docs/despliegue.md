@@ -273,6 +273,8 @@ En el PC con la VPN Sophos, desde la raíz del repositorio (`etl/README.md`):
   powershell -ExecutionPolicy Bypass -File scripts\instalar_tarea.ps1
   ```
 
+Si una corrida falla por una causa pasajera (VPN, ruta a HANA o red), el robot la reintenta por su cuenta: hasta 3 intentos, cada 10 minutos, reconectando la VPN, y ninguno empieza más de 20 minutos después de la franja. Cada intento fallido se reporta a la app y solo el último la hace alertar. Aparte, si la carga no llega, el vigilante de la app avisa 30 minutos después de cada franja. Detalle en `etl/README.md` («Reintentos»).
+
 ## 14. Después del primer ingreso
 
 - [ ] **Primer administrador.** Una persona nueva entra sin rol, y la app no trae un comando para dar `admin`. Entra una vez con Microsoft y luego, en el servidor:
