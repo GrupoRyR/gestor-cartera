@@ -183,7 +183,7 @@ final class CobroServiceProvider extends ModuleServiceProvider
 
 ### 3.4 Los ocho módulos
 
-| Módulo | Clave | URL web | Nombres web | URL API | Nombres API | Vistas y textos | Configuración | Migraciones |
+| Módulo | Identificador | URL web | Nombres web | URL API | Nombres API | Vistas y textos | Configuración | Migraciones |
 |---|---|---|---|---|---|---|---|---|
 | Core | `core` | `/` (raíz) | `core.*` | `/api/core/*` | `core.api.*` | `core::` | `config('core.*')` | `2026_10_01_*` |
 | Ingesta | `ingesta` | `/ingesta/*` | `ingesta.*` | `/api/ingesta/*` | `ingesta.api.*` | `ingesta::` | `config('ingesta.*')` | `2026_10_02_*` |
