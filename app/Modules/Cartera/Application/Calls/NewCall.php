@@ -15,13 +15,13 @@ use InvalidArgumentException;
  */
 final readonly class NewCall
 {
-    public const int PHONE_MAX_LENGTH = 40;
+    public const int PHONE_MAX_LENGTH = 255;
 
     public const int CONTACT_MAX_LENGTH = 150;
 
     /**
      * @param  int  $clientId  Core's client id (ClientSummary::$id).
-     * @param  string  $phone  Number dialled or written to; up to 40 characters.
+     * @param  string  $phone  Number dialled or written to; up to 255 characters, like a contact phone in Core.
      * @param  string|null  $contactName  Who answered; blank means nobody in particular.
      * @param  CarbonImmutable|null  $followUpOn  Day to call again; required when the client asked for it.
      * @param  CarbonImmutable|null  $occurredAt  When the call happened; null = now.

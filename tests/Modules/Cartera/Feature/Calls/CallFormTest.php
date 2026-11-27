@@ -181,6 +181,19 @@ describe('posting a call', function () {
         expect($call->phone)->toBe('3109998877')->and($call->contact_name)->toBe('Pedro, el contador');
     });
 
+    it('takes a contact phone as long as SAP keeps it', function () {
+        // Core keeps a contact's phone in a string(255), and SAP often puts several numbers in it.
+        $phones = '6015550123 ext 104 - 3001234567 - 3109876543 (solo en horario de oficina)';
+        $client = Make::client(name: 'Distribuidora La 14');
+        $this->fakes->cartera->addClient(Make::clientDetail($client, contacts: [Make::contact(name: 'Tesorería', phone: $phones)]));
+
+        $this->actingAs(CarteraUsers::analyst())
+            ->post("/cartera/clientes/{$client->id}/llamadas", callForm(['numero' => $phones, 'persona' => 'Tesorería']))
+            ->assertSessionHasNoErrors();
+
+        expect(CallRecord::query()->sole()->phone)->toBe($phones);
+    });
+
     it('may go without a contact, and keeps the day to call back', function () {
         $this->actingAs(CarteraUsers::analyst())
             ->post($this->url, callForm(['persona' => '', 'resultado' => 'volver_a_llamar', 'seguimiento' => '2026-11-24', 'notas' => '']))
@@ -285,7 +298,7 @@ describe('a call that is refused', function () {
         'missing outcome' => [['resultado' => ''], 'resultado'],
         'unknown agreement' => [['acuerdo' => 'regalo'], 'acuerdo'],
         'no number at all' => [['numero' => '', 'telefono' => ''], 'telefono'],
-        'too long a number' => [['telefono' => str_repeat('1', 41)], 'telefono'],
+        'too long a number' => [['telefono' => str_repeat('1', 256)], 'telefono'],
         'too long a contact' => [['contacto' => str_repeat('a', 151)], 'contacto'],
         'not a date-time' => [['ocurrio' => 'ayer'], 'ocurrio'],
         'not a date' => [['seguimiento' => '24/11/2026'], 'seguimiento'],
