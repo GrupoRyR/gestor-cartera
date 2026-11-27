@@ -97,6 +97,19 @@ it('lets the analyst and the manager record a partial payment of a pending or br
         ->and($paid->remaining())->toBe(600000.0);
 })->with([Role::PortfolioAnalyst, Role::PortfolioManager])->with([CommitmentStatus::Pending, CommitmentStatus::Broken]);
 
+it('keeps the cents of the paid amount', function () {
+    $commitment = abonoCommitment();
+
+    $this->actingAs(CarteraUsers::analyst())
+        ->post("/cartera/compromisos/{$commitment->id}/abonar", ["abono_{$commitment->id}" => ['valor' => '400000.25']])
+        ->assertSessionHasNoErrors();
+
+    $paid = $this->fakes->compromisos->find($commitment->id);
+
+    expect($paid->paidAmount)->toBe(400000.25)
+        ->and($paid->remaining())->toBe(599999.75);
+});
+
 it('records it in an SGX commitment too', function () {
     $sgx = CarteraWorld::client($this->fakes, name: 'Cliente de SGX', company: CompanyCode::SGX, overdue: 1_000_000);
     $commitment = abonoCommitment(client: $sgx);
@@ -217,7 +230,7 @@ describe('the button', function () {
         }
     })->with([Role::PortfolioAnalyst, Role::PortfolioManager]);
 
-    it('takes the paid amount in a whole-peso money input', function () {
+    it('takes the paid amount in a money input with cents', function () {
         $commitment = abonoCommitment();
 
         $html = $this->actingAs(CarteraUsers::analyst())->get("/cartera/clientes/{$this->client->id}")->assertOk()->getContent() ?: '';
@@ -226,8 +239,8 @@ describe('the button', function () {
 
         expect($field->getAttribute('type'))->toBe('text')
             ->and($field->hasAttribute('data-money-input'))->toBeTrue()
-            ->and($field->getAttribute('data-decimals'))->toBe('0')
-            ->and($field->getAttribute('inputmode'))->toBe('numeric')
+            ->and($field->getAttribute('data-decimals'))->toBe('2')
+            ->and($field->getAttribute('inputmode'))->toBe('decimal')
             ->and($field->hasAttribute('required'))->toBeTrue()
             ->and($html)->toContain('El compromiso es por '.Money::format(1_000_000).'. En pesos colombianos.')
             ->and($html)->not->toContain('sin puntos ni comas');
@@ -317,6 +330,18 @@ describe('the new commitment form', function () {
 
         expect($html)->toMatch('/<dialog[^>]*id="compromiso-nuevo"[^>]*data-modal-autoopen/s')
             ->and($html)->toMatch('/name="compromiso\[valor\]"[^>]*value="1500000"/');
+    });
+
+    it('keeps the cents of the balance in the link', function () {
+        $html = $this->actingAs(CarteraUsers::analyst())
+            ->get("/cartera/clientes/{$this->client->id}?nuevo-compromiso=1&valor=1500000.5")
+            ->assertOk()
+            ->getContent() ?: '';
+
+        $field = Html::parse($html)->one('//input[@name="compromiso[valor]"]');
+
+        expect($field->getAttribute('value'))->toBe('1500000.50')
+            ->and($field->getAttribute('data-decimals'))->toBe('2');
     });
 
     it('opens without a value when the one in the link is not an amount', function () {

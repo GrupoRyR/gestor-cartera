@@ -93,7 +93,7 @@
                     <input type="hidden" name="form" value="{{ $edit }}">
                     <p class="text-fg-muted">{{ __('cartera::compromisos.editar.ayuda') }}</p>
                     <x-ui.input :name="$edit.'[fecha]'" type="date" :label="__('cartera::compromisos.editar.fecha')" :value="$commitment->dueDate->toDateString()" />
-                    <x-ui.money-input :name="$edit.'[valor]'" :label="__('cartera::compromisos.editar.valor')" :value="(int) $commitment->amount" />
+                    <x-ui.money-input :name="$edit.'[valor]'" :label="__('cartera::compromisos.editar.valor')" :value="SuggestedAmount::from($commitment->amount)" :decimals="2" />
                     <x-ui.textarea :name="$edit.'[notas]'" :label="__('cartera::compromisos.editar.notas')" :value="$commitment->notes" :rows="3" />
                 </form>
 
@@ -123,7 +123,7 @@
         <form id="compromiso-nuevo-form" method="POST" action="{{ route('cartera.compromisos.store', $client->id) }}" class="grid gap-4">
             @csrf
             <x-ui.input name="compromiso[fecha]" type="date" :label="__('cartera::compromisos.nuevo.fecha')" :hint="__('cartera::compromisos.nuevo.fecha_ayuda')" :required="true" :min="now()->toDateString()" />
-            <x-ui.money-input name="compromiso[valor]" :label="__('cartera::compromisos.nuevo.valor')" :hint="__('cartera::compromisos.nuevo.valor_ayuda')" :value="$suggestedAmount" :required="true" />
+            <x-ui.money-input name="compromiso[valor]" :decimals="2" :label="__('cartera::compromisos.nuevo.valor')" :hint="__('cartera::compromisos.nuevo.valor_ayuda')" :value="$suggestedAmount" :required="true" />
             <x-ui.textarea name="compromiso[notas]" :label="__('cartera::compromisos.nuevo.notas')" :hint="__('cartera::compromisos.nuevo.notas_ayuda')" :rows="3" />
         </form>
 

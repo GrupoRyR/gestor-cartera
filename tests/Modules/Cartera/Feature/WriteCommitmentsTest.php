@@ -85,6 +85,14 @@ describe('creating a commitment', function () {
             && $commitment->status === CommitmentStatus::Pending);
     });
 
+    it('keeps the cents of the value', function () {
+        $this->actingAs(CarteraUsers::analyst())
+            ->post("{$this->file}/compromisos", ['compromiso' => ['fecha' => $this->tomorrow->toDateString(), 'valor' => '750000.50']])
+            ->assertSessionHasNoErrors();
+
+        $this->fakes->compromisos->assertCreated(fn (Commitment $commitment): bool => $commitment->amount === 750000.5);
+    });
+
     it('may go without notes and may be due today', function () {
         $this->actingAs(CarteraUsers::analyst())
             ->post("{$this->file}/compromisos", ['compromiso' => ['fecha' => CarbonImmutable::today()->toDateString(), 'valor' => '100000']])
@@ -257,25 +265,28 @@ describe('the client file', function () {
             ->and($html)->not->toContain('data-modal-open="compromiso-'.$broken->id.'-editar"');
     });
 
-    it('takes the new and the edited value in whole-peso money inputs, prefilled clean', function () {
-        $commitment = sdcCommitment(amount: 1_234_567.0);
+    it('takes the new and the edited value in money inputs with cents, prefilled clean', function (float $amount, string $query, string $suggested, string $edited) {
+        $commitment = sdcCommitment(amount: $amount);
 
-        $html = $this->actingAs(CarteraUsers::analyst())->get($this->file.'?nuevo-compromiso=1&valor=1500000')->assertOk()->getContent() ?: '';
+        $html = $this->actingAs(CarteraUsers::analyst())->get($this->file.'?nuevo-compromiso=1&valor='.$query)->assertOk()->getContent() ?: '';
         $page = Html::parse($html);
 
-        foreach (['compromiso[valor]' => '1500000', "edicion_{$commitment->id}[valor]" => '1234567'] as $name => $value) {
+        foreach (['compromiso[valor]' => $suggested, "edicion_{$commitment->id}[valor]" => $edited] as $name => $value) {
             $field = $page->one('//input[@name="'.$name.'"]');
 
             expect($field->getAttribute('type'))->toBe('text')
                 ->and($field->hasAttribute('data-money-input'))->toBeTrue()
-                ->and($field->getAttribute('data-decimals'))->toBe('0')
-                ->and($field->getAttribute('inputmode'))->toBe('numeric')
+                ->and($field->getAttribute('data-decimals'))->toBe('2')
+                ->and($field->getAttribute('inputmode'))->toBe('decimal')
                 ->and($field->getAttribute('value'))->toBe($value);
         }
 
         expect($html)->toContain('En pesos colombianos.')
             ->and($html)->not->toContain('sin puntos ni comas');
-    });
+    })->with([
+        'whole pesos' => [1_234_567.0, '1500000', '1500000', '1234567'],
+        'with cents' => [1_234_567.5, '1500000.5', '1500000.50', '1234567.50'],
+    ]);
 
     it('offers no actions on a commitment that is closed', function () {
         $fulfilled = sdcCommitment(CommitmentStatus::Fulfilled);
