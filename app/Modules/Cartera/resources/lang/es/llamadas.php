@@ -30,6 +30,11 @@ return [
 
     'mensajes' => [
         'registrada' => 'Llamada registrada.',
+        'registrada_compromiso' => 'Llamada registrada. Ahora registra el compromiso de pago.',
+    ],
+
+    'compromiso' => [
+        'nota' => 'Acordado en la llamada del :fecha.',
     ],
 
     'formulario' => [

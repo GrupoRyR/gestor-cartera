@@ -2,6 +2,7 @@
 
 namespace App\Modules\Cartera\Http\Controllers;
 
+use App\Modules\Cartera\Application\Calls\AttachCommitment;
 use App\Modules\Cartera\Http\Requests\CancelCommitmentRequest;
 use App\Modules\Cartera\Http\Requests\PartialPaymentRequest;
 use App\Modules\Cartera\Http\Requests\StoreCommitmentRequest;
@@ -13,8 +14,10 @@ use App\Modules\Core\Contracts\Exceptions\RecordNotFound;
 use Carbon\CarbonImmutable;
 use DomainException;
 use Illuminate\Http\RedirectResponse;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Validation\ValidationException;
 use InvalidArgumentException;
+use Throwable;
 
 /**
  * Writes to payment commitments (cartera.compromisos.*): the analyst creates,
@@ -31,14 +34,16 @@ final class CommitmentController
     public function __construct(private readonly CompromisoService $commitments) {}
 
     /**
-     * POST /cartera/clientes/{client}/compromisos
+     * POST /cartera/clientes/{client}/compromisos. With compromiso[llamada],
+     * the commitment agreed on that call: the call is linked once the
+     * commitment exists (linkCall()).
      */
-    public function store(StoreCommitmentRequest $request, int $client): RedirectResponse
+    public function store(StoreCommitmentRequest $request, int $client, AttachCommitment $calls): RedirectResponse
     {
         $data = $request->validated()['compromiso'];
 
         try {
-            $this->commitments->create(new NewCommitment(
+            $commitment = $this->commitments->create(new NewCommitment(
                 clientId: $client,
                 dueDate: $this->date($data['fecha']),
                 amount: (float) $data['valor'],
@@ -46,6 +51,10 @@ final class CommitmentController
             ));
         } catch (RecordNotFound) {
             abort(404);
+        }
+
+        if (isset($data['llamada'])) {
+            $this->linkCall($calls, (int) $data['llamada'], $client, $commitment->id);
         }
 
         return redirect()->route('cartera.clientes.show', $client)->with('status', __('cartera::compromisos.mensajes.registrado'));
@@ -132,6 +141,24 @@ final class CommitmentController
         }
 
         return back()->with('status', __('cartera::compromisos.mensajes.'.$message));
+    }
+
+    /**
+     * Links the call to the commitment just created. The commitment already
+     * exists, so a call that does not qualify or a failing link only leaves
+     * a warning in the log: it never undoes or blocks the commitment.
+     */
+    private function linkCall(AttachCommitment $calls, int $call, int $client, int $commitment): void
+    {
+        $context = ['call_id' => $call, 'client_id' => $client, 'commitment_id' => $commitment];
+
+        try {
+            if (! $calls->attach($call, $client, $commitment)) {
+                Log::warning('Cartera: the call is not a pending payment agreement of the client, so the commitment was not linked to it.', $context);
+            }
+        } catch (Throwable $e) {
+            Log::warning('Cartera: the commitment could not be linked to its call.', $context + ['error' => $e->getMessage()]);
+        }
     }
 
     private function date(string $date): CarbonImmutable

@@ -218,11 +218,13 @@ describe('posting a call', function () {
         $client = Make::client(company: CompanyCode::SDC, name: 'Agro Arango SAS');
         $this->fakes->cartera->addClient(Make::clientDetail($client));
 
-        $this->actingAs(CarteraUsers::analyst())
-            ->post("/cartera/clientes/{$client->id}/llamadas", callForm(['acuerdo' => 'compromiso_pago']))
-            ->assertRedirect("/cartera/clientes/{$client->id}");
+        $response = $this->actingAs(CarteraUsers::analyst())
+            ->post("/cartera/clientes/{$client->id}/llamadas", callForm(['acuerdo' => 'compromiso_pago']));
+        $call = CallRecord::query()->sole();
 
-        expect(CallRecord::query()->sole()->agreement)->toBe(CallAgreement::PaymentCommitment);
+        // The commitment form comes next (CallCommitmentTest).
+        $response->assertRedirect("/cartera/clientes/{$client->id}?nuevo-compromiso=1&llamada={$call->id}");
+        expect($call->agreement)->toBe(CallAgreement::PaymentCommitment);
     });
 
     it('refuses a payment commitment to who does not write them', function () {

@@ -1,6 +1,8 @@
+@use('App\Modules\Cartera\Application\Calls\AttachCommitment')
 @use('App\Modules\Cartera\Application\Commitments\SuggestedAmount')
 @use('App\Modules\Cartera\Domain\Commitments\CommitmentWriting')
 @use('App\Modules\Core\Contracts\Enums\CommitmentStatus')
+@use('App\Support\Formatting\DateFormat')
 @use('App\Support\Formatting\Money')
 
 {{--
@@ -17,6 +19,8 @@
     $canWrite = $collectorWrites && auth()->user()?->can('cartera.commitments.write');
     $canChangeStatus = auth()->user()?->can('cartera.commitments.status') ?? false;
     $suggestedAmount = SuggestedAmount::from(request()->query('valor'));
+    // The call the commitment was agreed on: ?llamada= from CallController, or old input after a failed save.
+    $agreedCall = $canWrite ? app(AttachCommitment::class)->pendingCall($client->id, old('compromiso.llamada', request()->query('llamada'))) : null;
 
     $commitmentColumns = [
         ['key' => 'due', 'label' => __('cartera::ficha.compromisos.columnas.vence')],
@@ -122,6 +126,10 @@
     <x-ui.modal id="compromiso-nuevo" :title="__('cartera::compromisos.nuevo.titulo')" :open="$errors->has('compromiso.*') || request()->boolean('nuevo-compromiso')">
         <form id="compromiso-nuevo-form" method="POST" action="{{ route('cartera.compromisos.store', $client->id) }}" class="grid gap-4">
             @csrf
+            @if ($agreedCall !== null)
+                <input type="hidden" name="compromiso[llamada]" value="{{ $agreedCall->id }}">
+                <p class="text-fg-muted">{{ __('cartera::llamadas.compromiso.nota', ['fecha' => DateFormat::date($agreedCall->occurred_at)]) }}</p>
+            @endif
             <x-ui.input name="compromiso[fecha]" type="date" :label="__('cartera::compromisos.nuevo.fecha')" :hint="__('cartera::compromisos.nuevo.fecha_ayuda')" :required="true" :min="now()->toDateString()" />
             <x-ui.money-input name="compromiso[valor]" :decimals="2" :label="__('cartera::compromisos.nuevo.valor')" :hint="__('cartera::compromisos.nuevo.valor_ayuda')" :value="$suggestedAmount" :required="true" />
             <x-ui.textarea name="compromiso[notas]" :label="__('cartera::compromisos.nuevo.notas')" :hint="__('cartera::compromisos.nuevo.notas_ayuda')" :rows="3" />
