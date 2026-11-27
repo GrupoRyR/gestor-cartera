@@ -345,6 +345,7 @@ Sin destinatarios no se envía. `create()` resuelve, en su transacción, los avi
 | `cancel(int $commitmentId, string $reason): Commitment` | Anula un `Pending` o `Broken` con motivo obligatorio. | `RecordNotFound`, `AuthorizationException`, `InvalidArgumentException` (motivo vacío), `DomainException` |
 | `find(int $commitmentId): ?Commitment` | El compromiso; `null` si no existe o está fuera del alcance. | — |
 | `paginate(CommitmentQuery $query, int $perPage = 25): LengthAwarePaginator` | Una página de `Commitment` (`?page=`). | `InvalidArgumentException` (`$perPage < 1`) |
+| `createdBetween(list<int> $clientIds, CarbonImmutable $from, CarbonImmutable $to): array` | Cuándo se registraron los compromisos de esos clientes (`createdAt`) en `[$from, $to)`, en cualquier estado: `array<int, non-empty-list<CarbonImmutable>>` por id de cliente, del más antiguo al más nuevo. Sigue el alcance de `find()` en todas las empresas del usuario; los clientes fuera del alcance o sin compromisos en el rango no aparecen. Lo usa el informe de cobro para contar compromisos después de un envío. | `InvalidArgumentException` (`$to` anterior a `$from`) |
 
 ### 6.6 `GestionLogger`
 

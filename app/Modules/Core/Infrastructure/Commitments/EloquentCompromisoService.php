@@ -35,7 +35,7 @@ use InvalidArgumentException;
 /**
  * CompromisoService over the "commitments" table, for the signed-in user.
  *
- * Reach (docs/arquitectura.md §6.2): find() and every write look for the
+ * Reach (docs/arquitectura.md §6.2): find(), createdBetween() and every write look for the
  * commitment among the clients within the user's reach in every company
  * they may work in (ClientReach, as GestionLogger does), so a write started
  * before a company switch still finds it; paginate() follows the active
@@ -60,6 +60,12 @@ final class EloquentCompromisoService implements CompromisoService
      * Amounts stay below 10^16 pesos: decimal(18,2) keeps 16 digits before the point.
      */
     private const float AMOUNT_LIMIT = 1e16;
+
+    /**
+     * Client ids per query in createdBetween(), well below the bound
+     * parameter limits of SQLite and MySQL.
+     */
+    private const int CLIENT_CHUNK = 500;
 
     public function __construct(
         private readonly AuthFactory $auth,
@@ -348,6 +354,41 @@ final class EloquentCompromisoService implements CompromisoService
             $page->currentPage(),
             $page->getOptions(),
         );
+    }
+
+    /**
+     * Reads within the user's reach in every company they may work in, as
+     * find() does: the clients are named, so the active company does not
+     * narrow them. The ids are read CLIENT_CHUNK at a time.
+     */
+    public function createdBetween(array $clientIds, CarbonImmutable $from, CarbonImmutable $to): array
+    {
+        if ($to->lessThan($from)) {
+            throw new InvalidArgumentException("The creation range ends ({$to->toDateTimeString()}) before it starts ({$from->toDateTimeString()}).");
+        }
+
+        // Stored times are in the application time zone (America/Bogota).
+        $timezone = date_default_timezone_get();
+        $scope = $this->reach->scope();
+        $created = [];
+
+        foreach (array_chunk(array_values(array_unique($clientIds)), self::CLIENT_CHUNK) as $ids) {
+            $records = $this->visible(CommitmentRecord::query(), $scope)
+                ->whereIn('commitments.client_id', $ids)
+                ->where('commitments.created_at', '>=', $from->setTimezone($timezone))
+                ->where('commitments.created_at', '<', $to->setTimezone($timezone))
+                ->orderBy('commitments.created_at')
+                ->orderBy('commitments.id')
+                ->get(['commitments.id', 'commitments.client_id', 'commitments.created_at']);
+
+            foreach ($records as $record) {
+                if ($record->created_at !== null) {
+                    $created[$record->client_id][] = $record->created_at;
+                }
+            }
+        }
+
+        return $created;
     }
 
     /**
