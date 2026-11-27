@@ -24,8 +24,8 @@ final class MailReportExportController
 
         $download = SpreadsheetDownload::make(
             __('cobro::informe.exportar.archivo', ['desde' => $filter->from->toDateString(), 'hasta' => $filter->to->toDateString()]).'.xlsx',
-            function (string $path) use ($spreadsheet, $filter, &$rows): void {
-                $rows = $spreadsheet->write($path, $filter);
+            function (string $path) use ($spreadsheet, $filter, $request, &$rows): void {
+                $rows = $spreadsheet->write($path, $filter, $request->clients());
             },
         );
 

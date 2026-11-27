@@ -2,6 +2,7 @@
 
 namespace App\Modules\Cobro\Infrastructure\Reports;
 
+use App\Modules\Cobro\Application\Reports\CommitmentWindow;
 use App\Modules\Cobro\Application\Reports\MailReportFilter;
 use App\Modules\Cobro\Application\Reports\MailReportMetrics;
 use App\Modules\Cobro\Application\Reports\ReportNumbers;
@@ -11,8 +12,7 @@ use App\Modules\Cobro\Infrastructure\Persistence\Run;
 use App\Modules\Cobro\Infrastructure\Persistence\RunItem;
 use App\Modules\Cobro\Infrastructure\Persistence\SentMessage;
 use App\Modules\Cobro\Providers\CobroServiceProvider;
-use App\Modules\Core\Contracts\CarteraRepository;
-use App\Modules\Core\Contracts\Data\ClientQuery;
+use App\Modules\Core\Contracts\CompromisoService;
 use App\Modules\Core\Contracts\Enums\CompanyCode;
 use Carbon\CarbonImmutable;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
@@ -21,27 +21,18 @@ use Illuminate\Database\Eloquent\Builder;
 /**
  * The collection report (GET /cobro/informe): the items of the weekly
  * collection and circularization runs scheduled in the filter's days, and
- * their figures. Cobro does not keep the client's advisor, so it asks
- * Core's CarteraRepository: for the advisor filter, the advisor's clients
- * of that company, once per instance (one request) however many queries
- * use them; for the advisor column, each client of the page (at most a
- * page of keyed reads, cheaper than a pass over every client) or, in the
- * export, every client of each company in one pass.
+ * their figures. The client's advisor and group come from Core through
+ * ReportClients and reach the queries as MailReportFilter::$clientIds;
+ * the payment commitments after each mail, from CompromisoService, read
+ * once for every mailed client of the filter (commitmentWindow()).
  */
 final class MailReport
 {
     /** Escape character of the client search, named in the SQL: SQLite has none by default. */
     private const string LIKE_ESCAPE = '!';
 
-    /**
-     * Client ids of each advisor already read, by MailReportFilter::advisorKey().
-     *
-     * @var array<string, list<int>>
-     */
-    private array $advisorClients = [];
-
     public function __construct(
-        private readonly CarteraRepository $cartera,
+        private readonly CompromisoService $compromisos,
     ) {}
 
     /**
@@ -93,8 +84,42 @@ final class MailReport
         }
     }
 
-    public function metrics(MailReportFilter $filter): MailReportMetrics
+    /**
+     * The commitments every mailed client of the filter registered from the
+     * start of its first day to CommitmentWindow::DAYS days after the end of
+     * its last, with one CompromisoService call: enough for the window of
+     * every mail in the filter.
+     */
+    public function commitmentWindow(MailReportFilter $filter): CommitmentWindow
     {
+        $clientIds = $this->matching($filter)
+            ->whereIn('cobro_run_items.status', ItemReplies::MAILED)
+            ->distinct()
+            ->pluck('cobro_run_items.client_id')
+            ->map(fn (mixed $id): int => (int) $id)
+            ->all();
+
+        if ($clientIds === []) {
+            return new CommitmentWindow;
+        }
+
+        [$from, $to] = $this->range($filter);
+
+        return new CommitmentWindow($this->compromisos->createdBetween($clientIds, $from, $to->addDays(CommitmentWindow::DAYS)));
+    }
+
+    /**
+     * Whether the item's mail reached the mailbox, so its client's
+     * commitments after the send count (CommitmentWindow).
+     */
+    public static function mailed(RunItem $item): bool
+    {
+        return in_array($item->status, ItemReplies::MAILED, true) && $item->sent_at !== null;
+    }
+
+    public function metrics(MailReportFilter $filter, ?CommitmentWindow $commitments = null): MailReportMetrics
+    {
+        $commitments ??= $this->commitmentWindow($filter);
         /** @var array<string, int> $counts */
         $counts = $this->matching($filter)
             ->toBase()
@@ -122,6 +147,15 @@ final class MailReport
                 ? (float) max(0, CarbonImmutable::parse((string) $row->sent_at, $timezone)->diffInSeconds(CarbonImmutable::parse((string) $row->first_reply_at, $timezone)))
                 : null);
 
+        $committed = $this->matching($filter)
+            ->whereIn('cobro_run_items.status', ItemReplies::MAILED)
+            ->whereNotNull('cobro_run_items.sent_at')
+            ->toBase()
+            ->select(['cobro_run_items.client_id', 'cobro_run_items.sent_at'])
+            ->get()
+            ->filter(fn (object $row): bool => $commitments->first((int) $row->client_id, CarbonImmutable::parse((string) $row->sent_at, $timezone)) !== null)
+            ->count();
+
         $bounced = $counts[ItemStatus::Bounced->value] ?? 0;
 
         return new MailReportMetrics(
@@ -136,51 +170,8 @@ final class MailReport
                 ->whereIn('company', $this->companyValues($filter->companies))
                 ->whereBetween('sent_at', $this->range($filter))
                 ->count(),
+            committed: $committed,
         );
-    }
-
-    /**
-     * The current advisor's name of each client of $items (client id =>
-     * name), as Core knows it; clients it does not know are left out.
-     *
-     * @param  iterable<RunItem>  $items
-     * @return array<int, string>
-     */
-    public function advisorNames(iterable $items): array
-    {
-        $names = [];
-
-        foreach ($items as $item) {
-            if (! array_key_exists($item->client_id, $names)) {
-                $names[$item->client_id] = $this->cartera->client($item->client_id)?->summary->advisor?->name;
-            }
-        }
-
-        return array_filter($names, fn (?string $name): bool => $name !== null);
-    }
-
-    /**
-     * The current advisor's name of every client of the filter's companies
-     * (client id => name), with one pass over the clients of each company:
-     * for the export, where asking client by client would take a call per
-     * row. With the advisor filter, only the clients of its company.
-     *
-     * @return array<int, string>
-     */
-    public function advisorNamesByClient(MailReportFilter $filter): array
-    {
-        $companies = $filter->advisorCompany !== null && $filter->advisorCode !== null ? [$filter->advisorCompany] : $filter->companies;
-        $names = [];
-
-        foreach ($companies as $company) {
-            foreach ($this->cartera->allClients(new ClientQuery(companies: [$company])) as $client) {
-                if ($client->advisor !== null) {
-                    $names[$client->id] = $client->advisor->name;
-                }
-            }
-        }
-
-        return $names;
     }
 
     /**
@@ -211,36 +202,9 @@ final class MailReport
                     ->orWhereRaw($like('cobro_run_items.tax_id'), [$pattern]));
             })
             ->when($filter->advisorCompany !== null && $filter->advisorCode !== null, fn (Builder $query) => $query
-                ->where('cobro_runs.company', $filter->advisorCompany?->value)
-                ->whereIn('cobro_run_items.client_id', $this->advisorClients($filter->advisorCompany, (int) $filter->advisorCode)))
+                ->where('cobro_runs.company', $filter->advisorCompany?->value))
+            ->when($filter->clientIds !== null, fn (Builder $query) => $query->whereIn('cobro_run_items.client_id', $filter->clientIds ?? []))
             ->when($filter->replied !== null, fn (Builder $query) => ItemReplies::whereReplied($query, (bool) $filter->replied));
-    }
-
-    /**
-     * Ids of the clients of the advisor $code of $company, read from Core
-     * the first time only.
-     *
-     * @return list<int>
-     */
-    private function advisorClients(?CompanyCode $company, int $code): array
-    {
-        if ($company === null) {
-            return [];
-        }
-
-        $key = MailReportFilter::advisorKey($company, $code);
-
-        if (! array_key_exists($key, $this->advisorClients)) {
-            $ids = [];
-
-            foreach ($this->cartera->allClients(new ClientQuery(advisorCode: $code, companies: [$company])) as $client) {
-                $ids[] = $client->id;
-            }
-
-            $this->advisorClients[$key] = $ids;
-        }
-
-        return $this->advisorClients[$key];
     }
 
     /**

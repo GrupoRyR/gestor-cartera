@@ -6,6 +6,7 @@ use App\Modules\Cobro\Application\Reports\MailReportFilter;
 use App\Modules\Cobro\Domain\Runs\ItemStatus;
 use App\Modules\Cobro\Infrastructure\Persistence\RunItem;
 use App\Modules\Cobro\Infrastructure\Reports\MailReport;
+use App\Modules\Cobro\Infrastructure\Reports\ReportClients;
 use Carbon\CarbonImmutable;
 use OpenSpout\Writer\XLSX\Entity\SheetView;
 use OpenSpout\Writer\XLSX\Writer;
@@ -16,8 +17,10 @@ use OpenSpout\Writer\XLSX\Writer;
  * hours are numbers, so the analyst can filter and add them up.
  *
  * It reads the items in chunks (MailReport::allItems()) and writes them as
- * it goes, and it asks Core for the advisors once per company, so a large
- * report neither has to fit in memory nor costs a call per client.
+ * it goes; the advisors and groups come from the request's one read of
+ * Core (ReportClients) and the commitments from one CompromisoService
+ * call, so a large report neither has to fit in memory nor costs a call
+ * per client.
  */
 final class MailReportSpreadsheet
 {
@@ -27,8 +30,8 @@ final class MailReportSpreadsheet
      * @var list<string>
      */
     public const array COLUMNS = [
-        'fecha', 'empresa', 'tipo', 'codigo', 'cliente', 'nit', 'asesor', 'estado', 'monto',
-        'facturas', 'enviado', 'respuesta', 'horas', 'detalle',
+        'fecha', 'empresa', 'tipo', 'codigo', 'cliente', 'nit', 'grupo', 'asesor', 'estado', 'monto',
+        'facturas', 'enviado', 'respuesta', 'horas', 'compromisos', 'primer_compromiso', 'detalle',
     ];
 
     public function __construct(private readonly MailReport $report) {}
@@ -38,9 +41,9 @@ final class MailReportSpreadsheet
      *
      * @return int How many items it holds.
      */
-    public function write(string $path, MailReportFilter $filter): int
+    public function write(string $path, MailReportFilter $filter, ReportClients $clients): int
     {
-        $advisors = $this->report->advisorNamesByClient($filter);
+        $commitments = $this->report->commitmentWindow($filter);
 
         $writer = new Writer;
         $writer->openToFile($path);
@@ -54,17 +57,20 @@ final class MailReportSpreadsheet
         $sheet->setColumnWidth(14, 4);
         $sheet->setColumnWidth(42, 5);
         $sheet->setColumnWidth(14, 6);
-        $sheet->setColumnWidth(26, 7);
-        $sheet->setColumnWidth(18, 8, 9);
-        $sheet->setColumnWidth(10, 10);
-        $sheet->setColumnWidth(18, 11, 12, 13);
-        $sheet->setColumnWidth(50, 14);
+        $sheet->setColumnWidth(20, 7);
+        $sheet->setColumnWidth(26, 8);
+        $sheet->setColumnWidth(18, 9, 10);
+        $sheet->setColumnWidth(10, 11);
+        $sheet->setColumnWidth(18, 12, 13, 14, 15, 16);
+        $sheet->setColumnWidth(50, 17);
 
         $writer->addRow(Cells::header(array_map(fn (string $column): string => __('cobro::informe.exportar.columnas.'.$column), self::COLUMNS)));
 
         $rows = 0;
 
         foreach ($this->report->allItems($filter) as $item) {
+            $sentAt = MailReport::mailed($item) ? $item->sent_at : null;
+
             $writer->addRow(Cells::row([
                 Cells::date($item->run->scheduled_for),
                 Cells::text($item->run->company->value),
@@ -72,13 +78,16 @@ final class MailReportSpreadsheet
                 Cells::text($item->client_code),
                 Cells::text($item->client_name),
                 Cells::text($item->tax_id),
-                Cells::text($advisors[$item->client_id] ?? null),
+                Cells::text($clients->group($item->client_id)),
+                Cells::text($clients->advisorName($item->client_id)),
                 Cells::text($item->status->label()),
                 Cells::money((float) $item->amount),
                 Cells::integer($item->invoice_count),
                 Cells::dateTime($item->sent_at),
                 Cells::dateTime(self::firstReply($item)),
                 Cells::decimal(self::hoursToFirstReply($item)),
+                Cells::integer($commitments->count($item->client_id, $sentAt)),
+                Cells::dateTime($commitments->first($item->client_id, $sentAt)),
                 Cells::text(self::detail($item)),
             ]));
             $rows++;
