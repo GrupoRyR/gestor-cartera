@@ -2,12 +2,17 @@
 
 namespace App\Modules\Cartera\Providers;
 
+use App\Modules\Cartera\Application\Calls\FollowUpLink;
+use App\Modules\Cartera\Application\Calls\FollowUpNotice;
+use App\Modules\Cartera\Application\Calls\SendFollowUpNotices;
 use App\Modules\Cartera\Application\Commitments\RemainingBalanceLink;
+use App\Modules\Cartera\Console\SendFollowUpNoticesCommand;
 use App\Modules\Core\Contracts\AvisoService;
 use App\Support\Modules\ModuleServiceProvider;
 use App\Support\Navigation\NavItem;
 use App\Support\Navigation\NavRegistry;
 use Illuminate\Cache\RateLimiting\Limit;
+use Illuminate\Console\Scheduling\Schedule;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\RateLimiter;
 
@@ -36,7 +41,27 @@ final class CarteraServiceProvider extends ModuleServiceProvider
         // The notice Core sends when a commitment is partially paid opens the
         // client file. The kind is Core's, written out here (docs/arquitectura.md
         // §6.5) because modules do not import Core's internal classes.
-        $this->app->make(AvisoService::class)->linkUsing('commitment.remaining', (new RemainingBalanceLink)(...));
+        $avisos = $this->app->make(AvisoService::class);
+        $avisos->linkUsing('commitment.remaining', (new RemainingBalanceLink)(...));
+
+        // The follow-up notice of a call opens the client file with the call form.
+        $avisos->linkUsing(FollowUpNotice::KIND, (new FollowUpLink)(...));
+
+        $this->commands([SendFollowUpNoticesCommand::class]);
+    }
+
+    /**
+     * The call follow-ups ring every hour of the working day in Bogotá, so
+     * one set for today rings that same day. The run takes seconds, so a
+     * lock left by a killed process expires after 10 minutes.
+     */
+    protected function schedule(Schedule $schedule): void
+    {
+        $schedule->command(SendFollowUpNoticesCommand::class)
+            ->hourly()
+            ->between('07:00', '18:00')
+            ->timezone(SendFollowUpNotices::TIMEZONE)
+            ->withoutOverlapping(10);
     }
 
     /**

@@ -69,4 +69,16 @@ return [
         'acuerdo_sin_respuesta' => 'Registra un acuerdo solo si el cliente contestó.',
         'facturas_cerradas' => 'Alguna de las facturas ya no está abierta. Vuelve a cargar la ficha.',
     ],
+
+    'aviso_seguimiento' => [
+        'titulo' => ':cliente: hoy toca volver a llamar',
+        'cuerpo' => 'Lo acordaste en la llamada del :fecha.',
+        'cuerpo_con_contacto' => 'Lo acordaste en la llamada del :fecha con :contacto.',
+    ],
+
+    'consola' => [
+        'enviados' => '{0} No hay seguimientos para avisar.|{1} Avisamos 1 seguimiento en la campana.|[2,*] Avisamos :total seguimientos en la campana.',
+        'omitidos' => '{1} Omitimos 1 seguimiento; el motivo quedó en el log.|[2,*] Omitimos :total seguimientos; los motivos quedaron en el log.',
+        'fallidos' => '{1} No pudimos avisar 1 seguimiento; el error quedó en el log.|[2,*] No pudimos avisar :total seguimientos; los errores quedaron en el log.',
+    ],
 ];
