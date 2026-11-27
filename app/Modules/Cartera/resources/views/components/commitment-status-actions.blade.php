@@ -42,7 +42,7 @@
             @csrf
             <input type="hidden" name="form" value="{{ $payment }}">
             <p>{{ __('cartera::compromisos.abonar.pregunta', $about) }}</p>
-            <x-ui.money-input :name="$payment.'[valor]'" :label="__('cartera::compromisos.abonar.valor')" :hint="__('cartera::compromisos.abonar.valor_ayuda', $about)" :required="true" />
+            <x-ui.money-input :name="$payment.'[valor]'" :decimals="2" :label="__('cartera::compromisos.abonar.valor')" :hint="__('cartera::compromisos.abonar.valor_ayuda', $about)" :required="true" />
             <x-ui.textarea :name="$payment.'[nota]'" :label="__('cartera::compromisos.abonar.nota')" :hint="__('cartera::compromisos.abonar.nota_ayuda')" :rows="3" />
         </form>
 
