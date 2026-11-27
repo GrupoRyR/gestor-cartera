@@ -55,39 +55,6 @@ it('refuses those who may only look', function () {
     $this->fakes->gestiones->assertNothingLogged();
 });
 
-describe('a call', function () {
-    it('is logged with its result and what was agreed', function (Role $role) {
-        $this->actingAs(CarteraUsers::create($role))
-            ->post($this->url, ['tipo' => 'llamada', 'llamada' => ['resultado' => 'promete_pago', 'detalle' => 'Habló con Laura; paga el viernes.']])
-            ->assertRedirect($this->file)
-            ->assertSessionHas('status', 'Llamada registrada.');
-
-        $entry = loggedEntry();
-
-        expect($entry->type)->toBe(ActivityType::Call)
-            ->and($entry->clientId)->toBe($this->client->id)
-            ->and($entry->result)->toBe('Contactado — promete pago')
-            ->and($entry->summary)->toBe('Llamada: Contactado — promete pago')
-            ->and($entry->details)->toBe('Habló con Laura; paga el viernes.');
-    })->with([Role::PortfolioAnalyst, Role::PortfolioManager]);
-
-    it('may go without details', function () {
-        $this->actingAs(CarteraUsers::analyst())
-            ->post($this->url, ['tipo' => 'llamada', 'llamada' => ['resultado' => 'no_contesta', 'detalle' => '   ']])
-            ->assertSessionHasNoErrors();
-
-        expect(loggedEntry()->details)->toBeNull()->and(loggedEntry()->result)->toBe('No contesta');
-    });
-
-    it('needs one of the known results', function (mixed $result) {
-        $this->actingAs(CarteraUsers::analyst())
-            ->post($this->url, ['tipo' => 'llamada', 'llamada' => ['resultado' => $result]])
-            ->assertSessionHasErrors('llamada.resultado');
-
-        $this->fakes->gestiones->assertNothingLogged();
-    })->with(['missing' => [null], 'unknown' => ['se_lo_comio_el_perro'], 'empty' => ['']]);
-});
-
 describe('a note', function () {
     it('is logged with its text', function () {
         $this->actingAs(CarteraUsers::analyst())
@@ -183,7 +150,7 @@ describe('the buttons in the client file', function () {
         }
 
         expect($html)->toContain('action="'.route('cartera.gestiones.store', $this->client->id).'"')
-            ->and($html)->toContain('Contactado — promete pago');
+            ->and($html)->toContain('action="'.route('cartera.llamadas.store', $this->client->id).'"');
     });
 
     it('take the discount in a whole-peso money input', function () {

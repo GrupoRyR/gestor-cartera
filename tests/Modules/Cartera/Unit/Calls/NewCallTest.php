@@ -30,11 +30,11 @@ it('keeps what the form sent', function () {
         ->and($call->invoiceIds)->toBe([3, 4]);
 });
 
-it('needs a phone of up to 40 characters', function (string $phone) {
+it('needs a phone of up to 255 characters, as Core keeps a contact phone', function (string $phone) {
     newCallWith(phone: $phone);
 })->with([
     'blank' => ['   '],
-    'too long' => [str_repeat('3', 41)],
+    'too long' => [str_repeat('3', 256)],
 ])->throws(InvalidArgumentException::class);
 
 it('takes a contact name of up to 150 characters', function () {

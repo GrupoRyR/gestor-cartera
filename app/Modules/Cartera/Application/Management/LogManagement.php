@@ -2,7 +2,6 @@
 
 namespace App\Modules\Cartera\Application\Management;
 
-use App\Modules\Cartera\Domain\Management\CallResult;
 use App\Modules\Core\Contracts\Data\Activity;
 use App\Modules\Core\Contracts\Data\NewActivity;
 use App\Modules\Core\Contracts\Enums\ActivityType;
@@ -14,8 +13,8 @@ use Illuminate\Support\Str;
 
 /**
  * Writes the collector's own entries in a client's log (Part B, module 2,
- * item 6): calls with their result, free notes and discounts offered. The
- * entry of a payment commitment is written by CompromisoService itself.
+ * item 6): free notes and discounts offered. The entry of a call is written
+ * by LogCall, and that of a payment commitment by CompromisoService itself.
  *
  * The log is Core's; every entry is made as the authenticated user and
  * follows the scope rule, so a client out of reach is RecordNotFound.
@@ -31,20 +30,6 @@ final class LogManagement
         private readonly GestionLogger $log,
         private readonly Translator $translator,
     ) {}
-
-    /**
-     * @throws RecordNotFound
-     */
-    public function call(int $clientId, CallResult $result, ?string $details): Activity
-    {
-        return $this->log->log(new NewActivity(
-            clientId: $clientId,
-            type: ActivityType::Call,
-            summary: $this->translator->get('cartera::gestion.resumen.llamada', ['resultado' => $result->label()]),
-            details: $this->clean($details),
-            result: $result->label(),
-        ));
-    }
 
     /**
      * The summary is the first line of the text, shortened; the whole text is
