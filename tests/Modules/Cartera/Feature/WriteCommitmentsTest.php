@@ -85,6 +85,14 @@ describe('creating a commitment', function () {
             && $commitment->status === CommitmentStatus::Pending);
     });
 
+    it('keeps the cents of the value', function () {
+        $this->actingAs(CarteraUsers::analyst())
+            ->post("{$this->file}/compromisos", ['compromiso' => ['fecha' => $this->tomorrow->toDateString(), 'valor' => '750000.50']])
+            ->assertSessionHasNoErrors();
+
+        $this->fakes->compromisos->assertCreated(fn (Commitment $commitment): bool => $commitment->amount === 750000.5);
+    });
+
     it('may go without notes and may be due today', function () {
         $this->actingAs(CarteraUsers::analyst())
             ->post("{$this->file}/compromisos", ['compromiso' => ['fecha' => CarbonImmutable::today()->toDateString(), 'valor' => '100000']])

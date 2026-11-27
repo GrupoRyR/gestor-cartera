@@ -97,6 +97,19 @@ it('lets the analyst and the manager record a partial payment of a pending or br
         ->and($paid->remaining())->toBe(600000.0);
 })->with([Role::PortfolioAnalyst, Role::PortfolioManager])->with([CommitmentStatus::Pending, CommitmentStatus::Broken]);
 
+it('keeps the cents of the paid amount', function () {
+    $commitment = abonoCommitment();
+
+    $this->actingAs(CarteraUsers::analyst())
+        ->post("/cartera/compromisos/{$commitment->id}/abonar", ["abono_{$commitment->id}" => ['valor' => '400000.25']])
+        ->assertSessionHasNoErrors();
+
+    $paid = $this->fakes->compromisos->find($commitment->id);
+
+    expect($paid->paidAmount)->toBe(400000.25)
+        ->and($paid->remaining())->toBe(599999.75);
+});
+
 it('records it in an SGX commitment too', function () {
     $sgx = CarteraWorld::client($this->fakes, name: 'Cliente de SGX', company: CompanyCode::SGX, overdue: 1_000_000);
     $commitment = abonoCommitment(client: $sgx);
