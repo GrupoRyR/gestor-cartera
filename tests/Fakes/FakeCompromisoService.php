@@ -254,6 +254,31 @@ final class FakeCompromisoService implements CompromisoService
         return $this->paginateList($matching, $perPage);
     }
 
+    public function createdBetween(array $clientIds, CarbonImmutable $from, CarbonImmutable $to): array
+    {
+        if ($to->lessThan($from)) {
+            throw new InvalidArgumentException("The creation range ends ({$to->toDateTimeString()}) before it starts ({$from->toDateTimeString()}).");
+        }
+
+        $matching = array_values(array_filter(
+            $this->commitments,
+            fn (Commitment $commitment): bool => in_array($commitment->clientId, $clientIds, true)
+                && ! $this->outOfScope($commitment->clientId)
+                && $commitment->createdAt->greaterThanOrEqualTo($from)
+                && $commitment->createdAt->lessThan($to),
+        ));
+
+        usort($matching, fn (Commitment $a, Commitment $b): int => [$a->createdAt, $a->id] <=> [$b->createdAt, $b->id]);
+
+        $created = [];
+
+        foreach ($matching as $commitment) {
+            $created[$commitment->clientId][] = $commitment->createdAt;
+        }
+
+        return $created;
+    }
+
     /**
      * Every stored commitment, seeded or created, by id.
      *

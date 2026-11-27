@@ -102,6 +102,7 @@ final class Make
         ?Advisor $advisor = null,
         ?UserRef $manager = null,
         ?CarbonImmutable $lastActivityAt = null,
+        ?string $group = null,
     ): ClientSummary {
         $id ??= self::nextId();
 
@@ -118,6 +119,7 @@ final class Make
             advisor: $advisor,
             manager: $manager,
             lastActivityAt: $lastActivityAt,
+            group: $group,
         );
     }
 

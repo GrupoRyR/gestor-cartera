@@ -7,6 +7,7 @@ use App\Modules\Core\Contracts\Data\CommitmentChanges;
 use App\Modules\Core\Contracts\Data\CommitmentQuery;
 use App\Modules\Core\Contracts\Data\NewCommitment;
 use App\Modules\Core\Contracts\Exceptions\RecordNotFound;
+use Carbon\CarbonImmutable;
 use DomainException;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
@@ -127,4 +128,16 @@ interface CompromisoService
      * @throws InvalidArgumentException When $perPage is below 1.
      */
     public function paginate(CommitmentQuery $query, int $perPage = 25): LengthAwarePaginator;
+
+    /**
+     * When the commitments of each client were registered (Commitment::$createdAt),
+     * for the moments in [$from, $to), in any status. Clients out of scope, or
+     * without commitments in the range, are left out.
+     *
+     * @param  list<int>  $clientIds  Platform client ids; empty gives an empty result.
+     * @return array<int, non-empty-list<CarbonImmutable>> Creation moments by client id, oldest first.
+     *
+     * @throws InvalidArgumentException When $to is before $from.
+     */
+    public function createdBetween(array $clientIds, CarbonImmutable $from, CarbonImmutable $to): array;
 }

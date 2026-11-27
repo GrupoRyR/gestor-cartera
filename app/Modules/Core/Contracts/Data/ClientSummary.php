@@ -25,6 +25,7 @@ final readonly class ClientSummary
      * @param  Advisor|null  $advisor  Sales advisor in charge of the client in SAP.
      * @param  UserRef|null  $manager  Collector in charge (gestor responsable) inside the platform.
      * @param  CarbonImmutable|null  $lastActivityAt  Latest non-system activity log entry; null when there is none.
+     * @param  string|null  $group  SAP client group (the robot's "grupo" column); null when SAP has none.
      */
     public function __construct(
         public int $id,
@@ -39,5 +40,6 @@ final readonly class ClientSummary
         public ?Advisor $advisor = null,
         public ?UserRef $manager = null,
         public ?CarbonImmutable $lastActivityAt = null,
+        public ?string $group = null,
     ) {}
 }

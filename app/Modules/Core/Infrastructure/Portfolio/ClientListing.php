@@ -25,7 +25,8 @@ final class ClientListing
      * - statuses, advisorCode: equal values;
      * - onlyOverdue: a cached overdue balance above zero;
      * - inactiveSince: no activity yet, or the latest one is earlier;
-     * - managerUserId, unassigned: that portfolio manager, or none.
+     * - managerUserId, unassigned: that portfolio manager, or none;
+     * - group: that SAP group, trimmed (blank = no filter).
      *
      * @param  Builder<ClientRecord>  $clients
      * @return Builder<ClientRecord>
@@ -71,6 +72,12 @@ final class ClientListing
 
         if ($query->unassigned) {
             $clients->whereNull('clients.manager_user_id');
+        }
+
+        $group = trim((string) $query->group);
+
+        if ($group !== '') {
+            $clients->where('clients.group', $group);
         }
 
         return $clients;
