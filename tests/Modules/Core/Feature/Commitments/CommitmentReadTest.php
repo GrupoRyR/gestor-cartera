@@ -7,6 +7,7 @@ use App\Modules\Core\Contracts\Enums\ClientStatus;
 use App\Modules\Core\Contracts\Enums\CommitmentStatus;
 use App\Modules\Core\Contracts\Enums\CompanyCode;
 use App\Modules\Core\Contracts\Enums\Role;
+use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\DB;
 use Tests\Modules\Core\Support\CarteraRecords;
 use Tests\Modules\Core\Support\CommitmentRecords;
@@ -184,3 +185,43 @@ it('reads a page with the same number of queries for any number of clients and a
 
     expect($queries())->toBe($few);
 });
+
+it('gives the creation moments of the commitments of each client in a half-open range, oldest first', function () {
+    $at = fn (string $moment): array => ['created_at' => CarteraRecords::at($moment)];
+    $carlos = $this->people['carlos'];
+    CommitmentRecords::commitment($this->agro, $carlos, '2026-10-30', attributes: [...$at('2026-10-09 10:00:00'), 'status' => CommitmentStatus::Cancelled]);
+    CommitmentRecords::commitment($this->agro, $carlos, '2026-10-20', attributes: $at('2026-10-05 08:00:00'));
+    CommitmentRecords::commitment($this->agro, $carlos, '2026-10-20', attributes: $at('2026-10-04 23:59:59'));
+    CommitmentRecords::commitment($this->agro, $carlos, '2026-10-20', attributes: $at('2026-10-12 08:00:00'));
+    CommitmentRecords::commitment($this->bodega, $this->people['diana'], '2026-10-20', attributes: $at('2026-10-06 08:00:00'));
+    CommitmentRecords::commitment($this->granos, $this->people['mariaPaula'], '2026-10-20', attributes: $at('2026-10-07 08:00:00'));
+
+    $created = CommitmentRecords::service()->createdBetween(
+        [$this->agro->id, $this->bodega->id, $this->granos->id],
+        CarteraRecords::at('2026-10-05 08:00:00'),
+        CarteraRecords::at('2026-10-12 08:00:00'),
+    );
+
+    $moments = array_map(fn (array $ofClient): array => array_map(fn (CarbonImmutable $moment): string => $moment->toDateTimeString(), $ofClient), $created);
+
+    expect($moments)->toBe([
+        $this->agro->id => ['2026-10-05 08:00:00', '2026-10-09 10:00:00'],
+        $this->bodega->id => ['2026-10-06 08:00:00'],
+        $this->granos->id => ['2026-10-07 08:00:00'],
+    ]);
+});
+
+it('gives no creation moments for clients out of reach, without commitments or not asked for', function () {
+    $this->actingAs($this->people['carlos']);
+    CommitmentRecords::commitment($this->agro, $this->people['carlos'], '2026-10-20');
+    CommitmentRecords::commitment($this->bodega, $this->people['diana'], '2026-10-20');
+    $from = CarteraRecords::at('2026-10-01 00:00:00');
+    $to = CarteraRecords::at('2026-10-31 00:00:00');
+
+    expect(array_keys(CommitmentRecords::service()->createdBetween([$this->agro->id, $this->bodega->id, $this->granos->id], $from, $to)))->toBe([$this->agro->id])
+        ->and(CommitmentRecords::service()->createdBetween([], $from, $to))->toBe([]);
+});
+
+it('rejects a creation range that ends before it starts', function () {
+    CommitmentRecords::service()->createdBetween([$this->agro->id], CarteraRecords::at('2026-10-10 00:00:00'), CarteraRecords::at('2026-10-09 23:59:59'));
+})->throws(InvalidArgumentException::class);

@@ -122,6 +122,27 @@ it('filters by the companies of the query', function () {
         ->and(CarteraRecords::names(new ClientQuery(companies: [CompanyCode::SGX, CompanyCode::SDC])))->toBe(['Agro Arango', 'Bodega Bedoya']);
 });
 
+it('lists each client with its SAP group, or null when it has none', function () {
+    CarteraRecords::client('Agro Arango', ['group' => 'Ferreterías']);
+    CarteraRecords::client('Bodega Bedoya', ['group' => null]);
+
+    $groups = array_map(fn (ClientSummary $client): ?string => $client->group, [...CarteraRecords::repository()->allClients(new ClientQuery)]);
+
+    expect($groups)->toBe(['Ferreterías', null]);
+});
+
+it('filters by the SAP group, ignoring surrounding spaces, and does not filter on a blank group', function () {
+    CarteraRecords::client('Agro Arango', ['group' => 'Ferreterías']);
+    CarteraRecords::client('Bodega Bedoya', ['group' => 'Constructoras']);
+    CarteraRecords::client('Comercial Castaño', ['group' => null]);
+    CarteraRecords::client('Distribuciones Duque', ['group' => 'Ferreterías']);
+
+    expect(CarteraRecords::names(new ClientQuery(group: 'Ferreterías')))->toBe(['Agro Arango', 'Distribuciones Duque'])
+        ->and(CarteraRecords::names(new ClientQuery(group: ' Constructoras ')))->toBe(['Bodega Bedoya'])
+        ->and(CarteraRecords::names(new ClientQuery(group: 'Industria')))->toBe([])
+        ->and(CarteraRecords::names(new ClientQuery(group: '  ')))->toHaveCount(4);
+});
+
 it('sorts the clients and breaks ties by name', function (string $sort, string $direction, array $expected) {
     CarteraRecords::client('Beta', ['balance' => '300.00', 'overdue' => '0.00', 'max_days_overdue' => 0, 'status' => ClientStatus::Overdue, 'last_activity_at' => '2026-10-10 08:00:00']);
     CarteraRecords::client('alfa', ['balance' => '100.00', 'overdue' => '50.00', 'max_days_overdue' => 45, 'status' => ClientStatus::Legal, 'last_activity_at' => null]);

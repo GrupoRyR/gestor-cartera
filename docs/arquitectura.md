@@ -345,6 +345,7 @@ Sin destinatarios no se envía. `create()` resuelve, en su transacción, los avi
 | `cancel(int $commitmentId, string $reason): Commitment` | Anula un `Pending` o `Broken` con motivo obligatorio. | `RecordNotFound`, `AuthorizationException`, `InvalidArgumentException` (motivo vacío), `DomainException` |
 | `find(int $commitmentId): ?Commitment` | El compromiso; `null` si no existe o está fuera del alcance. | — |
 | `paginate(CommitmentQuery $query, int $perPage = 25): LengthAwarePaginator` | Una página de `Commitment` (`?page=`). | `InvalidArgumentException` (`$perPage < 1`) |
+| `createdBetween(list<int> $clientIds, CarbonImmutable $from, CarbonImmutable $to): array` | Cuándo se registraron los compromisos de esos clientes (`createdAt`) en `[$from, $to)`, en cualquier estado: `array<int, non-empty-list<CarbonImmutable>>` por id de cliente, del más antiguo al más nuevo. Sigue el alcance de `find()` en todas las empresas del usuario; los clientes fuera del alcance o sin compromisos en el rango no aparecen. Lo usa el informe de cobro para contar compromisos después de un envío. | `InvalidArgumentException` (`$to` anterior a `$from`) |
 
 ### 6.6 `GestionLogger`
 
@@ -480,12 +481,12 @@ Todos son `final readonly`. Los campos van en el orden del constructor; los que 
 
 | Clase | Campos | Métodos |
 |---|---|---|
-| `ClientSummary` | `id: int`, `company: CompanyCode`, `code: string` (OCRD.CardCode), `name: string`, `taxId: string` (NIT), `status: ClientStatus`, `balance: float`, `overdue: float`, `maxDaysOverdue: int`, `advisor: ?Advisor = null`, `manager: ?UserRef = null` (gestor responsable), `lastActivityAt: ?CarbonImmutable = null` | — |
+| `ClientSummary` | `id: int`, `company: CompanyCode`, `code: string` (OCRD.CardCode), `name: string`, `taxId: string` (NIT), `status: ClientStatus`, `balance: float`, `overdue: float`, `maxDaysOverdue: int`, `advisor: ?Advisor = null`, `manager: ?UserRef = null` (gestor responsable), `lastActivityAt: ?CarbonImmutable = null`, `group: ?string = null` (grupo de SAP, la columna `grupo` del robot; el mismo valor que `ClientDetail::$group`) | — |
 | `ClientDetail` | `summary: ClientSummary`, `creditLimit: ?float = null` (cupo), `group: ?string = null`, `city: ?string = null`, `paymentTerms: ?string = null`, `contacts: list<Contact> = []` | `emails(): list<string>` (únicos, principales primero) |
 | `Contact` | `name: ?string = null`, `email: ?string = null`, `phone: ?string = null`, `position: ?string = null`, `isPrimary: bool = false` | — |
 | `Invoice` | `id: int`, `company: CompanyCode`, `clientId: int`, `documentNumber: string`, `documentType: string`, `issuedAt: CarbonImmutable`, `dueAt: CarbonImmutable`, `amount: float`, `balance: float`, `daysOverdue: int`, `advisorCode: ?int = null`, `amountBeforeTax: ?float = null`, `balanceBeforeTax: ?float = null` | — |
 | `Advisor` | `company: CompanyCode`, `code: int` (OSLP.SlpCode), `name: string`, `email: ?string = null`, `active: bool = true`, `userId: ?int = null` | — |
-| `ClientQuery` | `search: ?string = null`, `statuses: list<ClientStatus> = []`, `advisorCode: ?int = null`, `companies: list<CompanyCode> = []`, `onlyOverdue: bool = false`, `inactiveSince: ?CarbonImmutable = null`, `sort: string = 'name'`, `direction: string = 'asc'`, `managerUserId: ?int = null`, `unassigned: bool = false` | `SORTS` = `name`, `balance`, `overdue`, `days_overdue`, `status`, `last_activity`; `DIRECTIONS` = `asc`, `desc` |
+| `ClientQuery` | `search: ?string = null`, `statuses: list<ClientStatus> = []`, `advisorCode: ?int = null`, `companies: list<CompanyCode> = []`, `onlyOverdue: bool = false`, `inactiveSince: ?CarbonImmutable = null`, `sort: string = 'name'`, `direction: string = 'asc'`, `managerUserId: ?int = null`, `unassigned: bool = false`, `group: ?string = null` (solo ese grupo de SAP tras quitar espacios de los extremos, comparado como lo hace la base: MySQL no distingue mayúsculas ni tildes; pásale un valor leído de `ClientSummary::$group`; vacío no filtra) | `SORTS` = `name`, `balance`, `overdue`, `days_overdue`, `status`, `last_activity`; `DIRECTIONS` = `asc`, `desc` |
 | `PortfolioTotals` | `cutoffDate: ?CarbonImmutable`, `total: float`, `overdue: float`, `clientCount: int`, `overdueClientCount: int`, `aging: AgingBuckets` | `empty()`, `overduePercent(): float` (0 a 100) |
 | `AgingBuckets` | `notDue`, `days1To30`, `days31To60`, `days61To90`, `over90` (todos `float = 0`) | `total()`, `overdue()` |
 

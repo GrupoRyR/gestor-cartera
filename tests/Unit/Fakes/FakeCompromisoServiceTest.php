@@ -251,3 +251,28 @@ it('asserts created commitments', function () {
         ->toThrow(AssertionFailedError::class)
         ->and(fn () => $this->service->assertNothingCreated())->toThrow(AssertionFailedError::class);
 });
+
+it('gives the creation moments of the asked clients in a half-open range, honouring the scope', function () {
+    $mine = Make::client(name: 'Cliente propio', advisor: Make::advisor(code: 22));
+    $other = Make::client(name: 'Cliente ajeno', advisor: Make::advisor(code: 33));
+    $cartera = (new FakeCarteraRepository)
+        ->addClient(Make::clientDetail($mine))
+        ->addClient(Make::clientDetail($other))
+        ->restrictToAdvisor(22);
+    $at = fn (string $moment): CarbonImmutable => CarbonImmutable::parse($moment);
+    $service = (new FakeCompromisoService($cartera))->add(
+        Make::commitment(clientId: $mine->id, createdAt: $at('2026-10-09 10:00')),
+        Make::commitment(clientId: $mine->id, createdAt: $at('2026-10-05 08:00')),
+        Make::commitment(clientId: $mine->id, createdAt: $at('2026-10-12 08:00')),
+        Make::commitment(clientId: $other->id, createdAt: $at('2026-10-06 08:00')),
+    );
+
+    $created = $service->createdBetween([$mine->id, $other->id], $at('2026-10-05 08:00'), $at('2026-10-12 08:00'));
+
+    expect(array_keys($created))->toBe([$mine->id])
+        ->and(array_map(fn (CarbonImmutable $moment): string => $moment->toDateTimeString(), $created[$mine->id]))
+        ->toBe(['2026-10-05 08:00:00', '2026-10-09 10:00:00'])
+        ->and($service->createdBetween([], $at('2026-10-01'), $at('2026-10-31')))->toBe([])
+        ->and(fn () => $service->createdBetween([$mine->id], $at('2026-10-10'), $at('2026-10-09')))
+        ->toThrow(InvalidArgumentException::class);
+});
