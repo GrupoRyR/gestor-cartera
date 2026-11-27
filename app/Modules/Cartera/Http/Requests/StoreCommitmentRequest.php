@@ -8,7 +8,8 @@ use Illuminate\Foundation\Http\FormRequest;
  * POST /cartera/clientes/{client}/compromisos: a new payment commitment, with
  * its fields nested under "compromiso" so the form shares the client file
  * with the other forms. The date is today or later: a promise for a day that
- * has passed would break on arrival.
+ * has passed would break on arrival. "llamada" is the id of the call the
+ * commitment was agreed on, when the form came from one.
  */
 final class StoreCommitmentRequest extends FormRequest
 {
@@ -21,6 +22,7 @@ final class StoreCommitmentRequest extends FormRequest
             'compromiso.fecha' => ['required', 'date_format:Y-m-d', 'after_or_equal:today'],
             'compromiso.valor' => ['required', 'numeric', 'gt:0', 'max:9999999999'],
             'compromiso.notas' => ['nullable', 'string', 'max:1000'],
+            'compromiso.llamada' => ['nullable', 'integer', 'min:1'],
         ];
     }
 
@@ -33,6 +35,7 @@ final class StoreCommitmentRequest extends FormRequest
             'compromiso.fecha' => 'fecha de pago',
             'compromiso.valor' => 'valor comprometido',
             'compromiso.notas' => 'notas',
+            'compromiso.llamada' => 'llamada',
         ];
     }
 
