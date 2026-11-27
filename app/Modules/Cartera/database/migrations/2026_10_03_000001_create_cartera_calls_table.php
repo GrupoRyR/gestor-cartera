@@ -38,7 +38,8 @@ return new class extends Migration
             $table->timestamps();
 
             $table->index(['client_id', 'occurred_at']);
-            $table->index(['follow_up_on', 'follow_up_notified_at', 'follow_up_closed_at']);
+            // Named by hand: the generated name has 74 characters and MySQL allows 64.
+            $table->index(['follow_up_on', 'follow_up_notified_at', 'follow_up_closed_at'], 'cartera_calls_follow_up_index');
         });
     }
 
