@@ -1,3 +1,4 @@
+@use('App\Modules\Cartera\Application\Calls\NewCall')
 @use('App\Modules\Cartera\Domain\Calls\CallAgreement')
 @use('App\Modules\Cartera\Domain\Calls\CallChannel')
 @use('App\Modules\Cartera\Domain\Calls\CallOutcome')
@@ -72,7 +73,7 @@
         </div>
 
         @if ($phones === [])
-            <x-ui.input name="llamada[telefono]" type="tel" :label="__('cartera::llamadas.formulario.telefono_solo')" maxlength="40" :required="true" />
+            <x-ui.input name="llamada[telefono]" type="tel" :label="__('cartera::llamadas.formulario.telefono_solo')" :maxlength="NewCall::PHONE_MAX_LENGTH" :required="true" />
         @else
             <div class="grid gap-4 sm:grid-cols-2">
                 <x-ui.select
@@ -87,7 +88,7 @@
                     type="tel"
                     :label="__('cartera::llamadas.formulario.otro_numero')"
                     :hint="__('cartera::llamadas.formulario.telefono_ayuda')"
-                    maxlength="40"
+                    :maxlength="NewCall::PHONE_MAX_LENGTH"
                 />
             </div>
         @endif
@@ -106,7 +107,7 @@
                 name="llamada[contacto]"
                 :label="$people === [] ? __('cartera::llamadas.formulario.persona') : __('cartera::llamadas.formulario.otra_persona')"
                 :hint="__('cartera::llamadas.formulario.contacto_ayuda')"
-                maxlength="150"
+                :maxlength="NewCall::CONTACT_MAX_LENGTH"
             />
         </div>
 

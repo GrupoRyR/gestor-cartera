@@ -181,6 +181,13 @@ describe('posting a call', function () {
         expect($call->phone)->toBe('3109998877')->and($call->contact_name)->toBe('Pedro, el contador');
     });
 
+    it('lets the browser take as long a number and name as the server does', function () {
+        $html = callFilePage(CarteraUsers::analyst());
+
+        expect($html)->toMatch('/<input[^>]*name="llamada\[telefono\]"[^>]*maxlength="255"/s')
+            ->toMatch('/<input[^>]*name="llamada\[contacto\]"[^>]*maxlength="150"/s');
+    });
+
     it('takes a contact phone as long as SAP keeps it', function () {
         // Core keeps a contact's phone in a string(255), and SAP often puts several numbers in it.
         $phones = '6015550123 ext 104 - 3001234567 - 3109876543 (solo en horario de oficina)';
