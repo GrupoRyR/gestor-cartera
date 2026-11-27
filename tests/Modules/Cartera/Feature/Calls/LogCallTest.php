@@ -19,6 +19,7 @@ use App\Modules\Core\Contracts\GestionLogger;
 use App\Support\Formatting\Money;
 use Carbon\CarbonImmutable;
 use Illuminate\Auth\Access\AuthorizationException;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 use Tests\Fakes\ContractFakes;
 use Tests\Fakes\Make;
@@ -313,6 +314,13 @@ it('closes the pending follow-ups of the client and resolves its notice', functi
         ->and($call->refresh()->follow_up_closed_at)->toBeNull();
 
     $this->fakes->avisos->assertResolved("cartera.call.follow_up:{$this->client->id}");
+});
+
+it('stores the time of the call in the app timezone, whatever zone it came in', function () {
+    $call = logCall(callInput($this->client->id, occurredAt: CarbonImmutable::parse('2026-11-20 14:00:00', 'UTC')), CarteraUsers::analyst());
+
+    expect((string) DB::table('cartera_calls')->where('id', $call->id)->value('occurred_at'))->toStartWith('2026-11-20 09:00:00')
+        ->and($call->refresh()->occurred_at->equalTo(CarbonImmutable::parse('2026-11-20 09:00:00', 'America/Bogota')))->toBeTrue();
 });
 
 it('leaves open the follow-up of a later call when the new call happened before it', function () {

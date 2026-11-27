@@ -83,7 +83,8 @@ final readonly class LogCall
                 throw new AuthorizationException('Only who writes the commitments of the company agrees one on a call.');
             }
 
-            $occurredAt = $call->occurredAt ?? CarbonImmutable::now();
+            // Eloquent writes a date's wall-clock time as given, so it goes in the app timezone.
+            $occurredAt = ($call->occurredAt ?? CarbonImmutable::now())->setTimezone((string) config('app.timezone'));
             $invoices = $this->validated($call, $occurredAt);
 
             $record = $this->save($call, $client, $occurredAt, $invoices, $user);
