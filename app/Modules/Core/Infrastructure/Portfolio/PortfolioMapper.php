@@ -64,6 +64,7 @@ final class PortfolioMapper
                 advisor: $client->advisor_code === null ? null : $advisors["{$client->company->value}-{$client->advisor_code}"] ?? null,
                 manager: $client->manager_user_id === null ? null : $managers[$client->manager_user_id] ?? null,
                 lastActivityAt: $client->last_activity_at,
+                group: $client->group,
             );
         }
 

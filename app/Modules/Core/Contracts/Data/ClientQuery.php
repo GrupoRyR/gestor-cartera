@@ -49,6 +49,8 @@ final readonly class ClientQuery
      * @param  string  $direction  "asc" or "desc".
      * @param  int|null  $managerUserId  Only clients whose portfolio manager (ClientSummary::$manager) is this user.
      * @param  bool  $unassigned  Only clients without a portfolio manager.
+     * @param  string|null  $group  Only clients whose ClientSummary::$group is exactly this one, after
+     *                              trimming surrounding spaces; null or blank = no filter.
      *
      * @throws InvalidArgumentException When $sort or $direction is not allowed, or when
      *                                  $managerUserId and $unassigned are both given.
@@ -64,6 +66,7 @@ final readonly class ClientQuery
         public string $direction = 'asc',
         public ?int $managerUserId = null,
         public bool $unassigned = false,
+        public ?string $group = null,
     ) {
         if (! in_array($sort, self::SORTS, true)) {
             throw new InvalidArgumentException("Unknown client sort [{$sort}]; use one of: ".implode(', ', self::SORTS).'.');

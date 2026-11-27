@@ -303,6 +303,7 @@ final class FakeCarteraRepository implements CarteraRepository
     {
         $companies = $this->companiesInScope($this->currentCompany, $query->companies);
         $search = mb_strtolower(trim((string) $query->search));
+        $group = trim((string) $query->group);
 
         $clients = [];
 
@@ -317,6 +318,7 @@ final class FakeCarteraRepository implements CarteraRepository
                 || ($query->inactiveSince !== null && $client->lastActivityAt !== null && $client->lastActivityAt >= $query->inactiveSince)
                 || ($query->managerUserId !== null && $client->manager?->id !== $query->managerUserId)
                 || ($query->unassigned && $client->manager !== null)
+                || ($group !== '' && $client->group !== $group)
             ) {
                 continue;
             }

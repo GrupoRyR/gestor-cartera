@@ -122,6 +122,17 @@ it('filters by the manager of the client, or by clients without one', function (
         ->and(clientNames($repository->allClients(new ClientQuery(unassigned: true))))->toBe(['Comercial Castaño']);
 });
 
+it('filters by the SAP group, ignoring surrounding spaces', function () {
+    $repository = (new FakeCarteraRepository)
+        ->addClient(Make::clientDetail(Make::client(name: 'Agro Arango', group: 'Ferreterías')))
+        ->addClient(Make::clientDetail(Make::client(name: 'Bodega Bedoya', group: 'Constructoras')))
+        ->addClient(Make::clientDetail(Make::client(name: 'Comercial Castaño')));
+
+    expect(clientNames($repository->allClients(new ClientQuery(group: ' Ferreterías '))))->toBe(['Agro Arango'])
+        ->and(clientNames($repository->allClients(new ClientQuery(group: ''))))->toHaveCount(3)
+        ->and([...$repository->allClients(new ClientQuery(group: 'Constructoras'))][0]->group)->toBe('Constructoras');
+});
+
 it('sorts by any documented column and breaks ties by name', function () {
     $repository = $this->repository;
 
