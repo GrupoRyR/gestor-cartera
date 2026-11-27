@@ -13,9 +13,13 @@
  *   clean number, in POST and GET forms alike; the field itself keeps
  *   showing the formatted figure.
  *
- * The value printed by the server is always clean (digits and an optional
- * dot); a value the browser restored (back button, autofill) is read as
- * typed text instead.
+ * - A field added after the page loaded (a fetched fragment, a cloned row)
+ *   is formatted as soon as it enters the document (MutationObserver).
+ *
+ * The value printed by the server is clean (digits and an optional decimal
+ * dot); anything else, like old input typed without the script ("1.500",
+ * shaped like thousands) or a value the browser restored (back button,
+ * autofill), is read as typed text instead.
  */
 
 const SELECTOR = 'input[data-money-input]';
@@ -31,9 +35,19 @@ function partsOfTyped(text, decimals) {
     return { integer, fraction, hasComma };
 }
 
-/** Digits and the decimal part of a clean value (1234567.5). */
+/** "1.500" and "12.345.678": one to three digits, then groups of three after each dot. */
+const THOUSANDS = /^\d{1,3}(?:\.\d{3})+$/;
+
+/**
+ * Digits and the decimal part of a clean value (1234567.5). A value shaped
+ * like thousands ("1.500") is old input typed without the script, so it is
+ * read as typed text, as PesosInput reads it on the server. Any other dot is
+ * decimal and its digits are cut to $decimals: a clean "1500000.50" in a
+ * whole-peso field keeps its pesos and drops the cents.
+ */
 function partsOfClean(text, decimals) {
-    const match = /^(\d*)(?:\.(\d*))?$/.exec(String(text).trim());
+    const trimmed = String(text).trim();
+    const match = THOUSANDS.test(trimmed) ? null : /^(\d*)(?:\.(\d*))?$/.exec(trimmed);
 
     if (match === null) {
         return partsOfTyped(text, decimals);
@@ -211,8 +225,30 @@ function formatOnLoad(input) {
     input.value = input.value === input.defaultValue ? formatClean(input.value, decimals) : formatTyped(input.value, decimals);
 }
 
+/**
+ * Formats the money fields among the nodes added to the document. Formatting
+ * twice is harmless: a formatted value no longer equals the printed one, so
+ * it is read as typed text and stays the same.
+ */
+function formatAdded(records) {
+    for (const record of records) {
+        for (const node of record.addedNodes) {
+            if (!(node instanceof Element)) {
+                continue;
+            }
+
+            if (node.matches(SELECTOR)) {
+                formatOnLoad(node);
+            }
+
+            node.querySelectorAll(SELECTOR).forEach(formatOnLoad);
+        }
+    }
+}
+
 export function startMoneyInputs() {
     document.querySelectorAll(SELECTOR).forEach(formatOnLoad);
+    new MutationObserver(formatAdded).observe(document.documentElement, { childList: true, subtree: true });
     document.addEventListener('beforeinput', onBeforeInput);
     document.addEventListener('paste', onPaste);
     document.addEventListener('input', onInput);
