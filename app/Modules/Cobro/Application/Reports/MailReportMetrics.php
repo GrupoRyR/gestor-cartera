@@ -11,7 +11,9 @@ namespace App\Modules\Cobro\Application\Reports;
  * bounce; medianFirstReply, the median seconds from the send to its first
  * reply. teamReplies counts the replies the team sent from the app
  * (ReplySender) in the date range and companies only: the other filters
- * do not apply to it.
+ * do not apply to it. committed counts the sent items (enviado or
+ * rebotado, as sent does) whose client
+ * registered a payment commitment in the CommitmentWindow of the send.
  */
 final readonly class MailReportMetrics
 {
@@ -23,5 +25,6 @@ final readonly class MailReportMetrics
         public int $replies,
         public ?float $medianFirstReply,
         public int $teamReplies,
+        public int $committed = 0,
     ) {}
 }

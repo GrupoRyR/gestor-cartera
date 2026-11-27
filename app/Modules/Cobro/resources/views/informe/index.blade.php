@@ -2,15 +2,18 @@
 @use('App\Modules\Cobro\Application\Reports\ReportNumbers')
 @use('App\Modules\Cobro\Domain\Runs\ItemStatus')
 @use('App\Modules\Cobro\Domain\Runs\RunKind')
+@use('App\Modules\Cobro\Infrastructure\Reports\MailReport')
 
 {{--
     GET /cobro/informe (cobro.informe.index): the collection report.
     $filter: MailReportFilter; $items: paginator of RunItem with its run and
     first_reply_at; $metrics: MailReportMetrics over every filtered item;
-    $advisors: client id => current advisor name; $advisorOptions:
-    "<company>:<code>" => name; $companyOptions: code => name, or null with
-    a single company in scope; $query: the filters in the URL, without the
-    page (for the Excel link); $narrowed: whether a filter is in the URL.
+    $clients: ReportClients (current advisor and group of each client);
+    $commitments: CommitmentWindow of the filter; $advisorOptions:
+    "<company>:<code>" => name; $groupOptions: group => group, or null
+    without groups; $companyOptions: code => name, or null with a single
+    company in scope; $query: the filters in the URL, without the page (for
+    the Excel link); $narrowed: whether a filter is in the URL.
 --}}
 @php
     $number = fn (int $value): string => number_format($value, 0, ',', '.');
@@ -19,12 +22,14 @@
         ['key' => 'company', 'label' => __('cobro::informe.columnas.empresa')],
         ['key' => 'kind', 'label' => __('cobro::informe.columnas.tipo')],
         ['key' => 'client', 'label' => __('cobro::informe.columnas.cliente')],
+        ['key' => 'group', 'label' => __('cobro::informe.columnas.grupo')],
         ['key' => 'advisor', 'label' => __('cobro::informe.columnas.asesor')],
         ['key' => 'status', 'label' => __('cobro::informe.columnas.estado')],
         ['key' => 'amount', 'label' => __('cobro::informe.columnas.monto'), 'align' => 'end'],
         ['key' => 'invoices', 'label' => __('cobro::informe.columnas.facturas'), 'align' => 'end'],
         ['key' => 'sent', 'label' => __('cobro::informe.columnas.enviado')],
         ['key' => 'reply', 'label' => __('cobro::informe.columnas.respuesta')],
+        ['key' => 'commitment', 'label' => __('cobro::informe.columnas.compromiso')],
     ];
     $kindOptions = [];
     foreach (RunKind::cases() as $kind) {
@@ -55,6 +60,9 @@
             @endif
             <x-ui.input name="cliente" type="search" :label="__('cobro::informe.filtros.cliente')" :value="$filter->client" :hint="__('cobro::informe.filtro.cliente_ayuda')" />
             <x-ui.select name="asesor" :label="__('cobro::informe.filtros.asesor')" :options="$advisorOptions" :value="$advisorKey" :placeholder="__('cobro::informe.filtro.todos')" />
+            @if ($groupOptions !== null)
+                <x-ui.select name="grupo" :label="__('cobro::informe.filtros.grupo')" :options="$groupOptions" :value="$filter->group" :placeholder="__('cobro::informe.filtro.todos')" :hint="__('cobro::informe.filtro.grupo_ayuda')" />
+            @endif
             <x-ui.select name="tipo" :label="__('cobro::informe.filtros.tipo')" :options="$kindOptions" :value="$filter->kind" :placeholder="__('cobro::informe.filtro.todos')" />
             <x-ui.select name="estado" :label="__('cobro::informe.filtros.estado')" :options="$statusOptions" :value="$filter->status" :placeholder="__('cobro::informe.filtro.todos')" />
             <x-ui.select
@@ -87,6 +95,11 @@
             <x-ui.stat data-metric="team" :label="__('cobro::informe.metricas.equipo')" :value="$number($metrics->teamReplies)" :hint="__('cobro::informe.metricas.equipo_ayuda')" />
         </div>
 
+        <div class="grid grid-cols-1 gap-3 min-[22rem]:grid-cols-2 md:gap-4 lg:grid-cols-4">
+            <x-ui.stat data-metric="commitments" :label="__('cobro::informe.metricas.compromisos')" :value="$number($metrics->committed)" :hint="__('cobro::informe.metricas.compromisos_ayuda')" />
+            <x-ui.stat data-metric="commitment_rate" :label="__('cobro::informe.metricas.tasa_compromisos')" :value="ReportNumbers::percent($metrics->committed, $metrics->sent)" />
+        </div>
+
         @if ($items->isEmpty())
             <x-ui.empty icon="chart" :title="__('cobro::informe.vacio.titulo')" :description="__('cobro::informe.vacio.detalle')" />
         @else
@@ -101,12 +114,14 @@
                                 <span class="block text-sm">{{ $item->client_code }}</span>
                                 <span class="font-semibold">{{ $item->client_name }}</span>
                             </td>
-                            <td>{{ $advisors[$item->client_id] ?? '—' }}</td>
+                            <td>{{ $clients->group($item->client_id) ?? '—' }}</td>
+                            <td>{{ $clients->advisorName($item->client_id) ?? '—' }}</td>
                             <td><x-ui.chip :tone="$item->status->tone()">{{ $item->status->label() }}</x-ui.chip></td>
                             <td data-align="end"><x-ui.money :value="$item->amount" /></td>
                             <td data-align="end">{{ $number($item->invoice_count) }}</td>
                             <td><x-ui.date :value="$item->sent_at" :time="true" /></td>
                             <td><x-ui.date :value="$item->first_reply_at" :time="true" :fallback="__('cobro::informe.sin_respuesta')" /></td>
+                            <td><x-ui.date :value="$commitments->first($item->client_id, MailReport::mailed($item) ? $item->sent_at : null)" :time="true" /></td>
                         </tr>
                     @endforeach
                 </x-ui.table>
