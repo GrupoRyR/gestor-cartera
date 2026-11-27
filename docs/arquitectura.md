@@ -22,7 +22,7 @@ Estas piezas las usan todas las sesiones a la vez. **No se cambian dentro del PR
 | Pieza | Dónde | Regla |
 |---|---|---|
 | Contratos entre módulos | `app/Modules/Core/Contracts/**` (interfaces, `Data`, `Enums`, `Events`, `Exceptions`) | Congelados (C.2). Núcleo puede **agregar** un contrato nuevo y avisarlo en su PR; nadie cambia los existentes. |
-| Props de los componentes | `resources/views/components/**` (C.5 más `<x-ui.icon>` y `<x-ui.pagination>`) | Diseño cambia el marcado y el estilo, nunca las props ni los contratos de §8.2. |
+| Props de los componentes | `resources/views/components/**` (C.5 más `<x-ui.icon>`, `<x-ui.pagination>` y `<x-ui.money-input>`) | Diseño cambia el marcado y el estilo, nunca las props ni los contratos de §8.2. |
 | Ganchos del cargador de módulos | `app/Support/Modules/ModuleServiceProvider.php` | `register()` y `boot()` son `final`; los módulos solo usan los ganchos de §3.3. |
 | Fakes de los contratos | `tests/Fakes/**` | Cambian solo junto con su contrato. |
 
@@ -791,6 +791,16 @@ En Blade, una prop `camelCase` se pasa en `kebab-case`: `:icon-only="true"`, `ca
 | | `label` | `?string` | `null` | Sin etiqueta es decorativo (`aria-hidden`); con ella, `role="img"`. |
 | `<x-ui.pagination>` *(adición)* | `paginator` | `Illuminate\Contracts\Pagination\Paginator` | obligatoria | No pinta nada si todo cabe en una página; con `LengthAwarePaginator` muestra «Página X de Y». Sus enlaces conservan la query de la URL actual (búsqueda, filtros, orden), salvo el parámetro de página. |
 | | `label` | `string` | `'Paginación'` | `aria-label` del `<nav>`. |
+| `<x-ui.money-input>` *(adición)* | `name` | `string` | obligatoria | Campo de monto: un `<x-ui.input>` de texto que muestra pesos al estilo colombiano mientras se escribe (`1.234.567,50`). Ver «Montos en formularios» en §8.2. |
+| | `label` | `string` | obligatoria | |
+| | `value` | `mixed` | `null` | Limpio: dígitos y, si hay centavos, punto decimal (`1234567.5`); nunca una cifra con formato. `old()` gana. |
+| | `decimals` | `int` | `0` | `0` (pesos enteros, teclado numérico) a `2` (centavos, teclado decimal). Otro valor lanza `InvalidArgumentException`. |
+| | `hint` | `?string` | `null` | |
+| | `required` | `bool` | `false` | |
+| | `labelHidden` | `bool` | `false` | |
+| | `prefix` | `?string` | `'$'` | |
+| | `suffix` | `?string` | `null` | |
+| | `id` | `?string` | `null` | Por defecto, derivado de `name`. Atributos extra van al `<input>` (p. ej. `form`). |
 
 ### 8.2 Reglas comunes
 
@@ -841,6 +851,19 @@ En Blade, una prop `camelCase` se pasa en `kebab-case`: `:icon-only="true"`, `ca
   - Úsalos también en exportaciones, para que pantalla y archivo coincidan.
 - **Scripts en línea:** las páginas salen con una `Content-Security-Policy` que solo deja correr los scripts del mismo dominio y los que llevan el nonce de la petición (`app/Modules/Core/README.md`, «Content-Security-Policy»). Un `<script>` en línea lleva `nonce="{{ Vite::cspNonce() }}"`; si su código está dentro de `@verbatim`, la etiqueta va fuera del bloque, porque Blade no interpreta nada dentro de `@verbatim`. Atributos como `onclick=""` y enlaces `javascript:` no corren: usa Alpine. Una prueba de Core falla si una vista tiene un `<script>` en línea sin nonce.
 - **Estilos en módulos:** Tailwind escanea las vistas de los módulos (`@source` en `resources/css/app.css`). Nada de `<style>`, CSS propio ni colores fijos; los colores salen de `--brand-*` a través de los componentes. Si falta un componente, se pide.
+- **Montos en formularios:** `<x-ui.money-input>`, con el script `resources/js/money-input.js`. El contrato con el servidor es la cifra limpia, en las dos direcciones.
+  - **Valor inicial limpio:** `value` va sin separadores de miles y con centavos solo si los hay (`1234567`, `1234567.50`). El script le da formato al cargar la página.
+  - **Envío limpio:** en el evento `formdata`, el script cambia el valor de cada campo por la cifra limpia (`1.234.567,50` → `1234567.50`), en formularios POST y GET, también en un campo asociado con el atributo `form`. El campo sigue mostrando la cifra con formato.
+  - **Al escribir:** punto para miles y coma para decimales. Un `.` tecleado donde cabe un decimal se vuelve `,`. Los decimales se recortan a `decimals`; con `0`, la coma y lo que sigue se descartan.
+  - **Al pegar:** la cifra se lee en su propia notación. Con punto y coma, el último separador es el decimal. Con solo puntos, el último es decimal si lo siguen 1 o 2 dígitos: `1234567.50` de Excel o SAP queda `1.234.567,50`, no `123.456.750`. Varias comas son miles; una sola es la coma decimal.
+  - **Old input y valores restaurados:** un valor impreso que no cambió se lee como limpio, salvo si tiene forma de miles (`1.500`, `12.345.678`). Ese es old input escrito sin el script, y se lee como texto escrito, igual que lo lee `PesosInput` de Asesores en el servidor. Cualquier otro punto es decimal. Un valor que el navegador restauró (botón atrás, autocompletar) también se lee como texto escrito.
+  - **Campos agregados después:** un `MutationObserver` da formato a los campos que entran al documento después de cargar (un fragmento traído, una fila clonada).
+  - **Sin cambios en el servidor:** sin el script, el usuario escribe dígitos y el servidor los recibe tal cual. Por eso, pasar un campo de monto a este componente no cambia ninguna regla de validación (`numeric`, `gt:0` o el parser del módulo). Con `decimals = 0`, un valor con centavos se muestra y se envía sin ellos.
+
+  ```blade
+  <x-ui.money-input name="compromiso[valor]" label="Valor comprometido" :decimals="2" :value="$valorSugerido" :required="true" />
+  ```
+
 - **Enums en formularios:** `<x-ui.select name="estado" label="Estado" :options="ClientStatus::options()" :value="$estado" />`.
 
 ---
