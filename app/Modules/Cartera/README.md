@@ -50,9 +50,21 @@ Sin `gestor` en la URL, quien tiene el permiso `cartera.clients.start_on_mine` (
 
 El cambio de estado usa el permiso de Core `core.clients.change_status`; asignar el gestor, `core.clients.assign`, y borrar una gestión, `core.activities.delete`.
 
+## Registro de llamadas
+
+Cada llamada al cliente queda como fila propia del módulo y como entrada de la bitácora. Lo hace `Application/Calls/LogCall::log(NewCall, User)`; todavía no tiene pantalla.
+
+- **Tablas.** `cartera_calls`: empresa, cliente (`client_id` de Core, sin llave foránea), quién llamó (`user_id`), cuándo (`occurred_at`), canal, teléfono, contacto (opcional), resultado, notas, acuerdo, `commitment_id` y `activity_id` (ids de Core, sin llave foránea) y el seguimiento (`follow_up_on`, `follow_up_notified_at`, `follow_up_closed_at`). `cartera_call_invoices`: las facturas abiertas de la llamada, copiadas ese día (número, tipo, vencimiento y saldo), porque el id de factura de Core cambia con cada carga.
+- **Valores** (`Domain/Calls`, textos en `lang/es/llamadas.php`). Canal: «Llamada», «Llamada de WhatsApp», «Mensaje de WhatsApp». Resultado: «Contestó», «No contestó», «Buzón de voz», «Número equivocado», «Pidió volver a llamar». Acuerdo: «Ninguno», «Compromiso de pago», «Envío de soporte».
+- **Quién.** Solo `cartera.manage` (gerente y analista), sobre cualquier cliente de su alcance; uno fuera de alcance es `RecordNotFound`. «Compromiso de pago» solo si el usuario escribe los compromisos de la empresa del cliente (`CommitmentWriting` y `cartera.commitments.write`: la analista en SDC); si no, `AuthorizationException`. La llamada no guarda valor ni fecha del compromiso.
+- **Reglas** (`ValidationException` con los campos `ocurrio`, `seguimiento`, `acuerdo` y `facturas`). La fecha es ahora si no llega; no puede ser futura ni de hace más de 30 días (desde el inicio de hoy en Bogotá). «Pidió volver a llamar» exige el día del seguimiento, que debe ser hoy o después. Un acuerdo distinto de «Ninguno» exige «Contestó». Cada factura debe estar entre las abiertas del cliente.
+- **Bitácora.** Una entrada `ActivityType::Call` con resumen «Llamada de WhatsApp a Juan Pérez (3001234567)» (sin contacto, «Llamada al 3001234567»), detalle con las notas y una línea por factura («Factura FV-123, vence 15/10/2026, saldo $ 1.234.567»), resultado «Contestó · Compromiso de pago» (sin acuerdo, solo el resultado) y `metadata` `call_id`, `channel`, `outcome` y `agreement`. La llamada guarda el id de la entrada en `activity_id`.
+- **Seguimiento.** Una llamada nueva cierra los seguimientos abiertos de las llamadas del mismo cliente que ocurrieron antes que ella o a la misma hora (`follow_up_closed_at`); una llamada registrada tarde deja abiertos los de llamadas posteriores. Si no queda ningún seguimiento abierto del cliente, resuelve los avisos de la campana con la `key` `cartera.call.follow_up:{clientId}`.
+- Todo va en una transacción: si algo falla, no queda ni la llamada, ni sus facturas, ni el cierre de seguimientos.
+
 ## Cómo se une al resto
 
-Solo usa `Core/Contracts`: `CarteraRepository`, `CompromisoService`, `GestionLogger`, `ClientStatusService`, `ClientAssignmentService`, `CurrentCompany`, `AuditLogger`, `MailboxReader`, `IngestaSink` y `AvisoService`. No tiene tablas ni migraciones propias (el prefijo `2026_10_03_*` queda reservado).
+Solo usa `Core/Contracts`: `CarteraRepository`, `CompromisoService`, `GestionLogger`, `ClientStatusService`, `ClientAssignmentService`, `CurrentCompany`, `AuditLogger`, `MailboxReader`, `IngestaSink` y `AvisoService`. Sus únicas tablas son las del registro de llamadas (`cartera_calls` y `cartera_call_invoices`, migraciones `2026_10_03_*`; ver «Registro de llamadas»).
 
 Enlace del aviso de saldo: `bootModule()` registra con `AvisoService::linkUsing('commitment.remaining', …)` (`Application/Commitments/RemainingBalanceLink`) a dónde lleva el aviso que Core envía al abonar (`docs/arquitectura.md` §6.5). Con `cartera.view` y sujeto `client`, lleva a la ficha; si además el usuario escribe los compromisos de la empresa del cliente (`cartera.commitments.write` y SDC, `CommitmentWriting`), con `?nuevo-compromiso=1&valor={saldo}`. Si no, pasa (`null`). La ficha sigue a la empresa activa: un aviso de la otra empresa abre en 404 hasta que el usuario cambie a esa empresa o a la vista Grupo (el cambio de empresa de Core es un `POST` que vuelve atrás; un enlace no lo puede hacer).
 
