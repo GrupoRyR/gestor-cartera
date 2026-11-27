@@ -49,8 +49,10 @@ final readonly class ClientQuery
      * @param  string  $direction  "asc" or "desc".
      * @param  int|null  $managerUserId  Only clients whose portfolio manager (ClientSummary::$manager) is this user.
      * @param  bool  $unassigned  Only clients without a portfolio manager.
-     * @param  string|null  $group  Only clients whose ClientSummary::$group is exactly this one, after
-     *                              trimming surrounding spaces; null or blank = no filter.
+     * @param  string|null  $group  Only clients whose ClientSummary::$group equals this one, after
+     *                              trimming surrounding spaces, as the database compares text
+     *                              (MySQL ignores case and accents); null or blank = no filter.
+     *                              Pass a value read from ClientSummary::$group.
      *
      * @throws InvalidArgumentException When $sort or $direction is not allowed, or when
      *                                  $managerUserId and $unassigned are both given.
