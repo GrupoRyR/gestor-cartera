@@ -216,9 +216,16 @@ it('names the file after the dates of the filter', function () {
         ->assertDownload('informe-cobro-2026-10-01-a-2026-10-15.xlsx');
 });
 
-it('writes a row per item with its run, client, advisor, figures, send, first reply and detail', function () {
+it('writes a row per item with its run, client, group, advisor, figures, send, first reply, commitments and detail', function () {
     $carlos = Make::advisor(code: 12, name: 'Carlos Pérez');
-    $this->fakes->cartera->addAdvisor($carlos)->addClient(Make::clientDetail(Make::client(id: 7001, advisor: $carlos)));
+    $this->fakes->cartera->addAdvisor($carlos)->addClient(Make::clientDetail(Make::client(id: 7001, advisor: $carlos, group: 'Ferreterías')));
+    $at = fn (string $moment): CarbonImmutable => CarbonImmutable::parse($moment, 'America/Bogota');
+    $this->fakes->compromisos->add(
+        Make::commitment(clientId: 7001, createdAt: $at('2026-10-23 08:00:00')),
+        Make::commitment(clientId: 7001, createdAt: $at('2026-10-22 15:45:00')),
+        // Seven days after the send: outside the window.
+        Make::commitment(clientId: 7001, createdAt: $at('2026-10-28 17:00:00')),
+    );
     [$answered, $bounced, $failed, $excluded] = mailExportRun(CompanyCode::SGX, RunKind::Weekly, '2026-10-21 17:00:00', [
         ['client_id' => 7001, 'client_code' => 'CL-0042', 'client_name' => 'Ferretería El Tornillo SAS', 'tax_id' => '900123456', 'amount' => '2345678.50', 'invoice_count' => 3],
         ['client_name' => 'Rebotado SAS', 'status' => ItemStatus::Bounced, 'bounce_reason' => 'El buzón no existe.', 'bounced_recipient' => 'pagos@cliente.example'],
@@ -231,24 +238,28 @@ it('writes a row per item with its run, client, advisor, figures, send, first re
     $rows = mailExportRows(mailExport($this->analyst));
 
     expect($rows[0])->toBe([
-        'Fecha del envío', 'Empresa', 'Envío', 'Código del cliente', 'Cliente', 'NIT', 'Asesor', 'Resultado', 'Valor',
-        'Facturas', 'Enviado', 'Primera respuesta', 'Horas hasta la primera respuesta', 'Detalle',
+        'Fecha del envío', 'Empresa', 'Envío', 'Código del cliente', 'Cliente', 'NIT', 'Grupo', 'Asesor', 'Resultado', 'Valor',
+        'Facturas', 'Enviado', 'Primera respuesta', 'Horas hasta la primera respuesta', 'Compromisos en 7 días', 'Primer compromiso', 'Detalle',
     ])->and(count($rows))->toBe(5);
 
     $byName = collect(array_slice($rows, 1))->keyBy(4);
 
     expect($byName['Ferretería El Tornillo SAS'])->toEqual([
-        '2026-10-21', 'SGX', 'Cobro semanal', 'CL-0042', 'Ferretería El Tornillo SAS', '900123456', 'Carlos Pérez', 'Enviado', 2345678.5,
-        3, '2026-10-21 17:00', '2026-10-21 19:30', 2.5, null,
+        '2026-10-21', 'SGX', 'Cobro semanal', 'CL-0042', 'Ferretería El Tornillo SAS', '900123456', 'Ferreterías', 'Carlos Pérez', 'Enviado', 2345678.5,
+        3, '2026-10-21 17:00', '2026-10-21 19:30', 2.5, 2, '2026-10-22 15:45', null,
     ])
-        ->and($byName['Rebotado SAS'][7])->toBe('Rebotado')
-        ->and($byName['Rebotado SAS'][13])->toBe('Rebotó pagos@cliente.example: El buzón no existe.')
-        ->and($byName['Rebotado SAS'][11])->toBeNull()
+        ->and($byName['Rebotado SAS'][8])->toBe('Rebotado')
+        ->and($byName['Rebotado SAS'][16])->toBe('Rebotó pagos@cliente.example: El buzón no existe.')
         ->and($byName['Rebotado SAS'][12])->toBeNull()
-        ->and($byName['Fallido SAS'][10])->toBeNull()
-        ->and($byName['Fallido SAS'][13])->toBe('El servidor de correo no respondió.')
-        ->and($byName['Excluido SAS'][13])->toBe('Cliente en cobro jurídico')
-        ->and($byName['Excluido SAS'][6])->toBeNull();
+        ->and($byName['Rebotado SAS'][13])->toBeNull()
+        ->and($byName['Rebotado SAS'][14])->toEqual(0)
+        ->and($byName['Rebotado SAS'][15])->toBeNull()
+        ->and($byName['Fallido SAS'][11])->toBeNull()
+        ->and($byName['Fallido SAS'][14])->toBeNull()
+        ->and($byName['Fallido SAS'][16])->toBe('El servidor de correo no respondió.')
+        ->and($byName['Excluido SAS'][16])->toBe('Cliente en cobro jurídico')
+        ->and($byName['Excluido SAS'][6])->toBeNull()
+        ->and($byName['Excluido SAS'][7])->toBeNull();
 
     $this->fakes->audit->assertRecorded('cobro.mail_report.exported', fn ($entry): bool => $entry->context['rows'] === 4);
 });
@@ -315,7 +326,7 @@ it('reads the advisors with one pass over the clients of each company', function
     mailExportRun(CompanyCode::SDC, RunKind::Weekly, '2026-10-14 17:00:00', [['client_id' => 7004, 'client_name' => 'Cuatro SAS']]);
     $calls = mailExportAllClientsCalls($this->fakes->cartera);
 
-    $advisors = collect(array_slice(mailExportRows(mailExport($this->analyst)), 1))->pluck(6, 4)->all();
+    $advisors = collect(array_slice(mailExportRows(mailExport($this->analyst)), 1))->pluck(7, 4)->all();
 
     // Newest run first and, inside a run, newest item first.
     expect($advisors)->toBe(['Sin ficha SAS' => null, 'Dos SAS' => 'Carlos Pérez', 'Uno SAS' => 'Carlos Pérez', 'Cuatro SAS' => 'Sandra Díaz'])
@@ -323,6 +334,19 @@ it('reads the advisors with one pass over the clients of each company', function
             fn (ClientQuery $query): string => ($query->advisorCode ?? 'todos').':'.implode(',', array_map(fn (CompanyCode $company): string => $company->value, $query->companies)),
             $calls->getArrayCopy(),
         ))->toEqualCanonicalizing(['todos:SGX', 'todos:SDC']);
+});
+
+it('exports only the items of the SAP group of the filter', function () {
+    $this->fakes->cartera
+        ->addClient(Make::clientDetail(Make::client(id: 7001, group: 'Ferreterías')))
+        ->addClient(Make::clientDetail(Make::client(id: 7002, group: 'Constructoras')));
+    mailExportRun(CompanyCode::SGX, RunKind::Weekly, '2026-10-21 17:00:00', [
+        ['client_id' => 7001, 'client_name' => 'Uno SAS'], ['client_id' => 7002, 'client_name' => 'Dos SAS'], ['client_id' => 7003, 'client_name' => 'Sin ficha SAS'],
+    ]);
+
+    $rows = array_slice(mailExportRows(mailExport($this->analyst, ['grupo' => 'Ferreterías'])), 1);
+
+    expect(array_map(fn (array $row): array => [$row[4], $row[6]], $rows))->toBe([['Uno SAS', 'Ferreterías']]);
 });
 
 it('limits the export to 10 a minute per user', function () {

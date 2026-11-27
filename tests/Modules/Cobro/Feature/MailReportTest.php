@@ -261,6 +261,7 @@ it('rejects invalid filters', function (array $query, string $field) {
     'an answer other than si or no' => [['respondio' => 'tal vez'], 'respondio'],
     'a company out of scope' => [['empresa' => 'SDC'], 'empresa'],
     'an advisor the user does not see' => [['asesor' => 'SGX:99'], 'asesor'],
+    'a group no client in scope has' => [['grupo' => 'Inexistente'], 'grupo'],
 ]);
 
 it('never shows a company out of the user scope', function () {
@@ -336,18 +337,100 @@ it('filters by advisor of the company and shows each client current advisor', fu
         ->assertDontSeeText('Cliente de Sandra SAS');
 });
 
-it('asks Core for the advisor clients once per request', function () {
+it('reads the clients from Core with one pass per company in scope, whatever the filters', function () {
     $carlos = Make::advisor(code: 12, name: 'Carlos Pérez');
-    $this->fakes->cartera->addAdvisor($carlos)->addClient(Make::clientDetail(Make::client(id: 7001, advisor: $carlos)));
+    $this->fakes->cartera->addAdvisor($carlos)->addClient(Make::clientDetail(Make::client(id: 7001, advisor: $carlos, group: 'Ferreterías')));
     mailReportRun(CompanyCode::SGX, RunKind::Weekly, '2026-10-21 17:00:00', [['client_id' => 7001, 'client_name' => 'Cliente de Carlos SAS'], ['client_name' => 'Otro SAS']]);
     $calls = mailReportAllClientsCalls($this->fakes->cartera);
 
-    $response = mailReport($this->analyst, ['asesor' => 'SGX:12'])->assertOk()
+    $response = mailReport($this->analyst, ['asesor' => 'SGX:12', 'grupo' => 'Ferreterías'])->assertOk()
         ->assertSeeText('Cliente de Carlos SAS')
         ->assertDontSeeText('Otro SAS');
 
     expect(mailReportMetric($response, 'sent'))->toBe('1')
-        ->and(array_map(fn (ClientQuery $query): ?int => $query->advisorCode, $calls->getArrayCopy()))->toBe([12]);
+        ->and(array_map(
+            fn (ClientQuery $query): string => ($query->advisorCode ?? 'todos').':'.($query->group ?? 'todos').':'.implode(',', array_map(fn (CompanyCode $company): string => $company->value, $query->companies)),
+            $calls->getArrayCopy(),
+        ))->toBe(['todos:todos:SGX']);
+});
+
+it('filters by the current SAP group of the client and shows it on each row', function () {
+    $this->fakes->currentCompany->switchTo(null);
+    $this->fakes->cartera
+        ->addClient(Make::clientDetail(Make::client(id: 7001, group: 'Ferreterías')))
+        ->addClient(Make::clientDetail(Make::client(id: 7002, group: 'Constructoras')))
+        ->addClient(Make::clientDetail(Make::client(id: 7004, company: CompanyCode::SDC, group: 'Ferreterías')));
+
+    mailReportRun(CompanyCode::SGX, RunKind::Weekly, '2026-10-21 17:00:00', [
+        ['client_id' => 7001, 'client_name' => 'Ferretería Uno SAS'],
+        ['client_id' => 7002, 'client_name' => 'Constructora Dos SAS'],
+        ['client_id' => 7003, 'client_name' => 'Cliente sin ficha SAS'],
+    ]);
+    mailReportRun(CompanyCode::SDC, RunKind::Weekly, '2026-10-21 17:00:00', [['client_id' => 7004, 'client_name' => 'Ferretería Cuatro SAS']]);
+
+    $all = mailReport($this->analyst)->assertOk()
+        ->assertSee('value="Constructoras"', false)
+        ->assertSee('value="Ferreterías"', false);
+    $html = (string) $all->getContent();
+    $row = fn (string $name): string => VisibleText::of(substr($html, (int) strrpos(substr($html, 0, (int) strpos($html, $name)), '<tr'), 1500));
+
+    expect($row('Ferretería Uno SAS'))->toContain('Ferretería Uno SAS Ferreterías')
+        ->and($row('Cliente sin ficha SAS'))->toContain('Cliente sin ficha SAS — —');
+
+    $ferreterias = mailReport($this->analyst, ['grupo' => 'Ferreterías'])->assertOk()
+        ->assertSeeText('Ferretería Uno SAS')
+        ->assertSeeText('Ferretería Cuatro SAS')
+        ->assertDontSeeText('Constructora Dos SAS')
+        ->assertDontSeeText('Cliente sin ficha SAS');
+
+    expect(mailReportMetric($ferreterias, 'sent'))->toBe('2');
+
+    mailReport($this->analyst, ['grupo' => 'Ferreterías', 'empresa' => 'SDC'])->assertOk()
+        ->assertSeeText('Ferretería Cuatro SAS')
+        ->assertDontSeeText('Ferretería Uno SAS');
+});
+
+it('counts the mails followed by a commitment of the client within 7 days and shows the first one', function () {
+    [$soon, $late, $before, $bounced, $failed, $twice] = mailReportRun(CompanyCode::SGX, RunKind::Weekly, '2026-10-14 17:00:00', [
+        ['client_id' => 9001, 'client_name' => 'Pronto SAS'],
+        ['client_id' => 9002, 'client_name' => 'Tarde SAS'],
+        ['client_id' => 9003, 'client_name' => 'Antes SAS'],
+        ['client_id' => 9004, 'client_name' => 'Rebotado SAS', 'status' => ItemStatus::Bounced],
+        ['client_id' => 9005, 'client_name' => 'Fallido SAS', 'status' => ItemStatus::Failed],
+        ['client_id' => 9006, 'client_name' => 'Dos veces SAS'],
+    ]);
+    $at = fn (string $moment): CarbonImmutable => CarbonImmutable::parse($moment, 'America/Bogota');
+    $this->fakes->compromisos->add(
+        Make::commitment(clientId: 9001, createdAt: $at('2026-10-16 10:15:00')),
+        // Exactly 7 days after the send (17:01): outside the window.
+        Make::commitment(clientId: 9002, createdAt: $at('2026-10-21 17:01:00')),
+        Make::commitment(clientId: 9003, createdAt: $at('2026-10-14 16:59:00')),
+        Make::commitment(clientId: 9004, createdAt: $at('2026-10-15 08:00:00')),
+        Make::commitment(clientId: 9005, createdAt: $at('2026-10-15 08:00:00')),
+        Make::commitment(clientId: 9006, createdAt: $at('2026-10-20 09:00:00')),
+        Make::commitment(clientId: 9006, createdAt: $at('2026-10-15 11:30:00')),
+    );
+
+    $response = mailReport($this->analyst)->assertOk();
+    $html = (string) $response->getContent();
+    $row = fn (RunItem $item): string => VisibleText::of(substr($html, (int) strpos($html, '>', (int) strpos($html, 'data-item="'.$item->id.'"')) + 1, 2500));
+
+    // Mailed: enviado and rebotado (5); with a commitment in the 7 days after the send: Pronto, Rebotado and Dos veces.
+    expect(mailReportMetric($response, 'commitments'))->toBe('3')
+        ->and(mailReportMetric($response, 'commitment_rate'))->toBe('60 %')
+        ->and($row($soon))->toContain('Sin respuesta 16/10/2026 10:15')
+        ->and($row($twice))->toContain('Sin respuesta 15/10/2026 11:30')
+        ->and($row($late))->toContain('Sin respuesta —')
+        ->and($row($before))->toContain('Sin respuesta —')
+        ->and($row($failed))->toContain('Sin respuesta —')
+        ->and($row($bounced))->toContain('Sin respuesta 15/10/2026 08:00');
+});
+
+it('shows no commitments and a dash for their rate without mails', function () {
+    $response = mailReport($this->analyst)->assertOk();
+
+    expect(mailReportMetric($response, 'commitments'))->toBe('0')
+        ->and(mailReportMetric($response, 'commitment_rate'))->toBe('—');
 });
 
 it('filters by kind of mail and by status', function () {
@@ -401,7 +484,7 @@ it('shows each item with its run, amount, invoices, send and first reply', funct
     $html = (string) mailReport($this->analyst)->assertOk()->getContent();
     $row = fn (RunItem $item): string => VisibleText::of(substr($html, (int) strpos($html, '>', (int) strpos($html, 'data-item="'.$item->id.'"')) + 1, 2500));
 
-    expect($row($item))->toStartWith('21/10/2026 SGX Cobro semanal CL-0042 Ferretería El Tornillo SAS — Enviado $ 2.345.678 3 21/10/2026 17:00 21/10/2026 19:30')
+    expect($row($item))->toStartWith('21/10/2026 SGX Cobro semanal CL-0042 Ferretería El Tornillo SAS — — Enviado $ 2.345.678 3 21/10/2026 17:00 21/10/2026 19:30 —')
         ->and($row($silent))->toContain('Sin respuesta');
 });
 
