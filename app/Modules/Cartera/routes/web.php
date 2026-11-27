@@ -5,6 +5,7 @@
 // Route::get('/', ...)->name('tablero') is GET /cartera named cartera.tablero.
 
 use App\Modules\Cartera\Http\Controllers\AssignManagerController;
+use App\Modules\Cartera\Http\Controllers\CallController;
 use App\Modules\Cartera\Http\Controllers\ClientFileController;
 use App\Modules\Cartera\Http\Controllers\ClientFileExportController;
 use App\Modules\Cartera\Http\Controllers\ClientListController;
@@ -39,11 +40,17 @@ Route::middleware(['auth', 'can:cartera.view'])->group(function () {
         Route::post('clientes/{client}/gestor', 'single')->whereNumber('client')->name('clientes.gestor');
     });
 
-    // Calls, notes and discounts offered: cartera.manage.
+    // Notes and discounts offered: cartera.manage.
     Route::post('clientes/{client}/gestiones', StoreManagementController::class)
         ->whereNumber('client')
         ->middleware('can:cartera.manage')
         ->name('gestiones.store');
+
+    // Calls to the client, with their invoices and follow-up: cartera.manage.
+    Route::post('clientes/{client}/llamadas', CallController::class)
+        ->whereNumber('client')
+        ->middleware('can:cartera.manage')
+        ->name('llamadas.store');
 
     // Excel exports of the client list and of one client file: cartera.export,
     // 10 a minute per user (cartera-exports, CarteraServiceProvider).

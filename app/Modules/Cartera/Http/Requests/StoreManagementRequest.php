@@ -2,21 +2,21 @@
 
 namespace App\Modules\Cartera\Http\Requests;
 
-use App\Modules\Cartera\Domain\Management\CallResult;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 
 /**
  * POST /cartera/clientes/{client}/gestiones: one entry of the client's log,
- * of the kind named by "tipo" (llamada, nota or descuento).
+ * of the kind named by "tipo" (nota or descuento). Calls have their own
+ * request (StoreCallRequest).
  *
- * Each kind's fields are nested under its own name (llamada[resultado],
- * nota[detalle], descuento[valor]) so the three forms of the client file can
- * share one page without sharing old input or error messages.
+ * Each kind's fields are nested under its own name (nota[detalle],
+ * descuento[valor]) so the forms of the client file can share one page
+ * without sharing old input or error messages.
  */
 final class StoreManagementRequest extends FormRequest
 {
-    public const array KINDS = ['llamada', 'nota', 'descuento'];
+    public const array KINDS = ['nota', 'descuento'];
 
     /**
      * @return array<string, list<mixed>>
@@ -26,10 +26,6 @@ final class StoreManagementRequest extends FormRequest
         $rules = ['tipo' => ['required', Rule::in(self::KINDS)]];
 
         return $rules + match ($this->input('tipo')) {
-            'llamada' => [
-                'llamada.resultado' => ['required', Rule::enum(CallResult::class)],
-                'llamada.detalle' => ['nullable', 'string', 'max:2000'],
-            ],
             'nota' => [
                 'nota.detalle' => ['required', 'string', 'max:2000'],
             ],
@@ -48,8 +44,6 @@ final class StoreManagementRequest extends FormRequest
     {
         return [
             'tipo' => 'tipo de gestión',
-            'llamada.resultado' => 'resultado',
-            'llamada.detalle' => 'detalle',
             'nota.detalle' => 'nota',
             'descuento.valor' => 'valor del descuento',
             'descuento.detalle' => 'detalle',

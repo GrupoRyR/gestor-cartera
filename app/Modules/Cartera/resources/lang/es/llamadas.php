@@ -28,6 +28,39 @@ return [
 
     'factura' => ':tipo :numero, vence :fecha, saldo :saldo',
 
+    'mensajes' => [
+        'registrada' => 'Llamada registrada.',
+    ],
+
+    'formulario' => [
+        'boton' => 'Registrar llamada',
+        'titulo' => 'Registrar llamada',
+        'ocurrio' => 'Fecha y hora',
+        'ocurrio_ayuda' => 'Cámbiala si la llamada fue antes; hasta 30 días atrás.',
+        'canal' => 'Canal',
+        'numero' => 'Número',
+        'otro_numero' => 'Otro número',
+        'telefono_ayuda' => 'Si escribes un número aquí, se guarda este y no el de la lista.',
+        'telefono_solo' => 'Número',
+        'persona' => 'Con quién hablaste',
+        'otra_persona' => 'Otra persona',
+        'contacto_ayuda' => 'Opcional. Si escribes un nombre aquí, se guarda este y no el de la lista.',
+        'resultado' => 'Resultado',
+        'elige_resultado' => 'Elige un resultado',
+        'notas' => 'Notas',
+        'notas_ayuda' => 'Qué dijo el cliente y los próximos pasos.',
+        'acuerdo' => 'Acuerdo',
+        'acuerdo_ayuda' => 'Solo si el cliente contestó.',
+        'acuerdo_ayuda_compromiso' => 'Solo si el cliente contestó. El valor y la fecha del compromiso de pago los registras aparte, en «Nuevo compromiso de pago».',
+        'seguimiento' => 'Volver a llamar el',
+        'seguimiento_ayuda' => 'Obligatorio si el resultado es «Pidió volver a llamar».',
+        'facturas' => 'Facturas de las que hablaron',
+        'facturas_ayuda' => 'Opcional. Marca las que tocaron en la llamada.',
+        'sin_facturas' => 'El cliente no tiene facturas abiertas.',
+        'cancelar' => 'Cancelar',
+        'guardar' => 'Guardar llamada',
+    ],
+
     'validacion' => [
         'futura' => 'La llamada no puede tener una fecha futura.',
         'antigua' => 'Solo puedes registrar llamadas de los últimos :dias días.',

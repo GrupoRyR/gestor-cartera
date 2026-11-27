@@ -5,27 +5,15 @@ return [
     'descripcion' => 'Deja constancia de lo que hiciste con este cliente.',
 
     'resumen' => [
-        'llamada' => 'Llamada: :resultado',
         'descuento' => 'Descuento ofrecido: :valor',
     ],
 
     'mensajes' => [
-        'llamada' => 'Llamada registrada.',
         'nota' => 'Nota registrada.',
         'descuento' => 'Descuento registrado.',
     ],
 
     'cancelar' => 'Cancelar',
-
-    'llamada' => [
-        'boton' => 'Registrar llamada',
-        'titulo' => 'Registrar llamada',
-        'resultado' => 'Resultado de la llamada',
-        'elige' => 'Elige un resultado',
-        'detalle' => 'Detalle',
-        'detalle_ayuda' => 'Con quién hablaste, qué acordaron y los próximos pasos.',
-        'guardar' => 'Guardar llamada',
-    ],
 
     'nota' => [
         'boton' => 'Agregar nota',

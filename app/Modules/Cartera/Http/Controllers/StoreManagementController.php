@@ -3,14 +3,14 @@
 namespace App\Modules\Cartera\Http\Controllers;
 
 use App\Modules\Cartera\Application\Management\LogManagement;
-use App\Modules\Cartera\Domain\Management\CallResult;
 use App\Modules\Cartera\Http\Requests\StoreManagementRequest;
 use App\Modules\Core\Contracts\Exceptions\RecordNotFound;
 use Illuminate\Http\RedirectResponse;
 
 /**
  * POST /cartera/clientes/{client}/gestiones (cartera.gestiones.store): logs a
- * call, a note or a discount offered, and goes back to the client file.
+ * note or a discount offered, and goes back to the client file. Calls have
+ * their own form (CallController).
  * A client out of the user's reach is a 404.
  */
 final class StoreManagementController
@@ -21,7 +21,6 @@ final class StoreManagementController
 
         try {
             $message = match ($data['tipo']) {
-                'llamada' => $this->call($management, $client, $data['llamada']),
                 'nota' => $this->note($management, $client, $data['nota']),
                 default => $this->discount($management, $client, $data['descuento']),
             };
@@ -30,16 +29,6 @@ final class StoreManagementController
         }
 
         return redirect()->route('cartera.clientes.show', $client)->with('status', $message);
-    }
-
-    /**
-     * @param  array{resultado: string, detalle?: string|null}  $fields
-     */
-    private function call(LogManagement $management, int $client, array $fields): string
-    {
-        $management->call($client, CallResult::from($fields['resultado']), $fields['detalle'] ?? null);
-
-        return __('cartera::gestion.mensajes.llamada');
     }
 
     /**
