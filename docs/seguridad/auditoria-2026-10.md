@@ -350,7 +350,7 @@ Levanté la app en `127.0.0.1:8123` con los seeders de demostración (SQLite tem
 
 ### Lo que revisé
 
-- **Historial completo:** 438 commits de todas las ramas (`git log -p --all`, sin lockfiles). `gitleaks` no está instalado en el equipo; usé patrones equivalentes: llaves privadas, AWS, GitHub, Slack, secretos de cliente de Entra ID (`…Q~…`), JWT, Supabase, `APP_KEY=base64:`, cadenas de conexión con contraseña y asignaciones `password|secret|token|key = valor`.
+- **Historial completo:** 438 commits de todas las ramas (`git log -p --all`, sin lockfiles). `gitleaks` no está instalado en el equipo; usé patrones equivalentes: llaves privadas, AWS, GitHub, Slack, secretos de cliente de Entra ID (`…Q~…`), JWT, Supabase, `APP_KEY=base64:`, cadenas de conexión con contraseña y asignaciones de un valor literal a variables con nombre de contraseña, secreto, token o llave.
 - **Resultado:** ningún secreto real. Las coincidencias son valores de prueba (`token-de-lectura-de-prueba`, `recorded-fixture-secret`, `k2026a-secreto-de-prueba`) o direcciones IP de ejemplo en pruebas (`10.0.0.x`).
 - **Archivos:** nunca se versionó un `.env`, `config.php` ni `onedrive-config.php` de la Fase 1; solo `.env.example` y `etl/.env.example`.
 - **`APP_DEBUG`:** `config/app.php:42` lo deja en `false` por defecto y `APP_ENV` en `production` (`:29`). Las páginas de error son genéricas.
@@ -473,7 +473,7 @@ En local, `php artisan serve` no aplica `public/.htaccess`, así que estas cabec
 
 ### Controles verificados
 
-- `AuditLogger` guarda actor, IP, navegador (truncado) y hora, valida el nombre de la acción y redacta las llaves `password|secret|token` (`app/Modules/Core/Infrastructure/DatabaseAuditLogger.php:27-32,58-69`).
+- `AuditLogger` guarda actor, IP, navegador (truncado) y hora, valida el nombre de la acción y redacta los campos cuyo nombre es de contraseña, secreto o token (`app/Modules/Core/Infrastructure/DatabaseAuditLogger.php:27-32,58-69`).
 - Quedan auditados: los rechazos de ingreso (tenant, usuario borrado, identidad distinta, inactivo), el usuario nuevo, la salida, los cambios de usuarios y roles, las acciones de liquidación, los correos de aprobación, las exportaciones de Cartera y Asesores, los informes de Comisiones, la carga manual y los cambios de plantillas, copias y exclusiones de Cobro.
 
 ### S-13 · Media · Faltan eventos en la auditoría

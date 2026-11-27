@@ -157,7 +157,7 @@ Es seguro. Lo que ya está en la app se reconoce y queda como omitido; nada se d
 - **Vacíos**: un valor vacío o `NULL` cuenta como vacío. Si el campo es obligatorio, la fila se rechaza con «campo vacío: <columna>».
 - **Fechas**: `AAAA-MM-DD`. Fechas con hora: `AAAA-MM-DD HH:MM:SS`, con o sin fracción de segundo, con o sin `T` y con o sin zona (`+00`, `+00:00` o `Z`). Una fecha con hora sin zona se toma como hora de Bogotá. Una fecha que no existe (31 de febrero) o con otro formato (`31/02/2024`) rechaza la fila. La fecha cero de MySQL (`0000-00-00` o `0000-00-00 00:00:00`) cuenta como vacía: si la fecha es obligatoria, la fila se rechaza con «fecha vacía: <columna>».
 - **Valores**: con punto decimal y sin separador de miles (`2500000.50`).
-- **Contraseñas**: nunca se leen, aunque vengan en el archivo.
+- Las **contraseñas** nunca se leen, aunque vengan en el archivo.
 
 ## Usuarios (`core:migrar-usuarios`)
 
